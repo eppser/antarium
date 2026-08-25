@@ -6,6 +6,30 @@ import SwiftUI
 /// With no id it checks every registered agent, which is the fastest way to
 /// see what is configured on a machine.
 enum Diagnostics {
+    /// Formats diagnostic tables without C varargs or a large generic
+    /// expression. Keeping each step explicit also avoids compiler-dependent
+    /// type-checker timeouts on clean CI machines.
+    static func tableRow(_ cells: [String],
+                         widths: [Int] = [18, 9, 9, 12, 8, 7, 7, 8]) -> String {
+        var columns: [String] = []
+        let fixedCount = min(cells.count, widths.count)
+        columns.reserveCapacity(cells.count)
+
+        for index in 0..<fixedCount {
+            let text = cells[index]
+            let width = widths[index]
+            if text.count < width {
+                columns.append(text + String(repeating: " ", count: width - text.count))
+            } else {
+                columns.append(text)
+            }
+        }
+        if cells.count > widths.count {
+            columns.append(contentsOf: cells[widths.count...])
+        }
+        return columns.joined(separator: " ")
+    }
+
     @MainActor
     static func runAndExit() -> Never {
         let args = CommandLine.arguments
@@ -244,25 +268,19 @@ enum Diagnostics {
             }
             // Plain Swift padding: String(format:) with %s takes a pointer into
             // an NSString temporary that is freed before the format runs.
-            func row(_ cells: [String]) -> String {
-                let widths = [18, 9, 9, 12, 8, 7, 7, 8]
-                return zip(cells, widths).map { text, w in
-                    text.count >= w ? text : text + String(repeating: " ", count: w - text.count)
-                }.joined(separator: " ") + " " + (cells.count > widths.count ? cells[widths.count] : "")
-            }
-            print(row(["NAME", "STATE", "HOST", "MODEL", "CONTEXT", "TOOLS", "COST", "RAM", "CONTEXT FILES"]))
+            print(tableRow(["NAME", "STATE", "HOST", "MODEL", "CONTEXT", "TOOLS", "COST", "RAM", "CONTEXT FILES"]))
             for r in rows {
                 let ctx = r.contextFraction.map { String(format: "%.0f%%", $0 * 100) }
                     ?? (r.contextTokens.map { "\($0 / 1000)k" } ?? "—")
                 let ram = r.rssBytes.map { String(format: "%.0fMB", Double($0) / 1_048_576) } ?? "—"
                 let chips = r.context.present.map { $0.kind.label }.joined(separator: ",")
-                print(row([r.name, r.state.label, r.hostApp ?? "—",
-                           Pricing.shortName(r.model) ?? "—",
-                           ctx,
-                           r.toolCalls.map(String.init) ?? r.turns.map { "\($0)t" } ?? "—",
-                           r.costUSD.map { Pricing.money($0) } ?? "—",
-                           ram,
-                           chips.isEmpty ? "—" : chips]))
+                print(tableRow([r.name, r.state.label, r.hostApp ?? "—",
+                                Pricing.shortName(r.model) ?? "—",
+                                ctx,
+                                r.toolCalls.map(String.init) ?? r.turns.map { "\($0)t" } ?? "—",
+                                r.costUSD.map { Pricing.money($0) } ?? "—",
+                                ram,
+                                chips.isEmpty ? "—" : chips]))
             }
             // Every descriptor-driven harness, reported whether or not one is
             // running right now, so each reader is verifiable on its own.

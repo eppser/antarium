@@ -182,6 +182,14 @@ struct CoreBehaviorTests {
         XCTAssertEqual(Fmt.count(42), "42")
     }
 
+    @Test func diagnosticTableRowsPadColumnsAndPreserveOverflow() {
+        XCTAssertEqual(Diagnostics.tableRow(["A", "BB", "tail"], widths: [3, 2]),
+                       "A   BB tail")
+        XCTAssertEqual(Diagnostics.tableRow(["long", "B"], widths: [3, 2]),
+                       "long B ")
+        XCTAssertEqual(Diagnostics.tableRow([], widths: [3, 2]), "")
+    }
+
     @Test func credentialFailuresAloneSuggestSigningIn() {
         XCTAssertTrue(ProviderError.needsAuth("x").suggestsSignIn)
         XCTAssertTrue(ProviderError.notConfigured("x").suggestsSignIn)
