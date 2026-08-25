@@ -1,7 +1,7 @@
 # Antarium
 
 [![CI](https://github.com/eppser/antarium/actions/workflows/ci.yml/badge.svg)](https://github.com/eppser/antarium/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
 Antarium is a macOS menu-bar monitor for coding-agent quota and local/cloud
 sessions. It keeps account limits separate from session telemetry: a quota bar
@@ -437,10 +437,18 @@ configured session stores, and provider credentials needed for quota requests.
 Raw credentials, prompts, transcripts, and command arguments must never be
 written to Antarium metadata or committed as fixtures.
 
+Antarium's built-in dashboard and bundled harnesses are read-only with respect
+to external work. They may focus or attach to a terminal or tmux pane, but do
+not terminate agent processes, terminal applications, tmux clients, or tmux
+sessions. Repository tests enforce both the UI boundary and the bundled-command
+allowlist.
+
 Harness files are trusted local configuration. A harness may read declared
 files or SQLite databases and may launch a declared command without a shell.
-Review third-party harnesses before installing them. See [SECURITY.md](SECURITY.md)
-for the reporting process and security model.
+That executable runs with the user's permissions and can have side effects, so
+a custom command harness is outside the bundled read-only guarantee. Review
+third-party harnesses before installing them. See [SECURITY.md](SECURITY.md) for
+the reporting process and security model.
 
 ## Distribution
 
@@ -481,3 +489,10 @@ Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and do
 not submit real account data, credentials, transcript content, or extracted
 third-party application artwork. Synthetic tests and fixtures are intentionally
 kept public because they enforce numeric integrity without exposing user data.
+
+## License
+
+Antarium is source-available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). Noncommercial use, study,
+modification, and distribution are permitted under its terms. Commercial use
+requires a separate license from the copyright holder.

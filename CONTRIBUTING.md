@@ -62,3 +62,9 @@ dist/Antarium.app/Contents/MacOS/Antarium --check path/to/harness.json
 The live `--check` result is the compatibility evidence for an installed
 upstream application; a committed synthetic fixture proves only the captured
 format and expected numbers.
+
+## Contribution license
+
+By submitting a contribution, you agree that it may be distributed under the
+project's [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use is not
+granted by that license.

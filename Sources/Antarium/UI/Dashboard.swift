@@ -406,11 +406,6 @@ private struct RowActions: View {
                 NSPasteboard.general.setString(row.cwd, forType: .string)
             }
         }
-        if let target = row.tmuxTarget {
-            Divider()
-            Button("Kill tmux Session…") { confirmKillTmux(target) }
-        }
-
         let files = row.context.present
         if !files.isEmpty {
             Divider()
@@ -420,44 +415,6 @@ private struct RowActions: View {
                 }
             }
         }
-
-        if let pid = row.pid {
-            Divider()
-            Button("Quit Agent…") { confirmQuit(pid: pid) }
-        }
-    }
-
-    /// Killing a tmux session ends every process inside it, not just the
-    /// agent, so it is always confirmed and always named.
-    private func confirmKillTmux(_ target: String) {
-        let session = Focus.tmuxSession(target)
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Kill tmux session \"\(session)\"?"
-        alert.informativeText = "Ends every process in that session, including "
-            + "\(row.coreName) and anything else running in its windows."
-        alert.addButton(withTitle: "Kill Session")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        Focus.killTmux(target)
-        AgentStore.shared.refresh()
-    }
-
-    /// SIGTERM, not SIGKILL — an agent should get the chance to finish writing
-    /// its transcript. Always confirmed: this ends someone's running work.
-    private func confirmQuit(pid: Int32) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Quit \(row.coreName)?"
-        alert.informativeText = "Sends SIGTERM to process \(pid). "
-            + "Any work in progress in that session stops."
-        alert.addButton(withTitle: "Quit Agent")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        kill(pid, SIGTERM)
-        AgentStore.shared.refresh()
     }
 }
 

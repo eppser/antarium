@@ -158,16 +158,6 @@ enum Focus {
         return Shell.run("/usr/bin/osascript", ["-e", script]) != nil
     }
 
-    /// Ends the session and every process in it.
-    @discardableResult
-    @MainActor
-    static func killTmux(_ target: String) -> Bool {
-        guard let tmux = tmuxPath() else { return false }
-        let session = tmuxSession(target)
-        guard !session.isEmpty else { return false }
-        return Shell.run(tmux, ["kill-session", "-t", session], timeout: 5) != nil
-    }
-
     private static func tmuxPath() -> String? {
         ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
             .first { FileManager.default.isExecutableFile(atPath: $0) }

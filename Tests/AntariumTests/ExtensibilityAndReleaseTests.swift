@@ -309,6 +309,64 @@ struct UIAndReleaseContractTests {
         #expect(provider.contains("Antarium can't read Claude Code's Keychain item."))
     }
 
+    @Test("The dashboard is read-only with respect to external sessions and processes")
+    func dashboardCannotTerminateExternalWork() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let dashboard = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        let focus = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/Focus.swift"), encoding: .utf8)
+
+        #expect(!dashboard.contains("Kill tmux Session"))
+        #expect(!dashboard.contains("Quit Agent"))
+        #expect(!dashboard.contains("kill(pid"))
+        #expect(!focus.contains("killTmux"))
+        #expect(!focus.contains("\"kill-session\""))
+    }
+
+    @Test("Bundled harness commands are an explicit read-only allowlist")
+    func bundledHarnessCommandsAreAudited() throws {
+        let urls = AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
+        var commands: [String] = []
+        for url in urls {
+            let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+            if descriptor.source.kind == .command, let command = descriptor.source.command {
+                commands.append("\(descriptor.id):source \(([command] + (descriptor.source.args ?? [])).joined(separator: " "))")
+            }
+            if let selection = descriptor.sessionSelection,
+               selection.kind == .command, let command = selection.command {
+                commands.append("\(descriptor.id):selection \(([command] + (selection.args ?? [])).joined(separator: " "))")
+            }
+            if let credential = descriptor.quota?.credential,
+               credential.kind == "command", let command = credential.command {
+                commands.append("\(descriptor.id):credential \(([command] + (credential.args ?? [])).joined(separator: " "))")
+            }
+        }
+
+        #expect(commands.sorted() == ["copilot:credential gh auth token"])
+    }
+
+    @Test("The public repository grants noncommercial use and no commercial license")
+    func publicLicenseIsNoncommercial() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let license = try String(contentsOf: root.appendingPathComponent("LICENSE"),
+                                 encoding: .utf8)
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"),
+                                encoding: .utf8)
+        let readmeWords = readme.split(whereSeparator: \Character.isWhitespace)
+            .joined(separator: " ")
+
+        #expect(license.hasPrefix("# PolyForm Noncommercial License 1.0.0"))
+        #expect(license.contains("Required Notice: Copyright 2026 eppser"))
+        #expect(license.contains("Any noncommercial purpose is a permitted purpose."))
+        #expect(!license.contains("MIT License"))
+        #expect(readme.contains("PolyForm Noncommercial 1.0.0"))
+        #expect(readmeWords.contains("Commercial use requires a separate license"))
+    }
+
     @Test("Release automation is syntax-valid and supports signed notarized archives")
     func releasePipelineContract() throws {
         let root = URL(fileURLWithPath: #filePath)

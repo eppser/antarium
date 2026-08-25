@@ -21,6 +21,9 @@ Antarium is a local macOS application. It reads configured process and session
 evidence and may use credentials already stored by supported providers to make
 their quota requests. It does not need credentials committed to this repository.
 
+The built-in dashboard has no action that terminates an external process or
+tmux session. Bundled harness commands are covered by an explicit test allowlist.
+
 Harness descriptors are trusted local configuration, not a sandbox boundary.
 Depending on their declared source, they can read files or SQLite databases,
 make a quota request, or launch an argv command directly without a shell. Review
