@@ -113,6 +113,31 @@ struct ExtensibilityAndReleaseTests {
                                         name: "node", argv0: "/opt/agent-cli", rss: 0)))
     }
 
+    @Test("The bundled Codex harness recognizes npm installations on either Mac architecture")
+    func bundledCodexRecognizesNPMInstallations() throws {
+        let url = try #require(AppResources.bundle.url(
+            forResource: "codex", withExtension: "json", subdirectory: "harnesses"))
+        let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+
+        for path in [
+            "/opt/homebrew/lib/node_modules/@openai/codex/node_modules/"
+                + "@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex",
+            "/usr/local/lib/node_modules/@openai/codex/node_modules/"
+                + "@openai/codex-darwin-x64/vendor/x86_64-apple-darwin/bin/codex",
+            "/Users/example/.nvm/versions/node/v24/lib/node_modules/@openai/codex/node_modules/"
+                + "@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex",
+        ] {
+            #expect(descriptor.claims(.init(pid: 1, ppid: 0, path: path,
+                                            name: "codex", argv0: "codex", rss: 0)))
+        }
+
+        #expect(!descriptor.claims(.init(
+            pid: 2, ppid: 0,
+            path: "/Applications/Agent.app/Contents/Resources/CodexRuntime/"
+                + "vendor/aarch64-apple-darwin/codex/codex",
+            name: "codex", argv0: "codex", rss: 0)))
+    }
+
     @Test("Open-tab evidence can come from SQLite")
     func sqliteTabSelectionIsConfiguration() throws {
         let root = try temporaryDirectory()
