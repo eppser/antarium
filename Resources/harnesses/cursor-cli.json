@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "id": "cursor-cli",
+  "name": "Cursor CLI",
+  "process": {
+    "pathContains": ["/cursor-agent"],
+    "names": ["cursor-agent", "agent"]
+  },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/cursor-cli.json"
+  },
+  "source": {
+    "kind": "json",
+    "path": "~/.cursor/chats",
+    "glob": "*/*/meta.json"
+  },
+  "map": {
+    "cwd": "cwd",
+    "title": "title",
+    "timestamp": "updatedAtMs"
+  },
+  "presentation": { "fallbackName": "Cursor CLI" }
+}

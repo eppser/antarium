@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "id": "copilot",
+  "name": "GitHub Copilot",
+  "presentation": { "mark": "copilot" },
+  "note": "Quota only \u2014 Copilot's sessions are read through the vscode harness. The token comes from `gh auth token` rather than an environment variable, because an app launched from Finder inherits no shell. Windows without has_quota are skipped: a free plan lists a premium tier it does not have.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Quota endpoint is runtime-validated; sessions belong to the VS Code harness."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.github.com/copilot_internal/user",
+    "credential": {
+      "kind": "command",
+      "command": "gh",
+      "args": [
+        "auth",
+        "token"
+      ]
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "root": "quota_snapshots",
+      "keys": [
+        "chat",
+        "completions",
+        "premium_interactions"
+      ],
+      "percentRemaining": "percent_remaining",
+      "require": {
+        "has_quota": true
+      },
+      "resetsAt": "quota_reset_date_utc",
+      "labels": {
+        "chat": "Chat",
+        "completions": "Code",
+        "premium_interactions": "Premium"
+      }
+    },
+    "accountLabel": "copilot_plan",
+    "setupHint": "Sign in with `gh auth login`.",
+    "verified": false,
+    "signInCommand": "gh auth login"
+  }
+}

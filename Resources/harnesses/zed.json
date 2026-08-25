@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "id": "zed",
+  "name": "Zed",
+  "presentation": { "mark": "zed" },
+  "note": "Zed's live thread list is sidebar_threads in db/0-stable/db.sqlite. The obvious-looking threads/threads.db is legacy \u2014 it stopped being written and left this row reporting a conversation days stale. Only Zed's own agent is read here: threads Zed hosts over ACP belong to that agent's harness and appear there with Zed as their host, so listing them again would double-count one conversation. Model, tokens and cost are unavailable either way \u2014 the conversation body is a zstd blob, and updated_at moves when a thread is opened, not per turn.",
+  "process": { "pathContains": ["Zed.app/Contents/MacOS/zed"] },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/zed.json"
+  },
+  "detached": true,
+  "source": {
+    "kind": "sqlite",
+    "path": "~/Library/Application Support/Zed/db/0-stable/db.sqlite",
+    "query": "SELECT folder_paths, coalesce(nullif(title_override,''), nullif(title,''), 'thread'), created_at, max(updated_at, coalesce(interacted_at, updated_at)) FROM sidebar_threads WHERE coalesce(agent_id, '') = '' AND coalesce(archived, 0) = 0 AND coalesce(folder_paths, '') <> '' ORDER BY 4 DESC LIMIT 20",
+    "columns": [
+      "cwd",
+      "title",
+      "startedAt",
+      "lastActivity"
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "formatVersion": 1,
+  "id": "claude-code",
+  "name": "Claude Code",
+  "presentation": { "mark": "claude-code" },
+  "note": "Sessions are read from Claude's own live registry in ~/.claude/sessions, which reports status per pid \u2014 richer than any file map could express. What lives here is which processes count as Claude: the CLI, the copy inside Claude Desktop, and the SDK binary that ACP hosts like Zed launch. Miss one and its memory reads 0MB.",
+  "process": {
+    "pathContains": ["/claude/versions/", "/claude-code/", "claude-agent-sdk"]
+  },
+  "compatibility": {
+    "level": "declared",
+    "note": "Native live-registry reader; validate against local data with --check."
+  },
+  "source": {
+    "kind": "none",
+    "path": "~/.claude/sessions",
+    "paths": {
+      "transcripts": "~/.claude/projects"
+    }
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": ["CLAUDE.md", "AGENTS.md", ".claude/CLAUDE.md", "CONVENTIONS.md"],
+      "inherited": ["~/.claude/CLAUDE.md"]
+    },
+    "memory": {
+      "probe": "directory",
+      "project": ["~/.claude/projects/{cwdSlug}/memory"],
+      "index": "MEMORY.md"
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [".claude/skills"],
+      "inherited": ["~/.claude/skills"]
+    },
+    "mcp": {
+      "probe": "jsonObject",
+      "project": [".mcp.json", ".claude/mcp.json"],
+      "inherited": ["~/.claude/mcp.json", "~/.claude.json"],
+      "keys": ["mcpServers", "servers", "mcp_servers"]
+    },
+    "permission": {
+      "probe": "content",
+      "project": [".claude/settings.local.json", ".claude/settings.json"],
+      "inherited": ["~/.claude/settings.json"]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "files": {
+    "FixtureProject/agent-transcripts/session-42/transcript.jsonl": "{\"role\":\"user\"}\n{\"role\":\"assistant\"}\n"
+  },
+  "expected": {
+    "sessions": 1, "sessionID": "session-42", "title": "FixtureProject",
+    "inputTokens": 0, "outputTokens": 0, "cacheRead": 0, "cacheWrite": 0,
+    "contextTokens": 0, "toolCalls": 0, "turns": 2, "subAgents": 0, "costUSD": 0
+  }
+}

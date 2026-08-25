@@ -1,0 +1,51 @@
+{
+  "formatVersion": 1,
+  "id": "pi",
+  "name": "PI",
+  "process": {
+    "pathContains": ["/bin/pi", "/pi"],
+    "names": ["pi"]
+  },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/pi.json"
+  },
+  "source": {
+    "kind": "jsonl",
+    "path": "~/.pi/agent/sessions",
+    "glob": "*/*.jsonl"
+  },
+  "map": {
+    "cwd": "cwd",
+    "model": "modelId",
+    "timestamp": "timestamp",
+    "inputTokens": "message.usage.input",
+    "outputTokens": "message.usage.output",
+    "cacheRead": "message.usage.cacheRead",
+    "cacheWrite": "message.usage.cacheWrite",
+    "cost": "message.usage.cost.total",
+    "toolCalls": {
+      "path": "message.content",
+      "match": { "type": "toolCall" }
+    },
+    "turnWhere": {
+      "type": "message"
+    },
+    "contextTokens": [
+      "message.usage.input",
+      "message.usage.cacheRead",
+      "message.usage.cacheWrite"
+    ],
+    "status": {
+      "field": "message.role",
+      "working": [
+        "user",
+        "toolResult"
+      ],
+      "idle": [
+        "assistant"
+      ]
+    }
+  },
+  "note": "PI writes the user's message when a turn starts and the assistant's when it ends, so the last role is the state. Without this the row only changed once the transcript had been quiet for idleAfter seconds, which made a long turn look idle."
+}

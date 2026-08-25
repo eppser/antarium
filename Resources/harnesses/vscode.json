@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "id": "vscode",
+  "name": "VS Code (Copilot)",
+  "presentation": { "mark": "vscode" },
+  "note": "Chat lives per workspace: workspaceStorage/<hash>/chatSessions/<id>.jsonl, with the folder in a sibling workspace.json as a file:// URI. The whole conversation is one record, so the numbers come from its requests array \u2014 tokens, Copilot credits and the model are per request and are summed. Copilot's global session-store.db looked like the right source but records only some conversations and reported the wrong project. VS Code is one process for every window, so this is one row: the workspace worked on most recently.",
+  "process": { "pathContains": ["Visual Studio Code.app/Contents/MacOS/Code"] },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/vscode.json"
+  },
+  "detached": true,
+  "source": {
+    "kind": "jsonl",
+    "path": "~/Library/Application Support/Code/User/workspaceStorage",
+    "glob": "*/chatSessions/*.jsonl",
+    "manifest": {
+      "file": "../workspace.json",
+      "map": {
+        "cwd": "folder"
+      }
+    },
+    "journal": true
+  },
+  "map": {
+    "title": "v.customTitle",
+    "model": "v.requests[].modelId",
+    "timestamp": "v.requests[].responseTimestamp",
+    "inputTokens": "v.requests[].promptTokens",
+    "outputTokens": "v.requests[].completionTokens",
+    "cost": "v.requests[].copilotCredits",
+    "turns": {
+      "path": "v.requests"
+    },
+    "contextTokens": [
+      "v.requests[-1].promptTokens"
+    ],
+    "status": {
+      "whileNotEmpty": "v.pendingRequests"
+    }
+  }
+}

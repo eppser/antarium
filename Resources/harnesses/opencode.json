@@ -1,0 +1,45 @@
+{
+  "formatVersion": 1,
+  "id": "opencode",
+  "name": "opencode",
+  "process": {
+    "pathContains": ["OpenCode.app/Contents/MacOS/OpenCode", "/bin/opencode"],
+    "names": ["opencode"]
+  },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/opencode.json"
+  },
+  "source": {
+    "kind": "sqlite",
+    "path": "~/.local/share/opencode/opencode.db",
+    "query": "SELECT id, directory, title, json_extract(model,'$.id'), cost, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, time_created, time_updated FROM session WHERE parent_id IS NULL ORDER BY time_updated DESC LIMIT 40",
+    "columns": [
+      "sessionID",
+      "cwd",
+      "title",
+      "model",
+      "cost",
+      "inputTokens",
+      "outputTokens",
+      "cacheRead",
+      "cacheWrite",
+      "startedAt",
+      "lastActivity"
+    ]
+  },
+  "detached": true,
+  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id.",
+  "multiSession": true,
+  "selection": {
+    "kind": "jsonFiles",
+    "path": "~/Library/Application Support/ai.opencode.desktop",
+    "glob": "opencode.window.*.dat",
+    "records": "tabs",
+    "encodedJSON": true,
+    "id": "sessionId",
+    "filter": {
+      "type": ["session"]
+    }
+  }
+}

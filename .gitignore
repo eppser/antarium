@@ -1,0 +1,40 @@
+# Swift and release output
+.build/
+dist/
+.swiftpm/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# macOS and editor state
+.DS_Store
+*.swp
+*.tmp
+*.log
+
+# Local agent/session tooling
+.claude/
+.codex/
+.entire/
+.antarium/
+
+# Local environment and credential material
+.env
+.env.*
+!.env.example
+.secrets*
+auth.json
+credentials.json
+*.cer
+*.key
+*.p8
+*.p12
+*.pem
+*.provisionprofile
+
+# Locally extracted third-party artwork and compiled helper binaries
+Resources/marks/*.png
+tools/sources/
+tools/probe
+tools/extract-glyph

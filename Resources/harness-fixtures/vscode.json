@@ -1,0 +1,11 @@
+{
+  "files": {
+    "workspace/chatSessions/session.jsonl": "{\"kind\":0,\"v\":{\"customTitle\":\"VS Code task\",\"requests\":[{\"modelId\":\"old\",\"responseTimestamp\":1787652000000,\"promptTokens\":10,\"completionTokens\":2,\"copilotCredits\":0.125},{\"modelId\":\"new\",\"responseTimestamp\":1787652060000,\"promptTokens\":30,\"completionTokens\":4,\"copilotCredits\":0.25}],\"pendingRequests\":[]}}\n",
+    "workspace/workspace.json": "{\"folder\":\"file:///fixture/vscode\"}"
+  },
+  "expected": {
+    "sessions": 1, "cwd": "/fixture/vscode", "title": "VS Code task", "model": "new",
+    "inputTokens": 40, "outputTokens": 6, "cacheRead": 0, "cacheWrite": 0,
+    "contextTokens": 30, "toolCalls": 0, "turns": 2, "subAgents": 0, "costUSD": 0.375
+  }
+}

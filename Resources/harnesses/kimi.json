@@ -1,0 +1,47 @@
+{
+  "formatVersion": 1,
+  "id": "kimi",
+  "name": "Kimi",
+  "process": {
+    "pathContains": ["kimi-code", "/.kimi"],
+    "names": ["kimi"]
+  },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/kimi.json"
+  },
+  "source": {
+    "kind": "jsonl",
+    "path": "~/.kimi-code/sessions",
+    "glob": "*/*/agents/main/wire.jsonl",
+    "manifest": {
+      "file": "../../state.json",
+      "map": {
+        "cwd": "cwd",
+        "title": "title",
+        "subAgents": {
+          "path": "agents",
+          "match": {
+            "type": "sub"
+          }
+        }
+      }
+    }
+  },
+  "map": {
+    "model": "model",
+    "timestamp": "time",
+    "inputTokens": "usage.inputOther",
+    "outputTokens": "usage.output",
+    "cacheRead": "usage.inputCacheRead",
+    "cacheWrite": "usage.inputCacheCreation",
+    "contextTokens": [
+      "tokens"
+    ],
+    "contextWindow": "maxTokens",
+    "toolWhere": { "type": "tool.call" },
+    "turnWhere": {
+      "type": "turn.ended"
+    }
+  }
+}

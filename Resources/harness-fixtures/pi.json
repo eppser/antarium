@@ -1,0 +1,10 @@
+{
+  "files": {
+    "project/session.jsonl": "{\"cwd\":\"/fixture/pi\",\"modelId\":\"pi-model\",\"timestamp\":\"2026-08-25T13:00:00Z\",\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[],\"usage\":{\"input\":10,\"output\":0,\"cacheRead\":2,\"cacheWrite\":1,\"cost\":{\"total\":0.125}}}}\n{\"cwd\":\"/fixture/pi\",\"modelId\":\"pi-model\",\"timestamp\":\"2026-08-25T13:01:00Z\",\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\"}],\"usage\":{\"input\":5,\"output\":4,\"cacheRead\":1,\"cacheWrite\":0,\"cost\":{\"total\":0.25}}}}\n"
+  },
+  "expected": {
+    "sessions": 1, "cwd": "/fixture/pi", "model": "pi-model",
+    "inputTokens": 15, "outputTokens": 4, "cacheRead": 3, "cacheWrite": 1,
+    "contextTokens": 6, "toolCalls": 1, "turns": 2, "subAgents": 0, "costUSD": 0.375
+  }
+}

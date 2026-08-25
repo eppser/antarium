@@ -1,0 +1,26 @@
+{
+  "formatVersion": 1,
+  "id": "cursor",
+  "name": "Cursor",
+  "presentation": { "mark": "cursor", "fallbackName": "Cursor" },
+  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Cursor's free-plan response exposes no trustworthy quota limit, so sessions are shown without an invented usage bar.",
+  "process": { "pathContains": ["Cursor.app/Contents/MacOS/Cursor"] },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/cursor.json"
+  },
+  "source": {
+    "kind": "jsonl",
+    "path": "~/.cursor/projects",
+    "glob": "*/agent-transcripts/*/*.jsonl",
+    "limit": 1,
+    "pathFields": {
+      "title": { "ancestor": 3, "value": "name" },
+      "sessionID": { "ancestor": 1, "value": "name" }
+    }
+  },
+  "map": {
+    "turnWhere": {}
+  },
+  "detached": true
+}

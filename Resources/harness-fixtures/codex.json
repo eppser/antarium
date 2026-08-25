@@ -1,0 +1,11 @@
+{
+  "files": {
+    "2026/08/25/session.jsonl": "{\"timestamp\":\"2026-08-25T10:00:00Z\",\"payload\":{\"originator\":\"codex-tui\",\"session_id\":\"thread-1\",\"cwd\":\"/fixture/codex\",\"model\":\"gpt-5\",\"type\":\"task_started\"}}\n{\"timestamp\":\"2026-08-25T10:01:00Z\",\"payload\":{\"originator\":\"codex-tui\",\"session_id\":\"thread-1\",\"type\":\"custom_tool_call\",\"info\":{\"model_context_window\":200000,\"last_token_usage\":{\"input_tokens\":100,\"output_tokens\":20,\"cached_input_tokens\":40,\"cache_write_input_tokens\":5}}}}\n"
+  },
+  "expected": {
+    "sessions": 1, "sessionID": "thread-1", "cwd": "/fixture/codex", "model": "gpt-5",
+    "inputTokens": 100, "outputTokens": 20, "cacheRead": 40, "cacheWrite": 5,
+    "contextTokens": 100, "contextWindow": 200000, "toolCalls": 1, "turns": 0,
+    "subAgents": 0, "costUSD": 0
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "formatVersion": 1,
+  "id": "codex-desktop",
+  "name": "Codex Desktop",
+  "process": { "pathContains": ["ChatGPT.app/Contents/MacOS/ChatGPT"] },
+  "compatibility": {
+    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "fixture": "harness-fixtures/codex-desktop.json"
+  },
+  "source": {
+    "kind": "jsonl",
+    "path": "~/.codex/sessions",
+    "glob": "*/*/*/*.jsonl",
+    "filter": {
+      "payload.originator": [
+        "Codex Desktop"
+      ]
+    },
+    "paths": {
+      "goals": "~/.codex/goals_1.sqlite"
+    }
+  },
+  "map": {
+    "cwd": "payload.cwd",
+    "model": "payload.model",
+    "timestamp": "timestamp",
+    "inputTokens": "payload.info.last_token_usage.input_tokens",
+    "outputTokens": "payload.info.last_token_usage.output_tokens",
+    "cacheWrite": "payload.info.last_token_usage.cache_write_input_tokens",
+    "cacheRead": "payload.info.last_token_usage.cached_input_tokens",
+    "toolWhere": { "payload.type": "custom_tool_call" },
+    "status": {
+      "field": "payload.type",
+      "working": [
+        "task_started"
+      ],
+      "idle": [
+        "task_complete"
+      ]
+    },
+    "contextWindow": "payload.info.model_context_window",
+    "contextTokens": [
+      "payload.info.last_token_usage.input_tokens"
+    ],
+    "sessionID": "payload.session_id",
+    "inputIncludesCacheRead": true
+  },
+  "presentation": { "fallbackName": "Codex" },
+  "detached": true,
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": ["AGENTS.override.md", "AGENTS.md"],
+      "inherited": ["~/.codex/AGENTS.override.md", "~/.codex/AGENTS.md"]
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [".agents/skills"],
+      "inherited": ["~/.agents/skills"]
+    },
+    "mcp": {
+      "probe": "toml",
+      "project": [".codex/config.toml"],
+      "inherited": ["~/.codex/config.toml"],
+      "keys": ["mcp_servers"]
+    },
+    "permission": {
+      "probe": "toml",
+      "project": [".codex/config.toml"],
+      "inherited": ["~/.codex/config.toml"],
+      "keys": ["approval_policy", "sandbox_mode", "default_permissions", "permissions"]
+    }
+  }
+}
