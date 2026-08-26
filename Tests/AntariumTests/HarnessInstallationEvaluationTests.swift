@@ -23,7 +23,7 @@ struct HarnessInstallationEvaluationTests {
 
         for descriptor in descriptors {
             let probes = descriptor.processRule.installationProbes.orEmpty
-            #expect(probes.contains(where: \.expected),
+            #expect(probes.contains(where: { $0.expected }),
                     "\(descriptor.id) needs a positive installation probe")
             #expect(probes.contains(where: { !$0.expected }),
                     "\(descriptor.id) needs a negative collision/helper probe")
