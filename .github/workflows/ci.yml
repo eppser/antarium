@@ -35,3 +35,6 @@ jobs:
 
       - name: Verify bundled harness fixtures
         run: dist/Antarium.app/Contents/MacOS/Antarium --verify-harness-fixtures
+
+      - name: Verify documented harness installation layouts
+        run: dist/Antarium.app/Contents/MacOS/Antarium --verify-harness-installations

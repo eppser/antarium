@@ -3,8 +3,16 @@
   "id": "codex",
   "name": "ChatGPT (Codex)",
   "process": {
-    "pathContains": ["/Resources/codex"],
-    "sessionBinding": "openSourceFile"
+    "pathContains": ["/.codex/packages/standalone/", "/node_modules/@openai/codex-", "/Caskroom/codex/"],
+    "names": ["codex"],
+    "sessionBinding": "openSourceFile",
+    "installationProbes": [
+      { "method": "curl", "path": "/fixture/home/.codex/packages/standalone/releases/1.2.3-darwin-arm64/bin/codex", "name": "codex", "argv0": "codex", "expected": true, "evidence": "https://github.com/openai/codex/blob/main/README.md", "verifiedAt": "2026-08-26" },
+      { "method": "npm", "path": "/fixture/lib/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex", "name": "codex", "argv0": "codex", "expected": true, "evidence": "https://github.com/openai/codex/blob/main/README.md", "verifiedAt": "2026-08-26" },
+      { "method": "homebrew-cask", "path": "/opt/homebrew/Caskroom/codex/1.2.3/codex", "name": "codex", "argv0": "codex", "expected": true, "evidence": "https://github.com/openai/codex/blob/main/README.md", "verifiedAt": "2026-08-26" },
+      { "method": "release-binary", "path": "/fixture/custom/bin/codex", "name": "codex", "argv0": "codex", "expected": true, "evidence": "https://github.com/openai/codex/releases", "verifiedAt": "2026-08-26" },
+      { "method": "helper-collision", "path": "/Applications/ChatGPT.app/Contents/Resources/codex-app-server", "name": "codex-app-server", "argv0": "codex-app-server", "expected": false, "evidence": "https://github.com/openai/codex", "verifiedAt": "2026-08-26" }
+    ]
   },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",

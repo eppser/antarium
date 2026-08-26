@@ -3,8 +3,15 @@
   "id": "pi",
   "name": "PI",
   "process": {
-    "pathContains": ["/bin/pi", "/pi"],
-    "names": ["pi"]
+    "pathContains": ["/bin/pi", "/node_modules/@earendil-works/pi-coding-agent/", "/node_modules/@mariozechner/pi-coding-agent/"],
+    "names": ["pi"],
+    "argv0Contains": ["/@earendil-works/pi-coding-agent/", "/@mariozechner/pi-coding-agent/"],
+    "installationProbes": [
+      { "method": "npm-current", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js", "expected": true, "evidence": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/index.md", "verifiedAt": "2026-08-26" },
+      { "method": "curl", "path": "/usr/bin/node", "name": "pi", "argv0": "/fixture/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js", "expected": true, "evidence": "https://pi.dev/", "verifiedAt": "2026-08-26" },
+      { "method": "npm-legacy", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js", "expected": true, "evidence": "https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent", "verifiedAt": "2026-08-26" },
+      { "method": "name-collision", "path": "/fixture/tools/pilot", "name": "pilot", "argv0": "pilot", "expected": false, "evidence": "https://pi.dev/", "verifiedAt": "2026-08-26" }
+    ]
   },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",

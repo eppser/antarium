@@ -52,8 +52,11 @@ swift build --scratch-path /tmp/antarium-strict \
 ```
 
 For harness changes, also run the built executable with
-`--verify-harness-fixtures` and `--check` against the changed descriptor when
-the corresponding upstream application is installed.
+`--verify-harness-fixtures`, `--verify-harness-installations`, and `--check`
+against the changed descriptor when the corresponding upstream application is
+installed. A process-backed bundled harness must carry positive installation
+probes and negative collision/helper probes with synthetic paths and dated
+official evidence.
 
 ## Code review rules
 

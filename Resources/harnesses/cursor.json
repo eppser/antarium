@@ -4,7 +4,13 @@
   "name": "Cursor",
   "presentation": { "mark": "cursor", "fallbackName": "Cursor" },
   "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Cursor's free-plan response exposes no trustworthy quota limit, so sessions are shown without an invented usage bar.",
-  "process": { "pathContains": ["Cursor.app/Contents/MacOS/Cursor"] },
+  "process": {
+    "pathContains": ["Cursor.app/Contents/MacOS/Cursor"],
+    "installationProbes": [
+      { "method": "desktop-download", "path": "/Applications/Cursor.app/Contents/MacOS/Cursor", "name": "Cursor", "argv0": "Cursor", "expected": true, "evidence": "https://docs.cursor.com/get-started/installation", "verifiedAt": "2026-08-26" },
+      { "method": "desktop-helper", "path": "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper.app/Contents/MacOS/Cursor Helper", "name": "Cursor Helper", "argv0": "Cursor Helper", "expected": false, "evidence": "https://docs.cursor.com/get-started/installation", "verifiedAt": "2026-08-26" }
+    ]
+  },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/cursor.json"

@@ -2,7 +2,13 @@
   "formatVersion": 1,
   "id": "codex-desktop",
   "name": "Codex Desktop",
-  "process": { "pathContains": ["ChatGPT.app/Contents/MacOS/ChatGPT"] },
+  "process": {
+    "pathContains": ["ChatGPT.app/Contents/MacOS/ChatGPT"],
+    "installationProbes": [
+      { "method": "desktop-download", "path": "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT", "name": "ChatGPT", "argv0": "ChatGPT", "expected": true, "evidence": "https://openai.com/chatgpt/desktop/", "verifiedAt": "2026-08-26" },
+      { "method": "desktop-helper", "path": "/Applications/ChatGPT.app/Contents/Frameworks/ChatGPT Helper.app/Contents/MacOS/ChatGPT Helper", "name": "ChatGPT Helper", "argv0": "ChatGPT Helper", "expected": false, "evidence": "https://openai.com/chatgpt/desktop/", "verifiedAt": "2026-08-26" }
+    ]
+  },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/codex-desktop.json"

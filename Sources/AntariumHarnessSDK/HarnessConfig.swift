@@ -93,6 +93,14 @@ public struct HarnessConfig: Codable {
            source.kind != .json && source.kind != .jsonl {
             throw ValidationError.openSourceFileBindingNeedsFileSource
         }
+        for (index, probe) in (process?.installationProbes ?? []).enumerated() {
+            guard !probe.method.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let evidence = URL(string: probe.evidence),
+                  evidence.scheme == "https", evidence.host != nil,
+                  Self.validDay(probe.verifiedAt) else {
+                throw ValidationError.invalidInstallationProbe(index)
+            }
+        }
         if let selection {
             switch selection.kind {
             case .jsonFiles:
@@ -140,6 +148,7 @@ public struct HarnessConfig: Codable {
         case multiSessionNeedsID
         case incompleteSelection(Selection.Kind)
         case openSourceFileBindingNeedsFileSource
+        case invalidInstallationProbe(Int)
 
         public var errorDescription: String? {
             switch self {
@@ -154,8 +163,21 @@ public struct HarnessConfig: Codable {
                 return "The \(kind.rawValue) selection is missing required fields."
             case .openSourceFileBindingNeedsFileSource:
                 return "An open-source-file process binding requires a JSON or JSONL source."
+            case .invalidInstallationProbe(let index):
+                return "Installation probe \(index + 1) requires a method, HTTPS evidence, and yyyy-MM-dd verifiedAt date."
             }
         }
+    }
+
+    private static func validDay(_ value: String) -> Bool {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        guard let date = formatter.date(from: value) else { return false }
+        return formatter.string(from: date) == value
     }
 
     public struct ProcessRule: Codable {
@@ -163,18 +185,44 @@ public struct HarnessConfig: Codable {
             case openSourceFile
         }
 
+        /// A portable process-table fixture proving one documented install
+        /// layout against Antarium's production matcher.
+        public struct InstallationProbe: Codable {
+            public var method: String
+            public var path: String
+            public var name: String
+            public var argv0: String
+            public var expected: Bool
+            public var evidence: String
+            public var verifiedAt: String
+
+            public init(method: String, path: String, name: String, argv0: String,
+                        expected: Bool, evidence: String, verifiedAt: String) {
+                self.method = method
+                self.path = path
+                self.name = name
+                self.argv0 = argv0
+                self.expected = expected
+                self.evidence = evidence
+                self.verifiedAt = verifiedAt
+            }
+        }
+
         public var pathContains: [String]?
         public var names: [String]?
         public var argv0Contains: [String]?
         public var sessionBinding: SessionBinding?
+        public var installationProbes: [InstallationProbe]?
 
         public init(pathContains: [String] = [], names: [String] = [],
                     argv0Contains: [String] = [],
-                    sessionBinding: SessionBinding? = nil) {
+                    sessionBinding: SessionBinding? = nil,
+                    installationProbes: [InstallationProbe] = []) {
             self.pathContains = pathContains.isEmpty ? nil : pathContains
             self.names = names.isEmpty ? nil : names
             self.argv0Contains = argv0Contains.isEmpty ? nil : argv0Contains
             self.sessionBinding = sessionBinding
+            self.installationProbes = installationProbes.isEmpty ? nil : installationProbes
         }
     }
 

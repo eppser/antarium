@@ -134,6 +134,33 @@ enum HarnessDocument {
                     "process.sessionBinding openSourceFile requires a JSON or JSONL source")
             }
         }
+        if let process = object["process"] as? [String: Any],
+           let rawProbes = process["installationProbes"] {
+            guard let probes = rawProbes as? [[String: Any]] else {
+                throw Error.semantic("process.installationProbes must be an array")
+            }
+            for (index, probe) in probes.enumerated() {
+                let prefix = "process.installationProbes[\(index)]."
+                for key in ["method", "path", "name", "argv0", "evidence", "verifiedAt"] {
+                    guard probe[key] is String else {
+                        throw Error.semantic("\(prefix)\(key) is required")
+                    }
+                }
+                guard probe["expected"] is Bool else {
+                    throw Error.semantic("\(prefix)expected is required and must be boolean")
+                }
+                let method = probe["method"] as? String ?? ""
+                let evidenceText = probe["evidence"] as? String ?? ""
+                let verifiedAt = probe["verifiedAt"] as? String ?? ""
+                guard !method.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      let evidence = URL(string: evidenceText),
+                      evidence.scheme == "https", evidence.host != nil,
+                      validDay(verifiedAt) else {
+                    throw Error.semantic(
+                        "\(prefix) requires a method, HTTPS evidence, and yyyy-MM-dd verifiedAt date")
+                }
+            }
+        }
         if kind == "json" || kind == "jsonl" {
             try requireText("glob", in: source, at: "source.")
         } else if kind == "sqlite" {
@@ -174,5 +201,16 @@ enum HarnessDocument {
             try requireText("verifiedAt", in: compatibility, at: "compatibility.")
             try requireText("fixture", in: compatibility, at: "compatibility.")
         }
+    }
+
+    private static func validDay(_ value: String) -> Bool {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        guard let date = formatter.date(from: value) else { return false }
+        return formatter.string(from: date) == value
     }
 }

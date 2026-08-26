@@ -4,7 +4,13 @@
   "name": "VS Code (Copilot)",
   "presentation": { "mark": "vscode" },
   "note": "Chat lives per workspace: workspaceStorage/<hash>/chatSessions/<id>.jsonl, with the folder in a sibling workspace.json as a file:// URI. The whole conversation is one record, so the numbers come from its requests array \u2014 tokens, Copilot credits and the model are per request and are summed. Copilot's global session-store.db looked like the right source but records only some conversations and reported the wrong project. VS Code is one process for every window, so this is one row: the workspace worked on most recently.",
-  "process": { "pathContains": ["Visual Studio Code.app/Contents/MacOS/Code"] },
+  "process": {
+    "pathContains": ["Visual Studio Code.app/Contents/MacOS/Code"],
+    "installationProbes": [
+      { "method": "dmg", "path": "/Applications/Visual Studio Code.app/Contents/MacOS/Code", "name": "Code", "argv0": "Code", "expected": true, "evidence": "https://code.visualstudio.com/docs/setup/mac", "verifiedAt": "2026-08-26" },
+      { "method": "desktop-helper", "path": "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper", "name": "Code Helper", "argv0": "Code Helper", "expected": false, "evidence": "https://code.visualstudio.com/docs/setup/mac", "verifiedAt": "2026-08-26" }
+    ]
+  },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/vscode.json"

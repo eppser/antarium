@@ -61,4 +61,33 @@ enum HarnessCLI {
         }
         return failures == 0 ? 0 : 1
     }
+
+    /// Deterministically checks every declared install layout without running
+    /// an installer. Each harness owns its evidence matrix in JSON; this code
+    /// remains generic when a new package manager or harness is added.
+    static func verifyBundledInstallations() -> Int32 {
+        let descriptors = (AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses") ?? [])
+            .compactMap { url in
+                (try? Data(contentsOf: url)).flatMap {
+                    try? HarnessDocument.decode($0).descriptor
+                }
+            }
+            .filter {
+                !($0.processRule.pathContains ?? []).isEmpty
+                    || !($0.processRule.names ?? []).isEmpty
+                    || !($0.processRule.argv0Contains ?? []).isEmpty
+            }
+            .sorted { $0.id < $1.id }
+
+        var failures = 0
+        for descriptor in descriptors {
+            let report = HarnessInstallationEvaluator.evaluate(descriptor)
+            let passed = report.failures.isEmpty && report.total > 0
+            print("\(passed ? "✓" : "✗") \(descriptor.id): \(report.passed)/\(report.total) probes"
+                + (report.failures.isEmpty ? "" : " — \(report.failures.joined(separator: "; "))"))
+            if !passed { failures += 1 }
+        }
+        return failures == 0 ? 0 : 1
+    }
 }

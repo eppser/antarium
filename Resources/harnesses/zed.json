@@ -4,7 +4,15 @@
   "name": "Zed",
   "presentation": { "mark": "zed" },
   "note": "Zed's live thread list is sidebar_threads in db/0-stable/db.sqlite. The obvious-looking threads/threads.db is legacy \u2014 it stopped being written and left this row reporting a conversation days stale. Only Zed's own agent is read here: threads Zed hosts over ACP belong to that agent's harness and appear there with Zed as their host, so listing them again would double-count one conversation. Model, tokens and cost are unavailable either way \u2014 the conversation body is a zstd blob, and updated_at moves when a thread is opened, not per turn.",
-  "process": { "pathContains": ["Zed.app/Contents/MacOS/zed"] },
+  "process": {
+    "pathContains": ["Zed.app/Contents/MacOS/zed", "Zed Preview.app/Contents/MacOS/zed"],
+    "installationProbes": [
+      { "method": "desktop-download", "path": "/Applications/Zed.app/Contents/MacOS/zed", "name": "zed", "argv0": "zed", "expected": true, "evidence": "https://zed.dev/docs/installation", "verifiedAt": "2026-08-26" },
+      { "method": "homebrew-cask", "path": "/Applications/Zed.app/Contents/MacOS/zed", "name": "zed", "argv0": "zed", "expected": true, "evidence": "https://zed.dev/docs/installation", "verifiedAt": "2026-08-26" },
+      { "method": "preview-cask", "path": "/Applications/Zed Preview.app/Contents/MacOS/zed", "name": "zed", "argv0": "zed", "expected": true, "evidence": "https://zed.dev/docs/installation", "verifiedAt": "2026-08-26" },
+      { "method": "desktop-helper", "path": "/Applications/Zed.app/Contents/Frameworks/Zed Helper.app/Contents/MacOS/Zed Helper", "name": "Zed Helper", "argv0": "Zed Helper", "expected": false, "evidence": "https://zed.dev/docs/installation", "verifiedAt": "2026-08-26" }
+    ]
+  },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/zed.json"

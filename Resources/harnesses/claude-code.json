@@ -5,7 +5,14 @@
   "presentation": { "mark": "claude-code" },
   "note": "Sessions are read from Claude's own live registry in ~/.claude/sessions, which reports status per pid \u2014 richer than any file map could express. What lives here is which processes count as Claude: the CLI, the copy inside Claude Desktop, and the SDK binary that ACP hosts like Zed launch. Miss one and its memory reads 0MB.",
   "process": {
-    "pathContains": ["/claude/versions/", "/claude-code/", "claude-agent-sdk"]
+    "pathContains": ["/claude/versions/", "/claude-code/", "claude-agent-sdk"],
+    "argv0Contains": ["/@anthropic-ai/claude-code/"],
+    "installationProbes": [
+      { "method": "native-installer", "path": "/fixture/home/.local/share/claude/versions/2.1.0", "name": "2.1.0", "argv0": "claude", "expected": true, "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started", "verifiedAt": "2026-08-26" },
+      { "method": "npm", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@anthropic-ai/claude-code/cli.js", "expected": true, "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started", "verifiedAt": "2026-08-26" },
+      { "method": "sdk-host", "path": "/fixture/cache/claude-agent-sdk/claude", "name": "claude", "argv0": "claude", "expected": true, "evidence": "https://github.com/anthropics/claude-agent-sdk-python", "verifiedAt": "2026-08-26" },
+      { "method": "name-collision", "path": "/fixture/tools/claude-helper", "name": "claude-helper", "argv0": "claude-helper", "expected": false, "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started", "verifiedAt": "2026-08-26" }
+    ]
   },
   "compatibility": {
     "level": "declared",

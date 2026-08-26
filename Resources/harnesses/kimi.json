@@ -4,7 +4,13 @@
   "name": "Kimi",
   "process": {
     "pathContains": ["kimi-code", "/.kimi"],
-    "names": ["kimi"]
+    "names": ["kimi"],
+    "argv0Contains": ["/@moonshot-ai/kimi-code/"],
+    "installationProbes": [
+      { "method": "curl", "path": "/fixture/home/.kimi-code/bin/kimi", "name": "kimi", "argv0": "kimi", "expected": true, "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md", "verifiedAt": "2026-08-26" },
+      { "method": "npm", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@moonshot-ai/kimi-code/bin/kimi.js", "expected": true, "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md", "verifiedAt": "2026-08-26" },
+      { "method": "name-collision", "path": "/fixture/tools/kimiko", "name": "kimiko", "argv0": "kimiko", "expected": false, "evidence": "https://github.com/MoonshotAI/kimi-code", "verifiedAt": "2026-08-26" }
+    ]
   },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",

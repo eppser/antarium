@@ -167,6 +167,40 @@ the matching JSON/JSONL source file it actually holds open. Processes with the
 same working directory remain distinct, and helpers without a session file do
 not become rows.
 
+Installation recognition is evaluated from the same `process` block. Each
+`installationProbes` entry is a synthetic process-table observation, its
+expected result, and dated upstream evidence. This tests npm, curl/native,
+Homebrew, app-bundle, version-manager, and interpreter layouts without running
+installers or depending on what happens to be installed on the CI machine:
+
+```json
+"installationProbes": [
+  {
+    "method": "npm",
+    "path": "/usr/bin/node",
+    "name": "node",
+    "argv0": "/fixture/lib/node_modules/@vendor/my-agent/cli.js",
+    "expected": true,
+    "evidence": "https://vendor.example/docs/install",
+    "verifiedAt": "2026-08-26"
+  },
+  {
+    "method": "helper-collision",
+    "path": "/Applications/My Agent.app/Contents/Frameworks/My Agent Helper",
+    "name": "My Agent Helper",
+    "argv0": "My Agent Helper",
+    "expected": false,
+    "evidence": "https://vendor.example/docs/install",
+    "verifiedAt": "2026-08-26"
+  }
+]
+```
+
+Probes do not add runtime matching behavior. They execute the production
+matcher as an eval, so a new install method requires a corresponding declarative
+rule and a negative collision/helper example. Paths must be portable synthetic
+fixtures and evidence must be an official HTTPS source.
+
 ### Folder-derived metadata
 
 If metadata is encoded in directory names, declare it instead of adding a
@@ -315,10 +349,21 @@ var source = HarnessConfig.Source(
     glob: "*.jsonl")
 source.limit = 20
 
+let npmProbe = HarnessConfig.ProcessRule.InstallationProbe(
+    method: "npm",
+    path: "/usr/bin/node",
+    name: "node",
+    argv0: "/fixture/lib/node_modules/@vendor/my-agent/cli.js",
+    expected: true,
+    evidence: "https://vendor.example/docs/install",
+    verifiedAt: "2026-08-26")
+
 var harness = HarnessConfig(
     id: "my-agent",
     name: "My Agent",
-    process: .init(pathContains: ["/bin/my-agent"], names: ["my-agent"]),
+    process: .init(pathContains: ["/bin/my-agent"], names: ["my-agent"],
+                   argv0Contains: ["/@vendor/my-agent/"],
+                   installationProbes: [npmProbe]),
     source: source,
     map: .init(cwd: "cwd", model: "model", sessionID: "id"))
 harness.capabilities = [
@@ -362,6 +407,7 @@ reported session number exactly:
 
 ```bash
 $BIN --verify-harness-fixtures
+$BIN --verify-harness-installations # synthetic process/install matrix
 $BIN --evaluate-harness my-agent.json   # exact JSON work/session metrics
 ```
 
@@ -484,6 +530,7 @@ $BIN --once                    # quota providers and errors
 $BIN --once claude-code        # one provider
 $BIN --preview /tmp/sheet.png  # light/dark rendering sheet
 $BIN --verify-harness-fixtures # deterministic bundled compatibility suite
+$BIN --verify-harness-installations # documented install/process evals
 ```
 
 Logs default to warnings at `~/.antarium/logs/antarium.log`. Set

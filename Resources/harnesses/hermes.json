@@ -2,7 +2,16 @@
   "formatVersion": 1,
   "id": "hermes",
   "name": "Hermes",
-  "process": { "pathContains": ["/.hermes/"] },
+  "process": {
+    "pathContains": ["/.hermes/", "/hermes-agent/"],
+    "names": ["hermes", "hermes-agent"],
+    "installationProbes": [
+      { "method": "curl-user", "path": "/fixture/home/.hermes/hermes-agent/venv/bin/python", "name": "hermes", "argv0": "/fixture/home/.hermes/hermes-agent/venv/bin/hermes", "expected": true, "evidence": "https://github.com/NousResearch/hermes-agent", "verifiedAt": "2026-08-26" },
+      { "method": "curl-system", "path": "/usr/local/lib/hermes-agent/venv/bin/python", "name": "hermes", "argv0": "/usr/local/bin/hermes", "expected": true, "evidence": "https://github.com/NousResearch/hermes-agent", "verifiedAt": "2026-08-26" },
+      { "method": "nix", "path": "/nix/store/fixture-hermes-agent/bin/hermes", "name": "hermes", "argv0": "hermes", "expected": true, "evidence": "https://github.com/NousResearch/hermes-agent", "verifiedAt": "2026-08-26" },
+      { "method": "name-collision", "path": "/fixture/tools/hermes-helper", "name": "hermes-helper", "argv0": "hermes-helper", "expected": false, "evidence": "https://github.com/NousResearch/hermes-agent", "verifiedAt": "2026-08-26" }
+    ]
+  },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/hermes.json"

@@ -20,7 +20,8 @@ enum HarnessCheck {
              "idleAfter", "staleAfter", "fallbackName", "mark", "note", "detached",
              "multiSession", "openTabsOnly",
              "enabled", "presentation", "compatibility"],
-        "process": ["pathContains", "names", "argv0Contains", "sessionBinding"],
+        "process": ["pathContains", "names", "argv0Contains", "sessionBinding",
+                    "installationProbes"],
         "presentation": ["mark", "fallbackName", "sourceLabel"],
         "compatibility": ["level", "verifiedAt", "agentVersions", "fixture", "note"],
         "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",
@@ -74,6 +75,17 @@ enum HarnessCheck {
 
         for (path, allowed) in known {
             if let value = container(path) { check(path, value, allowed: allowed) }
+        }
+
+        let installationProbeFields: Set<String> = [
+            "method", "path", "name", "argv0", "expected", "evidence", "verifiedAt",
+        ]
+        if let process = object["process"] as? [String: Any],
+           let probes = process["installationProbes"] as? [[String: Any]] {
+            for (index, probe) in probes.enumerated() {
+                check("process.installationProbes[\(index)]", probe,
+                      allowed: installationProbeFields)
+            }
         }
 
         let capabilityFields: Set<String> = ["probe", "project", "inherited", "index", "keys"]

@@ -71,6 +71,10 @@ MainActor.assumeIsolated {
         exit(HarnessCLI.verifyBundledFixtures())
     }
 
+    if CommandLine.arguments.contains("--verify-harness-installations") {
+        exit(HarnessCLI.verifyBundledInstallations())
+    }
+
     if let i = CommandLine.arguments.firstIndex(of: "--settings"),
        i + 1 < CommandLine.arguments.count {
         exit(Diagnostics.writeThemeSheet(SettingsView(model: SettingsModel()),

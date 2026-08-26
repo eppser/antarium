@@ -4,7 +4,14 @@
   "name": "opencode",
   "process": {
     "pathContains": ["OpenCode.app/Contents/MacOS/OpenCode", "/bin/opencode"],
-    "names": ["opencode"]
+    "names": ["opencode"],
+    "installationProbes": [
+      { "method": "curl", "path": "/fixture/home/.opencode/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
+      { "method": "npm", "path": "/fixture/lib/node_modules/opencode-ai/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
+      { "method": "homebrew", "path": "/opt/homebrew/Cellar/opencode/1.2.3/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
+      { "method": "desktop", "path": "/Applications/OpenCode.app/Contents/MacOS/OpenCode", "name": "OpenCode", "argv0": "OpenCode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
+      { "method": "desktop-helper", "path": "/Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper", "name": "OpenCode Helper", "argv0": "OpenCode Helper", "expected": false, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" }
+    ]
   },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",

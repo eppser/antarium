@@ -27,17 +27,32 @@ struct HarnessDescriptor: Codable {
     struct ProcessRule: Codable {
         enum SessionBinding: String, Codable { case openSourceFile }
 
+        /// A synthetic process observation tied to documented installation
+        /// evidence. Probes are evaluated by diagnostics and tests through the
+        /// production matcher; they never cause a process to be claimed.
+        struct InstallationProbe: Codable {
+            let method: String
+            let path: String
+            let name: String
+            let argv0: String
+            let expected: Bool
+            let evidence: String
+            let verifiedAt: String
+        }
+
         var pathContains: [String]?
         var names: [String]?
         var argv0Contains: [String]?
         var sessionBinding: SessionBinding?
+        var installationProbes: [InstallationProbe]?
     }
 
     var processRule: ProcessRule {
         ProcessRule(pathContains: Array(Set(match + (process?.pathContains ?? []))).sorted(),
                     names: processNames,
                     argv0Contains: process?.argv0Contains ?? [],
-                    sessionBinding: process?.sessionBinding)
+                    sessionBinding: process?.sessionBinding,
+                    installationProbes: process?.installationProbes)
     }
 
     /// True when this descriptor claims a process — by executable path, by
