@@ -375,6 +375,24 @@ enum HarnessEngine {
         return all.allSatisfy { $0.cwd == nil } ? all.first : nil
     }
 
+    /// The session file a process itself has open. This is stronger evidence
+    /// than a shared working directory: several agents may work in the same
+    /// checkout, while each process owns a different append-only transcript.
+    static func session(_ descriptor: HarnessDescriptor,
+                        boundToOpenFiles paths: [String]) -> Session? {
+        guard descriptor.processRule.sessionBinding == .openSourceFile,
+              let glob = descriptor.source.glob else { return nil }
+        let root = URL(fileURLWithPath: descriptor.source.path.expandingTilde)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let candidates = paths.prefix(1_024).compactMap { path -> URL? in
+            let url = URL(fileURLWithPath: path).standardizedFileURL
+                .resolvingSymlinksInPath()
+            return sourceFile(url, isUnder: root, matching: glob) ? url : nil
+        }
+        return readFiles(descriptor, candidates)
+            .max { ($0.lastActivity ?? .distantPast) < ($1.lastActivity ?? .distantPast) }
+    }
+
     // MARK: - Inspection, for `--check`
 
     /// A handful of real records from whatever this descriptor points at, so
@@ -651,6 +669,31 @@ enum HarnessEngine {
             if level.isEmpty { break }
         }
         return level
+    }
+
+    /// Applies a source glob to an already-known absolute file without walking
+    /// the source tree. `**` spans path components; `*` keeps the same bounded
+    /// component semantics as the normal source collector.
+    private static func sourceFile(_ file: URL, isUnder root: URL,
+                                   matching glob: String) -> Bool {
+        let rootParts = root.pathComponents
+        let fileParts = file.pathComponents
+        guard fileParts.count > rootParts.count,
+              fileParts.starts(with: rootParts) else { return false }
+        let relative = Array(fileParts.dropFirst(rootParts.count))
+        let pattern = glob.split(separator: "/").map(String.init)
+        return matchesPath(relative[...], pattern[...])
+    }
+
+    private static func matchesPath(_ path: ArraySlice<String>,
+                                    _ pattern: ArraySlice<String>) -> Bool {
+        guard let wanted = pattern.first else { return path.isEmpty }
+        if wanted == "**" {
+            return matchesPath(path, pattern.dropFirst())
+                || (!path.isEmpty && matchesPath(path.dropFirst(), pattern))
+        }
+        guard let component = path.first, matches(component, wanted) else { return false }
+        return matchesPath(path.dropFirst(), pattern.dropFirst())
     }
 
     private static func matches(_ name: String, _ pattern: String) -> Bool {

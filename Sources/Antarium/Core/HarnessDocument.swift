@@ -124,6 +124,16 @@ enum HarnessDocument {
         guard source["path"] is String else {
             throw Error.semantic("source.path is required (use an empty string for none/command)")
         }
+        if let process = object["process"] as? [String: Any],
+           let binding = process["sessionBinding"] as? String {
+            guard binding == "openSourceFile" else {
+                throw Error.semantic("process.sessionBinding is not supported")
+            }
+            guard kind == "json" || kind == "jsonl" else {
+                throw Error.semantic(
+                    "process.sessionBinding openSourceFile requires a JSON or JSONL source")
+            }
+        }
         if kind == "json" || kind == "jsonl" {
             try requireText("glob", in: source, at: "source.")
         } else if kind == "sqlite" {

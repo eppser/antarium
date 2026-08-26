@@ -19,7 +19,7 @@ collection mechanisms; the harness supplies agent-specific facts.
 
 | Concern | Harness configuration |
 |---|---|
-| Process recognition | `process.pathContains`, exact `names`, and `argv0Contains` |
+| Process recognition | `process.pathContains`, exact `names`, `argv0Contains`, and optional source-file binding |
 | Session source | JSON, JSONL, SQLite, command, or none |
 | Files and folders | `path`, `glob`, `limit`, `paths`, `pathFields`, `manifest` |
 | Record meaning | `map` fields, filters, status values, token semantics |
@@ -160,6 +160,12 @@ Every source fingerprint contains the complete descriptor, matched filenames,
 file size/mtime/inode facts, manifests, and SQLite `-wal`/`-shm` sidecars.
 Editing a mapping, changing a manifest, deleting an older file, or committing a
 WAL write therefore invalidates the right cache.
+
+When several agent processes can work in the same directory, declare
+`process.sessionBinding: "openSourceFile"`. Antarium then binds each process to
+the matching JSON/JSONL source file it actually holds open. Processes with the
+same working directory remain distinct, and helpers without a session file do
+not become rows.
 
 ### Folder-derived metadata
 

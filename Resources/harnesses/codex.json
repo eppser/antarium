@@ -2,7 +2,10 @@
   "formatVersion": 1,
   "id": "codex",
   "name": "ChatGPT (Codex)",
-  "process": { "pathContains": ["/Resources/codex"] },
+  "process": {
+    "pathContains": ["/Resources/codex"],
+    "sessionBinding": "openSourceFile"
+  },
   "compatibility": {
     "level": "fixtureVerified", "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/codex.json"

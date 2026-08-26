@@ -20,7 +20,7 @@ enum HarnessCheck {
              "idleAfter", "staleAfter", "fallbackName", "mark", "note", "detached",
              "multiSession", "openTabsOnly",
              "enabled", "presentation", "compatibility"],
-        "process": ["pathContains", "names", "argv0Contains"],
+        "process": ["pathContains", "names", "argv0Contains", "sessionBinding"],
         "presentation": ["mark", "fallbackName", "sourceLabel"],
         "compatibility": ["level", "verifiedAt", "agentVersions", "fixture", "note"],
         "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",

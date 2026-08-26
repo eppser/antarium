@@ -97,6 +97,41 @@ enum Processes {
         return String(decoding: buffer[start..<i].map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 
+    /// Regular files currently held open by a process, read directly from
+    /// libproc. A bounded list is enough for session binding and avoids
+    /// launching `lsof` for every agent on every scan.
+    static func openFilePaths(of pid: Int32, limit: Int = 1_024) -> [String] {
+        let itemSize = MemoryLayout<proc_fdinfo>.size
+        let requiredBytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard requiredBytes > 0, itemSize > 0, limit > 0 else { return [] }
+
+        let capacity = min((Int(requiredBytes) / itemSize) + 16, limit)
+        var descriptors = [proc_fdinfo](repeating: proc_fdinfo(), count: capacity)
+        let availableBytes = Int32(capacity * itemSize)
+        let returnedBytes = proc_pidinfo(
+            pid, PROC_PIDLISTFDS, 0, &descriptors, availableBytes)
+        guard returnedBytes > 0 else { return [] }
+
+        let count = min(Int(returnedBytes) / itemSize, descriptors.count)
+        let infoSize = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
+        var paths: [String] = []
+        paths.reserveCapacity(min(count, 32))
+        for descriptor in descriptors.prefix(count)
+            where descriptor.proc_fdtype == PROX_FDTYPE_VNODE {
+            var info = vnode_fdinfowithpath()
+            guard proc_pidfdinfo(pid, descriptor.proc_fd,
+                                 PROC_PIDFDVNODEPATHINFO, &info, infoSize) == infoSize
+            else { continue }
+            let path = withUnsafePointer(to: &info.pvip.vip_path) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) {
+                    String(cString: $0)
+                }
+            }
+            if !path.isEmpty { paths.append(path) }
+        }
+        return Array(Set(paths)).sorted()
+    }
+
     /// Apps whose own name is too long for a column beside a project path.
     private static let shortName = [
         "Visual Studio Code": "VS Code",

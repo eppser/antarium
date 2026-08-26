@@ -25,15 +25,19 @@ struct HarnessDescriptor: Codable {
     }
 
     struct ProcessRule: Codable {
+        enum SessionBinding: String, Codable { case openSourceFile }
+
         var pathContains: [String]?
         var names: [String]?
         var argv0Contains: [String]?
+        var sessionBinding: SessionBinding?
     }
 
     var processRule: ProcessRule {
         ProcessRule(pathContains: Array(Set(match + (process?.pathContains ?? []))).sorted(),
                     names: processNames,
-                    argv0Contains: process?.argv0Contains ?? [])
+                    argv0Contains: process?.argv0Contains ?? [],
+                    sessionBinding: process?.sessionBinding)
     }
 
     /// True when this descriptor claims a process — by executable path, by

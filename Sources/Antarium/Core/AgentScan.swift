@@ -503,8 +503,21 @@ enum AgentScan {
                 // A detached harness is a GUI app: whatever directory it was
                 // launched from is not the project it has open, so it takes its
                 // newest session instead of being matched by directory.
-                let session = HarnessEngine.session(
-                    descriptor, forCwd: descriptor.isDetached ? "" : cwd)
+                let session: HarnessEngine.Session? = {
+                    if descriptor.processRule.sessionBinding == .openSourceFile {
+                        return HarnessEngine.session(
+                            descriptor,
+                            boundToOpenFiles: Processes.openFilePaths(of: process.pid))
+                    }
+                    return HarnessEngine.session(
+                        descriptor, forCwd: descriptor.isDetached ? "" : cwd)
+                }()
+                // A declared binding is required session evidence, not a
+                // preference. Helpers share the executable path but do not
+                // own a transcript; emitting them would create phantom rows.
+                if descriptor.processRule.sessionBinding != nil, session == nil {
+                    continue
+                }
 
                 // An editor being open is not an agent at work. A detached
                 // harness adopts its newest session, and that session can be
@@ -619,8 +632,12 @@ enum AgentScan {
         // except where the harness says a directory can hold several
         // conversations at once, which is exactly what this would collapse.
         let multi = Set(HarnessDescriptor.all().filter(\.isMultiSession).map(\.id))
+        let processBound = Set(HarnessDescriptor.all().filter {
+            $0.processRule.sessionBinding == .openSourceFile
+        }.map(\.id))
         return Dictionary(grouping: rows, by: { row in
-            multi.contains(row.agentID) ? row.id : "\(row.agentID)|\(row.cwd)"
+            multi.contains(row.agentID) || processBound.contains(row.agentID)
+                ? row.id : "\(row.agentID)|\(row.cwd)"
         })
         .compactMap { $0.value.max { a, b in (a.rssBytes ?? 0) < (b.rssBytes ?? 0) } }
     }

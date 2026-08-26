@@ -66,6 +66,25 @@
           }
         ]
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "process": {
+            "properties": { "sessionBinding": { "const": "openSourceFile" } },
+            "required": ["sessionBinding"]
+          }
+        },
+        "required": ["process"]
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "properties": { "kind": { "enum": ["json", "jsonl"] } },
+            "required": ["kind"]
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -75,7 +94,8 @@
       "properties": {
         "pathContains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "names": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "argv0Contains": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "argv0Contains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "sessionBinding": { "enum": ["openSourceFile"] }
       }
     },
     "presentation": {

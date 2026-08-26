@@ -113,6 +113,81 @@ struct ExtensibilityAndReleaseTests {
                                         name: "node", argv0: "/opt/agent-cli", rss: 0)))
     }
 
+    @Test("An open source file binds simultaneous same-folder processes to distinct sessions")
+    func processOpenFileBindingIsDeclarativeAndExact() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workingFile = root.appendingPathComponent("working.jsonl")
+        let waitingFile = root.appendingPathComponent("waiting.jsonl")
+
+        func transcript(id: String, status: String) -> Data {
+            Data((#"{"type":"session_meta","timestamp":"2026-08-26T10:00:00Z","payload":{"originator":"fixture","cwd":"/fixture/shared","session_id":"\#(id)"}}"#
+                + "\n"
+                + #"{"type":"event_msg","timestamp":"2026-08-26T10:01:00Z","payload":{"type":"\#(status)"}}"#
+                + "\n").utf8)
+        }
+        try transcript(id: "working", status: "task_started").write(to: workingFile)
+        try transcript(id: "waiting", status: "task_complete").write(to: waitingFile)
+
+        let descriptorData = Data("""
+        {
+          "formatVersion":1,"id":"bound","name":"Bound",
+          "process":{"pathContains":["/agent"],"sessionBinding":"openSourceFile"},
+          "source":{"kind":"jsonl","path":"\(root.path)","glob":"*.jsonl",
+            "filter":{"payload.originator":["fixture"]}},
+          "map":{"cwd":"payload.cwd","sessionID":"payload.session_id",
+            "timestamp":"timestamp","status":{"field":"payload.type",
+              "working":["task_started"],"idle":["task_complete"]}}
+        }
+        """.utf8)
+        let descriptor = try HarnessDocument.decode(descriptorData).descriptor
+
+        let sdkProcess = HarnessConfig.ProcessRule(
+            pathContains: ["/agent"], sessionBinding: .openSourceFile)
+        #expect(sdkProcess.sessionBinding == .openSourceFile)
+        #expect(descriptor.processRule.sessionBinding == .openSourceFile)
+        let sdkDocument = HarnessConfig(
+            id: "bound-sdk", name: "Bound SDK", process: sdkProcess,
+            source: .init(kind: .jsonl, path: "/fixture", glob: "*.jsonl"))
+        let sdkObject = try #require(JSONSerialization.jsonObject(
+            with: sdkDocument.encoded()) as? [String: Any])
+        let encodedProcess = try #require(sdkObject["process"] as? [String: Any])
+        #expect(encodedProcess["sessionBinding"] as? String == "openSourceFile")
+
+        let invalidBinding = Data(#"{"formatVersion":1,"id":"bad","name":"Bad","process":{"sessionBinding":"openSourceFile"},"source":{"kind":"none","path":""}}"#.utf8)
+        #expect(throws: HarnessDocument.Error.self) {
+            _ = try HarnessDocument.decode(invalidBinding)
+        }
+        let invalidSDK = HarnessConfig(
+            id: "bad-sdk", name: "Bad SDK", process: sdkProcess,
+            source: .init(kind: .none, path: ""))
+        #expect(throws: HarnessConfig.ValidationError.self) {
+            _ = try invalidSDK.encoded()
+        }
+
+        let openHandle = try FileHandle(forReadingFrom: workingFile)
+        defer { try? openHandle.close() }
+        let observedOpenFiles = Processes.openFilePaths(
+            of: Int32(ProcessInfo.processInfo.processIdentifier)).map {
+                URL(fileURLWithPath: $0).resolvingSymlinksInPath().path
+            }
+        #expect(observedOpenFiles.contains(workingFile.resolvingSymlinksInPath().path))
+
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        let working = HarnessEngine.session(descriptor,
+                                            boundToOpenFiles: [workingFile.path])
+        let waiting = HarnessEngine.session(descriptor,
+                                            boundToOpenFiles: [waitingFile.path])
+        let unrelated = HarnessEngine.session(descriptor,
+                                              boundToOpenFiles: [root.appendingPathComponent("other.txt").path])
+
+        #expect(working?.sessionID == "working")
+        #expect(working?.isWorking == true)
+        #expect(waiting?.sessionID == "waiting")
+        #expect(waiting?.isWorking == false)
+        #expect(unrelated == nil)
+    }
+
     @Test("Open-tab evidence can come from SQLite")
     func sqliteTabSelectionIsConfiguration() throws {
         let root = try temporaryDirectory()

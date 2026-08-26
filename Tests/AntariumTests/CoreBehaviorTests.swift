@@ -52,6 +52,15 @@ struct CoreBehaviorTests {
                                          current: [row("a", .looping)]).isEmpty)
         XCTAssertEqual(AgentStore.stopped(previous: ["a": row("a", .looping)],
                                           current: [row("a", .waiting)]).count, 1)
+
+        // Two processes may share one project directory. A completion belongs
+        // to its stable session identity and must not stop the sibling row.
+        let simultaneous = ["session-a": row("session-a", .working),
+                            "session-b": row("session-b", .working)]
+        XCTAssertEqual(AgentStore.stopped(
+            previous: simultaneous,
+            current: [row("session-a", .waiting), row("session-b", .working)])
+            .map(\.id), ["session-a"])
     }
 
     @Test func stateMachineUsesEvidenceBeforeInference() {

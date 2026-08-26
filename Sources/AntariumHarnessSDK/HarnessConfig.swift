@@ -89,6 +89,10 @@ public struct HarnessConfig: Codable {
                 || source.pathFields?["sessionID"] != nil
             if !hasIdentity { throw ValidationError.multiSessionNeedsID }
         }
+        if process?.sessionBinding == .openSourceFile,
+           source.kind != .json && source.kind != .jsonl {
+            throw ValidationError.openSourceFileBindingNeedsFileSource
+        }
         if let selection {
             switch selection.kind {
             case .jsonFiles:
@@ -135,6 +139,7 @@ public struct HarnessConfig: Codable {
         case missingCommand
         case multiSessionNeedsID
         case incompleteSelection(Selection.Kind)
+        case openSourceFileBindingNeedsFileSource
 
         public var errorDescription: String? {
             switch self {
@@ -147,20 +152,29 @@ public struct HarnessConfig: Codable {
                 return "A multi-session harness requires map.sessionID for stable identity."
             case .incompleteSelection(let kind):
                 return "The \(kind.rawValue) selection is missing required fields."
+            case .openSourceFileBindingNeedsFileSource:
+                return "An open-source-file process binding requires a JSON or JSONL source."
             }
         }
     }
 
     public struct ProcessRule: Codable {
+        public enum SessionBinding: String, Codable {
+            case openSourceFile
+        }
+
         public var pathContains: [String]?
         public var names: [String]?
         public var argv0Contains: [String]?
+        public var sessionBinding: SessionBinding?
 
         public init(pathContains: [String] = [], names: [String] = [],
-                    argv0Contains: [String] = []) {
+                    argv0Contains: [String] = [],
+                    sessionBinding: SessionBinding? = nil) {
             self.pathContains = pathContains.isEmpty ? nil : pathContains
             self.names = names.isEmpty ? nil : names
             self.argv0Contains = argv0Contains.isEmpty ? nil : argv0Contains
+            self.sessionBinding = sessionBinding
         }
     }
 
