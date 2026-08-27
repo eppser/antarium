@@ -423,8 +423,8 @@ struct UIAndReleaseContractTests {
         #expect(commands.sorted() == ["copilot:credential gh auth token"])
     }
 
-    @Test("The public repository grants noncommercial use and no commercial license")
-    func publicLicenseIsNoncommercial() throws {
+    @Test("The public repository uses the standard MIT license")
+    func publicLicenseIsMIT() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let license = try String(contentsOf: root.appendingPathComponent("LICENSE"),
@@ -434,12 +434,12 @@ struct UIAndReleaseContractTests {
         let readmeWords = readme.split(whereSeparator: \Character.isWhitespace)
             .joined(separator: " ")
 
-        #expect(license.hasPrefix("# PolyForm Noncommercial License 1.0.0"))
-        #expect(license.contains("Required Notice: Copyright 2026 eppser"))
-        #expect(license.contains("Any noncommercial purpose is a permitted purpose."))
-        #expect(!license.contains("MIT License"))
-        #expect(readme.contains("PolyForm Noncommercial 1.0.0"))
-        #expect(readmeWords.contains("Commercial use requires a separate license"))
+        #expect(license.hasPrefix("MIT License"))
+        #expect(license.contains("Copyright (c) 2026 eppser"))
+        #expect(license.contains("Permission is hereby granted, free of charge"))
+        #expect(license.contains("THE SOFTWARE IS PROVIDED \"AS IS\""))
+        #expect(readme.contains("MIT License"))
+        #expect(!readmeWords.contains("Commercial use requires a separate license"))
     }
 
     @Test("Release automation is syntax-valid and supports signed notarized archives")
