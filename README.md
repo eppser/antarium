@@ -34,7 +34,7 @@ Click a session to return to its terminal, tmux pane, or host app.
 - **Multi-session awareness** for agents running in the same folder or app.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
-- **Quota monitoring** for supported Claude, Codex, and GitHub Copilot accounts.
+- **Quota monitoring** for supported Claude, Codex, Cursor, and GitHub Copilot accounts.
 - **Project context indicators** for instructions, memory, skills, MCP, and permissions.
 - **Local-first and private:** no Antarium telemetry and no prompt collection.
 - **Extensible harnesses:** add or adapt an agent without changing the app.

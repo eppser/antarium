@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 
-/// Cursor plan usage from the same Connect endpoint the IDE's billing dashboard uses.
+/// Cursor plan usage from the private Connect endpoint the IDE's billing dashboard uses.
 ///
 /// Verified against a live Pro account: `GetCurrentPeriodUsage` reports
 /// `planUsage.totalPercentUsed`, `.autoPercentUsed`, and `.apiPercentUsed`
@@ -68,8 +68,8 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
             .appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
     }
 
-    private static func readTokenFromStateDB() -> String? {
-        let path = stateDBURL().path
+    static func readTokenFromStateDB(_ url: URL = stateDBURL()) -> String? {
+        let path = url.path
         guard FileManager.default.fileExists(atPath: path) else { return nil }
         var database: OpaquePointer?
         guard sqlite3_open_v2("file:\(path)?mode=ro", &database,
@@ -101,7 +101,7 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
 
     static func makeSnapshot(_ usage: [String: Any], planName: String?) throws -> Snapshot {
         guard let planUsage = usage["planUsage"] as? [String: Any] else {
-            throw ProviderError.badResponse("Cursor reported no plan usage.")
+            throw ProviderError.unsupported("Cursor reported no plan usage.")
         }
 
         let resetsAt = billingCycleEnd(usage)
@@ -139,7 +139,6 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
     }
 
     static func makeSnapshotFromLegacy(_ json: [String: Any], planName: String?) throws -> Snapshot {
-        let startOfMonth = UsageHTTP.parseDate(json["startOfMonth"] as? String)
         var gauges: [Gauge] = []
 
         for (key, value) in json {
@@ -149,7 +148,7 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
             let percent = Double(used) / Double(max) * 100
             let badge = key.count <= 4 ? key.uppercased() : String(key.prefix(3)).uppercased()
             gauges.append(Gauge(id: key, badge: badge, title: key,
-                                used: Swift.min(Swift.max(percent / 100, 0), 1), resetsAt: startOfMonth,
+                                used: Swift.min(Swift.max(percent / 100, 0), 1), resetsAt: nil,
                                 reportedSeverity: .normal))
         }
 

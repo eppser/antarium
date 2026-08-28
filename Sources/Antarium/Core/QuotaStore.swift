@@ -3,8 +3,8 @@ import Foundation
 /// Latest account-quota readings from each menu-bar provider, for the dashboard.
 ///
 /// Session rows read transcripts; provider gauges live in the status bar. This
-/// bridge lets a Cursor session row show the same included-usage bar Codex rows
-/// get from per-session context, without duplicating the network fetch.
+/// bridge lets a session row show its provider's included-usage bar without
+/// duplicating the network fetch.
 @MainActor
 final class QuotaStore: ObservableObject {
     static let shared = QuotaStore()
@@ -18,6 +18,7 @@ final class QuotaStore: ObservableObject {
             errors.removeValue(forKey: providerID)
         } else {
             snapshots.removeValue(forKey: providerID)
+            errors.removeValue(forKey: providerID)
         }
     }
 
@@ -26,17 +27,13 @@ final class QuotaStore: ObservableObject {
         if let last { snapshots[providerID] = last }
     }
 
-    /// Maps harness ids that share a provider's account quota.
-    static func providerID(for agentID: String) -> String {
-        switch agentID {
-        case "cursor-cli": return "cursor"
-        case "codex-desktop": return "codex"
-        default: return agentID
-        }
+    func remove(providerID: String) {
+        snapshots.removeValue(forKey: providerID)
+        errors.removeValue(forKey: providerID)
     }
 
     func snapshot(for agentID: String) -> Snapshot? {
-        snapshots[Self.providerID(for: agentID)]
+        snapshots[agentID]
     }
 
     func primaryGauge(for agentID: String) -> Gauge? {
