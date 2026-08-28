@@ -23,6 +23,7 @@ answer:
 - Which agents are still working?
 - Which ones are waiting for me?
 - Where is each session running?
+- Which agents have project instructions, memory, skills, MCP, and permissions set up?
 - How much context, memory, and estimated cost has it used?
 - How close are my Claude, Codex, Cursor, or Copilot limits?
 
@@ -51,7 +52,8 @@ integration status.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
 - **Quota monitoring** for supported Claude, Codex, Cursor, and GitHub Copilot accounts.
-- **Project context indicators** for instructions, memory, skills, MCP, and permissions.
+- **Per-agent project setup overview** for supported harnesses, including
+  instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
 - **Local-first and private:** no Antarium telemetry and no prompt collection.
 - **Extensible harnesses:** add or adapt an agent without changing the app.
 
