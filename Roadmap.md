@@ -41,6 +41,13 @@ of guesses.
    dark surfaces, but cannot run Apple's full application accessibility audit.
 4. Add a v2 migration only when an actual incompatible semantic change exists;
    prefer additive v1 fields while they remain unambiguous.
+5. Evaluate a dedicated Conductor adapter using dated synthetic fixtures for
+   bundled executable layouts, workspace identity, deep links, and the API's
+   queued-to-working-to-idle lifecycle. Do not ingest cloud transcripts when
+   status and identity endpoints provide sufficient evidence.
+6. Evaluate terminal agents such as Zen through the normal descriptor
+   contribution path. Ship support only after process, storage, installation,
+   status, and collision behavior have reproducible evidence.
 
 ## Deliberate non-goals
 

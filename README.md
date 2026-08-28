@@ -16,22 +16,36 @@ memory, and account limits into one quiet dashboard.
 
 ## Why Antarium?
 
-Running agents across multiple harnesses, terminals, Warp tabs, tmux panes, and desktop apps gets
-hard to follow quickly. Antarium gives you one place to answer:
+Running agents across terminals, Warp tabs, tmux panes, desktop apps, and agent
+orchestrators gets hard to follow quickly. Antarium gives you one place to
+answer:
 
-- What is my quata
 - Which agents are still working?
 - Which ones are waiting for me?
 - Where is each session running?
 - How much context, memory, and estimated cost has it used?
-- How close are my Claude, Codex, or Copilot limits?
+- How close are my Claude, Codex, Cursor, or Copilot limits?
 
-Get notified when agent finish his work.
-Click a session to return to its terminal, tmux pane, or host app.
+Get notified when an agent finishes. Click a session to return to its terminal,
+tmux pane, or host app.
+
+## Where Antarium fits
+
+Tools such as [Conductor](https://www.conductor.build/) create isolated
+workspaces and actively run agent tasks. Terminal agents such as
+[Zen](https://vozen.io/) perform the coding work itself. Antarium complements
+these tools: it is the neutral observability layer for supported agents already
+running across your Mac, regardless of which terminal, editor, or workflow
+started them.
+
+Antarium does not create branches, edit code, or manage pull requests. That
+keeps it lightweight and lets you keep the workflow you already use. See the
+[ecosystem comparison](docs/ECOSYSTEM.md) for the exact boundaries and current
+integration status.
 
 ## Features
 
-- **One menu-bar view** showing your quota across different providers: Antrohpic, OpenAI, Githup Copilot, etc.
+- **One menu-bar view** for activity and quota across supported providers.
 - **Working/waiting status** based on process and session evidence.
 - **Multi-session awareness** for agents running in the same folder or app.
 - **Context and usage visibility** without turning missing data into fake zeroes.
@@ -40,6 +54,30 @@ Click a session to return to its terminal, tmux pane, or host app.
 - **Project context indicators** for instructions, memory, skills, MCP, and permissions.
 - **Local-first and private:** no Antarium telemetry and no prompt collection.
 - **Extensible harnesses:** add or adapt an agent without changing the app.
+
+## How Antarium works
+
+```mermaid
+flowchart LR
+    H["Integration descriptors<br/>process, files, folders, mappings"] --> P["Process check"]
+    H --> C["Bounded session collectors"]
+    OS["Running macOS processes"] --> P
+    FS["JSON / JSONL<br/>folders and manifests"] --> C
+    DB["Read-only SQLite<br/>and tab evidence"] --> C
+    P --> S["Truthful session state"]
+    C --> S
+    Q["Provider quota APIs"] --> U["Usage snapshots"]
+    S --> UI["Menu bar and dashboard"]
+    U --> UI
+    UI --> F["Focus the existing<br/>terminal, tmux pane, or app"]
+```
+
+Agent-specific facts stay in JSON integration descriptors wherever possible.
+Swift provides bounded collection, identity, lifecycle, authentication, cache
+publication, and macOS UI behavior. Missing evidence stays missing—it is never
+silently converted into zero or “finished.” The
+[technical reference](docs/TECHNICAL.md#runtime-data-flow) explains the full
+pipeline.
 
 ## Supported tools
 

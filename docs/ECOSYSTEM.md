@@ -1,0 +1,71 @@
+# Where Antarium fits in the coding-agent ecosystem
+
+Antarium is an observability companion, not another coding agent or workspace
+orchestrator. It answers what is running, whether trustworthy evidence says it
+is working or waiting, where the session lives, and what measured usage or
+quota information is available.
+
+## Product roles
+
+| Product category | Primary responsibility | Relationship to Antarium |
+|---|---|---|
+| Agent orchestrators such as [Conductor](https://www.conductor.build/docs) | Create isolated workspaces, run agents, manage branches, diffs, checks, pull requests, and optionally cloud execution | Antarium can provide a quiet system-wide view alongside the orchestrator, especially when work also runs in terminals, tmux, editors, or other apps |
+| Terminal agents such as [Zen](https://vozen.io/) | Read and edit code, run commands, and retain an agent session inside the terminal | Antarium does not replace the agent; a verified integration can make its activity visible with other supported sessions |
+| Editors and agent hosts such as Cursor, Zed, VS Code, Warp, and tmux | Host coding sessions, terminals, tabs, panes, or editor-native agents | Antarium joins supported process and session evidence and can focus the existing host |
+| Antarium | Observe supported sessions and provider quota across those environments | It does not create workspaces, edit code, merge branches, or terminate external sessions |
+
+Conductor describes itself as the workspace layer above Claude Code, Codex,
+Cursor, and OpenCode. Each task can receive its own branch, files, terminal,
+diff, checks, and review path. Its local worktrees are development isolation,
+not a security boundary; its cloud offering adds persistent remote execution,
+multiplayer collaboration, and an API.
+
+Zen is a local terminal coding agent. It performs the task itself, persists its
+own sessions and memory, and can use local or hosted models. It is therefore an
+agent Antarium could observe after compatibility is proven, not an alternative
+monitoring dashboard.
+
+## What is deliberately different
+
+- Antarium is tool-neutral. It can present supported sessions launched outside
+  any single orchestrator.
+- Antarium is passive. Its built-in dashboard focuses existing sessions but
+  does not stop agents, close terminals, or mutate repositories.
+- Antarium emphasizes truthful observability. Missing data, a measured zero,
+  and a failed collection remain different states.
+- Antarium keeps agent-specific facts in reviewable JSON integration
+  descriptors and offers a typed SDK for generating them.
+- Antarium is MIT licensed and local-first, with no Antarium telemetry or
+  prompt collection.
+
+## Current integration status
+
+Antarium does not currently ship a dedicated Conductor or Zen integration.
+Existing Claude Code, Codex, Cursor, and OpenCode integrations may recognize an
+underlying session only when its process and session evidence matches their
+tested descriptors. That is not a blanket compatibility promise for sessions
+embedded in another product.
+
+A future Conductor integration should use configuration for executable paths,
+workspace metadata, presentation, and deep-link facts. Authenticated cloud API
+access, bounded polling, cancellation, and lifecycle transitions belong in
+native control flow. Conductor's API documentation notes that a newly queued
+prompt can report `idle` before it ever reports `working`; an adapter must
+observe `working` or a new reply before interpreting a later `idle` as finished.
+The API is also marked beta, so its response contract needs dated fixtures and
+failure-closed parsing.
+
+A future Zen integration should begin with documented or reproducible process
+and session-storage evidence. It should ship only after synthetic fixtures prove
+identity, working/waiting transitions, installation layouts, and the absence of
+helper-process collisions.
+
+## Positioning in one sentence
+
+> Orchestrators run your agent team; Antarium shows supported agents across your
+> Mac and keeps their activity and limits visible.
+
+Sources: [Conductor harness overview](https://www.conductor.build/docs/reference/harnesses),
+[Conductor isolated workspaces](https://www.conductor.build/docs/concepts/workspaces-and-branches),
+[Conductor API](https://www.conductor.build/docs/api), and
+[Zen product overview](https://vozen.io/).

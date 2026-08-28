@@ -62,6 +62,60 @@ Relevant source areas:
 - `Resources/harnesses` — bundled descriptors;
 - `Resources/harness-fixtures` — synthetic compatibility evidence.
 
+## Runtime data flow
+
+Antarium separates agent-specific evidence from generic collection and
+stateful control flow. The same bounded runtime can therefore support a new
+agent by loading a different descriptor instead of adding another bespoke
+scanner.
+
+```mermaid
+flowchart TB
+    subgraph Configuration["Configuration-owned facts"]
+        D["Harness descriptor<br/>process rules · paths · mappings · presentation"]
+        UC["User config<br/>enabled agents · intervals · display"]
+    end
+
+    subgraph Evidence["Observed evidence"]
+        PS["macOS process snapshot<br/>path · name · argv · parent"]
+        FF["JSON / JSONL files<br/>folders · globs · manifests"]
+        SQ["SQLite + WAL/SHM<br/>declared bounded queries"]
+        TB["Tab and host-app evidence<br/>JSON · SQLite · bounded command"]
+        QA["Provider quota APIs<br/>native or descriptor-backed auth"]
+    end
+
+    D --> PM["Generic process matcher"]
+    PS --> PM
+    D --> BC["Bounded collectors"]
+    FF --> BC
+    SQ --> BC
+    TB --> BC
+    D --> MP["Field mapping and status rules"]
+    BC --> FP["Complete source fingerprints<br/>descriptor · file set · manifest · WAL"]
+    FP --> MP
+    PM --> ID["Stable session identity and joining"]
+    MP --> ID
+    ID --> SG["Generation-gated scan publication"]
+    UC --> SG
+    QA --> QS["Quota store<br/>snapshot · unavailable · failure"]
+    SG --> AS["Agent store<br/>working · waiting · cloud · unknown"]
+    AS --> UI["Menu bar · dashboard · notifications"]
+    QS --> UI
+    UI --> FO["Focus existing terminal<br/>Warp tab · tmux pane · desktop app"]
+```
+
+The runtime takes one process snapshot per scan, applies descriptor-owned
+matching rules, and joins matching processes to bounded session evidence.
+Files, folder-derived fields, manifests, SQLite WAL/SHM state, and the complete
+descriptor participate in cache fingerprints so a configuration or upstream
+state change invalidates the correct result.
+
+Publication is generation-gated: an older asynchronous scan cannot overwrite a
+newer one. Collection failure, absent evidence, and measured numeric zero remain
+separate through the stores and UI. Focusing a row activates an existing host;
+the dashboard does not terminate agents, terminal applications, or tmux
+sessions.
+
 ## User configuration
 
 App settings are atomically stored at:

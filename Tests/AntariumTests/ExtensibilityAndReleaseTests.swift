@@ -442,6 +442,27 @@ struct UIAndReleaseContractTests {
         #expect(!readmeWords.contains("Commercial use requires a separate license"))
     }
 
+    @Test("Public docs explain ecosystem position and runtime architecture")
+    func publicDocsExplainPositionAndArchitecture() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"),
+                                encoding: .utf8)
+        let technical = try String(
+            contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"), encoding: .utf8)
+        let ecosystem = try String(
+            contentsOf: root.appendingPathComponent("docs/ECOSYSTEM.md"), encoding: .utf8)
+
+        #expect(readme.contains("## Where Antarium fits"))
+        #expect(readme.contains("## How Antarium works"))
+        #expect(readme.contains("```mermaid"))
+        #expect(technical.contains("## Runtime data flow"))
+        #expect(technical.contains("generation-gated"))
+        #expect(ecosystem.contains("Conductor"))
+        #expect(ecosystem.contains("Zen"))
+        #expect(ecosystem.contains("does not currently ship a dedicated"))
+    }
+
     @Test("Release automation is syntax-valid and supports signed notarized archives")
     func releasePipelineContract() throws {
         let root = URL(fileURLWithPath: #filePath)
