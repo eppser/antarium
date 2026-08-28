@@ -32,7 +32,6 @@ final class AgentItem: NSObject, NSMenuDelegate {
     private var state: State = .loading
     private var lastRender: StatusRender?
     private var inFlight = false
-    private var menuIsOpen = false
     private var settings: SettingsPanel { .shared }
 
     @objc private func openSettings() {
@@ -155,7 +154,7 @@ final class AgentItem: NSObject, NSMenuDelegate {
             state = .failed(.notConfigured("\(provider.displayName) isn't set up on this Mac."),
                             last: state.snapshot)
             scheduleNext(success: false)
-            render(); refreshOpenMenu()
+            render()
             return
         }
 
@@ -176,7 +175,6 @@ final class AgentItem: NSObject, NSMenuDelegate {
                 self.scheduleNext(success: false)
             }
             self.render()
-            self.refreshOpenMenu()
         }
     }
 
@@ -319,17 +317,17 @@ final class AgentItem: NSObject, NSMenuDelegate {
     // MARK: - Menu
 
     func menuWillOpen(_ menu: NSMenu) {
-        menuIsOpen = true
-        rebuildMenu()
+        // `showMenu` prepared the complete item tree before AppKit began
+        // tracking it. Removing and reinserting rows here (or after a refresh)
+        // gives later items zero-sized layout frames on some macOS releases.
+        // A completed refresh is reflected the next time this transient menu
+        // opens; the menu-bar gauge itself still redraws immediately.
         // Opening the menu is an explicit "where am I?" — top up a cold reading,
         // but never hammer the endpoint.
         if Date().timeIntervalSince(state.snapshot?.fetchedAt ?? .distantPast) > 60 {
             refresh(reason: .manual)
         }
     }
-
-    func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
-    private func refreshOpenMenu() { if menuIsOpen { rebuildMenu() } }
 
     private func rebuildMenu() {
         menu.removeAllItems()

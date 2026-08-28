@@ -374,6 +374,21 @@ struct UIAndReleaseContractTests {
         #expect(image.size.height > 250, "The sheet must contain the complete state matrix")
     }
 
+    @Test("The status menu is laid out once before AppKit starts tracking it")
+    func statusMenuIsNotStructurallyRebuiltWhileOpen() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/AgentItem.swift"), encoding: .utf8)
+        let rebuildCalls = source.components(separatedBy: "        rebuildMenu()\n").count - 1
+
+        #expect(source.contains("private func showMenu() {\n        rebuildMenu()"))
+        #expect(rebuildCalls == 1,
+                "Reinserting NSMenu items during tracking leaves later rows with zero-sized frames")
+        #expect(!source.contains("if menuIsOpen { rebuildMenu() }"),
+                "An in-flight refresh must not replace rows while AppKit is tracking the menu")
+    }
+
     @Test("Public provider errors use the current product name")
     func publicProviderErrorsUseCurrentBranding() throws {
         let root = URL(fileURLWithPath: #filePath)
