@@ -16,21 +16,23 @@ memory, and account limits into one quiet dashboard.
 
 ## Why Antarium?
 
-Running agents across terminals, Warp tabs, tmux panes, and desktop apps gets
+Running agents across multiple harnesses, terminals, Warp tabs, tmux panes, and desktop apps gets
 hard to follow quickly. Antarium gives you one place to answer:
 
+- What is my quata
 - Which agents are still working?
 - Which ones are waiting for me?
 - Where is each session running?
 - How much context, memory, and estimated cost has it used?
 - How close are my Claude, Codex, or Copilot limits?
 
+Get notified when agent finish his work.
 Click a session to return to its terminal, tmux pane, or host app.
 
 ## Features
 
-- **One menu-bar view** for local and supported cloud agent sessions.
-- **Reliable working/waiting status** based on process and session evidence.
+- **One menu-bar view** showing your quota across different providers: Antrohpic, OpenAI, Githup Copilot, etc.
+- **Working/waiting status** based on process and session evidence.
 - **Multi-session awareness** for agents running in the same folder or app.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
