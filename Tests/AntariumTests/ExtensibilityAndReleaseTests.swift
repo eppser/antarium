@@ -115,6 +115,8 @@ struct ExtensibilityAndReleaseTests {
 
     @Test("An open source file binds simultaneous same-folder processes to distinct sessions")
     func processOpenFileBindingIsDeclarativeAndExact() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let workingFile = root.appendingPathComponent("working.jsonl")
@@ -253,6 +255,8 @@ struct HarnessEvaluationTests {
 
     @Test("Cold, warm and append evaluations report exact work")
     func exactIncrementalMetrics() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("session.jsonl")
@@ -292,6 +296,8 @@ struct HarnessEvaluationTests {
 
     @Test("The standard cold-scan CI budget is explicit and generous")
     func generatedTranscriptPerformanceBudget() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("session.jsonl")
@@ -309,6 +315,8 @@ struct HarnessEvaluationTests {
 
     @Test("Every bundled data-backed harness has a passing, dated fixture")
     func bundledCompatibilityFixturesPass() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let urls = AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
         for url in urls {
