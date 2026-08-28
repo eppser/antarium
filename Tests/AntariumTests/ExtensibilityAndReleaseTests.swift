@@ -115,6 +115,8 @@ struct ExtensibilityAndReleaseTests {
 
     @Test("An open source file binds simultaneous same-folder processes to distinct sessions")
     func processOpenFileBindingIsDeclarativeAndExact() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let workingFile = root.appendingPathComponent("working.jsonl")
@@ -253,6 +255,8 @@ struct HarnessEvaluationTests {
 
     @Test("Cold, warm and append evaluations report exact work")
     func exactIncrementalMetrics() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("session.jsonl")
@@ -292,6 +296,8 @@ struct HarnessEvaluationTests {
 
     @Test("The standard cold-scan CI budget is explicit and generous")
     func generatedTranscriptPerformanceBudget() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("session.jsonl")
@@ -309,6 +315,8 @@ struct HarnessEvaluationTests {
 
     @Test("Every bundled data-backed harness has a passing, dated fixture")
     func bundledCompatibilityFixturesPass() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let urls = AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
         for url in urls {
@@ -372,6 +380,21 @@ struct UIAndReleaseContractTests {
         let image = try #require(NSImage(contentsOf: output))
         #expect(image.size.width > 500, "The sheet must contain both appearances")
         #expect(image.size.height > 250, "The sheet must contain the complete state matrix")
+    }
+
+    @Test("The status menu is laid out once before AppKit starts tracking it")
+    func statusMenuIsNotStructurallyRebuiltWhileOpen() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/AgentItem.swift"), encoding: .utf8)
+        let rebuildCalls = source.components(separatedBy: "        rebuildMenu()\n").count - 1
+
+        #expect(source.contains("private func showMenu() {\n        rebuildMenu()"))
+        #expect(rebuildCalls == 1,
+                "Reinserting NSMenu items during tracking leaves later rows with zero-sized frames")
+        #expect(!source.contains("if menuIsOpen { rebuildMenu() }"),
+                "An in-flight refresh must not replace rows while AppKit is tracking the menu")
     }
 
     @Test("Public provider errors use the current product name")

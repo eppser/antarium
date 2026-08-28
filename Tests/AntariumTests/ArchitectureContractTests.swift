@@ -44,6 +44,8 @@ struct ArchitectureContractTests {
 
     @Test("Changing a descriptor reparses unchanged source bytes")
     func descriptorFingerprintInvalidatesParsedSessions() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("session.jsonl")
@@ -63,6 +65,8 @@ struct ArchitectureContractTests {
 
     @Test("A manifest is part of the source fingerprint")
     func manifestChangesInvalidateSessions() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         try Data("{\"model\":\"m\"}\n".utf8).write(to: root.appendingPathComponent("wire.jsonl"))
@@ -84,6 +88,8 @@ struct ArchitectureContractTests {
 
     @Test("Deleting a source file removes its session even when the newest mtime is unchanged")
     func sourceSetChangesInvalidateSessions() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let old = root.appendingPathComponent("old.json")
@@ -108,6 +114,8 @@ struct ArchitectureContractTests {
 
     @Test("SQLite WAL writes invalidate cached sessions")
     func sqliteWALChangesInvalidateSessions() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let path = root.appendingPathComponent("sessions.sqlite").path
@@ -532,6 +540,8 @@ struct ArchitectureContractTests {
 
     @Test("Harness failures stay distinguishable from zero sessions")
     func sourceHealthPreservesCommandAndQueryErrors() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let command = try descriptor(
             id: "failed-command-\(UUID().uuidString)",
             source: [
@@ -577,6 +587,8 @@ struct ArchitectureContractTests {
 
     @Test("SQLite harness inspection samples the declared columns")
     func sqliteInspectionUsesRealRows() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let path = root.appendingPathComponent("inspect.sqlite").path
@@ -605,6 +617,8 @@ struct ArchitectureContractTests {
 
     @Test("Folder-derived session fields are descriptor data")
     func pathFieldsDeriveSessionMetadata() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let session = root
@@ -638,6 +652,8 @@ struct ArchitectureContractTests {
 
     @Test("A descriptor can bound how many newest source files are parsed")
     func sourceFileLimitIsConfiguration() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let old = root.appendingPathComponent("old.json")
