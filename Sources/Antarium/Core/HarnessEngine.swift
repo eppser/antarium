@@ -718,6 +718,9 @@ enum HarnessEngine {
         apply(object, to: &session, d.fields)
         applyPathFields(from: url, to: &session, d)
         applyManifest(near: url, to: &session, d)
+        if d.id == "cursor", let id = session.sessionID {
+            CursorComposerStats.merge(sessionID: id, into: &session)
+        }
         session.lastActivity = session.lastActivity ?? modified(url)
         return session
     }
@@ -744,6 +747,9 @@ enum HarnessEngine {
         guard var session = read.session else { return nil }
         applyPathFields(from: url, to: &session, d)
         applyManifest(near: url, to: &session, d)
+        if d.id == "cursor", let id = session.sessionID {
+            CursorComposerStats.merge(sessionID: id, into: &session)
+        }
         session.lastActivity = session.lastActivity ?? modified(url)
 
         // Resume from the last *complete* record, not from the end of the file.

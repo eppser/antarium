@@ -3,7 +3,7 @@
   "id": "cursor",
   "name": "Cursor",
   "presentation": { "mark": "cursor", "fallbackName": "Cursor" },
-  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one.",
+  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Per-session model, context, and bubble token totals are read from composerData in state.vscdb; agent transcripts supply turns and tool calls. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one.",
   "process": {
     "pathContains": ["Cursor.app/Contents/MacOS/Cursor"],
     "installationProbes": [
@@ -26,7 +26,16 @@
     }
   },
   "map": {
-    "turnWhere": {}
+    "turnWhere": { "role": "user" },
+    "toolCalls": {
+      "path": "message.content",
+      "match": { "type": "tool_use" }
+    },
+    "status": {
+      "field": "role",
+      "working": ["assistant"],
+      "idle": ["user"]
+    }
   },
   "detached": true
 }

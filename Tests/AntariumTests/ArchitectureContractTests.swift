@@ -662,8 +662,8 @@ struct ArchitectureContractTests {
         #expect(sessions.first?.title == "new")
     }
 
-    @Test("The shipped Cursor harness uses the generic file engine")
-    func cursorHasNoNativeSessionReaderContract() throws {
+    @Test("The shipped Cursor harness maps transcript turns and tool calls")
+    func cursorHarnessMapsTranscriptFields() throws {
         let urls = AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
         let cursorURL = try #require(urls.first { $0.lastPathComponent == "cursor.json" })
@@ -671,7 +671,29 @@ struct ArchitectureContractTests {
 
         #expect(cursor.source.kind == .jsonl)
         #expect(cursor.source.pathFields?["title"]?.ancestor == 3)
-        #expect(cursor.fields.turnWhere?.isEmpty == true)
+        #expect(cursor.fields.turnWhere?["role"] == "user")
+        #expect(cursor.fields.toolCalls?.filter?["type"] as? String == "tool_use")
+    }
+
+    @Test("Cursor composer stats parse model and context from composer JSON")
+    func cursorComposerStatsParsesComposerData() {
+        let composer: [String: Any] = [
+            "workspaceIdentifier": [
+                "uri": ["fsPath": "/Users/example/Projects/sample"],
+            ],
+            "modelConfig": ["modelName": "claude-opus-4-8"],
+            "promptTokenBreakdown": [
+                "totalUsedTokens": 185633,
+                "maxTokens": 200000,
+            ],
+            "lastUpdatedAt": 1_788_250_081_000,
+        ]
+        var facts = CursorComposerStats.Facts()
+        CursorComposerStats.mergeComposer(composer, into: &facts)
+        #expect(facts.cwd == "/Users/example/Projects/sample")
+        #expect(facts.model == "claude-opus-4-8")
+        #expect(facts.contextTokens == 185633)
+        #expect(facts.contextWindow == 200000)
     }
 
     @Test("Cursor usage maps plan percent windows onto gauges")
