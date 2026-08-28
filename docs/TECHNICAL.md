@@ -43,7 +43,15 @@ Swift remains responsible for stateful control flow and security boundaries:
 - incremental parsing, cache fingerprints, cancellation, and publication;
 - process-tree, terminal, tmux, AppKit, and focus behavior;
 - Claude Code’s live per-PID registry;
-- built-in Claude and Codex authentication providers.
+- built-in Claude, Codex, and Cursor authentication providers.
+
+The Cursor provider reads the existing desktop sign-in token from Cursor's
+SQLite state store in read-only mode. Individual-plan quota currently comes
+from the private Connect endpoint used by Cursor's own dashboard; Cursor does
+not document that endpoint as a public API, so Antarium treats missing or
+changed fields as unsupported instead of guessing. Cursor's
+[documented Admin API](https://cursor.com/docs/account/teams/admin-api) remains
+the supported option for organization-level analytics.
 
 Relevant source areas:
 

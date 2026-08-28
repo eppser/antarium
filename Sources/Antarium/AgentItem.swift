@@ -133,6 +133,7 @@ final class AgentItem: NSObject, NSMenuDelegate {
 
     /// Removing the status item is what takes it out of the menu bar.
     func dispose() {
+        QuotaStore.shared.remove(providerID: provider.id)
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 
@@ -260,11 +261,23 @@ final class AgentItem: NSObject, NSMenuDelegate {
     }
 
     private func render() {
+        publishQuota()
         let next = makeRender()
         guard next != lastRender else { return }
         lastRender = next
         statusItem.button?.image = Renderer.image(next, appearance: appearance, scale: scale)
         statusItem.button?.toolTip = tooltip()
+    }
+
+    private func publishQuota() {
+        switch state {
+        case .loading:
+            QuotaStore.shared.set(providerID: provider.id, snapshot: nil)
+        case .ready(let snapshot):
+            QuotaStore.shared.set(providerID: provider.id, snapshot: snapshot)
+        case .failed(let error, let last):
+            QuotaStore.shared.set(providerID: provider.id, error: error, last: last)
+        }
     }
 
     private func makeRender() -> StatusRender {

@@ -3,7 +3,7 @@
   "id": "cursor",
   "name": "Cursor",
   "presentation": { "mark": "cursor", "fallbackName": "Cursor" },
-  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Cursor's free-plan response exposes no trustworthy quota limit, so sessions are shown without an invented usage bar.",
+  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one.",
   "process": {
     "pathContains": ["Cursor.app/Contents/MacOS/Cursor"],
     "installationProbes": [

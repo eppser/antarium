@@ -674,6 +674,105 @@ struct ArchitectureContractTests {
         #expect(cursor.fields.turnWhere?.isEmpty == true)
     }
 
+    @Test("Cursor usage maps plan percent windows onto gauges")
+    func cursorProviderParsesCurrentPeriodUsage() throws {
+        let usage: [String: Any] = [
+            "billingCycleEnd": "1788250081000",
+            "planUsage": [
+                "totalPercentUsed": 42.5,
+                "autoPercentUsed": 37.0,
+                "apiPercentUsed": 96.5,
+            ],
+        ]
+        let snapshot = try CursorProvider.makeSnapshot(usage, planName: "Pro")
+        #expect(snapshot.accountLabel == "Pro")
+        #expect(snapshot.gauges.count == 2)
+        #expect(snapshot.gauges[0].id == "total")
+        #expect(snapshot.gauges[0].used == 0.425)
+        #expect(snapshot.gauges[1].id == "api")
+        #expect(snapshot.gauges[1].used == 0.965)
+        #expect(snapshot.extras.count == 1)
+        #expect(snapshot.extras[0].id == "auto")
+    }
+
+    @Test("Cursor legacy usage buckets skip plans with no limit")
+    func cursorProviderParsesLegacyUsageWhenLimitsExist() throws {
+        let legacy: [String: Any] = [
+            "startOfMonth": "2026-08-01T08:08:01.000Z",
+            "gpt-4": ["numRequests": 150, "maxRequestUsage": 500],
+        ]
+        let snapshot = try CursorProvider.makeSnapshotFromLegacy(legacy, planName: nil)
+        #expect(snapshot.gauges.count == 1)
+        #expect(snapshot.gauges[0].id == "gpt-4")
+        #expect(snapshot.gauges[0].used == 0.3)
+        #expect(snapshot.gauges[0].resetsAt == nil,
+                "A window start is not evidence of the next reset time")
+    }
+
+    @Test("Cursor responses without planUsage use the legacy compatibility path")
+    func cursorProviderClassifiesMissingPlanUsageAsUnsupported() {
+        do {
+            _ = try CursorProvider.makeSnapshot(["currentPeriod": [:]], planName: nil)
+            Issue.record("A response without planUsage must not be accepted")
+        } catch let error as ProviderError {
+            #expect(error == .unsupported("Cursor reported no plan usage."))
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
+    @Test("Cursor credentials are read from a synthetic SQLite store in read-only mode")
+    func cursorProviderReadsStateDatabaseToken() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("state.vscdb")
+        var database: OpaquePointer?
+        #expect(sqlite3_open(url.path, &database) == SQLITE_OK)
+        guard let database else { return }
+        #expect(sqlite3_exec(database,
+            "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)",
+            nil, nil, nil) == SQLITE_OK)
+        #expect(sqlite3_exec(database,
+            "INSERT INTO ItemTable VALUES ('cursorAuth/accessToken','fixture-token')",
+            nil, nil, nil) == SQLITE_OK)
+        sqlite3_close(database)
+
+        #expect(CursorProvider.readTokenFromStateDB(url) == "fixture-token")
+    }
+
+    @MainActor @Test("Removing a provider clears its published quota and error")
+    func quotaStoreRemovalClearsPublishedState() {
+        let store = QuotaStore()
+        let snapshot = Snapshot(
+            providerID: "fixture",
+            gauges: [Gauge(id: "period", badge: "P", title: "Period", used: 0.5,
+                           resetsAt: nil, reportedSeverity: .normal)],
+            extras: [], accountLabel: nil, fetchedAt: Date())
+        store.set(providerID: "fixture", snapshot: snapshot)
+        store.set(providerID: "fixture", error: .transport("fixture failure"), last: snapshot)
+
+        store.remove(providerID: "fixture")
+
+        #expect(store.snapshots["fixture"] == nil)
+        #expect(store.errors["fixture"] == nil)
+    }
+
+    @Test("Cursor usage without trustworthy limits stays unsupported")
+    func cursorProviderRejectsMissingLimits() {
+        let usage: [String: Any] = [
+            "planUsage": ["limit": 0, "includedSpend": 0],
+        ]
+        #expect(throws: ProviderError.self) {
+            try CursorProvider.makeSnapshot(usage, planName: nil)
+        }
+        let legacy: [String: Any] = [
+            "gpt-4": ["numRequests": 0, "maxRequestUsage": nil],
+        ]
+        #expect(throws: ProviderError.self) {
+            try CursorProvider.makeSnapshotFromLegacy(legacy, planName: nil)
+        }
+    }
+
     @Test("Harness checking catches typos below the top-level sections")
     func harnessCheckerValidatesNestedConfiguration() {
         let object: [String: Any] = [

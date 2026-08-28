@@ -246,6 +246,7 @@ private struct AgentRowView: View {
     let row: AgentRow
     var reduced = false
     @Binding var hoveredID: AgentRow.ID?
+    @ObservedObject private var quotaStore = QuotaStore.shared
 
     private var hovering: Bool { hoveredID == row.id }
 
@@ -294,6 +295,9 @@ private struct AgentRowView: View {
                 if let fraction = row.contextFraction {
                     ContextBar(fraction: fraction, tokens: row.contextTokens,
                                window: row.contextWindow)
+                } else if let gauge = quotaStore.primaryGauge(for: row.agentID) {
+                    AccountQuotaBar(gauge: gauge,
+                                    plan: quotaStore.snapshot(for: row.agentID)?.accountLabel)
                 } else {
                     Color.clear.frame(width: 61, height: 1)
                 }
@@ -306,7 +310,11 @@ private struct AgentRowView: View {
                     CapabilityStrip(context: row.context)
                     Sparkline(series: row.activity, tint: stateTint(row.state))
                     Spacer(minLength: 6)
-                    if let model = Pricing.shortName(row.model) { Stat("cpu", model) }
+                    if let model = Pricing.shortName(row.model) {
+                        Stat("cpu", model)
+                    } else if let plan = quotaStore.snapshot(for: row.agentID)?.accountLabel {
+                        Stat("creditcard", plan, help: "\(plan) plan")
+                    }
                     if let tools = row.toolCalls {
                         Stat("hammer", Fmt.count(tools), help: "\(tools) tool calls")
                     }
@@ -650,6 +658,34 @@ private struct ContextBar: View {
                 .foregroundStyle(.secondary).fixedSize()
         }
         .help(tokens.map { "\($0 / 1000)k of \((window ?? 0) / 1000)k context used" } ?? "Context")
+    }
+}
+
+/// Account included-usage from a quota provider when the session has no
+/// per-transcript context figure to draw.
+private struct AccountQuotaBar: View {
+    let gauge: Gauge
+    let plan: String?
+
+    private var tint: Color {
+        switch gauge.severity {
+        case .critical: return .red
+        case .low: return .orange
+        case .normal: return .green
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 3.5) {
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
+                Capsule().fill(tint).frame(width: max(2, 34 * gauge.used), height: 4)
+            }
+            Text(gauge.usedPercentText)
+                .font(.system(size: 9, weight: .medium).monospacedDigit())
+                .foregroundStyle(.secondary).fixedSize()
+        }
+        .help("\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage")
     }
 }
 

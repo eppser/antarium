@@ -38,6 +38,7 @@ enum ProviderRegistry {
     private static let native: [UsageProvider] = [
         ClaudeCodeProvider(),
         CodexProvider(),
+        CursorProvider(),
     ]
 
     /// Providers contributed as config. Built once and kept, so a provider's
