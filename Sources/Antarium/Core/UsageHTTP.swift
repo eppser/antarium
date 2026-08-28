@@ -18,19 +18,34 @@ enum UsageHTTP {
         req.httpMethod = "GET"
         req.cachePolicy = .reloadIgnoringLocalCacheData
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
+        return try await jsonResponse(for: req, host: url.host ?? "the server", session: session)
+    }
 
+    static func postJSON(_ url: URL, body: [String: Any] = [:],
+                         headers: [String: String],
+                         session: URLSession) async throws -> [String: Any] {
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await jsonResponse(for: req, host: url.host ?? "the server", session: session)
+    }
+
+    private static func jsonResponse(for req: URLRequest, host: String,
+                                     session: URLSession) async throws -> [String: Any] {
         let data: Data, response: URLResponse
         do {
             (data, response) = try await session.data(for: req)
         } catch let urlErr as URLError {
-            throw ProviderError.transport(describe(urlErr, host: url.host ?? "the server"))
+            throw ProviderError.transport(describe(urlErr, host: host))
         } catch {
             throw ProviderError.transport(error.localizedDescription)
         }
-        try check(response, host: url.host ?? "the server")
+        try check(response, host: host)
 
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw ProviderError.badResponse("\(url.host ?? "The server") didn't return JSON.")
+            throw ProviderError.badResponse("\(host) didn't return JSON.")
         }
         return obj
     }

@@ -23,7 +23,7 @@ enum Settings {
 
     /// Which agents get a menu bar item, in registry order.
     static var enabledAgents: Set<String> {
-        get { Set(Config.strings("enabledAgents") ?? ["claude-code", "codex"]) }
+        get { Set(Config.strings("enabledAgents") ?? ["claude-code", "codex", "cursor"]) }
         set { Config.set("enabledAgents", Array(newValue).sorted()) }
     }
 

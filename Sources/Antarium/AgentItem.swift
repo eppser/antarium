@@ -113,8 +113,9 @@ final class AgentItem: NSObject, NSMenuDelegate {
         super.init()
 
         statusItem.button?.imagePosition = .imageOnly
-        // Remembers where the user ⌘-dragged this item to.
-        statusItem.autosaveName = "Antarium.\(provider.id)"
+        // Distinct from harness/session ids so macOS does not reuse a stale
+        // autosave slot that was created before the quota item existed.
+        statusItem.autosaveName = "Antarium.quota.\(provider.id)"
         menu.delegate = self
         menu.autoenablesItems = false
         // Left click opens the agent dashboard, right click the settings menu.
@@ -263,8 +264,22 @@ final class AgentItem: NSObject, NSMenuDelegate {
         let next = makeRender()
         guard next != lastRender else { return }
         lastRender = next
-        statusItem.button?.image = Renderer.image(next, appearance: appearance, scale: scale)
+        let image = Renderer.image(next, appearance: appearance, scale: scale)
+        statusItem.button?.image = image
+        statusItem.length = max(image.size.width, NSStatusItem.variableLength)
         statusItem.button?.toolTip = tooltip()
+        publishQuota()
+    }
+
+    private func publishQuota() {
+        switch state {
+        case .loading:
+            QuotaStore.shared.set(providerID: provider.id, snapshot: nil)
+        case .ready(let snapshot):
+            QuotaStore.shared.set(providerID: provider.id, snapshot: snapshot)
+        case .failed(let error, let last):
+            QuotaStore.shared.set(providerID: provider.id, error: error, last: last)
+        }
     }
 
     private func makeRender() -> StatusRender {

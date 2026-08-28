@@ -1,0 +1,203 @@
+import Foundation
+import SQLite3
+
+/// Cursor plan usage from the same Connect endpoint the IDE's billing dashboard uses.
+///
+/// Verified against a live Pro account: `GetCurrentPeriodUsage` reports
+/// `planUsage.totalPercentUsed`, `.autoPercentUsed`, and `.apiPercentUsed`
+/// against the included allowance, plus `billingCycleEnd` in epoch milliseconds.
+/// The legacy `GET /auth/usage` request buckets are kept as a fallback for
+/// Enterprise-style accounts that still expose `maxRequestUsage`.
+final class CursorProvider: UsageProvider, @unchecked Sendable {
+    let id = "cursor"
+    let displayName = "Cursor"
+    var setupHint: String { "Sign in to Cursor in the desktop app." }
+    let isVerified = true
+
+    private static let apiBase = "https://api2.cursor.sh"
+    private static let accessTokenKey = "cursorAuth/accessToken"
+
+    private let session = UsageHTTP.makeSession(headers: [
+        "User-Agent": "Antarium/1.0 (macOS menu bar)",
+        "Accept": "application/json",
+    ])
+
+    var isConfigured: Bool { accessToken() != nil }
+
+    func fetch() async throws -> Snapshot {
+        guard let token = accessToken() else {
+            throw ProviderError.notConfigured("Cursor isn't signed in on this Mac.")
+        }
+
+        let headers = authHeaders(token)
+        let usageURL = URL(string: "\(Self.apiBase)/aiserver.v1.DashboardService/GetCurrentPeriodUsage")!
+        let planURL = URL(string: "\(Self.apiBase)/aiserver.v1.DashboardService/GetPlanInfo")!
+
+        let usage = try await UsageHTTP.postJSON(usageURL, body: [:], headers: headers, session: session)
+
+        var planName: String? = nil
+        if let planJSON = try? await UsageHTTP.postJSON(planURL, body: [:], headers: headers, session: session),
+           let info = planJSON["planInfo"] as? [String: Any],
+           let name = info["planName"] as? String, !name.isEmpty {
+            planName = name
+        }
+
+        do {
+            return try Self.makeSnapshot(usage, planName: planName)
+        } catch let err as ProviderError {
+            guard case .unsupported = err else { throw err }
+            let legacyURL = URL(string: "\(Self.apiBase)/auth/usage")!
+            let legacy = try await UsageHTTP.getJSON(legacyURL, headers: ["Authorization": "Bearer \(token)"],
+                                                     session: session)
+            return try Self.makeSnapshotFromLegacy(legacy, planName: planName)
+        }
+    }
+
+    // MARK: - Credentials
+
+    private func accessToken() -> String? { Self.accessToken() }
+
+    static func accessToken() -> String? {
+        if let env = ProcessInfo.processInfo.environment["CURSOR_SESSION_TOKEN"],
+           !env.isEmpty { return env }
+        return readTokenFromStateDB()
+    }
+
+    static func stateDBURL() -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
+    }
+
+    private static func readTokenFromStateDB() -> String? {
+        let path = stateDBURL().path
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        var database: OpaquePointer?
+        guard sqlite3_open_v2("file:\(path)?mode=ro", &database,
+                              SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
+              let database else { return nil }
+        defer { sqlite3_close(database) }
+
+        var statement: OpaquePointer?
+        let query = "SELECT value FROM ItemTable WHERE key = '\(accessTokenKey)'"
+        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
+              let statement else { return nil }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_step(statement) == SQLITE_ROW,
+              let raw = sqlite3_column_text(statement, 0) else { return nil }
+        let token = String(cString: raw).trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
+    }
+
+    private func authHeaders(_ token: String) -> [String: String] {
+        [
+            "Authorization": "Bearer \(token)",
+            "Content-Type": "application/json",
+            "Connect-Protocol-Version": "1",
+        ]
+    }
+
+    // MARK: - Parsing
+
+    static func makeSnapshot(_ usage: [String: Any], planName: String?) throws -> Snapshot {
+        guard let planUsage = usage["planUsage"] as? [String: Any] else {
+            throw ProviderError.badResponse("Cursor reported no plan usage.")
+        }
+
+        let resetsAt = billingCycleEnd(usage)
+        let candidates = [
+            percentGauge(id: "total", badge: "ALL", title: "Included total",
+                         planUsage: planUsage, key: "totalPercentUsed", resetsAt: resetsAt),
+            percentGauge(id: "auto", badge: "AUTO", title: "Auto mode",
+                         planUsage: planUsage, key: "autoPercentUsed", resetsAt: resetsAt),
+            percentGauge(id: "api", badge: "API", title: "Named models",
+                         planUsage: planUsage, key: "apiPercentUsed", resetsAt: resetsAt),
+        ].compactMap { $0 }
+
+        guard !candidates.isEmpty else {
+            throw ProviderError.unsupported("Cursor reported no trustworthy usage window.")
+        }
+
+        let total = candidates.first { $0.id == "total" }
+        let others = candidates.filter { $0.id != "total" }.sorted { $0.used > $1.used }
+        guard let primary = total ?? others.first else {
+            throw ProviderError.unsupported("Cursor reported no trustworthy usage window.")
+        }
+
+        var gauges = [primary]
+        if let second = (total != nil ? others.first : others.dropFirst().first) {
+            gauges.append(second)
+        }
+        let shown = Set(gauges.map(\.id))
+        let extras = candidates.filter { !shown.contains($0.id) }
+
+        Log.info("cursor", "plan=\(planName ?? "—") gauges=\(gauges.map(\.title)) "
+            + "used=\(gauges.map { String(format: "%.1f%%", $0.used * 100) })")
+
+        return Snapshot(providerID: "cursor", gauges: gauges, extras: extras,
+                        accountLabel: planName, fetchedAt: Date())
+    }
+
+    static func makeSnapshotFromLegacy(_ json: [String: Any], planName: String?) throws -> Snapshot {
+        let startOfMonth = UsageHTTP.parseDate(json["startOfMonth"] as? String)
+        var gauges: [Gauge] = []
+
+        for (key, value) in json {
+            guard key != "startOfMonth", let bucket = value as? [String: Any] else { continue }
+            guard let max = intValue(bucket["maxRequestUsage"]), max > 0,
+                  let used = intValue(bucket["numRequests"]) else { continue }
+            let percent = Double(used) / Double(max) * 100
+            let badge = key.count <= 4 ? key.uppercased() : String(key.prefix(3)).uppercased()
+            gauges.append(Gauge(id: key, badge: badge, title: key,
+                                used: Swift.min(Swift.max(percent / 100, 0), 1), resetsAt: startOfMonth,
+                                reportedSeverity: .normal))
+        }
+
+        guard !gauges.isEmpty else {
+            throw ProviderError.unsupported("Cursor reported no trustworthy usage window.")
+        }
+
+        gauges.sort { $0.used > $1.used }
+        let primary = gauges[0]
+        let extras = gauges.count > 1 ? Array(gauges.dropFirst()) : []
+
+        return Snapshot(providerID: "cursor", gauges: [primary], extras: extras,
+                        accountLabel: planName, fetchedAt: Date())
+    }
+
+    private static func percentGauge(id: String, badge: String, title: String,
+                                     planUsage: [String: Any], key: String,
+                                     resetsAt: Date?) -> Gauge? {
+        guard let percent = doubleValue(planUsage[key]) else { return nil }
+        return Gauge(id: id, badge: badge, title: title,
+                     used: Swift.min(Swift.max(percent / 100, 0), 1), resetsAt: resetsAt,
+                     reportedSeverity: .normal)
+    }
+
+    private static func billingCycleEnd(_ usage: [String: Any]) -> Date? {
+        if let raw = usage["billingCycleEnd"] as? String, let value = Double(raw) {
+            return FieldPath.epoch(value)
+        }
+        if let value = doubleValue(usage["billingCycleEnd"]) {
+            return FieldPath.epoch(value)
+        }
+        return nil
+    }
+
+    private static func doubleValue(_ raw: Any?) -> Double? {
+        switch raw {
+        case let v as Double: return v
+        case let v as Int: return Double(v)
+        case let v as String: return Double(v)
+        default: return nil
+        }
+    }
+
+    private static func intValue(_ raw: Any?) -> Int? {
+        switch raw {
+        case let v as Int: return v
+        case let v as Double: return Int(v)
+        default: return nil
+        }
+    }
+}

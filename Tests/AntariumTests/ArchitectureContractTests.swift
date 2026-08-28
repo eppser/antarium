@@ -674,6 +674,56 @@ struct ArchitectureContractTests {
         #expect(cursor.fields.turnWhere?.isEmpty == true)
     }
 
+    @Test("Cursor usage maps plan percent windows onto gauges")
+    func cursorProviderParsesCurrentPeriodUsage() throws {
+        let usage: [String: Any] = [
+            "billingCycleEnd": "1788250081000",
+            "planUsage": [
+                "totalPercentUsed": 42.5,
+                "autoPercentUsed": 37.0,
+                "apiPercentUsed": 96.5,
+            ],
+        ]
+        let snapshot = try CursorProvider.makeSnapshot(usage, planName: "Pro")
+        #expect(snapshot.accountLabel == "Pro")
+        #expect(snapshot.gauges.count == 2)
+        #expect(snapshot.gauges[0].id == "total")
+        #expect(snapshot.gauges[0].used == 0.425)
+        #expect(snapshot.gauges[1].id == "api")
+        #expect(snapshot.gauges[1].used == 0.965)
+        #expect(snapshot.extras.count == 1)
+        #expect(snapshot.extras[0].id == "auto")
+    }
+
+    @Test("Cursor legacy usage buckets skip plans with no limit")
+    func cursorProviderParsesLegacyUsageWhenLimitsExist() throws {
+        let legacy: [String: Any] = [
+            "startOfMonth": "2026-08-01T08:08:01.000Z",
+            "gpt-4": ["numRequests": 150, "maxRequestUsage": 500],
+        ]
+        let snapshot = try CursorProvider.makeSnapshotFromLegacy(legacy, planName: nil)
+        #expect(snapshot.gauges.count == 1)
+        #expect(snapshot.gauges[0].id == "gpt-4")
+        #expect(snapshot.gauges[0].used == 0.3)
+        #expect(snapshot.gauges[0].resetsAt != nil)
+    }
+
+    @Test("Cursor usage without trustworthy limits stays unsupported")
+    func cursorProviderRejectsMissingLimits() {
+        let usage: [String: Any] = [
+            "planUsage": ["limit": 0, "includedSpend": 0],
+        ]
+        #expect(throws: ProviderError.self) {
+            try CursorProvider.makeSnapshot(usage, planName: nil)
+        }
+        let legacy: [String: Any] = [
+            "gpt-4": ["numRequests": 0, "maxRequestUsage": nil],
+        ]
+        #expect(throws: ProviderError.self) {
+            try CursorProvider.makeSnapshotFromLegacy(legacy, planName: nil)
+        }
+    }
+
     @Test("Harness checking catches typos below the top-level sections")
     func harnessCheckerValidatesNestedConfiguration() {
         let object: [String: Any] = [
