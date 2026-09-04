@@ -690,6 +690,12 @@ struct ArchitectureContractTests {
         #expect(cursor.fields.turnWhere?.isEmpty == true)
     }
 
+    /// Note: this pins the *mapping*, not the scale. The fixture was authored
+    /// to match the implementation's assumption that Cursor reports 0-100, so
+    /// it would still pass if Cursor actually returned 0-1 fractions and every
+    /// gauge were wrong by 100x. Only live non-zero usage settles that — the
+    /// `displayMessage` field states the percent in words, which is the
+    /// independent check.
     @Test("Cursor usage maps plan percent windows onto gauges")
     func cursorProviderParsesCurrentPeriodUsage() throws {
         let usage: [String: Any] = [

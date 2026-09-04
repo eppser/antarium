@@ -7,6 +7,13 @@ struct SettingsView: View {
     @ObservedObject private var settingsBus = SettingsBus.shared
     /// Only meaningful once there are enough harnesses to hunt through.
     @State private var harnessFilter = ""
+    /// The host being typed into the remote tmux section, before it is added.
+    @State private var newRemoteHost = ""
+    /// Which host has its password field open. One at a time: a column of
+    /// secure fields invites typing a password into the wrong machine's row.
+    @State private var passwordHost: String?
+    @State private var passwordEntry = ""
+    @State private var showRemoteHelp = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,6 +25,8 @@ struct SettingsView: View {
                     section("Menu Bar") { menuBarControls }
                     section("Agents") { agentControls }
                     section("Dashboard") { dashboardControls }
+                    section("Remote tmux", help: Self.remoteHelp,
+                            showing: $showRemoteHelp) { remoteTmuxControls }
                     section("Refresh") { refreshControls }
                     section("Sounds") { soundControls }
                     section("Harnesses") { harnessControls }
@@ -247,6 +256,219 @@ struct SettingsView: View {
         }
     }
 
+    /// A section whose heading carries a "?" — for the ones where knowing what
+    /// to type is the hard part, and a subtitle would not be enough room.
+    private func section<Content: View>(_ title: String, help: String,
+                                        showing: Binding<Bool>,
+                                        @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Text(title.uppercased())
+                    .font(.system(size: 9.5, weight: .bold)).tracking(0.6)
+                    .foregroundStyle(.secondary)
+                Button { showing.wrappedValue.toggle() } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("How to set this up")
+                .accessibilityLabel("\(title): how to set this up")
+                .popover(isPresented: showing, arrowEdge: .bottom) {
+                    ScrollView {
+                        Text(help)
+                            .font(.system(size: 11))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(14)
+                    }
+                    .frame(width: 380)
+                    .frame(maxHeight: 420)
+                }
+            }
+            content()
+        }
+    }
+
+    static let remoteHelp = """
+        Antarium runs `ssh <host>`, asks tmux what is running there, and turns \
+        anything that looks like a coding agent into a row tagged \
+        \(RemoteTmux.tag).
+
+        HOW TO ONBOARD A MACHINE
+
+        1. Check that `ssh <host>` already works from Terminal on this Mac. \
+        That is the whole prerequisite. Antarium reuses your ~/.ssh/config, so \
+        a Host entry carrying a port, an identity file or a jump host is \
+        picked up automatically and does not need repeating here.
+
+        2. Add the host below, written exactly as you would type it after \
+        `ssh` — "quibus", "10.0.0.4", or "deploy@quibus". That is the only \
+        thing you have to configure.
+
+        3. Key authentication needs nothing further. This is the normal case, \
+        and the one to prefer.
+
+        4. Password authentication: click the key button on the host's row and \
+        enter it once. It goes into your login Keychain, never into \
+        ~/.antarium/config.json. It also needs sshpass on this Mac:
+
+            brew install sshpass
+
+        5. tmux has to be running on the far side already. Antarium only \
+        looks; it never starts a session.
+
+        WHAT YOU GET
+
+        The agent, its project name and path, and which pane it is in. Status, \
+        token counts and cost are not read over SSH — those come from \
+        transcript files that stay on the remote machine — so a remote row \
+        shows the machine and pane in its tooltip instead of a live status.
+
+        IF A HOST STAYS EMPTY
+
+        Antarium keeps the last rows it saw rather than blinking a machine out \
+        of the list on one bad connection. Run with --log to see why a host \
+        was skipped: a refused key, a missing sshpass, or no tmux server.
+        """
+
+    private var remoteTmuxControls: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Toggle(title: "Include remote tmux agents",
+                   subtitle: "Agents in tmux on other machines, over SSH",
+                   on: Settings.includeRemoteTmux) { on in
+                model.update { Settings.includeRemoteTmux = on }
+                AgentStore.shared.refresh(force: true)
+            }
+
+            if Settings.includeRemoteTmux {
+                ForEach(Settings.remoteTmuxHosts, id: \.self) { host in
+                    remoteHostRow(host)
+                }
+
+                HStack(spacing: 6) {
+                    TextField("host or user@host", text: $newRemoteHost)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
+                        .onSubmit { addRemoteHost() }
+                    Button("Add") { addRemoteHost() }
+                        .font(.system(size: 11))
+                        .disabled(!RemoteTmux.isSafeHost(newRemoteHost))
+                }
+
+                let typed = newRemoteHost.trimmingCharacters(in: .whitespaces)
+                if !typed.isEmpty, !RemoteTmux.isSafeHost(typed) {
+                    // Otherwise Add simply greys out and the reason is a
+                    // guessing game.
+                    Text("A host is a name or address — \"quibus\", \"10.0.0.4\", "
+                         + "\"deploy@quibus\". No spaces, and it cannot begin with \"-\".")
+                        .font(.system(size: 10)).foregroundStyle(Color.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if Settings.remoteTmuxHosts.isEmpty {
+                    Text("No machines yet — add one above, then press ? for how to set it up.")
+                        .font(.system(size: 10)).foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    private func remoteHostRow(_ host: String) -> some View {
+        // With several machines configured, "some rows are missing" is not a
+        // useful signal — you need to know which one is failing and why.
+        let issue = AgentStore.shared.remoteIssues[host]
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "server.rack").font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Text(host).font(.system(size: 11)).lineLimit(1)
+                Spacer()
+                // Says which way this host authenticates without the user
+                // having to remember what they set up.
+                // A host edited into config.json by hand can be one the
+                // scanner refuses. Showing that only in the log leaves the
+                // row looking configured and simply never producing agents.
+                let usable = RemoteTmux.isSafeHost(host)
+                Text(!usable ? "invalid"
+                             : (RemoteTmux.hasPassword(for: host) ? "password" : "key"))
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(usable ? Color.secondary.opacity(0.7) : Color.orange)
+                    .padding(.horizontal, 4).padding(.vertical, 0.5)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    .help(usable ? "" : "Not a usable ssh destination — it is skipped")
+                Button {
+                    passwordEntry = ""
+                    passwordHost = passwordHost == host ? nil : host
+                } label: {
+                    Image(systemName: "key").font(.system(size: 10))
+                        .foregroundStyle(.secondary).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Set or clear the password for \(host)")
+                .accessibilityLabel("Set or clear the password for \(host)")
+                Button {
+                    RemoteTmux.removePassword(for: host)
+                    model.update {
+                        Settings.remoteTmuxHosts = Settings.remoteTmuxHosts.filter { $0 != host }
+                    }
+                    AgentStore.shared.refresh(force: true)
+                } label: {
+                    Image(systemName: "minus.circle").font(.system(size: 10))
+                        .foregroundStyle(.secondary).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Stop watching \(host)")
+                .accessibilityLabel("Stop watching \(host)")
+            }
+
+            if let issue {
+                Text(issue)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if passwordHost == host {
+                HStack(spacing: 6) {
+                    SecureField("password (leave empty to clear)", text: $passwordEntry)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
+                        .onSubmit { saveRemotePassword(for: host) }
+                    Button("Save") { saveRemotePassword(for: host) }
+                        .font(.system(size: 11))
+                }
+                Text(RemoteTmux.sshpassPath() == nil
+                     ? "Needs sshpass on this Mac — brew install sshpass"
+                     : "Stored in your login Keychain, not in the config file.")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(RemoteTmux.sshpassPath() == nil
+                                     ? Color.orange : Color.secondary.opacity(0.7))
+            }
+        }
+    }
+
+    private func addRemoteHost() {
+        let host = newRemoteHost.trimmingCharacters(in: .whitespaces)
+        // Rejected here as well as in the scanner: a destination beginning
+        // with "-" is parsed by ssh as an option, and -oProxyCommand= runs a
+        // command on this Mac.
+        guard !host.isEmpty, RemoteTmux.isSafeHost(host),
+              !Settings.remoteTmuxHosts.contains(host) else { return }
+        model.update { Settings.remoteTmuxHosts = Settings.remoteTmuxHosts + [host] }
+        newRemoteHost = ""
+        AgentStore.shared.refresh(force: true)
+    }
+
+    private func saveRemotePassword(for host: String) {
+        let entry = passwordEntry
+        if entry.isEmpty { RemoteTmux.removePassword(for: host) }
+        else { RemoteTmux.setPassword(entry, for: host) }
+        passwordEntry = ""
+        passwordHost = nil
+        model.update { }
+        AgentStore.shared.refresh(force: true)
+    }
+
     private var menuBarControls: some View {
         VStack(alignment: .leading, spacing: 9) {
             Segmented(title: "Show", options: MeterMode.allCases.map { ($0.title, $0.rawValue) },
@@ -310,7 +532,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 9) {
             Segmented(title: "Sort", options: AgentSort.allCases.map { ($0.title, $0.rawValue) },
                       current: Settings.agentSort.rawValue) { raw in
-                model.update { Settings.agentSort = AgentSort(rawValue: raw) ?? .status }
+                model.update { Settings.agentSort = AgentSort(rawValue: raw) ?? .name }
                 AgentStore.shared.setSort(Settings.agentSort)
             }
             Toggle(title: "Reduced list", subtitle: "Name, status, context, last reply",

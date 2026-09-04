@@ -59,7 +59,7 @@ enum Settings {
 
     /// Dashboard sort order, remembered across launches.
     static var agentSort: AgentSort {
-        get { AgentSort(rawValue: Config.string("agentSort") ?? "") ?? .status }
+        get { AgentSort(rawValue: Config.string("agentSort") ?? "") ?? .name }
         set { Config.set("agentSort", newValue.rawValue) }
     }
 
@@ -113,6 +113,23 @@ enum Settings {
     static var includeCloudAgents: Bool {
         get { Config.bool("includeCloudAgents") ?? true }
         set { Config.set("includeCloudAgents", newValue) }
+    }
+
+    /// Include agents found in tmux on other machines, over SSH.
+    static var includeRemoteTmux: Bool {
+        get { Config.bool("includeRemoteTmux") ?? false }
+        set { Config.set("includeRemoteTmux", newValue) }
+    }
+
+    /// The machines to look on, each written exactly as you would type it
+    /// after `ssh` — "quibus", "10.0.0.4", "deploy@quibus". That is the whole
+    /// configuration: `~/.ssh/config` already holds the port, the key and the
+    /// real hostname, and restating any of it here would only be a second
+    /// place for it to go stale. A password, when one is needed, is kept in
+    /// the Keychain under `RemoteTmux.keychainService` and never written here.
+    static var remoteTmuxHosts: [String] {
+        get { Config.strings("remoteTmuxHosts") ?? [] }
+        set { Config.set("remoteTmuxHosts", newValue) }
     }
 
     /// Points between the agent mark and the numbers.

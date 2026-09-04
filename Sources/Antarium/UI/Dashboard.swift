@@ -284,7 +284,14 @@ private struct AgentRowView: View {
                         Image(systemName: "square.split.2x2").font(.system(size: 7.5))
                             .foregroundStyle(.quaternary).help("tmux · \(tmux)")
                     }
-                    if row.isRemote {
+                    // A machine you can ssh to is not "the cloud", and one
+                    // icon for both would make a remote tmux pane look like a
+                    // hosted task with no pane to attach to.
+                    if row.hostApp == RemoteTmux.tag {
+                        Image(systemName: "server.rack").font(.system(size: 7.5))
+                            .foregroundStyle(.secondary)
+                            .help(row.note ?? "tmux on another machine")
+                    } else if row.isRemote {
                         Image(systemName: "cloud.fill").font(.system(size: 7.5))
                             .foregroundStyle(.secondary).help("Running in the cloud")
                     }

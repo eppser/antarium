@@ -137,11 +137,11 @@ struct AgentRow: Identifiable {
 
 /// How the dashboard orders its list.
 enum AgentSort: String, CaseIterable {
-    case status, harness, host, spend, activity
+    case name, harness, host, spend, activity
 
     var title: String {
         switch self {
-        case .status:   return "Status"
+        case .name:     return "Name"
         case .harness:  return "Agent"
         case .host:     return "App"
         case .spend:    return "Spend"
@@ -150,7 +150,7 @@ enum AgentSort: String, CaseIterable {
     }
     var symbol: String {
         switch self {
-        case .status:   return "circle.lefthalf.filled"
+        case .name:     return "textformat"
         case .harness:  return "square.stack.3d.up"
         case .host:     return "macwindow"
         case .spend:    return "creditcard"
@@ -248,9 +248,15 @@ enum AgentScan {
 
     static func sorted(_ rows: [AgentRow], by order: AgentSort = Settings.agentSort) -> [AgentRow] {
         switch order {
-        case .status:
-            // Actionable first, then most-recently-active within each state.
+        case .name:
+            // Alphabetical by the name the row actually shows, so the list
+            // reads like an index. Two rows can carry the same project name —
+            // a second checkout, or one repo open under tmux and in Warp — so
+            // status and recency still break the tie, which also keeps the
+            // order stable between scans rather than letting equal names swap.
             return rows.sorted {
+                let a = $0.coreName, b = $1.coreName
+                if a != b { return a.localizedCaseInsensitiveCompare(b) == .orderedAscending }
                 if $0.state.rank != $1.state.rank { return $0.state.rank < $1.state.rank }
                 return ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast)
             }
@@ -287,14 +293,6 @@ enum AgentScan {
     }
 
     // MARK: - Processes
-
-    /// Executable-path fragments that identify each agent. Paths, not names —
-    /// see `Processes.Info.path`.
-    /// Which processes belong to an agent now lives in the harness files, so
-    /// adding one — or fixing a path an agent moved — is an edit, not a build.
-    static func matchPatterns(for id: String) -> [String] {
-        HarnessDescriptor.all().first { $0.id == id }?.match ?? []
-    }
 
     /// Called with an executable path, a process name and argv[0] separately,
     /// so both kinds of match belong here. Without the name check an agent that

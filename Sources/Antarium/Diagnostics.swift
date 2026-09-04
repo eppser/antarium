@@ -246,6 +246,42 @@ enum Diagnostics {
                 exit(0)
             }
 
+            // `--remote-tmux [host ...]` — what each configured machine
+            // actually answered. The onboarding help points here, because a
+            // host that contributes nothing looks identical to a host with no
+            // agents running until you can see which one it was.
+            if CommandLine.arguments.contains("--remote-tmux") {
+                let named = CommandLine.arguments.drop { $0 != "--remote-tmux" }
+                    .dropFirst().filter { !$0.hasPrefix("-") }
+                let hosts = named.isEmpty ? Settings.remoteTmuxHosts : Array(named)
+                if hosts.isEmpty {
+                    print("No hosts. Add one in Settings › Remote tmux, "
+                        + "or pass them: --remote-tmux quibus")
+                    exit(1)
+                }
+                // The same concurrent sweep the app runs, so what this
+                // prints is what the dashboard will get — including the time
+                // it takes with several machines.
+                let began = ProcessInfo.processInfo.systemUptime
+                let results = RemoteTmux.scanAll(hosts: hosts)
+                let elapsed = ProcessInfo.processInfo.systemUptime - began
+                var total = 0
+                for result in results {
+                    let auth = RemoteTmux.hasPassword(for: result.host) ? "password" : "key"
+                    print("\(result.host) [\(auth)] — "
+                        + "\(result.issue ?? "\(result.rows.count) agent(s)")")
+                    for row in result.rows {
+                        print("  \(row.agentID.padding(toLength: 14, withPad: " ", startingAt: 0)) "
+                            + "\(row.coreName.padding(toLength: 16, withPad: " ", startingAt: 0)) "
+                            + "\(row.cwd)")
+                    }
+                    total += result.rows.count
+                }
+                print(String(format: "%d host(s), %d agent(s), %.1fs",
+                             results.count, total, elapsed))
+                exit(total > 0 ? 0 : 1)
+            }
+
             if CommandLine.arguments.contains("--bench") {
                 for pass in 1...3 {
                     let t0 = ProcessInfo.processInfo.systemUptime

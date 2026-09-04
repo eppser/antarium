@@ -50,15 +50,30 @@ enum Shell {
     /// suffix is more useful than the prefix for command failures.
     static func execute(_ path: String, _ args: [String],
                         timeout: TimeInterval? = nil,
-                        outputLimit: Int = 4 * 1_024 * 1_024) -> Result {
+                        outputLimit: Int = 4 * 1_024 * 1_024,
+                        environment: [String: String]? = nil,
+                        input: String? = nil) -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = args
+        // Merged, not replaced: a command that loses PATH and HOME behaves
+        // differently from the one the user would run in their own shell.
+        // Secrets belong here rather than in `args`, which the process table
+        // shows to everyone on the machine.
+        if let environment {
+            process.environment = ProcessInfo.processInfo.environment
+                .merging(environment) { _, new in new }
+        }
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        // Anything secret belongs here rather than in `args`: the process
+        // table is readable, and a password passed as an argument is visible
+        // for as long as the command runs.
+        let stdinPipe = input.map { _ in Pipe() }
+        if let stdinPipe { process.standardInput = stdinPipe }
 
         let terminated = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in terminated.signal() }
@@ -68,6 +83,11 @@ enum Shell {
         } catch {
             return Result(stdout: "", stderr: "", exitCode: nil,
                           timedOut: false, launchError: error.localizedDescription)
+        }
+
+        if let stdinPipe, let input {
+            stdinPipe.fileHandleForWriting.write(Data(input.utf8))
+            try? stdinPipe.fileHandleForWriting.close()
         }
 
         let reads = DispatchGroup()

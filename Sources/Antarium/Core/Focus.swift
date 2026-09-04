@@ -62,7 +62,7 @@ enum Focus {
     @MainActor
     private static func focusTmux(_ target: String) -> Bool {
         guard let tmux = tmuxPath() else { return false }
-        let session = String(target.split(separator: ":").first ?? "")
+        let session = tmuxSession(target)
         guard !session.isEmpty else { return false }
 
         let pane = target.split(separator: ".").last.map(String.init) ?? target
@@ -146,16 +146,26 @@ enum Focus {
         guard tmuxPath() != nil else { return false }
         let session = tmuxSession(target)
         guard !session.isEmpty else { return false }
-        // Escape for AppleScript's string literal, then for the shell.
-        let safe = session.replacingOccurrences(of: "\\", with: "\\\\")
-                          .replacingOccurrences(of: "\"", with: "\\\"")
-        let script = """
+        // Two layers, in this order: the name is first quoted for the shell
+        // that `do script` starts, and only then escaped for AppleScript's
+        // string literal. Escaping for AppleScript alone left the name inside
+        // double quotes in the shell, where `$(...)` and backticks still
+        // expand — and tmux does allow a session name like "$(touch /tmp/x)",
+        // verified. Clicking Attach would then run it.
+        return Shell.run("/usr/bin/osascript", ["-e", attachScript(session: session)]) != nil
+    }
+
+    /// Pure, so the quoting can be tested without opening a Terminal window.
+    static func attachScript(session: String) -> String {
+        let shellQuoted = "'" + session.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        let safe = shellQuoted.replacingOccurrences(of: "\\", with: "\\\\")
+                              .replacingOccurrences(of: "\"", with: "\\\"")
+        return """
         tell application "Terminal"
           activate
-          do script "tmux attach -t \\"\(safe)\\""
+          do script "tmux attach -t \(safe)"
         end tell
         """
-        return Shell.run("/usr/bin/osascript", ["-e", script]) != nil
     }
 
     private static func tmuxPath() -> String? {

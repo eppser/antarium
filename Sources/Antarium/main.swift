@@ -87,6 +87,7 @@ MainActor.assumeIsolated {
         || CommandLine.arguments.contains("--focus")
         || CommandLine.arguments.contains("--onboarding")
         || CommandLine.arguments.contains("--tmux")
+        || CommandLine.arguments.contains("--remote-tmux")
         || CommandLine.arguments.contains("--status")
         || CommandLine.arguments.contains("--log") {
         Diagnostics.dumpAgentsAndExit()
