@@ -394,12 +394,15 @@ func quotaOnlyHarnessRowIsHonest() throws {
         == "Native metadata")
 
     // Every quota-only descriptor must be able to say its mapping is verified.
+    var quotaOnly = 0
     for descriptor in descriptors where descriptor.source.kind == .none && descriptor.quota != nil {
+        quotaOnly += 1
         let row = HarnessRowPresentation(descriptor: descriptor, edited: false)
         #expect(row.sourceLabel == "Quota only")
         #expect(row.compatibilityLabel == "Quota fixture verified",
                 "\(descriptor.id) reported \(row.compatibilityLabel)")
     }
+    #expect(quotaOnly >= 6, "expected the quota-only descriptors; saw \(quotaOnly)")
 }
 
 // MARK: - Process lookups derived once
@@ -452,9 +455,11 @@ func envCredentialHintsMentionTheLimitation() throws {
     // An app launched from Finder inherits no shell, so "set FOO_API_KEY" is
     // advice that silently does nothing for most users. A descriptor that can
     // only read an environment variable has to say how to do it another way.
+    var examined = 0
     for descriptor in HarnessCLI.bundledDescriptors() {
         guard let quota = descriptor.quota,
               quota.credential?.kind == "env" else { continue }
+        examined += 1
         let hint = try #require(quota.setupHint, "\(descriptor.id) has no setup hint")
         // The route has to be one that works however Antarium was launched.
         // Naming the harness file qualifies; naming only the variable does not.
@@ -467,18 +472,25 @@ func envCredentialHintsMentionTheLimitation() throws {
         #expect(hint.count <= 48,
                 "\(descriptor.id): hint is \(hint.count) characters and will truncate — \(hint)")
     }
+    // Without this the test passes on an empty set, which is how it would read
+    // if every env credential were renamed or removed: green, and checking
+    // nothing at all.
+    #expect(examined > 0, "no shipped descriptor uses an env credential to check")
 }
 
 @Test("Every shipped quota provider offers a way to configure it")
 func everyQuotaProviderHasAHint() {
+    var examined = 0
     for descriptor in HarnessCLI.bundledDescriptors() {
         guard let quota = descriptor.quota else { continue }
+        examined += 1
         let hint = quota.setupHint ?? ""
         #expect(!hint.isEmpty, "\(descriptor.id) has no setup hint")
         // A hint is shown where the user cannot act on a shell prompt, so it
         // must name something concrete rather than restate the problem.
         #expect(hint.count > 12, "\(descriptor.id): hint is too vague — \(hint)")
     }
+    #expect(examined >= 7, "expected every shipped quota provider; saw \(examined)")
 }
 
 @Test("First run gives a row to accounts that work and a single line to the rest")
