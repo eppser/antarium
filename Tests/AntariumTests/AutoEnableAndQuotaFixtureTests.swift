@@ -600,3 +600,57 @@ func quotaFixtureIsOrderSensitive() {
     #expect(!QuotaFixture.differences(expected: expected, actual: swapped).isEmpty,
             "a reordered set of gauges was accepted")
 }
+
+@Suite("Settings accounts for agents the first run passed over", .serialized)
+@MainActor
+struct AgentCountSummaryTests {
+
+    private func row(_ id: String, present: Bool, enabled: Bool) -> SettingsView.AgentRow {
+        SettingsView.AgentRow(id: id, name: id, enabled: enabled,
+                              detail: "", unverified: false, present: present)
+    }
+
+    @Test("A present agent that is switched off is counted, not hidden")
+    func shortfallIsNamed() {
+        // Five present, four enabled — the shape a first run leaves behind on
+        // a Mac with more agents than AgentAutoEnable.limit.
+        let rows = (1...4).map { row("on-\($0)", present: true, enabled: true) }
+            + [row("cut", present: true, enabled: false),
+               row("absent", present: false, enabled: false)]
+        #expect(SettingsView.agentCountSummary(rows) == "4 of 6 shown · 1 more found here")
+    }
+
+    @Test("Nothing is added when every agent found here is already shown")
+    func noShortfall() {
+        let rows = [row("on", present: true, enabled: true),
+                    row("absent", present: false, enabled: false)]
+        #expect(SettingsView.agentCountSummary(rows) == "1 of 2 shown")
+    }
+
+    @Test("An agent with no trace on this Mac is not reported as found")
+    func absentIsNotCounted() {
+        let rows = [row("on", present: true, enabled: true),
+                    row("a", present: false, enabled: false),
+                    row("b", present: false, enabled: false)]
+        #expect(SettingsView.agentCountSummary(rows) == "1 of 3 shown")
+    }
+
+    /// The limit is what creates the shortfall the line above reports, so
+    /// something has to hold it in place — otherwise raising `limit` past the
+    /// number of providers makes that line unreachable and the tests above
+    /// measure nothing. Stated over `resolve` itself rather than over
+    /// `ProviderRegistry.all`, whose size is whatever this Mac has seeded.
+    @Test("More present agents than the limit leaves some found and not shown")
+    func limitCutsPresentAgents() {
+        let found = (0...AgentAutoEnable.limit).map {
+            AgentAutoEnable.Evidence(id: "agent-\($0)", signedIn: true, hasSessions: true)
+        }
+        let chosen = AgentAutoEnable.resolve(found, fallback: [])
+        #expect(chosen.count == AgentAutoEnable.limit)
+        #expect(chosen.count < found.count)
+        let cut = found.filter { !chosen.contains($0.id) }
+        #expect(cut.count == 1)
+        let allPresent = cut.allSatisfy { $0.present }
+        #expect(allPresent, "the agent it passed over is present here")
+    }
+}

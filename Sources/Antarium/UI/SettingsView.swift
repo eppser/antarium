@@ -591,6 +591,19 @@ struct SettingsView: View {
                 < ($1.present ? 0 : 1, $1.name.lowercased()) }
     }
 
+    /// "4 of 10 shown" reads the same on a Mac with four agents as on one
+    /// where a fifth was found and cut: the first run enables at most
+    /// `AgentAutoEnable.limit`, strongest evidence first, and says nothing
+    /// about the ones it passed over. This line is the only place they are
+    /// accounted for, and the only reason the user would know there is
+    /// anything left to switch on.
+    static func agentCountSummary(_ rows: [AgentRow]) -> String {
+        let shown = rows.filter(\.enabled).count
+        let waiting = rows.filter { $0.present && !$0.enabled }.count
+        let base = "\(shown) of \(rows.count) shown"
+        return waiting == 0 ? base : base + " · \(waiting) more found here"
+    }
+
     private var agentControls: some View {
         let providers = ProviderRegistry.all
         let enabled = Settings.enabledAgents
@@ -620,7 +633,7 @@ struct SettingsView: View {
                 .controlSize(.small)
                 .help("Switch on every agent that is signed in or has sessions on this Mac, and switch off the rest.")
                 Spacer()
-                Text("\(enabled.count) of \(rows.count) shown")
+                Text(Self.agentCountSummary(rows))
                     .font(.system(size: 9.5)).foregroundStyle(.tertiary)
             }
             .padding(.top, 2)

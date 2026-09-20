@@ -81,3 +81,4 @@ per-million divisor off by a thousand | Sources/Antarium/Core/TranscriptStats.sw
 one-hour cache writes dropped from the bill | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheWrite1h) / 1_000_000 \* rate.cacheWrite1h||
 unexplained cache writes billed at the dearer rate | Sources/Antarium/Core/TranscriptStats.swift | s|let write5 = add(w5, max(0, writeTotal - classified))|let write5 = add(w5, 0)|
 an unpriced model silently drops out of the total | Sources/Antarium/Core/TranscriptStats.swift | s|.allSatisfy({ \$0.isFinite \&\& \$0 >= 0 }) else { return nil }|.allSatisfy({ $0.isFinite \&\& $0 >= 0 }) else { continue }|
+settings hides agents the first run passed over | Sources/Antarium/UI/SettingsView.swift | s|let waiting = rows.filter { \$0.present \&\& !\$0.enabled }.count|let waiting = 0|
