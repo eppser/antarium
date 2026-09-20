@@ -65,3 +65,6 @@ orca records path renamed | Resources/harnesses/orca.json | s/"root": "result.te
 presence harness emits no rows | Sources/Antarium/Core/AgentScan.swift | s/            return presenceRows(descriptor, processes: processes)/            return []/
 presence rows invent a zero cost | Sources/Antarium/Core/AgentScan.swift | s/                    state: .unobserved,/                    state: .waiting,/
 gemini matcher widened to a path fragment | Resources/harnesses/gemini.json | s/"names": \[/"pathContains": ["\/bin\/gemini"], "names": [/
+copilot-cli sums cache reads into input | Resources/harnesses/copilot-cli.json | s/SUM(u.cache_read_tokens)/SUM(u.input_tokens)/
+copilot-cli takes the oldest model | Resources/harnesses/copilot-cli.json | s/ORDER BY u.id DESC LIMIT 1/ORDER BY u.id ASC LIMIT 1/
+copilot-cli loses its turn count | Resources/harnesses/copilot-cli.json | s/(SELECT COUNT(\*) FROM turns t WHERE t.session_id = s.id) AS turns/0 AS turns/
