@@ -31,7 +31,8 @@ enum Onboarding {
     /// there and stores it knows are not. Reading the real catalog cannot
     /// prove this reads the disk: on a machine where every agent happens to be
     /// installed, claiming they all are looks identical to checking.
-    static func harnesses(_ descriptors: [HarnessDescriptor] = HarnessDescriptor.all())
+    static func harnesses(_ descriptors: [HarnessDescriptor] = HarnessDescriptor.all(),
+                          resolve: (String) -> String? = Onboarding.resolveCommand)
         -> [Finding] {
         var out: [Finding] = []
         for descriptor in descriptors {
@@ -39,6 +40,19 @@ enum Onboarding {
             // there is nothing on disk to look for. It used to fail the
             // existence check and get listed as "not installed here" directly
             // under its own "signed in" row in the quota section.
+            // An agent that keeps no session record has no path to look for,
+            // but it is still installed or not, and a first run that says
+            // nothing about it is wrong in the direction that matters: the
+            // user has it, and Antarium supports it.
+            if descriptor.contributesPresenceOnly {
+                let name = descriptor.processRule.names?.first ?? descriptor.id
+                let binary = resolve(name)
+                out.append(Finding(id: descriptor.id, name: descriptor.name,
+                                   detail: binary.map { shorten($0) + " · no session record" }
+                                       ?? "not on this Mac",
+                                   found: binary != nil))
+                continue
+            }
             guard !descriptor.source.path.isEmpty else { continue }
             let path = descriptor.source.path.expandingTilde
             let found = FileManager.default.fileExists(atPath: path)

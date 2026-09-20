@@ -71,3 +71,4 @@ copilot-cli loses its turn count | Resources/harnesses/copilot-cli.json | s/(SEL
 openclaw counts cache reads as input | Resources/harnesses/openclaw.json | s/"inputTokens": "message.usage.input"/"inputTokens": "message.usage.cacheRead"/
 openclaw accumulates the context size | Resources/harnesses/openclaw.json | s/"message.usage.totalTokens"/"message.usage.input"/
 openclaw glob loses the agent level | Resources/harnesses/openclaw.json | s|"glob": "\*/sessions/\*.jsonl"|"glob": "*.jsonl"|
+presence agents vanish from first run | Sources/Antarium/Core/Onboarding.swift | s/            if descriptor.contributesPresenceOnly {/            if false {/

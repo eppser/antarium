@@ -315,8 +315,30 @@ struct PresenceHarnessTests {
         #expect(descriptor.source.kind == .none)
         #expect(descriptor.source.path.isEmpty)
         #expect(descriptor.quota == nil, "it would become a menu bar item with nothing to show")
-        // And it is not offered as an installed agent, since there is no
-        // session store for onboarding to find.
-        #expect(!Onboarding.harnesses(all).contains { $0.id == descriptor.id })
+        // It is still reported as installed — see the test below. An earlier
+        // version asserted the opposite, which recorded the gap as if it were
+        // the intended behaviour.
+        #expect(Onboarding.harnesses(all) { _ in "/opt/example/bin/tool" }
+            .contains { $0.id == descriptor.id })
+    }
+    @Test("A presence-only agent is still reported as installed")
+    func presenceHarnessesAreDetected() throws {
+        let descriptor = try descriptor()
+        // It has no session store, so the path check every other harness uses
+        // finds nothing and it was silently left out of first run entirely —
+        // wrong in the direction that matters, since the user has it and
+        // Antarium supports it.
+        let present = Onboarding.harnesses(all) { _ in "/opt/example/bin/tool" }
+        let finding = try #require(present.first { $0.id == descriptor.id })
+        #expect(finding.found)
+        #expect(finding.detail.contains("no session record"),
+                "the row does not say why it will have no figures")
+
+        let absent = Onboarding.harnesses(all) { _ in nil }
+        #expect(absent.first { $0.id == descriptor.id }?.found == false)
+
+        // And a harness that does have a store is unaffected by the resolver.
+        let withStore = present.first { $0.id == "openclaw" }
+        #expect(withStore != nil, "a session-backed harness disappeared")
     }
 }
