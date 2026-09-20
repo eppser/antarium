@@ -135,3 +135,5 @@ sparkline drawn newest-first | Sources/Antarium/Core/TranscriptStats.swift | s|b
 sparkline window shifted by one | Sources/Antarium/Core/TranscriptStats.swift | s|buckets\[newest - (count - 1 - \$0)\] ?? 0|buckets[newest - (count - $0)] ?? 0|
 unreadable clock yields a wrong-length window | Sources/Antarium/Core/TranscriptStats.swift | s|return Array(repeating: 0, count: count) }|return [] }|
 future buckets pulled into the window | Sources/Antarium/Core/TranscriptStats.swift | s|let newest = epoch / bucketSeconds|let newest = epoch / bucketSeconds + 50|
+remote host fills the dashboard unbounded | Sources/Antarium/Core/RemoteTmux.swift | s|if panes.count > maxRows {|if false {|
+remote row cap set below a real fleet machine | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 2|

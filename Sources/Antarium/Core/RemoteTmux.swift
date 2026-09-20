@@ -351,6 +351,16 @@ enum RemoteTmux {
     }
 
     /// Pure, so the whole placement rule is testable without a network.
+    /// The most rows one host may contribute.
+    ///
+    /// The reply is capped at eight megabytes and a truncated one updates
+    /// nothing, so the transfer is bounded. What is built from a whole reply
+    /// was not: eight megabytes of pane lines is tens of thousands of rows,
+    /// each of which becomes a dashboard row and a sort key. A machine
+    /// running more than this many agent panes is reporting something other
+    /// than a fleet worth watching.
+    static let maxRows = 256
+
     static func parse(_ output: String, host: String, descriptors load: () -> [HarnessDescriptor] = HarnessDescriptor.all) -> [AgentRow] {
         let (paneText, rest) = section(output, upTo: psSeparator)
         guard !rest.isEmpty else { return [] }
@@ -373,6 +383,11 @@ enum RemoteTmux {
             panes[pid] = (f[1], f.count > 2 ? f[2] : "")
         }
         guard !panes.isEmpty else { return [] }
+        // Bound the work here rather than at the end: every later table is
+        // keyed off these pids, so capping them caps all of it.
+        if panes.count > maxRows {
+            for pid in panes.keys.sorted().dropFirst(maxRows) { panes[pid] = nil }
+        }
 
         var parents: [Int32: Int32] = [:]
         var processes: [Int32: Processes.Info] = [:]
