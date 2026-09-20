@@ -629,6 +629,12 @@ The practical shape, measured on a history of that size: the first scans cost
 roughly 100–170 ms and CPU sits near 10% of one core, falling to ~13 ms and
 under 2% once the backlog clears — around six minutes at the default interval.
 
+`--bench` seeds the harness folder before scanning, like every other
+command-line entry point, so it always measures the full shipped set. Pointing
+`ANTARIUM_HOME` at a directory containing one descriptor does not measure one
+descriptor — the other twenty-one are written back before the first pass. A
+subset has to be removed from `Resources/harnesses` and the app rebuilt.
+
 **This makes `--bench` on a machine with an unabsorbed backlog a measurement of
 catch-up throughput, not of steady state.** Run it repeatedly until
 `transcripts-v6.json` reports no file with `backlog` set before comparing
