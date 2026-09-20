@@ -72,3 +72,4 @@ openclaw counts cache reads as input | Resources/harnesses/openclaw.json | s/"in
 openclaw accumulates the context size | Resources/harnesses/openclaw.json | s/"message.usage.totalTokens"/"message.usage.input"/
 openclaw glob loses the agent level | Resources/harnesses/openclaw.json | s|"glob": "\*/sessions/\*.jsonl"|"glob": "*.jsonl"|
 presence agents vanish from first run | Sources/Antarium/Core/Onboarding.swift | s/            if descriptor.contributesPresenceOnly {/            if false {/
+benchmark hides an unabsorbed backlog | Sources/Antarium/Core/TranscriptStats.swift | s/return cache.values.filter { \$0.backlog == true }.count/return 0/

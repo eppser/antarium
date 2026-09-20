@@ -162,3 +162,65 @@ struct PricingPrefixTests {
         #expect(Pricing.rate(for: "") == nil)
     }
 }
+
+@Suite("Transcript backlog reporting", .serialized)
+struct TranscriptBacklogTests {
+
+    @Test("A transcript still being read is counted as behind")
+    func backlogIsCounted() throws {
+        // The benchmark uses this to say its numbers are throughput rather
+        // than steady state. Reporting zero while files are still being
+        // absorbed is how a catch-up figure gets read as a scan cost — which
+        // happened, repeatedly, before the benchmark said so.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backlog-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // A file larger than one read budget is behind after a single pass.
+        let file = root.appendingPathComponent("big.jsonl")
+        let line = "{\"timestamp\":\"2026-09-20T12:00:00Z\"}\n"
+        try Data(String(repeating: line, count: 200_000).utf8).write(to: file)
+
+        var state = BoundedTraceReader.State()
+        let first = try BoundedTraceReader.read(file, state: state) { _ in }
+        #expect(first.backlogged, "a file larger than one budget read as complete")
+        state = first.state
+
+        // And it stops being behind once the rest is read.
+        var rounds = 0
+        while rounds < 20 {
+            let next = try BoundedTraceReader.read(file, state: state) { _ in }
+            state = next.state
+            rounds += 1
+            if !next.backlogged { break }
+        }
+        #expect(rounds < 20, "the reader never caught up")
+    }
+
+    @Test("The count the benchmark reports follows the reader")
+    func reportedCountFollowsTheReader() throws {
+        // Asserting on the reader's own flag left "the count always says zero"
+        // green, which is the value the benchmark prints and the one a reader
+        // of that output acts on.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backlogcount-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("big.jsonl")
+        let line = "{\"timestamp\":\"2026-09-20T12:00:00Z\"}\n"
+        try Data(String(repeating: line, count: 200_000).utf8).write(to: file)
+
+        let before = TranscriptStats.backloggedCount()
+        _ = TranscriptStats.of(file)
+        #expect(TranscriptStats.backloggedCount() > before,
+                "a transcript mid-read was not reported as behind")
+
+        // Read it out, and it stops being counted.
+        for _ in 0..<40 where TranscriptStats.backloggedCount() > before {
+            _ = TranscriptStats.of(file)
+        }
+        #expect(TranscriptStats.backloggedCount() == before,
+                "a fully read transcript is still reported as behind")
+    }
+}

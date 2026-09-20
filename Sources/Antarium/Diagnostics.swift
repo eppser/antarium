@@ -316,11 +316,26 @@ enum Diagnostics {
             }
 
             if CommandLine.arguments.contains("--bench") {
+                // What was measured, not just how long it took. Every entry
+                // point seeds the harness folder first, so pointing
+                // ANTARIUM_HOME at a directory holding one descriptor measures
+                // all of them — a number read as a per-harness cost when it
+                // was nothing of the kind.
+                let harnesses = HarnessDescriptor.all()
+                print("\(harnesses.count) harness(es) from \(HarnessDescriptor.directory.path)")
                 for pass in 1...3 {
                     let t0 = ProcessInfo.processInfo.systemUptime
                     let n = scanOrExit().count
                     let ms = (ProcessInfo.processInfo.systemUptime - t0) * 1000
                     print(String(format: "pass %d: %6.1f ms  (%d sessions)", pass, ms, n))
+                }
+                // Transcript history still being absorbed makes these numbers
+                // catch-up throughput rather than steady state, which is worth
+                // saying here rather than only in the documentation.
+                let behind = TranscriptStats.backloggedCount()
+                if behind > 0 {
+                    print("\(behind) transcript(s) still catching up — "
+                        + "these passes measure throughput, not steady state")
                 }
                 TranscriptStats.saveCache()
                 HarnessEngine.saveCache()

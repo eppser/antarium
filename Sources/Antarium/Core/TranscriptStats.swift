@@ -124,6 +124,15 @@ struct TranscriptStats: Codable {
         return total
     }
 
+    /// How many transcripts are still being read in. While any are, a scan is
+    /// absorbing history rather than doing its steady-state work, and timing
+    /// it measures throughput.
+    static func backloggedCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.values.filter { $0.backlog == true }.count
+    }
+
     static func removeSupersededCaches() {
         for name in supersededCaches {
             try? FileManager.default.removeItem(at: Config.directory.appendingPathComponent(name))

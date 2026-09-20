@@ -130,14 +130,9 @@ fi
 step "Scan benchmark"
 home=$(mktemp -d); mkdir -p "$home/harnesses"; cp Resources/harnesses/*.json "$home/harnesses/"
 ANTARIUM_HOME="$home" "$BIN" --bench >/dev/null 2>&1
+# --bench reports the harness count it measured and whether transcripts are
+# still being absorbed, so there is nothing to recompute here.
 ANTARIUM_HOME="$home" "$BIN" --bench 2>&1 | sed 's/^/   /'
-behind=$(python3 -c "
-import json
-try:
-    d=json.load(open('$home/transcripts-v6.json'))
-    print(sum(1 for v in d.values() if v.get('backlog')))
-except Exception: print(0)")
-[ "$behind" -gt 0 ] && printf '   note %s transcript(s) still catching up — these are throughput, not steady state\n' "$behind"
 rm -rf "$home"
 
 printf '\n'
