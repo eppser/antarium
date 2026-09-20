@@ -55,19 +55,47 @@ enum BoundedTraceReader {
             guard count >= 0 else { throw ReadError.readFailed }
             if count == 0 { break }
             bytesRead += count
-            for byte in chunk.prefix(count) {
-                readOffset += 1
-                if byte == 0x0A {
-                    if !state.discarding && !carry.isEmpty { autoreleasepool { consume(carry) } }
+            // Records are found with memchr and copied as whole slices.
+            // Walking the chunk one byte at a time and appending each to
+            // `carry` individually is what this replaced, and it dominated the
+            // scan: a warm pass over this machine's transcripts measured
+            // 1648 ms against 78 ms for the reader it succeeded. Per-byte
+            // `Data.append` is the same trap that made usage responses take
+            // nine seconds a megabyte.
+            var index = 0
+            while index < count {
+                let newline: Int? = chunk.withUnsafeBufferPointer { buffer in
+                    guard let base = buffer.baseAddress else { return nil }
+                    guard let hit = memchr(base + index, 0x0A, count - index) else { return nil }
+                    return UnsafeRawPointer(hit) - UnsafeRawPointer(base)
+                }
+                let end = newline ?? count
+                let segment = end - index
+                if !state.discarding {
+                    if carry.count + segment <= recordLimit {
+                        carry.append(contentsOf: chunk[index..<end])
+                    } else {
+                        // One record over the limit, discarded up to its own
+                        // newline. Counted once, not once per byte.
+                        skipped += 1
+                        carry.removeAll(keepingCapacity: true)
+                        state.discarding = true
+                    }
+                }
+                readOffset += UInt64(segment)
+                if newline != nil {
+                    readOffset += 1
+                    if !state.discarding, !carry.isEmpty { autoreleasepool { consume(carry) } }
                     carry.removeAll(keepingCapacity: true)
-                    state.discarding = false; state.offset = readOffset
-                } else if state.discarding {
+                    state.discarding = false
                     state.offset = readOffset
-                } else if carry.count < recordLimit {
-                    carry.append(byte)
+                    index = end + 1
                 } else {
-                    skipped += 1; carry.removeAll(keepingCapacity: true)
-                    state.discarding = true; state.offset = readOffset
+                    // A partial record at the chunk boundary leaves the cursor
+                    // where the last complete record ended, so an interrupted
+                    // read resumes without losing or repeating one.
+                    if state.discarding { state.offset = readOffset }
+                    index = count
                 }
             }
         }
