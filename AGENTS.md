@@ -53,9 +53,18 @@ Run from the repository root:
 ```
 
 That runs the three commands below and the checks that were otherwise
-reassembled by hand: every shipped harness through `--check`, the command line
-on a machine that has never run it, a first run through the real app path, and
-the scan benchmark. Every step that writes runs under `ANTARIUM_HOME` in a
+reassembled by hand: the suite three times — as-is, with no `~/.antarium`, and
+outside UTC — every shipped harness through `--check`, the command line on a
+machine that has never run it, a first run through the real app path, and the
+scan benchmark.
+
+The repeat runs are not redundant. A test that reads the developer's seeded
+harnesses passes here and fails on a fresh checkout, which is how eleven of
+them sat red in CI while green locally. And CI runners are UTC, where a date
+bug that reads timestamps in the local zone cannot show at all: interpreting
+ISO timestamps locally passes every test under `TZ=UTC` and fails two thousand
+under a half-hour offset. Kolkata is chosen for that half hour — a whole-hour
+zone misses an error that is itself a multiple of an hour. Every step that writes runs under `ANTARIUM_HOME` in a
 temporary directory, so none of it touches your own settings. It also reports
 when the benchmark is still absorbing transcript history, because those numbers
 are throughput rather than steady state.

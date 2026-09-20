@@ -46,6 +46,19 @@ rm -rf "$bare"
 # Making the directory before any build keeps the cached answer true.
 mkdir -p dist
 
+step "Tests in a timezone that is not UTC"
+# CI runners are UTC, and so a date bug that reads timestamps in the local
+# zone is invisible there. Interpreting ISO timestamps locally instead of as
+# UTC passes every test under TZ=UTC and fails two thousand of them under a
+# half-hour offset. Kolkata is +05:30 deliberately: a whole-hour zone would
+# miss an error that happens to be a multiple of an hour.
+if TZ=Asia/Kolkata ./test.sh >/tmp/verify-tz.log 2>&1; then
+    ok "$(grep -oE 'Test run with [0-9]+ tests' /tmp/verify-tz.log | tail -1) (TZ=Asia/Kolkata)"
+else
+    bad "test suite depends on the local timezone — see /tmp/verify-tz.log"
+    grep -E '^✘ Test "' /tmp/verify-tz.log | head -3
+fi
+
 step "Strict concurrency"
 out=$(swift build --scratch-path /tmp/antarium-strict \
         -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency 2>&1)

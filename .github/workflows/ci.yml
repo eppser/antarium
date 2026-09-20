@@ -25,6 +25,22 @@ jobs:
       - name: Run behavioral and architecture tests
         run: ./test.sh
 
+      # The runner is UTC, where a date bug that reads timestamps in the local
+      # zone cannot show. A half-hour offset is used on purpose: a whole-hour
+      # zone misses an error that is itself a multiple of an hour.
+      - name: Re-run tests outside UTC
+        run: ./test.sh
+        env:
+          TZ: Asia/Kolkata
+
+      # A fresh checkout has no ~/.antarium. Tests that read the developer's
+      # seeded harnesses pass locally and fail here, which is how eleven of
+      # them sat red while green on the machine that wrote them.
+      - name: Re-run tests with no local state
+        run: ./test.sh
+        env:
+          ANTARIUM_HOME: ${{ runner.temp }}/antarium-bare
+
       - name: Audit strict Swift concurrency
         run: >-
           swift build --scratch-path .build/strict
