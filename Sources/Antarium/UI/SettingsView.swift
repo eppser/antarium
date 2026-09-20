@@ -95,12 +95,22 @@ struct SettingsView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            Text("Antarium \(Self.version) · ~/.antarium/config.json")
+            // Just the version. The config path used to be spelled out here,
+            // but a fourth button left no room for both and truncation ate the
+            // version instead — and the path was already redundant, since the
+            // button next to it opens that exact file.
+            Text("Antarium \(Self.version)")
                 .font(.system(size: 10)).foregroundStyle(.tertiary)
+                .lineLimit(1).fixedSize()
             Spacer()
+            Button("Report a bug") { NSWorkspace.shared.open(AppLinks.bugReport()) }
+                .buttonStyle(.plain).font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+                .help("Open a pre-filled GitHub issue")
             Button("Open") { NSWorkspace.shared.open(Config.url) }
                 .buttonStyle(.plain).font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.accentColor)
+                .help("Open ~/.antarium/config.json")
             Button("Reload") { model.update { Config.reload() } }
                 .buttonStyle(.plain).font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.accentColor)
@@ -482,6 +492,15 @@ struct SettingsView: View {
             if Settings.palette == .accent { accentSwatches }
             Stepper(title: "Beams", value: Settings.beams, range: 3...12) { n in
                 model.update { Settings.beams = n }
+            }
+            // The state is the system's, not ours, so the toggle re-reads it
+            // after the attempt: a registration macOS refuses springs the
+            // switch back rather than showing a preference that is not real.
+            Toggle(title: "Open at Login",
+                   subtitle: "Start Antarium when you log in to this Mac",
+                   on: LaunchAtLogin.isEnabled) { on in
+                LaunchAtLogin.set(on)
+                model.update { }
             }
             Toggle(title: "AGENTS count item", on: Settings.showAgentCount) { on in
                 model.update { Settings.showAgentCount = on }

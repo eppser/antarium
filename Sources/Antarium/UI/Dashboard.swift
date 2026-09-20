@@ -169,6 +169,18 @@ struct DashboardView: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
+            // Leftmost, so it sits in the corner and never moves: the cost and
+            // memory labels next to it come and go with what is running.
+            Button { NSWorkspace.shared.open(AppLinks.bugReport()) } label: {
+                Image(systemName: "ladybug")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Report a bug on GitHub")
+            .accessibilityLabel("Report a bug on GitHub")
+
             if store.totalCost > 0 {
                 Label(Pricing.money(store.totalCost), systemImage: "creditcard")
                     .help("Estimated list-price cost of every session's tokens. "
