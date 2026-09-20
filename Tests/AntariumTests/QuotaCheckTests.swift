@@ -191,3 +191,95 @@ struct SharedCredentialTests {
         }
     }
 }
+
+/// The response body is capped at 2 MiB. What gets built out of it was not
+/// capped at all — and a gauge is not a cheap object: it becomes a menu bar
+/// line, a dashboard row and an alert evaluation. These bound the derived
+/// work, not the transfer.
+@Suite("A usage response cannot make the app build unbounded work", .serialized)
+struct ResponseBoundsTests {
+
+    private func provider(_ quota: [String: Any]) throws -> DescriptorProvider {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "bounds-\(UUID().uuidString)", "name": "Bounds",
+            "process": [:], "source": ["kind": "none", "path": ""], "quota": quota]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(descriptor))
+    }
+
+    @Test("A list of thousands of windows yields a bounded number of gauges")
+    func listIsBounded() throws {
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["list": "data", "usedPercent": "pct"]])
+        let windows = (0..<5_000).map { ["pct": Double($0 % 100), "id": "w\($0)"] }
+        let snapshot = try p.makeSnapshot(["data": windows])
+        #expect(snapshot.gauges.count == DescriptorProvider.maxWindows)
+    }
+
+    @Test("An object of thousands of windows is bounded the same way")
+    func objectIsBounded() throws {
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["root": "data", "usedPercent": "pct"]])
+        var container: [String: Any] = [:]
+        for i in 0..<5_000 { container["w\(i)"] = ["pct": Double(i % 100)] }
+        let snapshot = try p.makeSnapshot(["data": container])
+        #expect(snapshot.gauges.count == DescriptorProvider.maxWindows)
+    }
+
+    /// A cap that is below what real plans report would be a bug of its own,
+    /// so the ordinary case has to keep coming through untouched.
+    @Test("A response of ordinary size is not truncated")
+    func ordinaryResponseIsWhole() throws {
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["list": "data", "usedPercent": "pct"]])
+        let windows = (0..<4).map { ["pct": Double($0 * 10), "id": "w\($0)"] }
+        let snapshot = try p.makeSnapshot(["data": windows])
+        #expect(snapshot.gauges.count == 4)
+    }
+
+    @Test("A title the server sends cannot be arbitrarily long")
+    func titleIsClamped() throws {
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["list": "data", "usedPercent": "pct",
+                                          "title": "name"]])
+        let long = String(repeating: "A", count: 100_000)
+        let snapshot = try p.makeSnapshot(["data": [["pct": 10.0, "name": long]]])
+        let gauge = try #require(snapshot.gauges.first)
+        #expect(gauge.title.count == DescriptorProvider.maxResponseText)
+    }
+
+    @Test("A currency code the server sends cannot be arbitrarily long")
+    func currencyIsClamped() throws {
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["list": "data", "balance": "amount",
+                                          "currency": "code"]])
+        let long = String(repeating: "C", count: 100_000)
+        let snapshot = try p.makeSnapshot(["data": [["amount": 5.0, "code": long]]])
+        let gauge = try #require(snapshot.gauges.first)
+        #expect(gauge.amount?.currency.count == DescriptorProvider.maxResponseText)
+    }
+
+    @Test("A window key the server sends cannot be arbitrarily long")
+    func keyIsClamped() throws {
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["list": "data", "usedPercent": "pct",
+                                          "key": ["type"]]])
+        let long = String(repeating: "K", count: 100_000)
+        let snapshot = try p.makeSnapshot(["data": [["pct": 10.0, "type": long]]])
+        let gauge = try #require(snapshot.gauges.first)
+        #expect(gauge.id.count == DescriptorProvider.maxResponseText)
+    }
+
+    /// Descriptor text is trusted local configuration and is deliberately not
+    /// clamped; only what arrives over the network is.
+    @Test("A label the descriptor declares is left as the author wrote it")
+    func descriptorLabelsAreNotClamped() throws {
+        let long = String(repeating: "L", count: 200)
+        let p = try provider(["endpoint": "https://example.invalid/u",
+                              "windows": ["list": "data", "usedPercent": "pct",
+                                          "key": ["type"], "labels": ["t": long]]])
+        let snapshot = try p.makeSnapshot(["data": [["pct": 10.0, "type": "t"]]])
+        #expect(snapshot.gauges.first?.title == long)
+    }
+}

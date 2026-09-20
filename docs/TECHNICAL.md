@@ -428,7 +428,13 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
-`windows` says where the limits are and what they mean.
+`windows` says where the limits are and what they mean. At most 64 are read
+from one response, and text the response supplies — a window title, a
+currency code, a composite key — is clamped to 64 characters. The 2 MiB body
+cap bounds the transfer, not what is built from it: 2 MiB of small objects is
+tens of thousands of windows, and each becomes a gauge, a menu bar line and
+an alert evaluation. Labels the descriptor itself declares are trusted local
+configuration and are not clamped.
 
 **Finding the windows.** Responses come in three shapes:
 

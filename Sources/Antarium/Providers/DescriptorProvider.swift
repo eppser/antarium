@@ -168,7 +168,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                     ?? named.map { Gauge.badge(from: $0) }
                     ?? Self.badge(seconds: span, fallback: key),
                 title: named
-                    ?? map.title.flatMap { FieldPath.lookup(window, $0) as? String }
+                    ?? map.title.flatMap { FieldPath.lookup(window, $0) as? String }.map(Self.clamped)
                     ?? Self.badge(seconds: span, fallback: key),
                 used: min(max(percent / 100, 0), 1),
                 // Per window if it is there, otherwise the response's own —
@@ -206,11 +206,29 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     /// — Z.ai's `data.limits` keyed by `type`, MiniMax's `model_remains` keyed
     /// by `model_name`. Neither shape is agent-specific logic, so both belong
     /// here rather than in a bespoke Swift provider.
+    /// A usage response is capped at 2 MiB, which is not the same as bounding
+    /// what gets built from it: 2 MiB of small objects is tens of thousands of
+    /// windows, and each one becomes a gauge, a menu bar line and an alert
+    /// evaluation. No plan reports more than a handful — the largest shipped
+    /// descriptor names four — so a response claiming more than this is broken
+    /// rather than interesting, and the first are kept.
+    static let maxWindows = 64
+
+    /// Text that comes from the response rather than from the descriptor: a
+    /// window title, a currency code, a composite key. Descriptor labels are
+    /// trusted local configuration and are left alone; these arrive over the
+    /// network and end up in a menu item.
+    static let maxResponseText = 64
+
+    static func clamped(_ text: String) -> String {
+        text.count <= maxResponseText ? text : String(text.prefix(maxResponseText))
+    }
+
     static func windows(in json: [String: Any],
                         map: HarnessDescriptor.Quota.Windows) -> [(key: String, window: [String: Any])] {
         var found: [(key: String, window: [String: Any])]
         if let path = map.list {
-            let elements = FieldPath.lookup(json, path) as? [Any] ?? []
+            let elements = (FieldPath.lookup(json, path) as? [Any] ?? []).prefix(maxWindows)
             found = elements.enumerated().compactMap { index, element in
                 guard let window = element as? [String: Any] else { return nil }
                 let parts = (map.key ?? []).compactMap { Self.name(window, $0) }
@@ -252,9 +270,11 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                 .compactMap { FieldPath.lookup(json, $0) as? [String: Any] }
                 .first ?? (candidates.isEmpty ? json : [:])
             // For an object the declared order is the drawing order.
-            found = (map.keys ?? container.keys.sorted()).compactMap { key in
-                (container[key] as? [String: Any]).map { (key, $0) }
-            }
+            found = (map.keys ?? container.keys.sorted())
+                .prefix(maxWindows)
+                .compactMap { key in
+                    (container[key] as? [String: Any]).map { (key, $0) }
+                }
         }
         return found
     }
@@ -268,7 +288,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                          window: [String: Any]) -> String {
         guard let declared = map.currency else { return "USD" }
         if let found = FieldPath.lookup(window, declared) as? String, !found.isEmpty {
-            return found
+            return clamped(found)
         }
         return declared
     }
@@ -280,7 +300,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         let value = FieldPath.lookup(window, path)
         if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
         switch value {
-        case let text as String: return text.isEmpty ? nil : text
+        case let text as String: return text.isEmpty ? nil : clamped(text)
         case let number as NSNumber:
             let double = number.doubleValue
             return double == double.rounded() && abs(double) < 1e15

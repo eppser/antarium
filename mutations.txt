@@ -87,3 +87,7 @@ shipped shared-file credential left unguarded | Resources/harnesses/zai.json | s
 credential follows a redirect to another host | Sources/Antarium/Core/BoundedResponse.swift | s|to.host?.lowercased() == fromHost,|to.host != nil,|
 same-host redirects refused too, breaking real endpoints | Sources/Antarium/Core/BoundedResponse.swift | s|completionHandler(request)$|completionHandler(nil)|
 plaintext usage endpoint allowed | Sources/Antarium/Core/UsageHTTP.swift | s|guard url.scheme?.lowercased() == "https" else {|guard url.scheme != nil else {|
+unbounded gauges from a list response | Sources/Antarium/Providers/DescriptorProvider.swift | s|(FieldPath.lookup(json, path) as? \[Any\] ?? \[\]).prefix(maxWindows)|FieldPath.lookup(json, path) as? [Any] ?? []|
+unbounded gauges from an object response | Sources/Antarium/Providers/DescriptorProvider.swift | s|^                .prefix(maxWindows)$||
+response text clamp does nothing | Sources/Antarium/Providers/DescriptorProvider.swift | s|text.count <= maxResponseText ? text : String(text.prefix(maxResponseText))|text|
+window cap set below what real plans report | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 2|
