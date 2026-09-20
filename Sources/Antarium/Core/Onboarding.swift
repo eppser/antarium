@@ -60,6 +60,46 @@ enum Onboarding {
         }
     }
 
+    /// Workspace managers found on this Mac.
+    ///
+    /// These host other agents rather than being agents, so they are not rows
+    /// and not menu bar items — but Antarium does use them, to send a click to
+    /// the pane a session is actually in. Saying nothing about them meant the
+    /// one visible effect of having them installed had no explanation.
+    ///
+    /// Presence is whether the command they are read through resolves. A bare
+    /// name is looked up the way the app looks it up, because an application
+    /// launched from Finder has a short PATH and "is it on PATH?" has a
+    /// different answer there than in a terminal.
+    static func workspaces(_ descriptors: [HarnessDescriptor] = HarnessDescriptor.all(),
+                           resolve: (String) -> String? = Onboarding.resolveCommand) -> [Finding] {
+        descriptors
+            .filter { $0.contributesFocusOnly }
+            .map { descriptor in
+                let command = descriptor.source.command ?? ""
+                let found = !command.isEmpty && resolve(command) != nil
+                return Finding(id: descriptor.id, name: descriptor.name,
+                               detail: found ? "routes clicks to the right pane"
+                                             : "not on this Mac",
+                               found: found)
+            }
+            .sorted { ($0.found ? 0 : 1, $0.name) < ($1.found ? 0 : 1, $1.name) }
+    }
+
+    /// Where a bare command name lives, for a GUI app's short PATH.
+    static func resolveCommand(_ command: String) -> String? {
+        if command.contains("/") {
+            let path = command.expandingTilde
+            return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let places = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":").map(String.init)
+            + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", home + "/.local/bin"]
+        return places.map { "\($0)/\(command)" }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
     /// Splits accounts into the ones worth a row each and the ones worth a
     /// single line naming them.
     ///

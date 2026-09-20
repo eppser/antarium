@@ -46,6 +46,13 @@ struct OnboardingView: View {
                         .font(.system(size: 10)).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                let workspaces = Onboarding.workspaces().filter(\.found)
+                if !workspaces.isEmpty {
+                    Text("Workspace: " + workspaces.map(\.name).joined(separator: ", ")
+                         + " — clicking a session opens its pane there")
+                        .font(.system(size: 10)).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if !missing.isEmpty {
                     Text("Also supported, not installed here: "
                          + missing.map(\.name).joined(separator: ", "))

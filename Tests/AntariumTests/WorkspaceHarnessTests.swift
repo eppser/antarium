@@ -158,3 +158,56 @@ struct HarnessFocusCommandTests {
         #expect(declared.sorted() == ["herdr:herdr", "orca:orca"])
     }
 }
+
+/// A workspace manager is not an agent and not a menu bar item, so it appears
+/// nowhere in the lists that drive either. Its one visible effect — a click
+/// opening the right pane — had no explanation until first run mentioned it.
+@Suite("Workspace detection", .serialized)
+struct WorkspaceDetectionTests {
+
+    private let all = HarnessCLI.bundledDescriptors()
+    private func descriptors() -> [HarnessDescriptor] { all }
+
+    @Test("Presence is whether the command it is read through resolves")
+    func presenceFollowsTheCommand() {
+        let found = Onboarding.workspaces(all) { _ in "/opt/example/bin/tool" }
+        #expect(found.count >= 2, "no workspace harness is shipped")
+        // Computed outside the macro: allSatisfy is rethrows, and #expect
+        // cannot prove the closure does not throw.
+        let allPresent = found.filter(\.found).count == found.count
+        let allExplained = found.filter { $0.detail == "routes clicks to the right pane" }.count
+        #expect(allPresent)
+        #expect(allExplained == found.count)
+
+        let absent = Onboarding.workspaces(all) { _ in nil }
+        let nonePresent = absent.filter(\.found).isEmpty
+        let allAbsentDetail = absent.filter { $0.detail == "not on this Mac" }.count
+        #expect(nonePresent)
+        #expect(allAbsentDetail == absent.count)
+    }
+
+    @Test("They are not offered as agents or as menu bar providers")
+    func workspacesAreNeitherAgentsNorProviders() {
+        // Listing them under "agents found" would claim they are agents; as a
+        // provider they would be a bar item with no quota to show.
+        let ids = Set(Onboarding.workspaces(all).map(\.id))
+        #expect(ids.contains("herdr") && ids.contains("orca"))
+        let agentIDs = Set(Onboarding.harnesses(all).map(\.id))
+        let providerIDs = Set(ProviderRegistry.providers(from: all).map(\.id))
+        #expect(agentIDs.isDisjoint(with: ids))
+        #expect(providerIDs.isDisjoint(with: ids))
+    }
+
+    @Test("A workspace manager declares no quota and no session store")
+    func workspacesCarryNeitherQuotaNorSessions() {
+        var seen = 0
+        for descriptor in all where descriptor.contributesFocusOnly {
+            seen += 1
+            #expect(descriptor.quota == nil,
+                    "\(descriptor.id) would become a menu bar item")
+            #expect(descriptor.source.path.isEmpty,
+                    "\(descriptor.id) would be listed as an installed agent")
+        }
+        #expect(seen >= 2, "no workspace harness was examined")
+    }
+}
