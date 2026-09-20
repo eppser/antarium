@@ -547,6 +547,26 @@ CI also evaluates a synthetic 20,000-record JSONL source. The time budget is a
 catastrophic-regression guardrail; exact cold, warm, and append byte/record
 counts are the stronger algorithmic assertions.
 
+### Agents shown on first run, and on upgrade
+
+The menu bar used to default to a fixed list written when three agents existed.
+`AgentAutoEnable` picks from evidence instead — signed in here, or sessions on
+disk — the first time no choice is recorded, and never rewrites one afterwards.
+At most four are switched on, strongest evidence first, so a Mac carrying
+traces of eight does not open to eight items.
+
+"Never rewrite a recorded choice" leaves one case uncovered: an agent that
+ships *after* the user chose is one they have never been asked about.
+`knownAgents` records every provider id an install has put in front of them, so
+a new provider can be told from a rejected one. A new provider that is signed
+in is adopted; one with sessions but no credential is not, because that item
+could only say "sign in". The cap still applies, so adopting cannot turn three
+items into ten. An install with no `knownAgents` yet records the current list
+and adopts nothing, since it cannot tell the two apart.
+
+    Antarium --detect-agents          # what a first run would switch on, and why
+    Antarium --detect-agents --apply  # write it, declining if a choice exists
+
 ### Reading a large transcript history
 
 `BoundedTraceReader` reads at most a few megabytes per file per scan, so no

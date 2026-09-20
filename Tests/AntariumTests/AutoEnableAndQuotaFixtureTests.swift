@@ -499,3 +499,53 @@ func onboardingSummarisesUnconfiguredAccounts() {
     // unchecked rows with a hint each is the thing this prevents.
     #expect(split.signedIn.count < accounts.count)
 }
+
+// MARK: - Providers that ship after the user chose
+
+@Test("A provider that did not exist when the user chose is not a rejected one")
+@MainActor
+func adoptionDistinguishesNewFromRejected() {
+    // Pure-policy form of adoptNewProviders, so the rule can be checked
+    // without writing anybody's settings.
+    func adopt(known: Set<String>, enabled: Set<String>,
+               providers: [(id: String, signedIn: Bool)],
+               limit: Int = AgentAutoEnable.limit) -> Set<String> {
+        guard !known.isEmpty, enabled.count < limit else { return [] }
+        var room = limit - enabled.count
+        var adopted: Set<String> = []
+        for provider in providers.sorted(by: { $0.id < $1.id })
+        where !known.contains(provider.id) && !enabled.contains(provider.id) {
+            guard room > 0 else { break }
+            guard provider.signedIn else { continue }
+            adopted.insert(provider.id); room -= 1
+        }
+        return adopted
+    }
+
+    // Signed in and never offered: adopted.
+    #expect(adopt(known: ["claude-code"], enabled: ["claude-code"],
+                  providers: [("claude-code", true), ("copilot", true)]) == ["copilot"])
+
+    // Offered before and switched off: left alone, however plainly installed.
+    #expect(adopt(known: ["claude-code", "copilot"], enabled: ["claude-code"],
+                  providers: [("claude-code", true), ("copilot", true)]).isEmpty)
+
+    // New but not signed in: that item could only say "sign in", which is a
+    // worse thing to add unasked than nothing.
+    #expect(adopt(known: ["claude-code"], enabled: ["claude-code"],
+                  providers: [("claude-code", true), ("zai", false)]).isEmpty)
+
+    // An install that has never recorded what it has shown cannot tell new
+    // from rejected, so it adopts nothing.
+    #expect(adopt(known: [], enabled: ["claude-code"],
+                  providers: [("copilot", true)]).isEmpty)
+
+    // A full bar is not expanded: adopting must not turn three items into ten.
+    let full: Set<String> = ["a", "b", "c", "d"]
+    #expect(adopt(known: ["a"], enabled: full,
+                  providers: (1...6).map { ("new-\($0)", true) }).isEmpty)
+
+    // And with one slot left, exactly one is taken — the first by id.
+    #expect(adopt(known: ["a"], enabled: ["a", "b", "c"],
+                  providers: [("new-b", true), ("new-a", true)]) == ["new-a"])
+}

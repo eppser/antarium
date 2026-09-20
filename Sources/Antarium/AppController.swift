@@ -21,7 +21,12 @@ final class AppController: NSObject {
         // Nothing is shown by default any more: the first launch that finds no
         // recorded choice picks the agents this Mac actually has. Must follow
         // the seed, or descriptor-contributed providers would not exist yet.
-        AgentAutoEnable.applyIfNeeded(providers: ProviderRegistry.all)
+        let providers = ProviderRegistry.all
+        if AgentAutoEnable.applyIfNeeded(providers: providers) == nil {
+            // A choice exists, so it stands — except for agents that did not
+            // exist when it was made, which the user has never been asked about.
+            AgentAutoEnable.adoptNewProviders(providers: providers)
+        }
         rebuildItems()
         // Warm the agent picture in the background so the dashboard opens full.
         AgentStore.shared.onRowsChanged = { [weak self] rows in

@@ -116,7 +116,53 @@ enum AgentAutoEnable {
             evidence: evidence(providers: providers, sessionsPresent: sessionsPresent()),
             fallback: providers.map(\.id)) else { return nil }
         Settings.enabledAgents = chosen
+        known = Set(providers.map(\.id))
         return chosen
+    }
+
+    /// Provider ids this install has already put in front of the user, so a
+    /// provider that ships later can be told apart from one they turned off.
+    static var known: Set<String> {
+        get { Set(Config.strings("knownAgents") ?? []) }
+        set { Config.set("knownAgents", Array(newValue).sorted()) }
+    }
+
+    /// Adopts providers that did not exist when the user last chose.
+    ///
+    /// "Never overwrite a recorded choice" is the rule, and it does not cover
+    /// this case: an agent that shipped after the user made their choice is
+    /// one they have never been asked about. Seven providers were added at
+    /// once here, and an existing install would otherwise have carried on
+    /// showing the same three menu bar items with no sign that a fourth was
+    /// signed in and ready.
+    ///
+    /// Only a signed-in provider is adopted. Sessions alone are not enough —
+    /// that item could only say "sign in", which is a worse thing to add
+    /// unasked than nothing. The bar's cap is respected, so adopting cannot
+    /// turn three items into ten.
+    ///
+    /// An install that has never recorded `knownAgents` records the current
+    /// list and adopts nothing, because it cannot tell new from rejected.
+    @discardableResult
+    static func adoptNewProviders(providers: [UsageProvider]) -> Set<String> {
+        guard !providers.isEmpty else { return [] }
+        let all = Set(providers.map(\.id))
+        let seen = known
+        defer { known = seen.union(all) }
+        guard !seen.isEmpty else { return [] }
+
+        var enabled = Settings.enabledAgents
+        guard enabled.count < limit else { return [] }
+        var adopted: Set<String> = []
+        for provider in providers.sorted(by: { $0.id < $1.id })
+        where !seen.contains(provider.id) && !enabled.contains(provider.id) {
+            guard enabled.count < limit else { break }
+            guard provider.isConfigured else { continue }
+            enabled.insert(provider.id)
+            adopted.insert(provider.id)
+        }
+        if !adopted.isEmpty { Settings.enabledAgents = enabled }
+        return adopted
     }
 
     /// Re-runs detection over the user's existing choice. Only ever called
@@ -129,6 +175,7 @@ enum AgentAutoEnable {
                              fallback: providers.map(\.id))
         guard !chosen.isEmpty else { return nil }
         Settings.enabledAgents = chosen
+        known = Set(providers.map(\.id))
         return chosen
     }
 }
