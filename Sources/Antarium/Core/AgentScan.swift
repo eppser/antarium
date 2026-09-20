@@ -390,6 +390,10 @@ enum AgentScan {
         for entry in entries {
             try Task.checkCancellation()
             let file = entry.url
+            // Redundant with BoundedFile.read, which checks S_IFREG on the
+            // descriptor it opened and so refuses a symlink or FIFO whatever
+            // the caller does — deliberately kept as the nearer of the two
+            // checks, and the reason no mutation of this line can be caught.
             guard entry.isRegular else { throw RegistryError.invalid }
             let data = try BoundedFile.read(file,maxBytes:65_536)
             bytes += data.count

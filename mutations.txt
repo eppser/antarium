@@ -94,3 +94,14 @@ window cap set below what real plans report | Sources/Antarium/Providers/Descrip
 server sets the poll rate through resetsAt | Sources/Antarium/AgentItem.swift | s|let candidate = max(after, floor)|let candidate = after|
 stale reset dates become a reason to poll | Sources/Antarium/AgentItem.swift | s|guard after > now else { continue }||
 poll floor swallows real rollovers | Sources/Antarium/AgentItem.swift | s|static let minimumPollInterval: TimeInterval = 60|static let minimumPollInterval: TimeInterval = 3600|
+registry entry count unbounded | Sources/Antarium/Core/AgentScan.swift | s|guard entries.count <= 512 else { throw RegistryError.limit }||
+control characters allowed in a session cwd | Sources/Antarium/Core/AgentScan.swift | s|!cwd.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains(\$0) })|true|
+session cwd length unbounded | Sources/Antarium/Core/AgentScan.swift | s|cwd.utf8.count <= 4_096|cwd.utf8.count <= 1_000_000|
+an unusable pid is silently ignored | Sources/Antarium/Core/AgentScan.swift | s|if let raw = d\["pid"\], !(raw is NSNull), pid == nil { throw RegistryError.invalid }||
+no published status reads as busy | Sources/Antarium/Core/AgentScan.swift | s|default:      return nil|default:      return .working|
+published status ignored entirely | Sources/Antarium/Core/AgentScan.swift | s|case "busy":  return .working|case "busy":  return nil|
+registry timestamps unvalidated | Sources/Antarium/Core/AgentScan.swift | s|milliseconds <= 253_402_300_799_000 else { throw RegistryError.invalid }|milliseconds <= .infinity else { throw RegistryError.invalid }|
+negative registry timestamps accepted | Sources/Antarium/Core/AgentScan.swift | s|guard let milliseconds = FieldPath.numeric(raw), milliseconds >= 0,|guard let milliseconds = FieldPath.numeric(raw),|
+a dead process keeps its pid | Sources/Antarium/Core/AgentScan.swift | s|pid: alive ? pid : nil,|pid: pid,|
+sessions sharing an id collapse into one row | Sources/Antarium/Core/AgentScan.swift | s|sessionID: sessionID, cwd: cwd, pid: pid)|sessionID: sessionID, cwd: "", pid: nil)|
+a missing registry becomes a scan failure | Sources/Antarium/Core/AgentScan.swift | s|if errno == ENOENT { return \[\] }||
