@@ -68,3 +68,6 @@ gemini matcher widened to a path fragment | Resources/harnesses/gemini.json | s/
 copilot-cli sums cache reads into input | Resources/harnesses/copilot-cli.json | s/SUM(u.cache_read_tokens)/SUM(u.input_tokens)/
 copilot-cli takes the oldest model | Resources/harnesses/copilot-cli.json | s/ORDER BY u.id DESC LIMIT 1/ORDER BY u.id ASC LIMIT 1/
 copilot-cli loses its turn count | Resources/harnesses/copilot-cli.json | s/(SELECT COUNT(\*) FROM turns t WHERE t.session_id = s.id) AS turns/0 AS turns/
+openclaw counts cache reads as input | Resources/harnesses/openclaw.json | s/"inputTokens": "message.usage.input"/"inputTokens": "message.usage.cacheRead"/
+openclaw accumulates the context size | Resources/harnesses/openclaw.json | s/"message.usage.totalTokens"/"message.usage.input"/
+openclaw glob loses the agent level | Resources/harnesses/openclaw.json | s|"glob": "\*/sessions/\*.jsonl"|"glob": "*.jsonl"|

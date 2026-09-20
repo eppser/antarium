@@ -1,0 +1,23 @@
+{
+  "files": {
+    "main/sessions/conversation.jsonl": "{\"type\": \"session\", \"id\": \"r0\", \"cwd\": \"/projects/sample\", \"timestamp\": \"2026-09-20T10:00:00.000Z\", \"version\": 1}\n{\"type\": \"model_change\", \"id\": \"r1\", \"modelId\": \"claude-sonnet-4-6\", \"timestamp\": \"2026-09-20T10:00:01.000Z\"}\n{\"type\": \"message\", \"id\": \"r2\", \"timestamp\": \"2026-09-20T10:00:02.000Z\", \"message\": {\"usage\": {\"input\": 100, \"output\": 10, \"cacheRead\": 5, \"cacheWrite\": 1, \"totalTokens\": 116}}}\n{\"type\": \"message\", \"id\": \"r3\", \"timestamp\": \"2026-09-20T10:05:00.000Z\", \"message\": {\"usage\": {\"input\": 200, \"output\": 20, \"cacheRead\": 5, \"cacheWrite\": 2, \"totalTokens\": 227}}}\n"
+  },
+  "expected": {
+    "sessions": 1,
+    "sessionID": null,
+    "focusTarget": null,
+    "cwd": "/projects/sample",
+    "title": null,
+    "model": "claude-sonnet-4-6",
+    "inputTokens": 300,
+    "outputTokens": 30,
+    "cacheRead": 10,
+    "cacheWrite": 3,
+    "contextTokens": 227,
+    "contextWindow": null,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0
+  }
+}
