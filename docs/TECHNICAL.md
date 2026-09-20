@@ -420,7 +420,16 @@ Antarium --verify-harness-quota
 
 The fixture replays a synthetic response through the real mapping and compares
 every gauge — id, badge, title, percentage, window length, reset time, and for
-a balance its figure and currency. No account, no network, and no installed
+a balance its figure and currency.
+
+A file holds either one case at the top level or a `cases` array, and a case
+declares `expected` or `expectError`. The second matters as much as the first:
+a plan that includes no windows at all must be refused, not charted as a row of
+zeros, and that is a behaviour a success-only fixture cannot state. Copilot
+records a free plan whose every tier reports `has_quota: false`, MiniMax an
+account whose models are all unmetered, DeepSeek an account with no balances —
+each `expectError: unsupported`. Removing Copilot's `has_quota` filter, or
+accepting a zero limit as a denominator, fails them. No account, no network, and no installed
 agent is involved, so a wrong field path fails at build time rather than on a
 stranger's Mac. Fixtures are invented values in the vendor's published shape;
 no real account response is ever committed.

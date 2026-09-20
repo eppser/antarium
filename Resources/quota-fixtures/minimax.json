@@ -1,48 +1,80 @@
 {
   "note": "Synthetic. Shape follows MiniMax's coding_plan/remains payload, including the epoch-millisecond end_time. Every value is invented.",
   "verifiedAt": "2026-09-20",
-  "response": {
-    "base_resp": {
-      "status_code": 0,
-      "status_msg": "success"
+  "cases": [
+    {
+      "name": "two metered models",
+      "response": {
+        "base_resp": {
+          "status_code": 0,
+          "status_msg": "success"
+        },
+        "model_remains": [
+          {
+            "model_name": "minimax-m2",
+            "current_interval_total_count": 1500,
+            "current_interval_usage_count": 255,
+            "end_time": 1790000000000
+          },
+          {
+            "model_name": "minimax-m1",
+            "current_interval_total_count": 500,
+            "current_interval_usage_count": 400,
+            "end_time": 1790000000000
+          },
+          {
+            "model_name": "minimax-unmetered",
+            "current_interval_total_count": 0,
+            "current_interval_usage_count": 0,
+            "end_time": 1790000000000
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "minimax-m2",
+            "badge": "M2",
+            "title": "M2",
+            "usedPercent": 17,
+            "resetsAt": "2026-09-21T14:13:20Z"
+          },
+          {
+            "id": "minimax-m1",
+            "badge": "M1",
+            "title": "M1",
+            "usedPercent": 80,
+            "resetsAt": "2026-09-21T14:13:20Z"
+          }
+        ]
+      }
     },
-    "model_remains": [
-      {
-        "model_name": "minimax-m2",
-        "current_interval_total_count": 1500,
-        "current_interval_usage_count": 255,
-        "end_time": 1790000000000
+    {
+      "name": "every model unmetered",
+      "response": {
+        "base_resp": {
+          "status_code": 0
+        },
+        "model_remains": [
+          {
+            "model_name": "minimax-m2",
+            "current_interval_total_count": 0,
+            "current_interval_usage_count": 0
+          }
+        ]
       },
-      {
-        "model_name": "minimax-m1",
-        "current_interval_total_count": 500,
-        "current_interval_usage_count": 400,
-        "end_time": 1790000000000
+      "expectError": "unsupported"
+    },
+    {
+      "name": "error reply carries no windows",
+      "response": {
+        "base_resp": {
+          "status_code": 1001,
+          "status_msg": "invalid api key"
+        },
+        "model_remains": []
       },
-      {
-        "model_name": "minimax-unmetered",
-        "current_interval_total_count": 0,
-        "current_interval_usage_count": 0,
-        "end_time": 1790000000000
-      }
-    ]
-  },
-  "expected": {
-    "gauges": [
-      {
-        "id": "minimax-m2",
-        "badge": "M2",
-        "title": "M2",
-        "usedPercent": 17,
-        "resetsAt": "2026-09-21T14:13:20Z"
-      },
-      {
-        "id": "minimax-m1",
-        "badge": "M1",
-        "title": "M1",
-        "usedPercent": 80,
-        "resetsAt": "2026-09-21T14:13:20Z"
-      }
-    ]
-  }
+      "expectError": "unsupported"
+    }
+  ]
 }

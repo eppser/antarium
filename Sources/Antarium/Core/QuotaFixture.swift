@@ -55,6 +55,49 @@ enum QuotaFixture {
 
     /// Nil when this descriptor declares no quota at all — not a failure, just
     /// nothing to check.
+    /// One recorded exchange. A fixture file holds either a single case at the
+    /// top level or a `cases` array of them.
+    private struct Case {
+        let name: String
+        let response: [String: Any]
+        /// Exactly one of these. `expectError` names a `ProviderError` case,
+        /// for a response the mapping must refuse rather than chart.
+        let expected: Expectation?
+        let expectError: String?
+    }
+
+    /// The error cases a fixture may require, named as the descriptor author
+    /// would think of them rather than as Swift spells them.
+    private static func matches(_ error: Error, _ wanted: String) -> Bool {
+        guard let provider = error as? ProviderError else { return false }
+        switch (provider, wanted) {
+        case (.unsupported, "unsupported"), (.badResponse, "badResponse"),
+             (.notConfigured, "notConfigured"), (.needsAuth, "needsAuth"),
+             (.accessDenied, "accessDenied"), (.transport, "transport"):
+            return true
+        default: return false
+        }
+    }
+
+    private static func cases(in document: [String: Any]) -> [Case] {
+        func one(_ raw: [String: Any], _ name: String) -> Case? {
+            guard let response = raw["response"] as? [String: Any] else { return nil }
+            var expectation: Expectation?
+            if let value = raw["expected"],
+               let data = try? JSONSerialization.data(withJSONObject: value) {
+                expectation = try? JSONDecoder().decode(Expectation.self, from: data)
+            }
+            return Case(name: name, response: response, expected: expectation,
+                        expectError: raw["expectError"] as? String)
+        }
+        if let list = document["cases"] as? [[String: Any]] {
+            return list.enumerated().compactMap {
+                one($1, ($1["name"] as? String) ?? "case \($0 + 1)")
+            }
+        }
+        return one(document, "response").map { [$0] } ?? []
+    }
+
     static func verify(_ descriptor: HarnessDescriptor, in bundle: Bundle) -> Report? {
         guard descriptor.quota != nil else { return nil }
         guard let url = fixtureURL(for: descriptor.id, in: bundle) else {
@@ -68,34 +111,44 @@ enum QuotaFixture {
                           detail: "quota fixture unreadable", verifiedAt: nil)
         }
         let verifiedAt = document["verifiedAt"] as? String
-        guard let response = document["response"] as? [String: Any] else {
+        let recorded = cases(in: document)
+        guard !recorded.isEmpty else {
             return Report(id: descriptor.id, passed: false,
                           detail: "quota fixture has no `response` object", verifiedAt: verifiedAt)
-        }
-        guard let expectedRaw = document["expected"],
-              let expectedData = try? JSONSerialization.data(withJSONObject: expectedRaw),
-              let expected = try? JSONDecoder().decode(Expectation.self, from: expectedData) else {
-            return Report(id: descriptor.id, passed: false,
-                          detail: "quota fixture has no readable `expected` block",
-                          verifiedAt: verifiedAt)
         }
         guard let provider = DescriptorProvider(descriptor) else {
             return Report(id: descriptor.id, passed: false,
                           detail: "descriptor has a quota block the provider rejected",
                           verifiedAt: verifiedAt)
         }
-        do {
-            let snapshot = try provider.makeSnapshot(response)
-            let problems = differences(expected: expected, actual: snapshot)
-            return Report(id: descriptor.id, passed: problems.isEmpty,
-                          detail: problems.isEmpty ? "quota fixture passed"
-                                                   : problems.joined(separator: "; "),
-                          verifiedAt: verifiedAt)
-        } catch {
-            return Report(id: descriptor.id, passed: false,
-                          detail: "mapping threw: \(error.localizedDescription)",
-                          verifiedAt: verifiedAt)
+        var problems: [String] = []
+        for item in recorded {
+            do {
+                let snapshot = try provider.makeSnapshot(item.response)
+                if let wanted = item.expectError {
+                    problems.append("\(item.name): expected \(wanted), got "
+                        + "\(snapshot.gauges.count) gauge(s)")
+                } else if let expected = item.expected {
+                    problems += differences(expected: expected, actual: snapshot)
+                        .map { "\(item.name): \($0)" }
+                } else {
+                    problems.append("\(item.name): declares neither expected nor expectError")
+                }
+            } catch {
+                if let wanted = item.expectError {
+                    if !matches(error, wanted) {
+                        problems.append("\(item.name): expected \(wanted), threw \(error)")
+                    }
+                } else {
+                    problems.append("\(item.name): mapping threw: \(error.localizedDescription)")
+                }
+            }
         }
+        let summary = recorded.count == 1 ? "quota fixture passed"
+            : "quota fixture passed (\(recorded.count) cases)"
+        return Report(id: descriptor.id, passed: problems.isEmpty,
+                      detail: problems.isEmpty ? summary : problems.joined(separator: "; "),
+                      verifiedAt: verifiedAt)
     }
 
     /// Every mismatch, not just the first — a wrong `root` usually breaks every
