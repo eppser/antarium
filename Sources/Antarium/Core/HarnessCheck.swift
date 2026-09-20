@@ -36,7 +36,7 @@ enum HarnessCheck {
         "quota": ["endpoint", "headers", "credential", "windows", "accountLabel",
                   "setupHint", "signInCommand", "verified"],
         "quota.credential": ["kind", "path", "field", "name", "command", "args"],
-        "quota.windows": ["root", "list", "key", "keys", "usedPercent", "percentRemaining",
+        "quota.windows": ["root", "roots", "list", "key", "keys", "usedPercent", "percentRemaining",
                           "used", "limit", "require", "labels", "badges", "windowSeconds", "resetsAt",
                           "title"],
         "selection": ["kind", "path", "glob", "records", "encodedJSON", "id", "filter",

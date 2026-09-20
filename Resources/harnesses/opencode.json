@@ -3,18 +3,64 @@
   "id": "opencode",
   "name": "opencode",
   "process": {
-    "pathContains": ["OpenCode.app/Contents/MacOS/OpenCode", "/bin/opencode"],
-    "names": ["opencode"],
+    "pathContains": [
+      "OpenCode.app/Contents/MacOS/OpenCode",
+      "/bin/opencode"
+    ],
+    "names": [
+      "opencode"
+    ],
     "installationProbes": [
-      { "method": "curl", "path": "/fixture/home/.opencode/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "npm", "path": "/fixture/lib/node_modules/opencode-ai/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "homebrew", "path": "/opt/homebrew/Cellar/opencode/1.2.3/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "desktop", "path": "/Applications/OpenCode.app/Contents/MacOS/OpenCode", "name": "OpenCode", "argv0": "OpenCode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "desktop-helper", "path": "/Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper", "name": "OpenCode Helper", "argv0": "OpenCode Helper", "expected": false, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" }
+      {
+        "method": "curl",
+        "path": "/fixture/home/.opencode/bin/opencode",
+        "name": "opencode",
+        "argv0": "opencode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "npm",
+        "path": "/fixture/lib/node_modules/opencode-ai/bin/opencode",
+        "name": "opencode",
+        "argv0": "opencode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "homebrew",
+        "path": "/opt/homebrew/Cellar/opencode/1.2.3/bin/opencode",
+        "name": "opencode",
+        "argv0": "opencode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "desktop",
+        "path": "/Applications/OpenCode.app/Contents/MacOS/OpenCode",
+        "name": "OpenCode",
+        "argv0": "OpenCode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "desktop-helper",
+        "path": "/Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper",
+        "name": "OpenCode Helper",
+        "argv0": "OpenCode Helper",
+        "expected": false,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
-    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/opencode.json"
   },
   "source": {
@@ -36,7 +82,7 @@
     ]
   },
   "detached": true,
-  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id.",
+  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id. Zen quota comes from opencode.ai's own usage endpoint, which reports the account rather than this machine. The rolling window's length is not stated in the response, so its badge says ROLL rather than claiming a duration. The key is read from opencode's auth store; an XDG_DATA_HOME override is not followed \u2014 set quota.credential.path in ~/.antarium/harnesses/opencode.json if you use one.",
   "multiSession": true,
   "selection": {
     "kind": "jsonFiles",
@@ -46,7 +92,45 @@
     "encodedJSON": true,
     "id": "sessionId",
     "filter": {
-      "type": ["session"]
+      "type": [
+        "session"
+      ]
     }
+  },
+  "quota": {
+    "endpoint": "https://opencode.ai/zen/go/v1/usage",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.local/share/opencode/auth.json",
+      "field": "opencode-go.key"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "root": "usage",
+      "keys": [
+        "rolling",
+        "weekly",
+        "monthly"
+      ],
+      "usedPercent": "percent",
+      "resetsAt": "resetsAt",
+      "labels": {
+        "rolling": "Rolling",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      },
+      "badges": {
+        "rolling": "ROLL",
+        "weekly": "7D",
+        "monthly": "30D"
+      }
+    },
+    "setupHint": "Run `opencode auth login` and pick OpenCode Zen.",
+    "signInCommand": "opencode auth login",
+    "verified": false
   }
 }

@@ -865,6 +865,14 @@
         "root": {
           "type": "string"
         },
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Candidate paths tried in order, for an optional payload envelope."
+        },
         "list": {
           "type": "string",
           "description": "Dot-path to an array of windows. Supersedes root."

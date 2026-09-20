@@ -470,6 +470,8 @@ public struct HarnessConfig: Codable {
 
         public struct Windows: Codable {
             public var root: String?
+            /// Candidate paths tried in order, for an optional payload envelope.
+            public var roots: [String]?
             /// Dot-path to an array of windows, for services that report one
             /// instead of a keyed object. Supersedes `root`.
             public var list: String?

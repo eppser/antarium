@@ -1,0 +1,38 @@
+{
+  "formatVersion": 1,
+  "id": "commandcode",
+  "name": "Command Code",
+  "presentation": { "mark": "commandcode" },
+  "note": "Quota only. The rolling and weekly caps come from `windowLimits`, which Command Code returns either at the top level or inside a `data` envelope depending on the call — both paths are declared rather than guessed. The monthly credit balance is deliberately not charted: turning it into a percentage needs a plan-id-to-allowance table that only the vendor knows, and an unrecognised plan would produce a confident wrong number.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live plan."
+  },
+  "source": { "kind": "none", "path": "" },
+  "quota": {
+    "endpoint": "https://api.commandcode.ai/alpha/billing/credits",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.commandcode/auth.json",
+      "field": "apiKey"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "roots": ["data.windowLimits", "windowLimits"],
+      "keys": ["fiveHour", "weekly"],
+      "used": "used",
+      "limit": "cap",
+      "resetsAt": "resetAt",
+      "labels": { "fiveHour": "Session (5 hours)", "weekly": "Weekly" },
+      "badges": { "fiveHour": "5H", "weekly": "7D" }
+    },
+    "setupHint": "Run `cmd login`.",
+    "signInCommand": "cmd login",
+    "verified": false
+  }
+}

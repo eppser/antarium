@@ -200,8 +200,15 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                 found = wanted.flatMap { key in found.filter { $0.key == key } }
             }
         } else {
-            let container: [String: Any] = map.root
-                .flatMap { FieldPath.lookup(json, $0) as? [String: Any] } ?? json
+            // First candidate that actually resolves to an object. An absent
+            // envelope is a different shape, not an empty one, so falling
+            // through to the whole response is only correct when no path was
+            // declared at all.
+            let candidates = map.roots ?? map.root.map { [$0] } ?? []
+            let container: [String: Any] = candidates
+                .lazy
+                .compactMap { FieldPath.lookup(json, $0) as? [String: Any] }
+                .first ?? (candidates.isEmpty ? json : [:])
             // For an object the declared order is the drawing order.
             found = (map.keys ?? container.keys.sorted()).compactMap { key in
                 (container[key] as? [String: Any]).map { (key, $0) }

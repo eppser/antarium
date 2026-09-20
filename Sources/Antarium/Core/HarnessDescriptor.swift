@@ -184,6 +184,13 @@ struct HarnessDescriptor: Codable {
         struct Windows: Codable {
             /// Dot-path to the object holding the windows.
             var root: String?
+            /// Candidate paths, tried in order, for a service that sometimes
+            /// wraps its payload in an envelope and sometimes does not —
+            /// Command Code returns `windowLimits` at the top level or under
+            /// `data` depending on the call. Guessing one would make the
+            /// gauges silently vanish on the other shape. `root` is the
+            /// single-candidate shorthand; giving both tries `roots` first.
+            var roots: [String]?
             /// Dot-path to an *array* of windows, for the services that report
             /// one — Z.ai's `data.limits`, MiniMax's `model_remains`. A list
             /// has no member names of its own, so `key` says which field
