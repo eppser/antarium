@@ -36,18 +36,21 @@ func autoEnablePicksWhatIsPresent() {
 @Test("A crowded Mac gets the strongest evidence, not everything at once")
 func autoEnableCapsTheBar() {
     // Ten providers ship; a developer's Mac can carry traces of most of them.
+    // Ids are chosen so alphabetical order contradicts evidence order: the
+    // weakest sort first. An earlier version used ids that happened to sort
+    // the same way, so replacing the ranking with a plain id sort passed it.
     let evidence = (1...8).map { index in
-        AgentAutoEnable.Evidence(id: "used-\(index)", signedIn: false, hasSessions: true)
+        AgentAutoEnable.Evidence(id: "aaa-sessions-\(index)", signedIn: false, hasSessions: true)
     } + [
-        AgentAutoEnable.Evidence(id: "both", signedIn: true, hasSessions: true),
-        AgentAutoEnable.Evidence(id: "credential-only", signedIn: true, hasSessions: false),
+        AgentAutoEnable.Evidence(id: "zzz-both", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "yyy-credential", signedIn: true, hasSessions: false),
     ]
     let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
     #expect(chosen.count == AgentAutoEnable.limit)
     // Signed-in-and-used first, then credential-only, before any of the eight
-    // that can only say "sign in".
-    #expect(chosen.contains("both"))
-    #expect(chosen.contains("credential-only"))
+    // that can only say "sign in" — despite sorting last alphabetically.
+    #expect(chosen.contains("zzz-both"))
+    #expect(chosen.contains("yyy-credential"))
 }
 
 @Test("Two Macs with the same agents installed get the same bar")
@@ -546,3 +549,32 @@ func adoptionDistinguishesNewFromRejected() {
                   [("new-b", true), ("new-a", true)]) == ["new-a"])
 }
 
+
+@Test("A fixture notices when the gauges come back in the wrong order")
+func quotaFixtureIsOrderSensitive() {
+    // Gauge order is what the menu bar draws, and the stable-sort fix exists
+    // to keep it steady. A comparison that matched rows by id rather than
+    // position would accept a reordering silently.
+    let expected = QuotaFixture.Expectation(accountLabel: nil, gauges: [
+        .init(id: "first", badge: "5H", title: "First", usedPercent: 10,
+              windowSeconds: nil, resetsAt: nil, amount: nil, currency: nil),
+        .init(id: "second", badge: "7D", title: "Second", usedPercent: 20,
+              windowSeconds: nil, resetsAt: nil, amount: nil, currency: nil),
+    ])
+    func gauge(_ id: String, _ badge: String, _ title: String, _ used: Double) -> Gauge {
+        Gauge(id: id, badge: badge, title: title, used: used, resetsAt: nil,
+              reportedSeverity: .normal)
+    }
+    let inOrder = Snapshot(providerID: "x",
+                           gauges: [gauge("first", "5H", "First", 0.10),
+                                    gauge("second", "7D", "Second", 0.20)],
+                           extras: [], accountLabel: nil, fetchedAt: Date())
+    #expect(QuotaFixture.differences(expected: expected, actual: inOrder).isEmpty)
+
+    let swapped = Snapshot(providerID: "x",
+                           gauges: [gauge("second", "7D", "Second", 0.20),
+                                    gauge("first", "5H", "First", 0.10)],
+                           extras: [], accountLabel: nil, fetchedAt: Date())
+    #expect(!QuotaFixture.differences(expected: expected, actual: swapped).isEmpty,
+            "a reordered set of gauges was accepted")
+}

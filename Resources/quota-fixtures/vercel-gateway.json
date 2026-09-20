@@ -1,20 +1,39 @@
 {
   "note": "Synthetic. Shape follows Vercel's documented AI Gateway credits payload, including the numeric-string form gateway-compatible APIs use. Every value is invented.",
   "verifiedAt": "2026-09-20",
-  "response": {
-    "balance": "95.50",
-    "total_used": 4.5
-  },
-  "expected": {
-    "gauges": [
-      {
-        "id": "credits",
-        "badge": "BAL",
-        "title": "Gateway credits",
-        "usedPercent": 0,
-        "amount": 95.5,
-        "currency": "USD"
+  "cases": [
+    {
+      "name": "credits balance",
+      "response": {
+        "balance": "95.50",
+        "total_used": 4.5
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "credits",
+            "badge": "BAL",
+            "title": "Gateway credits",
+            "usedPercent": 0,
+            "amount": 95.5,
+            "currency": "USD"
+          }
+        ]
       }
-    ]
-  }
+    },
+    {
+      "name": "reply with no balance field",
+      "response": {
+        "total_used": 4.5
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "balance present but not a number",
+      "response": {
+        "balance": "unavailable"
+      },
+      "expectError": "unsupported"
+    }
+  ]
 }
