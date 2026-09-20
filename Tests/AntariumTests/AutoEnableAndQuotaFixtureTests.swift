@@ -444,3 +444,33 @@ func disabledDescriptorsAreExcludedFromLookups() throws {
     #expect(snapshot.matchFragments == snapshot.enabled.flatMap(\.match))
     #expect(snapshot.processNames == Set(snapshot.enabled.flatMap(\.processNames)))
 }
+
+// MARK: - Setup hints have to be actions that work
+
+@Test("A provider whose only credential is an environment variable says so")
+func envCredentialHintsMentionTheLimitation() throws {
+    // An app launched from Finder inherits no shell, so "set FOO_API_KEY" is
+    // advice that silently does nothing for most users. A descriptor that can
+    // only read an environment variable has to say how to do it another way.
+    for descriptor in HarnessCLI.bundledDescriptors() {
+        guard let quota = descriptor.quota,
+              quota.credential?.kind == "env" else { continue }
+        let hint = try #require(quota.setupHint, "\(descriptor.id) has no setup hint")
+        let offersAnAlternative = hint.contains("textFile") || hint.contains("jsonFile")
+            || hint.contains("terminal")
+        #expect(offersAnAlternative,
+                "\(descriptor.id): an env-only credential must offer a route that works for an app launched from Finder — hint was: \(hint)")
+    }
+}
+
+@Test("Every shipped quota provider offers a way to configure it")
+func everyQuotaProviderHasAHint() {
+    for descriptor in HarnessCLI.bundledDescriptors() {
+        guard let quota = descriptor.quota else { continue }
+        let hint = quota.setupHint ?? ""
+        #expect(!hint.isEmpty, "\(descriptor.id) has no setup hint")
+        // A hint is shown where the user cannot act on a shell prompt, so it
+        // must name something concrete rather than restate the problem.
+        #expect(hint.count > 12, "\(descriptor.id): hint is too vague — \(hint)")
+    }
+}

@@ -2,17 +2,25 @@
   "formatVersion": 1,
   "id": "deepseek",
   "name": "DeepSeek",
-  "presentation": { "mark": "deepseek" },
-  "note": "Quota only, and a balance rather than a meter: DeepSeek is pay-per-use and publishes no cap, so there is no percentage to report. One row per currency the account holds — the currency is read from the response rather than assumed, because Chinese accounts are billed in CNY and labelling that with a dollar sign would misstate the balance by an exchange rate.",
+  "presentation": {
+    "mark": "deepseek"
+  },
+  "note": "Quota only, and a balance rather than a meter: DeepSeek is pay-per-use and publishes no cap, so there is no percentage to report. One row per currency the account holds \u2014 the currency is read from the response rather than assumed, because Chinese accounts are billed in CNY and labelling that with a dollar sign would misstate the balance by an exchange rate. DEEPSEEK_API_KEY is read when Antarium is launched from a shell; an app started from Finder inherits no environment, so a key set in a shell profile will not be seen. A textFile or jsonFile credential works either way.",
   "process": {},
   "compatibility": {
     "level": "declared",
     "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live account."
   },
-  "source": { "kind": "none", "path": "" },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
   "quota": {
     "endpoint": "https://api.deepseek.com/user/balance",
-    "credential": { "kind": "env", "name": "DEEPSEEK_API_KEY" },
+    "credential": {
+      "kind": "env",
+      "name": "DEEPSEEK_API_KEY"
+    },
     "headers": {
       "Authorization": "Bearer {token}",
       "Accept": "application/json",
@@ -20,11 +28,13 @@
     },
     "windows": {
       "list": "balance_infos",
-      "key": ["currency"],
+      "key": [
+        "currency"
+      ],
       "balance": "total_balance",
       "currency": "currency"
     },
-    "setupHint": "Set DEEPSEEK_API_KEY from platform.deepseek.com.",
+    "setupHint": "Put your platform.deepseek.com API key in this file: replace quota.credential with {\"kind\":\"textFile\",\"path\":\"~/.deepseek-key\"}, or set DEEPSEEK_API_KEY and launch Antarium from a terminal.",
     "verified": false
   }
 }

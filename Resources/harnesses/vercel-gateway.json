@@ -2,17 +2,25 @@
   "formatVersion": 1,
   "id": "vercel-gateway",
   "name": "Vercel AI Gateway",
-  "presentation": { "mark": "vercel" },
-  "note": "Quota only, and a balance rather than a meter: the credits endpoint states what is left and never what a full tank was, so there is nothing honest to fill a bar against. The key comes from AI_GATEWAY_API_KEY — an app launched from Finder inherits no shell, so set it in ~/.antarium/harnesses/vercel-gateway.json as a textFile credential if the environment variable is not visible.",
+  "presentation": {
+    "mark": "vercel"
+  },
+  "note": "Quota only, and a balance rather than a meter: the credits endpoint states what is left and never what a full tank was, so there is nothing honest to fill a bar against. The key comes from AI_GATEWAY_API_KEY \u2014 an app launched from Finder inherits no shell, so set it in ~/.antarium/harnesses/vercel-gateway.json as a textFile credential if the environment variable is not visible.",
   "process": {},
   "compatibility": {
     "level": "declared",
     "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live account."
   },
-  "source": { "kind": "none", "path": "" },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
   "quota": {
     "endpoint": "https://ai-gateway.vercel.sh/v1/credits",
-    "credential": { "kind": "env", "name": "AI_GATEWAY_API_KEY" },
+    "credential": {
+      "kind": "env",
+      "name": "AI_GATEWAY_API_KEY"
+    },
     "headers": {
       "Authorization": "Bearer {token}",
       "Accept": "application/json",
@@ -22,10 +30,14 @@
       "single": "credits",
       "balance": "balance",
       "currency": "USD",
-      "labels": { "credits": "Gateway credits" },
-      "badges": { "credits": "BAL" }
+      "labels": {
+        "credits": "Gateway credits"
+      },
+      "badges": {
+        "credits": "BAL"
+      }
     },
-    "setupHint": "Set AI_GATEWAY_API_KEY from your Vercel AI Gateway settings.",
+    "setupHint": "Put your Vercel AI Gateway key in this file: replace quota.credential with {\"kind\":\"textFile\",\"path\":\"~/.vercel-gateway-key\"}, or set AI_GATEWAY_API_KEY and launch Antarium from a terminal.",
     "verified": false
   }
 }

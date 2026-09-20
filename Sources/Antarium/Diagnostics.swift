@@ -36,8 +36,21 @@ enum Diagnostics {
         let requested = args.firstIndex(of: "--once").flatMap { i -> String? in
             i + 1 < args.count && !args[i + 1].hasPrefix("-") ? args[i + 1] : nil
         }
-        let providers = requested.flatMap { ProviderRegistry.provider(id: $0) }.map { [$0] }
-            ?? ProviderRegistry.all
+        let providers: [UsageProvider]
+        if let requested {
+            // An id that names nothing used to fall through to every provider,
+            // so a typo printed ten reports and exited 0 — indistinguishable
+            // from asking for all of them on purpose.
+            guard let match = ProviderRegistry.provider(id: requested) else {
+                let known = ProviderRegistry.all.map(\.id).sorted().joined(separator: ", ")
+                FileHandle.standardError.write(Data(
+                    "No provider with id \"\(requested)\". Known providers: \(known)\n".utf8))
+                exit(2)
+            }
+            providers = [match]
+        } else {
+            providers = ProviderRegistry.all
+        }
 
         Task { @MainActor in
             var anySucceeded = false

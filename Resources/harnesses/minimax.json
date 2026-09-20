@@ -5,7 +5,7 @@
   "presentation": {
     "mark": "minimax"
   },
-  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name.",
+  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name. MINIMAX_API_KEY is read when Antarium is launched from a shell; an app started from Finder inherits no environment, so a key set in a shell profile will not be seen. A textFile or jsonFile credential works either way.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -47,7 +47,7 @@
         "MiniMax-M1": "M1"
       }
     },
-    "setupHint": "Set MINIMAX_API_KEY from platform.minimax.io.",
+    "setupHint": "Put your platform.minimax.io API key in this file: replace quota.credential with {\"kind\":\"textFile\",\"path\":\"~/.minimax-key\"}, or set MINIMAX_API_KEY and launch Antarium from a terminal.",
     "verified": false
   }
 }
