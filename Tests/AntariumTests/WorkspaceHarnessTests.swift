@@ -314,7 +314,17 @@ struct PresenceHarnessTests {
         let descriptor = try descriptor()
         #expect(descriptor.source.kind == .none)
         #expect(descriptor.source.path.isEmpty)
-        #expect(descriptor.quota == nil, "it would become a menu bar item with nothing to show")
+        // It may carry a quota block — Gemini does — but then it has to say
+        // so. The row's label is the only place a reader learns what the
+        // figures beside it came from, and "Process only" next to a gauge is
+        // a plain contradiction. This assertion used to be `quota == nil`,
+        // which was true of the only presence harness at the time rather
+        // than a rule about presence harnesses.
+        if descriptor.quota != nil {
+            let label = HarnessRowPresentation(descriptor: descriptor, edited: false).sourceLabel
+            #expect(label.lowercased().contains("quota"),
+                    Comment(rawValue: "\(descriptor.id) shows a gauge but its row says \(label)"))
+        }
         // It is still reported as installed — see the test below. An earlier
         // version asserted the opposite, which recorded the gap as if it were
         // the intended behaviour.

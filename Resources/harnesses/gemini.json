@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "gemini",
   "name": "Gemini CLI",
-  "note": "Gemini CLI keeps no durable session record: ~/.gemini holds settings, a project list and a .project_root marker per directory, and nothing that describes a conversation. There is no transcript to read, so there are no tokens, no cost and no context figure \u2014 and a row that showed zeros would be claiming knowledge this harness does not have. It contributes presence only: the running process, the directory it is working in, and an explicit note that the rest is unknown. The process rule matches the executable name exactly: a path fragment of /bin/gemini also matches /bin/geminid, which the negative probe caught \u2014 the second time that check has found an over-broad matcher of mine.",
+  "note": "Gemini CLI keeps no durable session record: ~/.gemini holds settings, a project list and a .project_root marker per directory, and nothing that describes a conversation. There is no transcript to read, so there are no tokens, no cost and no context figure \u2014 and a row that showed zeros would be claiming knowledge this harness does not have. It contributes presence only: the running process, the directory it is working in, and an explicit note that the rest is unknown. The process rule matches the executable name exactly: a path fragment of /bin/gemini also matches /bin/geminid, which the negative probe caught \u2014 the second time that check has found an over-broad matcher of mine. Quota comes from Cloud Code's retrieveUserQuota, which is POST-only and reports headroom as a fraction of one per model and token type \u2014 0.87 meaning 87% left, not 0.87% used. The access token is the one the gemini CLI writes to ~/.gemini/oauth_creds.json; nothing here refreshes it, so an expired token reports as needing sign-in rather than being silently renewed.",
   "process": {
     "names": [
       "gemini"
@@ -56,6 +56,32 @@
   },
   "contributes": "presence",
   "presentation": {
-    "sourceLabel": "Process only"
+    "sourceLabel": "Process and quota"
+  },
+  "quota": {
+    "endpoint": "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
+    "method": "POST",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.gemini/oauth_creds.json",
+      "field": "access_token"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    "windows": {
+      "list": "buckets",
+      "key": [
+        "modelId",
+        "tokenType"
+      ],
+      "fractionRemaining": "remainingFraction",
+      "resetsAt": "resetTime",
+      "title": "modelId"
+    },
+    "setupHint": "Run `gemini` in Terminal and sign in.",
+    "verified": false
   }
 }

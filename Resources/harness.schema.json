@@ -835,6 +835,13 @@
         },
         "verified": {
           "type": "boolean"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "POST"
+          ],
+          "description": "Defaults to GET."
         }
       }
     },
@@ -966,6 +973,10 @@
         },
         "title": {
           "type": "string"
+        },
+        "fractionRemaining": {
+          "type": "string",
+          "description": "Headroom as a fraction of 1 rather than a percentage."
         }
       },
       "anyOf": [

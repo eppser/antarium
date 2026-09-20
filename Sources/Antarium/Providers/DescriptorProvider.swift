@@ -119,7 +119,9 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         var headers = quota.headers ?? ["Authorization": "Bearer {token}"]
         headers = headers.mapValues { $0.replacingOccurrences(of: "{token}", with: token) }
 
-        let json = try await UsageHTTP.getJSON(url, headers: headers, session: session)
+        let json = quota.method?.uppercased() == "POST"
+            ? try await UsageHTTP.postJSON(url, headers: headers, session: session)
+            : try await UsageHTTP.getJSON(url, headers: headers, session: session)
         return try makeSnapshot(json)
     }
 
@@ -155,6 +157,8 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                 percent = value
             } else if let path = map.percentRemaining, let value = FieldPath.number(window, path) {
                 percent = 100 - value
+            } else if let path = map.fractionRemaining, let value = FieldPath.number(window, path) {
+                percent = 100 - value * 100
             } else if let usedPath = map.used, let limitPath = map.limit,
                       let used = FieldPath.number(window, usedPath),
                       let limit = FieldPath.number(window, limitPath), limit > 0 {

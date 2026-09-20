@@ -129,3 +129,7 @@ credential output cap set absurdly low | Sources/Antarium/Providers/DescriptorPr
 credential output truncation passes as a token | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else { return nil }||
 live cache joins its own superseded list | Sources/Antarium/Core/TranscriptStats.swift | s|"transcripts-v4.json", "transcripts-v5.json",|"transcripts-v4.json", "transcripts-v5.json", "transcripts-v6.json",|
 the scanner measures everything | Sources/Antarium/Core/AgentScan.swift | s|return names.contains((candidate as NSString).lastPathComponent)|return true|
+fraction remaining read as a percentage | Sources/Antarium/Providers/DescriptorProvider.swift | s|percent = 100 - value \* 100|percent = 100 - value|
+post-only endpoint fetched with GET | Sources/Antarium/Providers/DescriptorProvider.swift | s|quota.method?.uppercased() == "POST"|false|
+gemini headroom inverted | Resources/harnesses/gemini.json | s|"fractionRemaining": "remainingFraction"|"usedPercent": "remainingFraction"|
+a row shows a gauge but claims process only | Resources/harnesses/gemini.json | s|"sourceLabel": "Process and quota"|"sourceLabel": "Process only"|
