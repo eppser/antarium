@@ -406,6 +406,17 @@ signing, a browser cookie, parsing a CLI's text output — belongs in Swift unde
 `field`), or a bounded `command`. `headers` may interpolate `{token}`;
 without it, `Authorization: Bearer {token}` is assumed.
 
+A `jsonFile` credential may add `requires`, a map of field path to required
+substring, checked in the same file before the token is used or counted as a
+sign-in. It exists for credentials that live somewhere shared: Z.ai's plan is
+driven through Claude Code, so its token is whatever sits in
+`env.ANTHROPIC_AUTH_TOKEN` — a field Kimi, MiniMax, a corporate gateway and a
+plain Anthropic key all write too. Without a second field to check, any of
+those reads as a Z.ai sign-in and is sent to Z.ai's endpoint. Z.ai requires
+`env.ANTHROPIC_BASE_URL` to contain `z.ai`. Matching is case-insensitive, an
+absent field fails closed, and the check is refused at decode on any other
+credential kind, where it would silently do nothing.
+
 `windows` says where the limits are and what they mean.
 
 **Finding the windows.** Responses come in three shapes:

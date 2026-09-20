@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "zai",
   "name": "Z.ai GLM",
-  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most.",
+  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it \u2014 but that field is shared with every other Anthropic-compatible vendor, so the base URL is checked too before the token is treated as Z.ai's. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -17,7 +17,10 @@
     "credential": {
       "kind": "jsonFile",
       "path": "~/.claude/settings.json",
-      "field": "env.ANTHROPIC_AUTH_TOKEN"
+      "field": "env.ANTHROPIC_AUTH_TOKEN",
+      "requires": {
+        "env.ANTHROPIC_BASE_URL": "z.ai"
+      }
     },
     "headers": {
       "Authorization": "Bearer {token}",

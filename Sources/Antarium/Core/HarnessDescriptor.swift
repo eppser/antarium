@@ -179,6 +179,19 @@ struct HarnessDescriptor: Codable {
             var name: String?
             var command: String?
             var args: [String]?
+            /// Other fields in the same file that must hold for this token to
+            /// belong to this vendor, as field path → required substring
+            /// (compared case-insensitively).
+            ///
+            /// Needed when the credential lives somewhere shared. Z.ai's plan
+            /// is driven through Claude Code, so its token is whatever sits in
+            /// `env.ANTHROPIC_AUTH_TOKEN` — a field Kimi, MiniMax, a corporate
+            /// gateway and a plain Anthropic key all use too. Without a second
+            /// field to check, any of those reads as a Z.ai sign-in and gets
+            /// sent to Z.ai's endpoint. `jsonFile` only; the validator rejects
+            /// it elsewhere, because a guard that silently does nothing is
+            /// worse than no guard.
+            var requires: [String: String]?
         }
         /// Where the windows live in the response, and what each field is called.
         struct Windows: Codable {

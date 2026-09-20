@@ -86,6 +86,14 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                   let data = FileManager.default.contents(atPath: path),
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             else { return nil }
+            // A shared file can hold another vendor's token in the same field.
+            // Failing closed here means an unrecognised setup is reported as
+            // not signed in, rather than as this vendor and sent to it.
+            for (path, required) in credential.requires ?? [:] {
+                guard let found = FieldPath.lookup(object, path) as? String,
+                      found.lowercased().contains(required.lowercased())
+                else { return nil }
+            }
             return FieldPath.lookup(object, field) as? String
         default:
             return nil

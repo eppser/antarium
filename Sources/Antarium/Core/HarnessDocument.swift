@@ -134,6 +134,27 @@ enum HarnessDocument {
                     "process.sessionBinding openSourceFile requires a JSON or JSONL source")
             }
         }
+        if let quota = object["quota"] as? [String: Any],
+           let credential = quota["credential"] as? [String: Any],
+           let rawRequires = credential["requires"] {
+            // A guard that silently does nothing is worse than no guard: the
+            // descriptor reads as if the credential were checked.
+            guard let requires = rawRequires as? [String: String], !requires.isEmpty else {
+                throw Error.semantic(
+                    "quota.credential.requires must be a non-empty object of field to substring")
+            }
+            guard credential["kind"] as? String == "jsonFile" else {
+                throw Error.semantic(
+                    "quota.credential.requires is only read for a jsonFile credential")
+            }
+            for (field, expected) in requires where
+                field.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || expected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw Error.semantic(
+                    "quota.credential.requires has an empty field or substring")
+            }
+        }
+
         if let process = object["process"] as? [String: Any],
            let rawProbes = process["installationProbes"] {
             guard let probes = rawProbes as? [[String: Any]] else {
