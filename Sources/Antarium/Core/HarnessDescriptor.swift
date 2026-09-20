@@ -490,7 +490,11 @@ struct HarnessDescriptor: Codable {
             /Applications/Antarium.app/Contents/MacOS/Antarium --check <file>
 
         It reports typos, field paths that match nothing in your real data, and
-        what it would show. The format is documented in the Antarium README.
+        what it would show.
+
+        harness.schema.json next to this folder is the authority on the format,
+        and most editors will use it for completion and validation. The fields
+        are explained in docs/TECHNICAL.md under "Harness files".
 
         """
 

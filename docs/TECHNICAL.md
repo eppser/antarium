@@ -357,12 +357,77 @@ Supported probes are `content`, `directory`, `jsonObject`, and `toml`.
 ### Descriptor-backed quota providers
 
 For agents without a built-in authentication flow, `quota` can describe a
-read-only JSON endpoint. Credentials may come from an environment variable,
-text file, JSON field, or bounded direct command. Mappings support used or
-remaining percentages, count/limit ratios, reset times, labels, and filters.
+read-only JSON endpoint. A descriptor makes one authenticated GET and maps the
+reply onto gauges; anything that needs control flow — an OAuth refresh, request
+signing, a browser cookie, parsing a CLI's text output — belongs in Swift under
+`Sources/Antarium/Providers` instead.
 
-Set `verified` only after comparing the mapping with the real service. Unverified
-integrations remain visibly marked as such.
+`credential` resolves the token, from `env`, `textFile`, `jsonFile` (with
+`field`), or a bounded `command`. `headers` may interpolate `{token}`;
+without it, `Authorization: Bearer {token}` is assumed.
+
+`windows` says where the limits are and what they mean.
+
+**Finding the windows.** Responses come in three shapes:
+
+| Shape | Fields | Example |
+| --- | --- | --- |
+| Object keyed by window name | `root` (or `roots`), optional `keys` | Copilot's `quota_snapshots` |
+| Array of windows | `list`, `key` | Z.ai's `data.limits`, MiniMax's `model_remains` |
+| One flat window | `single` | Vercel's `{"balance": …}` |
+
+`roots` takes candidate paths in order, for a service that wraps its payload in
+an envelope on some calls and not others — Command Code returns `windowLimits`
+at the top level or under `data`. Declaring one and guessing wrong makes the
+gauges silently vanish on the other shape.
+
+`key` is a list because one field is not always enough to name a window: Z.ai
+reports two `TOKENS_LIMIT` rows that differ only by `unit`, so keying on `type`
+alone collapses the weekly cap into the session one and hides the limit users
+hit most. Several paths are joined with `-`. `keys`, where given, both filters
+and orders, for either shape.
+
+**Reading the figure.** Exactly one of these per window:
+
+| Fields | Meaning |
+| --- | --- |
+| `usedPercent` | 0–100 consumed |
+| `percentRemaining` | 0–100 left |
+| `used` + `limit` | a ratio; a window with no limit is skipped, because "0 of nothing" is not 0% |
+| `balance` (+ `currency`) | a figure with no denominator |
+
+A `balance` draws its amount and **no bar**. A credit balance has no cap to
+fill against, and pinning such a gauge to 100% — which is what a
+percentage-only model forces — paints the same full green meter whether $500 or
+two cents remain. `currency` is a path into the window where the service
+reports one, otherwise a literal ISO 4217 code; it is not assumed, because
+DeepSeek bills some accounts in CNY and a dollar sign there misstates the
+balance by an exchange rate.
+
+**Presentation.** `labels` names each window, `badges` gives the two-to-four
+character menu-bar tag where abbreviating the label reads badly ("Premium"
+becomes "PRE", "Tools" becomes "TOO"). `title` is a path into the window for a
+service that names its own windows, used where `labels` gives no name. `windowSeconds` and `resetsAt` are read
+per window, falling back to the response root. `require` skips a window unless
+every pair matches — a free Copilot plan lists a premium tier it does not have.
+
+**Verification.** Every shipped descriptor that declares `quota` must have a
+recorded response shape in `Resources/quota-fixtures/<id>.json`, checked by:
+
+```bash
+Antarium --verify-harness-quota
+```
+
+The fixture replays a synthetic response through the real mapping and compares
+every gauge — id, badge, title, percentage, window length, reset time, and for
+a balance its figure and currency. No account, no network, and no installed
+agent is involved, so a wrong field path fails at build time rather than on a
+stranger's Mac. Fixtures are invented values in the vendor's published shape;
+no real account response is ever committed.
+
+Set `verified` only after comparing the mapping with the real service. A
+passing fixture proves the mapping resolves, not that the numbers are right.
+Unverified integrations stay visibly marked as such in Settings.
 
 ## SDK, schema, and migration
 

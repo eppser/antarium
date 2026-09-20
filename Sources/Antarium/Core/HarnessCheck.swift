@@ -55,6 +55,13 @@ enum HarnessCheck {
     ]
     private static let kinds: Set<String> = ["jsonl", "json", "sqlite", "command", "none"]
 
+    /// The fields accepted under one path, for the contract test that keeps
+    /// this table and `harness.schema.json` from drifting apart. A field the
+    /// schema allows but this rejects is reported to the user as a typo in
+    /// their own file; one this allows but the schema does not is silently
+    /// ignored by every editor that validates against the schema.
+    static func knownFields(at path: String) -> Set<String>? { known[path] }
+
     /// Pure structural validation, shared by the CLI and the regression suite.
     /// JSONDecoder intentionally ignores unknown keys; this is where a typo is
     /// turned into an actionable error instead of silently changing meaning.
