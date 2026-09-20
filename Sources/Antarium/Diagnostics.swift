@@ -168,6 +168,14 @@ enum Diagnostics {
 
     @MainActor
     static func dumpAgentsAndExit() -> Never {
+        // The harness folder is the only copy, and it is what the app reads.
+        // Every diagnostic here reads it too, so every one of them has to put
+        // it there first — otherwise the first thing a new install sees from
+        // the command line is an empty agent table, an empty catalog and a
+        // scan reporting zero sessions, none of which says "nothing has been
+        // set up yet". The app seeds on start for exactly this reason; these
+        // entry points were the ones that did not.
+        HarnessDescriptor.seed()
         TranscriptStats.loadCache()
         HarnessEngine.loadCache()
         Task { @MainActor in
