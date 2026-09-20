@@ -131,8 +131,85 @@ enum UsageHTTP {
 
     static func parseDate(_ raw: Any?) -> Date? {
         guard let s = raw as? String, !s.isEmpty else { return nil }
+        // Transcripts carry a timestamp on nearly every record, and
+        // CFDateFormatter was ~18% of a scan on this machine. The overwhelming
+        // majority are plain UTC ISO-8601, which is a fixed-width grammar a
+        // few comparisons can read. Anything that is not exactly that shape —
+        // an offset, a different separator, anything unusual — still goes to
+        // the formatter, so nothing is parsed more leniently than before.
+        if let fast = fastUTC(s) { return fast }
         dateLock.lock()
         defer { dateLock.unlock() }
         return isoFractional.date(from: s) ?? isoPlain.date(from: s)
+    }
+
+    /// `yyyy-MM-dd'T'HH:mm:ss['.'SSS…]'Z'`, and nothing else.
+    ///
+    /// Returns nil for every other shape rather than guessing, including dates
+    /// the formatter would reject: the calendar arithmetic below is only valid
+    /// for a well-formed date, so the ranges are checked rather than assumed.
+    static func fastUTC(_ text: String) -> Date? {
+        let b = Array(text.utf8)
+        guard b.count >= 20, b.last == UInt8(ascii: "Z"),
+              b[4] == UInt8(ascii: "-"), b[7] == UInt8(ascii: "-"),
+              b[10] == UInt8(ascii: "T"), b[13] == UInt8(ascii: ":"),
+              b[16] == UInt8(ascii: ":") else { return nil }
+
+        func digits(_ range: Range<Int>) -> Int? {
+            var value = 0
+            for index in range {
+                let digit = Int(b[index]) - 48
+                guard (0...9).contains(digit) else { return nil }
+                value = value * 10 + digit
+            }
+            return value
+        }
+        guard let year = digits(0..<4), let month = digits(5..<7), let day = digits(8..<10),
+              let hour = digits(11..<13), let minute = digits(14..<16),
+              let second = digits(17..<19) else { return nil }
+
+        var fraction = 0.0
+        if b.count > 20 {
+            guard b[19] == UInt8(ascii: ".") else { return nil }
+            let end = b.count - 1                       // before the trailing Z
+            guard end > 20, let raw = digits(20..<end) else { return nil }
+            fraction = Double(raw) / pow(10, Double(end - 20))
+        } else {
+            guard b[19] == UInt8(ascii: "Z") else { return nil }
+        }
+
+        // A leap second is real in the grammar and the formatter accepts it.
+        guard (1...12).contains(month), (1...31).contains(day),
+              (0...23).contains(hour), (0...59).contains(minute),
+              (0...60).contains(second) else { return nil }
+
+        // Days from the civil epoch — Howard Hinnant's days_from_civil, which
+        // is exact for the proleptic Gregorian calendar and has no formatter,
+        // locale or time zone anywhere in it.
+        let y = year - (month <= 2 ? 1 : 0)
+        let era = (y >= 0 ? y : y - 399) / 400
+        let yoe = y - era * 400
+        let doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+        let days = era * 146_097 + doe - 719_468
+        // Reject a day the month does not have — 31 February parses as 3 March
+        // in plain arithmetic, and the formatter refuses it.
+        guard Self.civilDay(days) == (year, month, day) else { return nil }
+        let seconds = Double(days) * 86_400 + Double(hour * 3600 + minute * 60 + second)
+        return Date(timeIntervalSince1970: seconds + fraction)
+    }
+
+    /// The inverse of the above, used only to reject an impossible date.
+    private static func civilDay(_ days: Int) -> (Int, Int, Int) {
+        let z = days + 719_468
+        let era = (z >= 0 ? z : z - 146_096) / 146_097
+        let doe = z - era * 146_097
+        let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365
+        let y = yoe + era * 400
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+        let mp = (5 * doy + 2) / 153
+        let d = doy - (153 * mp + 2) / 5 + 1
+        let m = mp + (mp < 10 ? 3 : -9)
+        return (y + (m <= 2 ? 1 : 0), m, d)
     }
 }

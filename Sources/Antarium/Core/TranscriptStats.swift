@@ -236,9 +236,7 @@ struct TranscriptStats: Codable {
         guard !line.isEmpty else { return }
         let (hasTools, hasUsage, hasSchedule) = line.withUnsafeBytes {
             (raw: UnsafeRawBufferPointer) -> (Bool, Bool, Bool) in
-            let bytes = raw.bindMemory(to: UInt8.self)
-            return (contains(toolNeedle, in: bytes), contains(usageNeedle, in: bytes),
-                    contains(loopNeedle, in: bytes) || contains(cronNeedle, in: bytes))
+            markers(in: raw.bindMemory(to: UInt8.self))
         }
         guard hasTools || hasUsage || hasSchedule else { return }
         guard let d = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
@@ -317,6 +315,51 @@ struct TranscriptStats: Codable {
 
     private static func contains(_ needle: [UInt8], in hay: UnsafeBufferPointer<UInt8>) -> Bool {
         count(of: needle, in: hay, stopAtFirst: true) > 0
+    }
+
+    /// Which of the four markers a record contains, in one pass.
+    ///
+    /// This used to be four separate full scans of every line, and they were
+    /// the largest single cost in a scan — over half of it on this machine.
+    /// The needles start with only three distinct bytes between them, so one
+    /// walk with a switch on the current byte does the same work: a line that
+    /// contains none of them is read once instead of four times, and one that
+    /// contains all of them stops as soon as the last is found.
+    ///
+    /// Same answers as the four `contains` calls it replaces, including the
+    /// deliberate looseness of `"tool_use"` matching anywhere in the record —
+    /// the JSON decode that follows is what decides the actual count.
+    static func markers(in hay: UnsafeBufferPointer<UInt8>) -> (tools: Bool, usage: Bool, schedule: Bool) {
+        var tools = false, usage = false, schedule = false
+        guard let base = hay.baseAddress, hay.count > 0 else { return (false, false, false) }
+
+        func matches(_ needle: [UInt8], at index: Int) -> Bool {
+            guard index + needle.count <= hay.count else { return false }
+            var offset = 1                                  // first byte already checked
+            while offset < needle.count {
+                if base[index + offset] != needle[offset] { return false }
+                offset += 1
+            }
+            return true
+        }
+
+        var index = 0
+        while index < hay.count {
+            switch base[index] {
+            case UInt8(ascii: "\""):
+                if !tools, matches(toolNeedle, at: index) { tools = true }
+                if !usage, matches(usageNeedle, at: index) { usage = true }
+            case UInt8(ascii: "S"):
+                if !schedule, matches(loopNeedle, at: index) { schedule = true }
+            case UInt8(ascii: "C"):
+                if !schedule, matches(cronNeedle, at: index) { schedule = true }
+            default:
+                break
+            }
+            if tools && usage && schedule { break }
+            index += 1
+        }
+        return (tools, usage, schedule)
     }
 
     private static func count(of needle: [UInt8], in hay: UnsafeBufferPointer<UInt8>,
