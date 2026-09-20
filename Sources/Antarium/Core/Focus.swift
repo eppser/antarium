@@ -144,20 +144,8 @@ enum Focus {
         return result.exitCode == 0
     }
 
-    /// Where a bare command name lives. A GUI app's PATH is short, so the
-    /// usual places are tried explicitly — the same list the quota providers
-    /// use for the same reason.
     private static func resolve(_ command: String) -> String? {
-        if command.contains("/") {
-            let path = command.expandingTilde
-            return FileManager.default.isExecutableFile(atPath: path) ? path : nil
-        }
-        let places = (ProcessInfo.processInfo.environment["PATH"] ?? "")
-            .split(separator: ":").map(String.init)
-            + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
-               FileManager.default.homeDirectoryForCurrentUser.path + "/.local/bin"]
-        return places.map { "\($0)/\(command)" }
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+        CommandPath.resolve(command)
     }
 
     /// `unruly-6:@6.%12` → select that pane, then raise its terminal.

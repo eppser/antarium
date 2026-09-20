@@ -102,16 +102,7 @@ enum Onboarding {
 
     /// Where a bare command name lives, for a GUI app's short PATH.
     static func resolveCommand(_ command: String) -> String? {
-        if command.contains("/") {
-            let path = command.expandingTilde
-            return FileManager.default.isExecutableFile(atPath: path) ? path : nil
-        }
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let places = (ProcessInfo.processInfo.environment["PATH"] ?? "")
-            .split(separator: ":").map(String.init)
-            + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", home + "/.local/bin"]
-        return places.map { "\($0)/\(command)" }
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+        return CommandPath.resolve(command)
     }
 
     /// Splits accounts into the ones worth a row each and the ones worth a

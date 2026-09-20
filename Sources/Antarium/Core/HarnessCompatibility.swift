@@ -181,8 +181,10 @@ enum HarnessCompatibility {
         case .none: return false
         case .command:
             guard let command = descriptor.source.command else { return false }
+            // A bare name is taken on trust here: this asks whether the source
+            // *can* be inspected, and `--check` is what confirms it.
             return command.contains("/")
-                ? FileManager.default.isExecutableFile(atPath: command.expandingTilde)
+                ? CommandPath.resolve(command) != nil
                 : true
         case .sqlite:
             return FileManager.default.fileExists(atPath: descriptor.source.path.expandingTilde)

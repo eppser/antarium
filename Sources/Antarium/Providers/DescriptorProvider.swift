@@ -46,9 +46,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         switch credential.kind {
         case "command":
             guard let command = credential.command else { return false }
-            return command.contains("/")
-                ? FileManager.default.isExecutableFile(atPath: command.expandingTilde)
-                : Self.onPath(command) != nil
+            return CommandPath.resolve(command) != nil
         default:
             return token() != nil
         }
@@ -63,7 +61,9 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             return credential.name.flatMap { ProcessInfo.processInfo.environment[$0] }
         case "command":
             guard let command = credential.command else { return nil }
-            let path = command.contains("/") ? command.expandingTilde : Self.onPath(command)
+            // Resolved the same way whether it is a bare name or a path:
+            // a credential command that is not there is not a credential.
+            let path = CommandPath.resolve(command)
             guard let path else { return nil }
             // Arguments name files too, so `~` has to mean the same thing there
             // — including inside a URI like `file:~/Library/...`, where it is
@@ -98,15 +98,6 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         default:
             return nil
         }
-    }
-
-    /// Where a bare command name lives. A GUI app's PATH is short, so the
-    /// usual places are tried explicitly.
-    private static func onPath(_ command: String) -> String? {
-        let places = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init)
-            + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-        return places.map { "\($0)/\(command)" }
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     // MARK: - Fetch
