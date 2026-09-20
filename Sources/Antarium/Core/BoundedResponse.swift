@@ -19,12 +19,20 @@ import Foundation
 /// running total for a chunked reply that declares no length at all.
 final class BoundedBodyDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
-    enum Failure: Error { case tooLarge, noResponse }
+    enum Failure: Error {
+        case tooLarge, noResponse
+        /// The server answered with a redirect to somewhere the credential on
+        /// this request was not meant for. Reported in its own right rather
+        /// than left to whatever the 3xx eventually looks like — the refusal
+        /// is the interesting event, and the caller has to be able to say so.
+        case redirectRefused(to: String)
+    }
 
     private struct Pending {
         var data = Data()
         var response: URLResponse?
         var tooLarge = false
+        var refusedRedirect: String?
         let finish: (Result<(Data, URLResponse), Error>) -> Void
     }
 
@@ -54,6 +62,32 @@ final class BoundedBodyDelegate: NSObject, URLSessionDataDelegate, @unchecked Se
     }
 
     // MARK: - URLSessionDataDelegate
+
+    /// Credentials travel on this session. `httpAdditionalHeaders` puts the
+    /// Authorization header on every request the session makes, redirect
+    /// targets included, and URLSession does not drop it when the host
+    /// changes — a usage endpoint answering `302 Location: elsewhere` would
+    /// hand that host the user's token. The redirect is followed only when
+    /// scheme and host are unchanged; anything else is refused, and the 3xx
+    /// itself becomes the response so the failure is visible rather than a
+    /// silent hop.
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        guard let from = task.originalRequest?.url, let to = request.url,
+              let fromHost = from.host?.lowercased(), !fromHost.isEmpty,
+              to.host?.lowercased() == fromHost,
+              to.scheme?.lowercased() == from.scheme?.lowercased() else {
+            lock.lock()
+            pending[task.taskIdentifier]?.refusedRedirect =
+                request.url?.host ?? "another host"
+            lock.unlock()
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
+    }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
                     didReceive response: URLResponse,
@@ -97,6 +131,13 @@ final class BoundedBodyDelegate: NSObject, URLSessionDataDelegate, @unchecked Se
         // Our own refusal outranks the cancellation it caused, so the caller
         // is told the body was too large rather than that it was cancelled.
         if entry.tooLarge { entry.finish(.failure(Failure.tooLarge)); return }
+        // Likewise our own refusal of a redirect: whatever the transfer went
+        // on to do, the reason it did not succeed is that it was pointed
+        // somewhere the credential could not follow.
+        if let host = entry.refusedRedirect {
+            entry.finish(.failure(Failure.redirectRefused(to: host)))
+            return
+        }
         if let error { entry.finish(.failure(error)); return }
         guard let response = entry.response else {
             entry.finish(.failure(Failure.noResponse))

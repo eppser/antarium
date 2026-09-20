@@ -84,3 +84,6 @@ an unpriced model silently drops out of the total | Sources/Antarium/Core/Transc
 settings hides agents the first run passed over | Sources/Antarium/UI/SettingsView.swift | s|let waiting = rows.filter { \$0.present \&\& !\$0.enabled }.count|let waiting = 0|
 another vendor's token accepted as this one's | Sources/Antarium/Providers/DescriptorProvider.swift | s|for (path, required) in credential.requires ?? \[:\] {|for (path, required) in [String: String]() {|
 shipped shared-file credential left unguarded | Resources/harnesses/zai.json | s|"requires": {|"unused": {|
+credential follows a redirect to another host | Sources/Antarium/Core/BoundedResponse.swift | s|to.host?.lowercased() == fromHost,|to.host != nil,|
+same-host redirects refused too, breaking real endpoints | Sources/Antarium/Core/BoundedResponse.swift | s|completionHandler(request)$|completionHandler(nil)|
+plaintext usage endpoint allowed | Sources/Antarium/Core/UsageHTTP.swift | s|guard url.scheme?.lowercased() == "https" else {|guard url.scheme != nil else {|

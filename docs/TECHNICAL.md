@@ -417,6 +417,17 @@ those reads as a Z.ai sign-in and is sent to Z.ai's endpoint. Z.ai requires
 absent field fails closed, and the check is refused at decode on any other
 credential kind, where it would silently do nothing.
 
+A usage endpoint must be `https` with a host, checked before the request is
+built: every usage request carries a credential, and a descriptor saying
+`http` is not a reason to send a bearer token in the clear.
+
+Redirects are followed only within the same scheme and host. The headers live
+on the session's `httpAdditionalHeaders`, so `URLSession` carries the
+Authorization header onto whatever a redirect points at, and does not drop it
+when the host changes — a usage endpoint answering `302 Location: elsewhere`
+would otherwise hand that host the user's token. A refused redirect is
+reported as itself rather than as whatever the 3xx happens to look like.
+
 `windows` says where the limits are and what they mean.
 
 **Finding the windows.** Responses come in three shapes:

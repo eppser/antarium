@@ -39,8 +39,26 @@ enum UsageHTTP {
         return readers[ObjectIdentifier(session)]
     }
 
+    /// Every usage request carries a credential, so the endpoint has to be
+    /// one a credential may be sent to. Checked here rather than in each
+    /// provider: descriptors are trusted local configuration, but "trusted"
+    /// should not extend to sending a bearer token over plaintext because a
+    /// descriptor said `http`.
+    static func checkedURL(_ url: URL) throws -> URL {
+        guard url.scheme?.lowercased() == "https" else {
+            throw ProviderError.badResponse(
+                "A usage endpoint must be https — \(url.scheme ?? "that scheme") "
+                + "would send the credential in the clear.")
+        }
+        guard let host = url.host, !host.isEmpty else {
+            throw ProviderError.badResponse("That usage endpoint names no host.")
+        }
+        return url
+    }
+
     static func getJSON(_ url: URL, headers: [String: String],
                         session: URLSession) async throws -> [String: Any] {
+        let url = try checkedURL(url)
         var req = URLRequest(url: url)
         req.httpMethod = "GET"
         req.cachePolicy = .reloadIgnoringLocalCacheData
@@ -51,6 +69,7 @@ enum UsageHTTP {
     static func postJSON(_ url: URL, body: [String: Any] = [:],
                          headers: [String: String],
                          session: URLSession) async throws -> [String: Any] {
+        let url = try checkedURL(url)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.cachePolicy = .reloadIgnoringLocalCacheData
@@ -76,6 +95,10 @@ enum UsageHTTP {
             throw CancellationError()
         } catch BoundedBodyDelegate.Failure.tooLarge {
             throw ProviderError.badResponse("Usage response exceeds the 2 MiB safety limit.")
+        } catch BoundedBodyDelegate.Failure.redirectRefused(let elsewhere) {
+            throw ProviderError.badResponse(
+                "\(host) redirected the usage request to \(elsewhere). It was not followed, "
+                + "because the request carries a credential meant only for \(host).")
         } catch BoundedBodyDelegate.Failure.noResponse {
             throw ProviderError.badResponse("\(host) returned no response.")
         } catch let error as ProviderError {
@@ -104,6 +127,9 @@ enum UsageHTTP {
         case 404:       throw ProviderError.unsupported("\(host) has no usage endpoint at that path.")
         case 429:       throw ProviderError.transport("Rate limited by \(host).")
         case 500...599: throw ProviderError.transport("\(host) is having trouble (\(http.statusCode)).")
+        case 300...399: throw ProviderError.badResponse(
+            "\(host) redirected the usage request somewhere else. It was not followed, "
+            + "because the request carries a credential meant only for \(host).")
         default:        throw ProviderError.badResponse("Usage request failed (HTTP \(http.statusCode)).")
         }
     }
