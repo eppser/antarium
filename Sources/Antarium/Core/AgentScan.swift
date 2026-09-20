@@ -1,8 +1,11 @@
 import Foundation
+import Darwin
 
 /// One agent session, local or cloud.
 struct AgentRow: Identifiable {
     enum State {
+        /// A process may be known, but its current working/idle state is not.
+        case unobserved
         /// Alive but not working — finished its turn, waiting for you.
         case waiting
         /// Alive and working.
@@ -30,7 +33,7 @@ struct AgentRow: Identifiable {
             switch self {
             case .waiting: return 0
             case .ended:   return 1
-            case .cloud:   return 2
+            case .cloud, .unobserved: return 2
             case .shell:   return 3
             // Above the "wants you" threshold: a loop pausing between rounds
             // has not stopped, and announcing it every iteration would be noise.
@@ -40,6 +43,7 @@ struct AgentRow: Identifiable {
         }
         var label: String {
             switch self {
+            case .unobserved: return "Unknown"
             case .waiting: return "Waiting"
             case .working: return "Working"
             case .looping: return "Looping"
@@ -70,6 +74,12 @@ struct AgentRow: Identifiable {
     var pid: Int32?
     var rssBytes: Int64?
     var isRemote: Bool = false
+    /// Bound local trace source; activity analysis never guesses by project folder.
+    var traceFile: String?
+    var remoteHost: String?
+    var remoteObservedAt: Date?
+    var remoteObservationIssue: String?
+    var localObservationIssue: String?
     /// Which app it is running inside — "tmux", "Terminal", "Warp".
     var hostApp: String?
     /// Why this row is sparse, when the reason is knowable. A session that
@@ -104,6 +114,24 @@ struct AgentRow: Identifiable {
     var turns: Int?
     /// Claude's own session name, e.g. "spicy-c1" — kept for the tooltip.
     var sessionName: String = ""
+
+    /// A PID binding is a recent observation, not a permanent lease on a
+    /// process number. Failed, missing, future or stale observations cannot
+    /// authorize another trace lookup on that remote process.
+    func hasFreshRemoteObservation(at now:Date) -> Bool {
+        guard isRemote, remoteHost != nil, remoteObservationIssue == nil,
+              let remoteObservedAt else { return false }
+        let age = now.timeIntervalSince(remoteObservedAt)
+        return age.isFinite && age >= 0 && age <= 120
+    }
+    var remoteObservationDetail: String? {
+        guard isRemote, remoteHost != nil else { return nil }
+        var detail = remoteObservationIssue ?? "Process discovery does not report working or idle state."
+        if let remoteObservedAt, remoteObservedAt.timeIntervalSince1970.isFinite {
+            detail += " Last observed: " + remoteObservedAt.formatted(date:.abbreviated,time:.standard) + "."
+        } else { detail += " No recent process observation is available." }
+        return detail
+    }
 
     /// "Spicy" — the project, not the session instance.
     var coreName: String {
@@ -162,14 +190,28 @@ enum AgentSort: String, CaseIterable {
 /// Discovers every coding-agent session on this Mac (and, for Codex, in the
 /// cloud). Everything here is read-only: session files, transcripts, `ps`.
 enum AgentScan {
+    struct Observation {
+        var rows: [AgentRow]
+        var unavailablePIDs: Set<Int32> = []
+        var unavailableHarnesses: Set<String> = []
+    }
 
     // MARK: - Entry point
 
     /// Runs off the main thread; can take a moment on a machine with many
     /// large transcripts.
-    static func scan() -> [AgentRow] {
-        let processes = liveProcesses()
-        var rows = claudeRows(processes: processes)
+    static func scan() throws -> [AgentRow] { try observe().rows }
+
+    static func observe() throws -> Observation {
+        let snapshot = try Processes.capture(measureIf:isAgent)
+        let processes = snapshot.table
+        var rows: [AgentRow] = []
+        var unavailableHarnesses = Set<String>()
+        if let claude = HarnessDescriptor.all().first(where: { $0.id == "claude-code" }) {
+            do { rows = try claudeRows(claude,processes:processes,unavailablePIDs:snapshot.unavailablePIDs) }
+            catch is CancellationError { throw CancellationError() }
+            catch { unavailableHarnesses.insert(claude.id) }
+        }
         rows += descriptorRows(processes: processes)
 
         // Where each agent is running. One sysctl for the whole table.
@@ -184,7 +226,8 @@ enum AgentScan {
         for i in rows.indices where !rows[i].cwd.isEmpty {
             rows[i].context = ProjectContext.scan(rows[i].cwd, agentID: rows[i].agentID)
         }
-        return sorted(uniqued(rows))
+        try Task.checkCancellation()
+        return Observation(rows:sorted(uniqued(rows)),unavailablePIDs:snapshot.unavailablePIDs,unavailableHarnesses:unavailableHarnesses)
     }
 
     /// Attaches every row to one coherent tmux snapshot. The previous scan
@@ -237,7 +280,7 @@ enum AgentScan {
                 var suffix = 2
                 var candidate = "\(row.id)#\(suffix)"
                 while seen.contains(candidate) { suffix += 1; candidate = "\(row.id)#\(suffix)" }
-                NSLog("Antarium: duplicate row id %@ from %@", row.id, row.agentID)
+                Log.warn("scan", "Duplicate session identity detected; display identities were disambiguated.")
                 row.id = candidate
             }
             seen.insert(row.id)
@@ -305,28 +348,50 @@ enum AgentScan {
             .contains((candidate as NSString).lastPathComponent)
     }
 
-    static func liveProcesses() -> [Int32: Processes.Info] {
-        Processes.snapshot(measureIf: isAgent)
+    static func liveProcesses() throws -> [Int32: Processes.Info] {
+        try Processes.snapshot(measureIf: isAgent)
     }
 
     // MARK: - Claude Code
 
     /// Claude Code publishes live session state per pid, including a status of
     /// idle / busy / shell — far better than inferring activity from a transcript.
-    private static func claudeRows(processes: [Int32: Processes.Info]) -> [AgentRow] {
-        guard let claude = HarnessDescriptor.all().first(where: { $0.id == "claude-code" })
-        else { return [] }                       // switched off, or removed
+    enum RegistryError:Error { case unavailable, invalid, limit }
+    private static func registryDate(_ raw:Any?) throws -> Date? {
+        guard let raw, !(raw is NSNull) else { return nil }
+        guard let milliseconds = FieldPath.numeric(raw), milliseconds >= 0,
+              milliseconds <= 253_402_300_799_000 else { throw RegistryError.invalid }
+        return Date(timeIntervalSince1970:milliseconds / 1_000)
+    }
+    static func claudeRows(_ claude:HarnessDescriptor,processes: [Int32: Processes.Info], unavailablePIDs:Set<Int32> = []) throws -> [AgentRow] {
         let dir = URL(fileURLWithPath: claude.source.path.expandingTilde)
-        let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-
-        var rows: [AgentRow] = []
-        for file in files where file.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: file),
-                  let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let cwd = d["cwd"] as? String else { continue }
-
-            let pid = (d["pid"] as? Int).map(Int32.init)
-            let alive = pid.map { processes[$0] != nil } ?? false
+        var directoryInfo = stat()
+        if lstat(dir.path,&directoryInfo) != 0 {
+            if errno == ENOENT { return [] }
+            throw RegistryError.unavailable
+        }
+        let entries = try BoundedDirectory.entries(dir).filter { $0.url.pathExtension == "json" }
+        guard entries.count <= 512 else { throw RegistryError.limit }
+        var rows: [AgentRow] = [], bytes = 0
+        for entry in entries {
+            try Task.checkCancellation()
+            let file = entry.url
+            guard entry.isRegular else { throw RegistryError.invalid }
+            let data = try BoundedFile.read(file,maxBytes:65_536)
+            bytes += data.count
+            guard bytes <= 8 * 1_024 * 1_024 else { throw RegistryError.limit }
+            guard let d = try JSONSerialization.jsonObject(with:data) as? [String:Any],
+                  let cwd = d["cwd"] as? String, cwd.utf8.count <= 4_096,
+                  !cwd.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains($0) }) else {
+                throw RegistryError.invalid
+            }
+            let pid = d["pid"].flatMap(FieldPath.processID)
+            if let raw = d["pid"], !(raw is NSNull), pid == nil { throw RegistryError.invalid }
+            let process = pid.flatMap { processes[$0] }.flatMap { claude.claims($0) ? $0 : nil }
+            // File modification predating the process birth cannot establish
+            // that this registry entry describes the current PID owner.
+            let predatesProcess = process?.startedAt.map { entry.modified < $0.addingTimeInterval(-2) } ?? false
+            let alive = process != nil && !predatesProcess
             // A stale session file outlives its process; treat it as ended
             // rather than reporting a status nothing is updating any more.
             // Sessions hosted by Claude Desktop carry no status field at all;
@@ -359,10 +424,10 @@ enum AgentScan {
                 name: sessionName,
                 cwd: cwd,
                 state: state,
-                startedAt: (d["startedAt"] as? Double).map { Date(timeIntervalSince1970: $0 / 1000) },
-                lastActivity: (d["updatedAt"] as? Double).map { Date(timeIntervalSince1970: $0 / 1000) },
+                startedAt: try registryDate(d["startedAt"]),
+                lastActivity: try registryDate(d["updatedAt"]),
                 pid: alive ? pid : nil,
-                rssBytes: pid.flatMap { processes[$0]?.rss },
+                rssBytes: process?.rss,
                 tmuxTarget: d["tmux"] as? String,
                 sessionName: sessionName)
 
@@ -379,18 +444,9 @@ enum AgentScan {
                     + "or status, so its model, tokens and activity are not available."
             }
             if let transcript {
+                row.traceFile = transcript.path
                 if let stats = TranscriptStats.of(transcript) {
-                    row.activity = stats.activitySeries()
-                    row.sentTokens = stats.sentTokens > 0 ? stats.sentTokens : nil
-                    row.receivedTokens = stats.receivedTokens > 0 ? stats.receivedTokens : nil
-                    row.model = stats.model
-                    row.toolCalls = stats.toolCalls
-                    row.costUSD = stats.costUSD
-                    row.contextTokens = stats.contextTokens
-                    row.contextWindow = Pricing.rate(for: stats.model)?.contextWindow
-                    row.loopWakeAt = stats.loopWakeAt
-                    row.loopStopped = stats.loopStopped
-                    if let last = stats.lastActivity { row.lastActivity = last }
+                    applyTranscript(stats,to:&row)
                 }
             }
             // Now the transcript has been read, the loop is known — so decide
@@ -401,9 +457,39 @@ enum AgentScan {
                     lastActivity: row.lastActivity,
                     looping: row.isLooping))
             }
+            if predatesProcess {
+                row.pid = nil; row.rssBytes = nil; row.tmuxTarget = nil
+                row.state = .unobserved
+                row.localObservationIssue = "The session record predates this process. Its current ownership is unknown."
+            }
+            if let pid, unavailablePIDs.contains(pid) {
+                row.pid = pid
+                row.state = .unobserved
+                row.localObservationIssue = "This process could not be inspected. Its current state is unknown."
+            }
             rows.append(row)
         }
         return rows
+    }
+
+    static func applyTranscript(_ stats:TranscriptStats,to row:inout AgentRow) {
+        row.activity = stats.activitySeries()
+        row.model = stats.model
+        if let issue = stats.usageIssue {
+            row.sentTokens = nil; row.receivedTokens = nil
+            row.toolCalls = nil; row.costUSD = nil; row.contextTokens = nil
+            row.note = issue
+        } else {
+            row.sentTokens = stats.hasUsageFacts ? stats.sentTokens : nil
+            row.receivedTokens = stats.hasUsageFacts ? stats.receivedTokens : nil
+            row.toolCalls = stats.toolCalls
+            row.costUSD = stats.costUSD
+            row.contextTokens = stats.contextTokens
+        }
+        row.contextWindow = Pricing.rate(for: stats.model)?.contextWindow
+        row.loopWakeAt = stats.loopWakeAt
+        row.loopStopped = stats.loopStopped
+        if let last = stats.lastActivity { row.lastActivity = last }
     }
 
     /// When a harness publishes no explicit status, activity time is the only
@@ -442,35 +528,33 @@ enum AgentScan {
     /// A resumed or forked session keeps the *original* id as its filename, so
     /// an exact match can miss. When it does, look through the project's other
     /// transcripts for one that names this session inside.
-    private static func transcriptURL(cwd: String, sessionID: String, root: String?) -> URL? {
-        let fm = FileManager.default
+    static func transcriptURL(cwd: String, sessionID: String, root: String?) -> URL? {
+        guard cwd.hasPrefix("/"), cwd.utf8.count <= 4_096, !cwd.contains("\0"),
+              !sessionID.isEmpty, sessionID.utf8.count <= 256,
+              sessionID != ".", sessionID != "..",
+              !sessionID.contains("/"), !sessionID.contains("\\"),
+              !sessionID.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains($0) }) else { return nil }
         let encoded = cwd.replacingOccurrences(of: "/", with: "-")
         let base = (root ?? "~/.claude/projects").expandingTilde
         let dir = URL(fileURLWithPath: base).appendingPathComponent(encoded)
+        var directoryInfo = stat()
+        guard lstat(dir.path,&directoryInfo) == 0, directoryInfo.st_mode & S_IFMT == S_IFDIR else { return nil }
 
         let exact = dir.appendingPathComponent("\(sessionID).jsonl")
-        if fm.fileExists(atPath: exact.path) { return exact }
+        if BoundedFile.isRegular(exact) { return exact }
 
-        guard let entries = try? fm.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return nil }
+        guard let entries = try? BoundedDirectory.entries(dir) else { return nil }
         let candidates = entries
-            .filter { $0.pathExtension == "jsonl" }
-            .map { url -> (URL, Date) in
-                let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
-                    .contentModificationDate) ?? .distantPast
-                return (url, date)
-            }
-            .sorted { $0.1 > $1.1 }
+            .filter { $0.isRegular && $0.url.pathExtension == "jsonl" }
+            .sorted { $0.modified > $1.modified }
             .prefix(8)
 
-        let needle = "\"sessionId\":\"\(sessionID)\""
-        for (url, _) in candidates {
-            guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
-            defer { try? handle.close() }
+        for candidate in candidates {
             // The id appears on every line, so the head is enough.
-            if let head = try? handle.read(upToCount: 32 * 1024),
-               String(decoding: head, as: UTF8.self).contains(needle) {
-                return url
+            guard let head = try? BoundedFile.prefix(candidate.url,maxBytes:32 * 1_024) else { continue }
+            for line in head.split(separator:0x0A).prefix(256) {
+                if let record = try? JSONSerialization.jsonObject(with:Data(line)) as? [String:Any],
+                   record["sessionId"] as? String == sessionID { return candidate.url }
             }
         }
         return nil
@@ -648,29 +732,44 @@ enum AgentScan {
     /// along — an identical harness showed less depending on which kind of
     /// source it used, which is exactly the inconsistency a contributor cannot
     /// diagnose from the outside.
-    private static func apply(_ session: HarnessEngine.Session,
+    static func apply(_ session: HarnessEngine.Session,
                               to row: inout AgentRow,
                               _ descriptor: HarnessDescriptor,
                               processAlive: Bool) {
+        row.traceFile = session.sourceFile
         row.model = session.model
-        row.toolCalls = session.toolCalls > 0 ? session.toolCalls : nil
-        row.turns = session.turns > 0 ? session.turns : nil
-        row.subAgents = session.subAgents > 0 ? session.subAgents : nil
-        row.costUSD = session.costUSD > 0 ? session.costUSD : nil
-        row.contextTokens = session.contextTokens > 0 ? session.contextTokens : nil
-        // The harness's own figure beats our price table.
-        row.contextWindow = session.contextWindow
-            ?? Pricing.rate(for: session.model)?.contextWindow
-        row.sentTokens = session.sentTokens > 0 ? session.sentTokens : nil
-        row.receivedTokens = session.outputTokens > 0 ? session.outputTokens : nil
+        row.note = nil // Diagnostics describe this observation, not an older failure.
+        if let issue = session.usageIssue {
+            row.note = issue
+            row.toolCalls = nil; row.turns = nil; row.subAgents = nil
+            row.costUSD = nil; row.contextTokens = nil; row.contextWindow = nil
+            row.sentTokens = nil; row.receivedTokens = nil
+        } else {
+            row.toolCalls = session.hasNumeric("toolCalls") ? session.toolCalls : nil
+            row.turns = session.hasNumeric("turns") ? session.turns : nil
+            row.subAgents = session.hasNumeric("subAgents") ? session.subAgents : nil
+            row.costUSD = session.hasNumeric("cost") ? session.costUSD : nil
+            row.contextTokens = session.measuredContext
+            // The harness's own figure beats our price table.
+            row.contextWindow = session.contextWindow
+                ?? Pricing.rate(for: session.model)?.contextWindow
+            row.sentTokens = (session.hasNumeric("inputTokens") || session.hasNumeric("cacheWrite")) ? session.sentTokens : nil
+            row.receivedTokens = session.hasNumeric("outputTokens") ? session.outputTokens : nil
+        }
         row.startedAt = session.startedAt
         row.lastActivity = session.lastActivity
         row.sessionName = session.title ?? ""
 
         // Loop state a harness keeps elsewhere, keyed by its own session id.
-        if let goals = descriptor.source.paths?["goals"], let id = session.sessionID,
-           let goal = CodexGoals.all(at: goals)[id], goal.isRunning {
-            row.loopGoal = goal.label
+        var goalIssue: String?
+        if let goals = descriptor.source.paths?["goals"], let id = session.sessionID {
+            row.loopGoal = nil
+            do {
+                if let goal = try CodexGoals.all(at:goals)[id], goal.isRunning { row.loopGoal = goal.label }
+            } catch {
+                goalIssue = (error as? CodexGoals.ReadError)?.message ?? "Autonomous goal state is unavailable."
+                row.note = [row.note,goalIssue].compactMap { $0 }.joined(separator:" ")
+            }
         }
         row.state = AgentStateMachine.state(.init(
             processAlive: processAlive,
@@ -678,6 +777,7 @@ enum AgentScan {
             lastActivity: session.lastActivity,
             idleAfter: descriptor.idleAfter ?? idleAfter,
             looping: row.isLooping))
+        if processAlive, goalIssue != nil, !row.state.isBusy, !row.isLooping { row.state = .unobserved }
     }
 
     /// One row per session reported by a harness's own CLI.

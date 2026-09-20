@@ -82,7 +82,7 @@ enum Pricing {
                 guard let cacheWrite = entry.cacheWrite5m,
                       let cacheWrite1h = entry.cacheWrite1h,
                       let cacheRead = entry.cacheRead else {
-                    Log.warn("pricing", "ignoring \(entry.prefix): cache rates are missing")
+                    Log.warn("pricing", "Ignoring an entry with missing cache rates.")
                     return nil
                 }
                 return (entry.prefix, Rate(input: entry.input, output: entry.output,

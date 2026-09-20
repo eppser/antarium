@@ -135,9 +135,7 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
                     < ($1.windowSeconds ?? .greatestFiniteMagnitude) }
 
         let plan = (json["plan_type"] as? String).map { "\($0) plan" }
-        Log.info("codex", "plan=\(plan ?? "—") gauges=\(gauges.map(\.title)) "
-            + "extras=\(extras.map(\.title)) "
-            + "used=\(gauges.map { String(format: "%.1f%%", $0.used * 100) })")
+        Log.info("codex", "Usage response parsed: \(gauges.count) primary windows, \(extras.count) additional windows.")
         return Snapshot(providerID: "codex", gauges: gauges, extras: extras,
                         accountLabel: plan, fetchedAt: Date())
     }

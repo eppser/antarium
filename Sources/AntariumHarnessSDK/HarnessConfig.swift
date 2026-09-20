@@ -64,6 +64,7 @@ public struct HarnessConfig: Codable {
     }
 
     public func validate() throws {
+        guard formatVersion == Self.currentFormatVersion else { throw ValidationError.unsupportedFormatVersion(formatVersion) }
         guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ValidationError.emptyID
         }
@@ -141,6 +142,7 @@ public struct HarnessConfig: Codable {
     }
 
     public enum ValidationError: Error, LocalizedError {
+        case unsupportedFormatVersion(Int)
         case emptyID
         case emptyName
         case incompleteSQLiteSource
@@ -152,6 +154,7 @@ public struct HarnessConfig: Codable {
 
         public var errorDescription: String? {
             switch self {
+            case .unsupportedFormatVersion(let version): return "Harness format \(version) is not supported; migrate to format \(HarnessConfig.currentFormatVersion) first."
             case .emptyID: return "Harness id must not be empty."
             case .emptyName: return "Harness name must not be empty."
             case .incompleteSQLiteSource:

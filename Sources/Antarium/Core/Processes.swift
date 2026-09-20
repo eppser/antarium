@@ -8,6 +8,34 @@ import Foundation
 /// answer in microseconds. `proc_pidinfo` resolves a working directory in
 /// ~0.01 ms.
 enum Processes {
+    enum ObservationError: Error { case unavailable, capacityExceeded, unstable }
+    typealias PIDList = (UnsafeMutableRawPointer?, Int32) -> Int32
+    /// A full buffer may have omitted processes that appeared after sizing.
+    /// Retry boundedly; never treat a truncated enumeration as a complete table.
+    static func processIDs(using list: PIDList = proc_listallpids) throws -> [Int32] {
+        let maximum = 65_536
+        let required = list(nil, 0)
+        guard required > 0 else { throw ObservationError.unavailable }
+        guard required < maximum else { throw ObservationError.capacityExceeded }
+        var capacity = min(maximum, Int(required) + 128)
+        for _ in 0..<3 {
+            try Task.checkCancellation()
+            var pids = [Int32](repeating: 0, count: capacity)
+            let count = list(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
+            guard count > 0 else { throw ObservationError.unavailable }
+            if count < capacity { return Array(pids.prefix(Int(count))).filter { $0 > 0 } }
+            guard capacity < maximum else { throw ObservationError.capacityExceeded }
+            capacity = min(maximum, capacity * 2)
+        }
+        throw ObservationError.unstable
+    }
+    static func residentBytes(_ reported: UInt64?) -> Int64? {
+        reported.flatMap(Int64.init(exactly:))
+    }
+    struct Snapshot {
+        var table: [Int32: Info]
+        var unavailablePIDs: Set<Int32>
+    }
     struct Info {
         let pid: Int32
         let ppid: Int32
@@ -21,26 +49,24 @@ enum Processes {
         /// argv[0], only for interpreter-hosted processes. A script's exec path
         /// and comm both say "node"; argv[0] is where "pi" survives.
         let argv0: String
-        let rss: Int64
+        let rss: Int64?
+        var startedAt: Date? = nil
     }
 
     /// Every process this user can see. Resident size is only fetched for the
     /// ones the caller cares about, since that's a second syscall each.
-    static func snapshot(measureIf shouldMeasure: (String) -> Bool = { _ in false }) -> [Int32: Info] {
-        // proc_listallpids returns a COUNT of pids, not a byte count — dividing
-        // by sizeof(pid_t) silently truncated the table to a quarter of the
-        // machine's processes, so most agents looked dead.
-        let capacity = proc_listallpids(nil, 0)
-        guard capacity > 0 else { return [:] }
-        var pids = [pid_t](repeating: 0, count: Int(capacity) + 128)   // headroom for churn
-        let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
-        guard count > 0 else { return [:] }
-
+    static func snapshot(measureIf shouldMeasure: (String) -> Bool = { _ in false }) throws -> [Int32: Info] {
+        try capture(measureIf:shouldMeasure).table
+    }
+    static func capture(measureIf shouldMeasure: (String) -> Bool = { _ in false }) throws -> Snapshot {
+        let pids = try processIDs()
+        var unavailable = Set<Int32>()
         var table: [Int32: Info] = [:]
-        for pid in pids.prefix(Int(count)) where pid > 0 {
+        for pid in pids {
+            try Task.checkCancellation()
             var bsd = proc_bsdinfo()
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, size) == size else { continue }
+            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsd, size) == size else { unavailable.insert(pid); continue }
 
             var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
             let path = proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0
@@ -56,18 +82,19 @@ enum Processes {
             let base = (path as NSString).lastPathComponent
             let argv0 = Self.interpreters.contains(base) ? (Self.argv0(of: pid) ?? "") : ""
 
-            var rss: Int64 = 0
+            var rss: Int64?
             if shouldMeasure(path) || shouldMeasure(name) || shouldMeasure(argv0) {
                 var task = proc_taskinfo()
                 let taskSize = Int32(MemoryLayout<proc_taskinfo>.size)
                 if proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &task, taskSize) == taskSize {
-                    rss = Int64(task.pti_resident_size)
+                    rss = residentBytes(task.pti_resident_size)
                 }
             }
             table[pid] = Info(pid: pid, ppid: Int32(bsd.pbi_ppid), path: path,
-                              name: name, argv0: argv0, rss: rss)
+                              name: name, argv0: argv0, rss: rss,
+                              startedAt: bsd.pbi_start_tvsec > 0 ? Date(timeIntervalSince1970:Double(bsd.pbi_start_tvsec) + Double(bsd.pbi_start_tvusec)/1_000_000) : nil)
         }
-        return table
+        return Snapshot(table:table,unavailablePIDs:unavailable)
     }
 
     private static let interpreters: Set<String> = [

@@ -31,17 +31,19 @@ enum RemoteTmux {
     /// would be cut at the wrong place. This cost a scan that found nothing.
     static let psSeparator = "__ANTARIUM_PS__"
     static let exeSeparator = "__ANTARIUM_EXE__"
+    static let statusSeparator = "__ANTARIUM_STATUS__"
+    static let completionMarker = "__ANTARIUM_DONE__"
 
     // MARK: - Credentials
 
     /// The password stored for `host`, if the user set one. Absent means key
     /// authentication, which is the normal case and needs nothing from us.
-    private static func password(for host: String) -> String? {
+    private static func password(for host: String, cancellation: @Sendable () -> Bool = { false }) -> String? {
         let out = Shell.execute("/usr/bin/security",
                                 ["find-generic-password", "-s", keychainService,
                                  "-a", host, "-w"],
-                                timeout: 10)
-        guard out.succeeded else { return nil }
+                                timeout: 10,outputLimit:4_096,cancellation:cancellation)
+        guard out.completeOutput else { return nil }
         let value = out.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
     }
@@ -122,7 +124,8 @@ enum RemoteTmux {
     /// rejected host also gets a reason instead of a confusing ssh error.
     static func isSafeHost(_ host: String) -> Bool {
         let trimmed = host.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, !trimmed.hasPrefix("-") else { return false }
+        guard !trimmed.isEmpty, trimmed.utf8.count <= 1_024, !trimmed.hasPrefix("-"),
+              trimmed.rangeOfCharacter(from:.controlCharacters) == nil else { return false }
         // A destination is user@host, an address, or an ssh_config alias.
         // None of them contain whitespace or a shell metacharacter.
         return !trimmed.contains(where: { $0.isWhitespace })
@@ -133,7 +136,7 @@ enum RemoteTmux {
 
     /// What one host produced, so a failure can be shown as a failure instead
     /// of as an empty list that looks like "no agents running".
-    struct Result {
+    struct Result: Sendable {
         var rows: [AgentRow] = []
         /// Why this host contributed nothing, when that is knowable.
         var issue: String?
@@ -144,40 +147,22 @@ enum RemoteTmux {
     /// pane. `ps` is asked for argv as well as comm because an agent running
     /// under an interpreter is only identifiable from argv[0].
     static var remoteCommand: String {
-        "tmux list-panes -a -F "
-            + "'#{pane_pid}\t#{session_name}:#{window_id}.#{pane_id}\t#{pane_current_path}' "
-            + "2>/dev/null"
-            + "; echo \"__ANTARIUM\"\"_PS__\""
-            + "; ps -eo pid=,ppid=,comm=,args= 2>/dev/null"
-            + "; echo \"__ANTARIUM\"\"_EXE__\""
-            // Executable paths, which `ps` does not give and which several
-            // harnesses are identified by — Claude Code's binary is called
-            // "2.1.241" and is only recognisable from the directory above it.
-            // Linux only; on anything without /proc this prints nothing and
-            // the comm field is used instead.
-            + "; for d in /proc/[0-9]*; do e=$(readlink \"$d/exe\" 2>/dev/null);"
-            + " [ -n \"$e\" ] && echo \"${d##*/} $e\"; done 2>/dev/null"
-    }
-
-    /// Results from the concurrent sweep, keyed by the host's position.
-    ///
-    /// A captured `var` array mutated from `concurrentPerform` is a strict
-    /// concurrency warning even when a lock guards every write, because the
-    /// compiler cannot see the guarantee. Same shape as `Shell.CapturedData`:
-    /// the synchronisation lives inside the object, and the unchecked
-    /// annotation is where that promise is recorded.
-    private final class Collected: @unchecked Sendable {
-        private let lock = NSLock()
-        private var byIndex: [Int: HostResult] = [:]
-
-        func set(_ result: HostResult, at index: Int) {
-            lock.lock(); byIndex[index] = result; lock.unlock()
-        }
-
-        func ordered(count: Int) -> [HostResult] {
-            lock.lock(); defer { lock.unlock() }
-            return (0..<count).compactMap { byIndex[$0] }
-        }
+        #"""
+        command -v tmux >/dev/null 2>&1
+        antarium_tmux_available=$?
+        tmux list-panes -a -F '#{pane_pid}	#{session_name}:#{window_id}.#{pane_id}	#{pane_current_path}' 2>/dev/null
+        antarium_pane_status=$?
+        echo "__ANTARIUM""_PS__"
+        ps -eo pid=,ppid=,comm=,args= 2>/dev/null
+        antarium_ps_status=$?
+        echo "__ANTARIUM""_EXE__"
+        for d in /proc/[0-9]*; do
+          e=$(readlink "$d/exe" 2>/dev/null)
+          [ -n "$e" ] && echo "${d##*/} $e"
+        done 2>/dev/null
+        printf '\n__ANTARIUM''_STATUS__:%s:%s:%s\n' "$antarium_tmux_available" "$antarium_pane_status" "$antarium_ps_status"
+        echo "__ANTARIUM""_DONE__"
+        """#
     }
 
     /// One host's outcome, kept separate from every other host's.
@@ -187,7 +172,7 @@ enum RemoteTmux {
     /// wrong with two: the caller could only apply one retention rule to the
     /// pooled result, so a single failing machine either erased the rows of
     /// the healthy ones or froze theirs alongside its own.
-    struct HostResult {
+    struct HostResult: Sendable {
         let host: String
         var rows: [AgentRow] = []
         /// `nil` means the host answered. An answer of zero agents is a fact
@@ -197,41 +182,10 @@ enum RemoteTmux {
         var answered: Bool { issue == nil }
     }
 
-    /// Every host at once, each reported on its own terms.
-    ///
-    /// Serially, an unreachable machine costs its full 20-second timeout
-    /// before the next one is even asked, so four dead hosts meant eighty
-    /// seconds — well past the interval at which the next sweep would be due.
-    /// In parallel the whole sweep costs roughly the slowest host.
-    static func scanAll(hosts: [String] = Settings.remoteTmuxHosts) -> [HostResult] {
-        let targets = hosts.map { $0.trimmingCharacters(in: .whitespaces) }
-                           .filter { !$0.isEmpty }
-        // A host listed twice would produce two identical rows per pane and
-        // then be de-duplicated downstream under a renamed id, which reads as
-        // a second machine that never has anything on it.
-        var seen = Set<String>()
-        let unique = targets.filter { seen.insert($0).inserted }
-        guard !unique.isEmpty else { return [] }
-
-        let collected = Collected()
-        DispatchQueue.concurrentPerform(iterations: unique.count) { i in
-            let host = unique[i]
-            guard isSafeHost(host) else {
-                Log.warn(tag, "\(host): rejected — not a usable ssh destination")
-                collected.set(HostResult(host: host,
-                                         issue: "not a usable ssh destination"), at: i)
-                return
-            }
-            let result = scan(host: host)
-            // Log the good case too. A host that is quietly contributing
-            // nothing looks exactly like one that is not being asked, and the
-            // onboarding help sends people here to tell those apart.
-            Log.info(tag, "\(host): \(result.issue ?? "\(result.rows.count) agent(s)")")
-            collected.set(HostResult(host: host, rows: result.rows, issue: result.issue), at: i)
-        }
-        // Order follows the configured host list, not completion order, so the
-        // list does not reshuffle when one machine happens to answer first.
-        return collected.ordered(count: unique.count)
+    /// A bounded pass, with an explicit deferred state for unvisited machines.
+    /// The live store uses scanSweep's nextIndex to rotate subsequent passes.
+    static func scanAll(hosts:[String] = Settings.remoteTmuxHosts) -> [HostResult] {
+        scanSweep(hosts:hosts).results
     }
 
     /// Flattened rows, for callers that do not care which machine each came
@@ -240,14 +194,16 @@ enum RemoteTmux {
         scanAll(hosts: hosts).flatMap(\.rows)
     }
 
-    static func scan(host: String) -> Result {
+    static func scan(host: String, cancellation: @Sendable () -> Bool = { false }) -> Result {
+        guard !cancellation() else { return Result(issue:"Discovery cancelled.") }
         guard isSafeHost(host) else {
             return Result(issue: "not a usable ssh destination")
         }
-        let attempt = run(host: host)
+        let attempt = run(host: host,cancellation:cancellation)
         guard let output = attempt.output else {
             return Result(issue: attempt.issue ?? "could not be reached")
         }
+        guard !cancellation() else { return Result(issue:"Discovery cancelled.") }
         return Result(rows: parse(output, host: host))
     }
 
@@ -260,22 +216,26 @@ enum RemoteTmux {
     /// than block on a prompt, which is the difference between a scan that
     /// reports a problem and one that hangs the dashboard. Only if that fails
     /// and a password was stored do we spend the second attempt.
-    private static func run(host: String) -> (output: String?, issue: String?) {
+    private static func run(host: String, cancellation: @Sendable () -> Bool) -> (output: String?, issue: String?) {
         let keyed = Shell.execute("/usr/bin/ssh", sshArguments(host: host),
-                                  timeout: 20, outputLimit: outputLimit)
+                                  timeout: 20, outputLimit: outputLimit,cancellation:cancellation)
         if usable(keyed) { return (keyed.stdout, nil) }
+        if keyed.cancelled || cancellation() { return (nil,"Discovery cancelled.") }
         if keyed.timedOut { return (nil, "timed out after 20s") }
-        if let truncated = truncation(keyed) { return (nil, truncated) }
+        if let replyIssue = discoveryReplyIssue(keyed) { return (nil,replyIssue) }
+        guard shouldRetryWithPassword(keyed) else {
+            return (nil,sshReason(keyed.stderr) ?? "SSH discovery failed before a complete reply was received.")
+        }
 
-        guard let password = password(for: host) else {
-            Log.info(tag, "\(host): key auth failed and no stored password — \(keyed.stderr.prefix(160))")
+        guard let password = password(for: host,cancellation:cancellation), !cancellation() else {
+            Log.info(tag, "SSH key authentication unavailable; no stored password.")
             // The stderr line ssh printed is the actual reason — a refused
             // key, an unknown host, a closed port. Saying only "could not be
             // reached" for all of them sends people to the wrong fix.
             return (nil, sshReason(keyed.stderr) ?? "could not be reached")
         }
         guard let sshpass = sshpassPath() else {
-            Log.info(tag, "\(host): password stored but sshpass is not installed")
+            Log.info(tag, "SSH password authentication requires sshpass.")
             return (nil, "needs sshpass for password auth — brew install sshpass")
         }
         // -e reads the password from the environment. Passing it as an argument
@@ -286,69 +246,98 @@ enum RemoteTmux {
                                  "--", host, remoteCommand],
                                 timeout: 20,
                                 outputLimit: outputLimit,
-                                environment: ["SSHPASS": password])
+                                environment: ["SSHPASS": password],cancellation:cancellation)
         guard usable(out) else {
-            Log.info(tag, "\(host): password auth failed — \(out.stderr.prefix(160))")
-            return (nil, sshReason(out.stderr) ?? "password was not accepted")
+            Log.info(tag, "SSH password authentication failed.")
+            return (nil, discoveryReplyIssue(out) ?? sshReason(out.stderr) ?? "password was not accepted")
         }
         return (out.stdout, nil)
     }
 
-    /// The one line of ssh's stderr worth showing. ssh is chatty about host
-    /// keys and config; the reason is the line naming the failure.
+    /// Used only by explicitly enabled trace observation. The bundled helper
+    /// and request are separate values; request data travels on stdin. Existing
+    /// host-key policy is preserved, and no interactive prompts are permitted.
+    static func executeReadOnly(host: String, command: String, input: String,
+                                cancellation: @Sendable () -> Bool) -> Shell.Result {
+        guard isSafeHost(host), input.utf8.count <= 32_768 else {
+            return .init(stdout: "", stderr: "", exitCode: nil, timedOut: false,
+                         launchError: "Invalid remote observation request.")
+        }
+        let options = ["-o", "ConnectTimeout=3", "-o", "ConnectionAttempts=1",
+                       "-o", "ServerAliveInterval=3", "-o", "ServerAliveCountMax=1"]
+        let keyed = Shell.execute("/usr/bin/ssh", ["-o", "BatchMode=yes"] + options + ["--", host, command],
+                                  timeout: 8, outputLimit: 131_072, input: input, cancellation: cancellation)
+        guard shouldRetryWithPassword(keyed),
+              let password = password(for: host,cancellation:cancellation), let sshpass = sshpassPath(), !cancellation() else { return keyed }
+        var result = Shell.execute(sshpass, ["-e", "/usr/bin/ssh"] + options + ["--", host, command],
+                                   timeout: 8, outputLimit: 131_072, environment: ["SSHPASS":password],
+                                   input: input, cancellation: cancellation)
+        if let first = keyed.childCPUSeconds, let second = result.childCPUSeconds { result.childCPUSeconds = first + second }
+        else { result.childCPUSeconds = nil }
+        return result
+    }
+
+    /// Translate recognized diagnostics into fixed messages. Hostnames, account
+    /// names, paths, banners and arbitrary remote stderr never become log text.
     static func sshReason(_ stderr: String) -> String? {
-        // `isNewline`, not a comparison against "\n" and "\r": ssh writes CRLF
-        // when it has a tty on the far side, and Swift treats "\r\n" as one
-        // Character, so neither literal matches it. Without this the whole of
-        // stderr stays a single "line" and a host-key warning gets reported as
-        // the reason a password was rejected.
-        let lines = stderr
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            // ssh is chatty about host keys and config on the way to the real
-            // failure; a warning is never the reason.
-            .filter { !$0.isEmpty && !$0.hasPrefix("Warning:") }
+        let lines = String(stderr.suffix(8_192)).split(whereSeparator: \.isNewline)
         for line in lines.reversed() {
-            let lower = line.lowercased()
-            guard lower.contains("permission denied") || lower.contains("could not resolve")
-                    || lower.contains("connection refused") || lower.contains("connection timed out")
-                    || lower.contains("no route to host") || lower.contains("host key")
-            else { continue }
-            // Drop ssh's "host:" prefix; the caller already prints the host.
-            return line.hasPrefix("ssh: ") ? String(line.dropFirst(5)) : line
+            let lower = line.trimmingCharacters(in:.whitespacesAndNewlines).lowercased()
+            guard !lower.hasPrefix("warning:") else { continue }
+            if lower.contains("permission denied") { return "Permission denied, please try again." }
+            if lower.contains("too many authentication failures") { return "SSH authentication failed after too many key attempts." }
+            if lower.contains("could not resolve") { return "Could not resolve the configured host." }
+            if lower.contains("connection refused") { return "Connection refused by the configured host." }
+            if lower.contains("connection timed out") || lower.contains("connection timeout") { return "Connection timed out." }
+            if lower.contains("no route to host") { return "No route to the configured host." }
+            if lower.contains("host key") { return "Host key verification failed. Verify this host in your SSH client." }
         }
         return nil
     }
 
-    /// `ps` on a large host is the bulk of the reply, and `Shell` keeps the
-    /// *suffix* when output exceeds its cap — which for this command would
-    /// discard the pane table and the marker at the top, the two things the
-    /// parser needs. A real host with ~600 processes produced ~106KB, but a
-    /// server with thousands of processes and long command lines can reach
-    /// megabytes, so the cap is raised well clear of that rather than left at
-    /// the default and silently mistaken for an unreachable machine.
-    static let outputLimit = 32 * 1_024 * 1_024
+    /// Four simultaneous readers retain at most 32 MiB of stdout. A clipped
+    /// reply is an explicit failure even if its suffix contains valid markers.
+    static let outputLimit = 8 * 1_024 * 1_024
 
-    /// Output arrived, but not the start of it. Saying "could not be reached"
-    /// here would be false: the host answered, we just could not read what it
-    /// said, and those are different problems with different fixes.
-    static func truncation(_ result: Shell.Result) -> String? {
-        guard result.launchError == nil, !result.timedOut,
-              !result.stdout.isEmpty, !result.stdout.contains(psSeparator)
-        else { return nil }
-        return "replied, but the output was not readable (\(result.stdout.count) bytes, no marker)"
+    static func truncation(_ result:Shell.Result) -> String? {
+        guard result.launchError == nil, !result.timedOut, !result.cancelled else { return nil }
+        if result.stdoutTruncated { return "Reply exceeded the output limit; no agent state was updated." }
+        guard !result.stdout.isEmpty, !result.stdout.contains(psSeparator) else { return nil }
+        return "Replied, but the output was not readable (\(result.stdout.utf8.count) bytes, no marker)."
     }
 
-    /// Judged on the marker, not the exit status.
-    ///
-    /// The command is a pipeline of best-effort probes: the /proc loop fails
-    /// on a BSD host, `tmux` exits non-zero with no server running. The last
-    /// of those sets the status, so requiring exit 0 threw away complete,
-    /// correct output — which it did, until a run against a real machine
-    /// showed the scan reporting failure while holding every pane it needed.
-    private static func usable(_ result: Shell.Result) -> Bool {
-        result.launchError == nil && !result.timedOut
-            && result.stdout.contains(psSeparator)
+    private static func replyStatus(_ text:String) -> (available:Int,panes:Int,processes:Int)? {
+        let end = String(text.suffix(256)).split(whereSeparator:\.isNewline).suffix(2)
+        guard end.count == 2, end.last == Substring(completionMarker), let line = end.first else { return nil }
+        let fields = line.split(separator:":")
+        guard fields.count == 4, fields[0] == Substring(statusSeparator),
+              let available = Int(fields[1]),let panes = Int(fields[2]),let processes = Int(fields[3]),
+              [available,panes,processes].allSatisfy({ (0...255).contains($0) }) else { return nil }
+        return (available,panes,processes)
+    }
+    static func usable(_ result:Shell.Result) -> Bool {
+        guard result.completeOutput,
+              result.stdout.contains(psSeparator), let status = replyStatus(result.stdout) else { return false }
+        return status.available == 0 && status.panes == 0 && status.processes == 0
+    }
+    static func discoveryReplyIssue(_ result:Shell.Result) -> String? {
+        if let issue = truncation(result) { return issue }
+        if let status = replyStatus(result.stdout) {
+            if status.available != 0 { return "tmux is not available on this host." }
+            if status.panes != 0 { return "No tmux pane inventory was available. The server may be stopped or inaccessible." }
+            if status.processes != 0 { return "The remote process inventory failed. Existing observations were retained." }
+        } else if result.stdout.contains(psSeparator) {
+            return "The remote discovery reply was incomplete. Existing observations were retained."
+        }
+        return nil
+    }
+    static func shouldRetryWithPassword(_ result:Shell.Result) -> Bool {
+        guard result.exitCode == 255, !result.cancelled, !result.timedOut,
+              result.launchError == nil, !result.stdoutTruncated, !result.stderrTruncated else { return false }
+        let text = String(result.stderr.suffix(8_192)).lowercased()
+        guard !text.contains("host key"), !text.contains("connection refused"),
+              !text.contains("could not resolve"), !result.stdout.contains(psSeparator) else { return false }
+        return text.contains("permission denied") || text.contains("too many authentication failures")
     }
 
     // MARK: - Parsing
@@ -362,7 +351,7 @@ enum RemoteTmux {
     }
 
     /// Pure, so the whole placement rule is testable without a network.
-    static func parse(_ output: String, host: String) -> [AgentRow] {
+    static func parse(_ output: String, host: String, descriptors load: () -> [HarnessDescriptor] = HarnessDescriptor.all) -> [AgentRow] {
         let (paneText, rest) = section(output, upTo: psSeparator)
         guard !rest.isEmpty else { return [] }
         let (psText, exeText) = section(rest, upTo: exeSeparator)
@@ -391,13 +380,14 @@ enum RemoteTmux {
             guard let head = process(from: String(line)) else { continue }
             let info = exePaths[head.pid].map {
                 Processes.Info(pid: head.pid, ppid: head.ppid, path: $0,
-                               name: head.name, argv0: head.argv0, rss: 0)
+                               name: head.name, argv0: head.argv0, rss: nil)
             } ?? head
             parents[info.pid] = info.ppid
             processes[info.pid] = info
         }
 
-        let descriptors = HarnessDescriptor.all()
+        guard !processes.isEmpty else { return [] }
+        let descriptors = load()
         var rows: [AgentRow] = []
         var claimed = Set<String>()
 
@@ -422,8 +412,10 @@ enum RemoteTmux {
                                agentID: descriptor.id,
                                name: Focus.tmuxSession(pane.target),
                                cwd: pane.cwd,
-                               state: .waiting)
+                               state: .unobserved)
+            row.remoteObservedAt = Date()
             row.isRemote = true
+            row.remoteHost = host
             row.hostApp = tag
             row.pid = pid
             // Deliberately not `tmuxTarget`: that field drives the local focus
@@ -461,7 +453,7 @@ enum RemoteTmux {
         let head = args.split(separator: " ", omittingEmptySubsequences: true)
             .prefix(2).joined(separator: " ")
         return Processes.Info(pid: pid, ppid: ppid, path: head,
-                              name: comm, argv0: head, rss: 0)
+                              name: comm, argv0: head, rss: nil)
     }
 
 

@@ -50,36 +50,69 @@ enum FieldPath {
         return lookup(record, path) as? String
     }
 
-    /// Totals across an array, so a conversation's tokens add up.
-    static func int(_ record: [String: Any], _ path: String) -> Int {
-        values(record, path).reduce(0) { $0 + Int($1) }
-    }
-
-    static func double(_ record: [String: Any], _ path: String) -> Double {
-        values(record, path).reduce(0, +)
-    }
-
-    /// Nil rather than zero, for callers that must tell "absent" from "none".
-    static func number(_ record: [String: Any], _ path: String) -> Double? {
-        let found = values(record, path)
-        return found.isEmpty ? nil : found.reduce(0, +)
-    }
-
-    private static func values(_ record: [String: Any], _ path: String) -> [Double] {
-        each(record, path).compactMap { value in
-            switch value {
-            case let v as Double: return v
-            case let v as Int: return Double(v)
-            case let v as String: return Double(v)
-            default: return nil
-            }
+    /// Integer observations preserve exact values where possible. Missing,
+    /// malformed, nonfinite and overflowing aggregates are unavailable, never
+    /// coerced to zero or allowed to trap during a scan.
+    static func int(_ record: [String: Any], _ path: String) -> Int? {
+        let found = each(record, path)
+        guard !found.isEmpty else { return nil }
+        var total = 0
+        for value in found {
+            guard let integer = integer(value) else { return nil }
+            let sum = total.addingReportingOverflow(integer)
+            guard !sum.overflow else { return nil }
+            total = sum.partialValue
         }
+        return total
+    }
+
+    static func double(_ record: [String: Any], _ path: String) -> Double? {
+        number(record, path)
+    }
+
+    static func number(_ record: [String: Any], _ path: String) -> Double? {
+        let found = each(record, path)
+        guard !found.isEmpty else { return nil }
+        var total = 0.0
+        for value in found {
+            guard let number = numeric(value) else { return nil }
+            total += number
+            guard total.isFinite else { return nil }
+        }
+        return total
+    }
+
+    static func numeric(_ value: Any) -> Double? {
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        let result: Double?
+        switch value {
+        case let v as Double: result = v
+        case let v as Int: result = Double(v)
+        case let v as String: result = Double(v)
+        default: result = nil
+        }
+        return result.flatMap { $0.isFinite ? $0 : nil }
+    }
+
+    static func integer(_ value: Any) -> Int? {
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        if let value = value as? Int { return value }
+        if let text = value as? String, let value = Int(text) { return value }
+        return numeric(value).flatMap { Int(exactly: $0.rounded(.towardZero)) }
+    }
+
+    static func processID(_ value:Any) -> Int32? {
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        let candidate = (value as? Int32).map(Double.init) ?? numeric(value)
+        guard let number = candidate, number > 0, number.rounded(.towardZero) == number else { return nil }
+        return Int32(exactly:number)
     }
 
     /// The latest time a path names. ISO strings, and epochs in either seconds
     /// or milliseconds, are all understood — every store writes a different one.
     static func date(_ record: [String: Any], _ path: String) -> Date? {
         each(record, path).compactMap { value -> Date? in
+            if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
             switch value {
             case let v as String: return UsageHTTP.parseDate(v)
             case let v as Double: return epoch(v)
@@ -90,9 +123,13 @@ enum FieldPath {
     }
 
     static func epoch(_ value: Double) -> Date? {
-        guard value > 0 else { return nil }
+        guard value.isFinite, value > 0 else { return nil }
         // Anything past the year 5138 in seconds is really milliseconds.
-        return Date(timeIntervalSince1970: value > 100_000_000_000 ? value / 1000 : value)
+        let seconds = value > 100_000_000_000 ? value / 1000 : value
+        // Charts and calendar formatters cannot safely represent arbitrary
+        // floating-point magnitudes. No supported trace needs a year beyond 9999.
+        guard seconds <= 253_402_300_799 else { return nil }
+        return Date(timeIntervalSince1970: seconds)
     }
 
     /// Entries of a nested array or object matching every pair given.

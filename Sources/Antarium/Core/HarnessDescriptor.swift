@@ -1,4 +1,5 @@
 import Foundation
+import AntariumHarnessSDK
 
 /// A coding agent described by data rather than code.
 ///
@@ -7,8 +8,8 @@ import Foundation
 /// and token counts. Describing that in JSON means a new harness is a file, not
 /// a Swift provider — and the built-in ones are readable examples.
 ///
-/// Built-ins ship in the app bundle; anything in `~/.antarium/harnesses/*.json`
-/// is loaded too and overrides a built-in with the same `id`.
+/// Startup seeds managed defaults from the app bundle. The user directory is
+/// authoritative; duplicate IDs are reported rather than silently overriding.
 struct HarnessDescriptor: Codable {
     var formatVersion: Int?
     /// Stable key, also the glyph name in Resources/marks.
@@ -401,69 +402,14 @@ struct HarnessDescriptor: Codable {
         Config.directory.appendingPathComponent("harnesses")
     }
 
-    nonisolated(unsafe) private static var cached:
-        (stamp: String, checked: Date, list: [HarnessDescriptor],
-         fragments: [String], names: Set<String>)?
-    private static let lock = NSLock()
+    private static let catalog = HarnessCatalog(directory:directory,defaults:bundled(),
+        schema:AppResources.bundle.url(forResource:"harness.schema",withExtension:"json"),readme:readme)
 
-    /// Cached: the scan asks whether a path belongs to a harness once per
-    /// process, and re-reading every descriptor each time meant hundreds of
-    /// decodes per pass.
-    nonisolated(unsafe) private static var hasSeeded = false
-
-    static func all() -> [HarnessDescriptor] {
-        lock.lock()
-        let needsSeed = !hasSeeded
-        hasSeeded = true
-        lock.unlock()
-        if needsSeed { seed() }
-
-        // `isAgent` asks this once per running process, so the directory stat
-        // that checks for edits would otherwise run hundreds of times a scan.
-        // Once a second is often enough to pick up a file someone just saved.
-        lock.lock()
-        if let cached, cached.checked.timeIntervalSinceNow > -1 {
-            lock.unlock(); return cached.list
-        }
-        lock.unlock()
-
-        let stamp = FileStamp.ofDirectory(directory)
-        lock.lock()
-        if let cached, cached.stamp == stamp {
-            self.cached = (stamp, Date(), cached.list, cached.fragments, cached.names)
-            lock.unlock()
-            return cached.list
-        }
-        lock.unlock()
-
-        let list = load()
-        let fragments = list.flatMap(\.match)
-        let names = Set(list.flatMap(\.processNames))
-        lock.lock(); cached = (stamp, Date(), list, fragments, names); lock.unlock()
-        return list
-    }
-
-    /// Every executable-path fragment any descriptor matches on, flattened once
-    /// so a per-process check is one pass over a small array.
-    static func matchFragments() -> [String] {
-        _ = all()
-        lock.lock(); defer { lock.unlock() }
-        return cached?.fragments ?? []
-    }
-
-    /// Process names declared by any descriptor, matched exactly rather than as
-    /// substrings — an interpreted agent's executable is `node`, and only
-    /// argv[0] says which agent it is.
-    static func processNamesAll() -> Set<String> {
-        _ = all()
-        lock.lock(); defer { lock.unlock() }
-        return cached?.names ?? []
-    }
-
-    /// Drop the cache so an edited descriptor takes effect on the next scan.
-    static func reload() {
-        lock.lock(); cached = nil; lock.unlock()
-    }
+    /// Read-only, bounded and cached; startup explicitly seeds shipped defaults.
+    static func all() -> [HarnessDescriptor] { catalog.snapshot().enabled }
+    static func matchFragments() -> [String] { all().flatMap(\.match) }
+    static func processNamesAll() -> Set<String> { Set(all().flatMap(\.processNames)) }
+    static func reload() { catalog.invalidate() }
 
     /// Puts the shipped harnesses in your folder, and keeps them current.
     ///
@@ -477,82 +423,15 @@ struct HarnessDescriptor: Codable {
     /// "untouched" is decided. Delete a file and it comes back; edit it and it
     /// is yours for good.
     @discardableResult
-    static func seed() -> (added: [String], updated: [String], keptYours: [String]) {
-        var added: [String] = [], updated: [String] = [], kept: [String] = []
-        let manifest = directory.appendingPathComponent(".seed.json")
-        var seeded = (try? Data(contentsOf: manifest))
-            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] } ?? [:]
-
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        } catch {
-            NSLog("Antarium: couldn't create %@ — %@", directory.path, error.localizedDescription)
-            return ([], [], [])
+    static func seed(in targetDirectory:URL = directory, sources:[URL]? = nil) -> HarnessSeed.Result {
+        let result = targetDirectory == directory && sources == nil
+            ? catalog.seed()
+            : HarnessSeed.run(directory:targetDirectory,sources:sources ?? bundled(),
+                schema:AppResources.bundle.url(forResource:"harness.schema",withExtension:"json"),readme:readme)
+        if targetDirectory == directory, !result.added.isEmpty || !result.updated.isEmpty {
+            Log.info("harness", "Default files added: \(result.added.count); updated: \(result.updated.count); user-owned: \(result.keptYours.count).")
         }
-
-        // Harnesses point one directory up to this editor schema. It is
-        // app-owned rather than user-owned, so the current version can replace
-        // it safely whenever the descriptor format grows.
-        if let schema = AppResources.bundle.url(
-            forResource: "harness.schema", withExtension: "json"),
-           let data = try? Data(contentsOf: schema) {
-            try? data.write(to: Config.directory.appendingPathComponent(
-                "harness.schema.json"), options: .atomic)
-        }
-
-        // The previous design exported read-only copies here. It is tool-made
-        // and no longer read; leaving it behind would just be a second copy to
-        // wonder about.
-        let legacy = directory.appendingPathComponent("builtin")
-        if FileManager.default.fileExists(atPath: legacy.path) {
-            try? FileManager.default.removeItem(at: legacy)
-        }
-
-        for source in bundled() {
-            let name = source.lastPathComponent
-            guard let shipped = try? Data(contentsOf: source) else { continue }
-            let destination = directory.appendingPathComponent(name)
-            let shippedSum = checksum(shipped)
-
-            guard let existing = try? Data(contentsOf: destination) else {
-                if (try? shipped.write(to: destination, options: .atomic)) != nil {
-                    seeded[name] = shippedSum
-                    added.append(name)
-                }
-                continue
-            }
-            let existingSum = checksum(existing)
-            if existingSum == shippedSum { seeded[name] = shippedSum; continue }  // already current
-            if seeded[name] == existingSum {
-                // Untouched since we wrote it, and we now ship something newer.
-                if (try? shipped.write(to: destination, options: .atomic)) != nil {
-                    seeded[name] = shippedSum
-                    updated.append(name)
-                }
-            } else {
-                kept.append(name)                       // edited — leave it alone
-            }
-        }
-
-        if let data = try? JSONSerialization.data(withJSONObject: seeded, options: [.sortedKeys]) {
-            try? data.write(to: manifest, options: .atomic)
-        }
-        try? readme.write(to: directory.appendingPathComponent("README.txt"),
-                          atomically: true, encoding: .utf8)
-        if !added.isEmpty || !updated.isEmpty {
-            NSLog("Antarium: harnesses seeded %d, updated %d, yours %d",
-                  added.count, updated.count, kept.count)
-        }
-        return (added, updated, kept)
-    }
-
-    /// FNV-1a. Not for security — just "is this byte-for-byte what we wrote?",
-    /// and it has to mean the same thing on every launch, which `hashValue`
-    /// does not.
-    private static func checksum(_ data: Data) -> String {
-        var hash: UInt64 = 0xcbf29ce484222325
-        for byte in data { hash ^= UInt64(byte); hash &*= 0x100000001b3 }
-        return String(hash, radix: 16)
+        return result
     }
 
     private static let readme = """
@@ -584,58 +463,18 @@ struct HarnessDescriptor: Codable {
               let seeded = try? JSONSerialization.jsonObject(with: manifest) as? [String: String],
               let recorded = seeded["\(id).json"]
         else { return true }                       // never shipped: entirely theirs
-        return recorded != checksum(data)
+        return recorded != HarnessSeed.checksum(data)
     }
 
-    /// Files that failed to load this pass, for the settings panel to show.
-    /// A skipped harness used to be a log line nobody saw.
-    nonisolated(unsafe) private static var failureStorage: [String] = []
-    static var failures: [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return failureStorage
-    }
-
-    /// Built-ins first, then user files, which win on id collision.
-    private static func load() -> [HarnessDescriptor] {
-        var byID: [String: HarnessDescriptor] = [:]
-        var found: [String] = []
-        defer {
-            lock.lock()
-            failureStorage = found
-            lock.unlock()
-        }
-        // Only the user's folder. The bundle seeds it and is not read again —
-        // one copy, so "which file is real?" always has one answer.
-        for url in user() {
-            let descriptor: HarnessDescriptor
-            do {
-                descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
-            } catch {
-                let detail = "\(url.lastPathComponent): \(error.localizedDescription)"
-                found.append(detail)
-                NSLog("Antarium: skipping harness %@ — %@", url.lastPathComponent,
-                      error.localizedDescription)
-                continue
-            }
-            guard descriptor.isEnabled else { continue }
-            byID[descriptor.id] = descriptor
-        }
-        return byID.values.sorted { $0.id < $1.id }
-    }
+    /// Visible configuration degradation, independent of retained descriptors.
+    static var failures: [String] { catalog.issues }
 
     private static func bundled() -> [URL] {
         AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
     }
 
-    private static func user() -> [URL] {
-        ((try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil)) ?? [])
-            // `.seed.json` is bookkeeping, not a harness.
-            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix(".") }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-    }
+
 }
 
 extension String {

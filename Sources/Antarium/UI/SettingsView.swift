@@ -22,6 +22,16 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if let issue = Config.issue {
+                        Label(issue, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .accessibilityLabel("Settings need attention. \(issue)")
+                    }
                     section("Menu Bar") { menuBarControls }
                     section("Agents") { agentControls }
                     section("Dashboard") { dashboardControls }
@@ -364,9 +374,11 @@ struct SettingsView: View {
                         .onSubmit { addRemoteHost() }
                     Button("Add") { addRemoteHost() }
                         .font(.system(size: 11))
-                        .disabled(!RemoteTmux.isSafeHost(newRemoteHost))
+                        .disabled(!RemoteTmux.isSafeHost(newRemoteHost) || Settings.remoteTmuxHosts.count >= RemoteTmux.fleetLimit)
                 }
 
+                Text("Up to 256 machines. Four connections run at once; larger fleets are checked in rotating passes.")
+                    .font(.system(size:10)).foregroundStyle(.secondary)
                 let typed = newRemoteHost.trimmingCharacters(in: .whitespaces)
                 if !typed.isEmpty, !RemoteTmux.isSafeHost(typed) {
                     // Otherwise Add simply greys out and the reason is a
@@ -463,6 +475,7 @@ struct SettingsView: View {
         // with "-" is parsed by ssh as an option, and -oProxyCommand= runs a
         // command on this Mac.
         guard !host.isEmpty, RemoteTmux.isSafeHost(host),
+              Settings.remoteTmuxHosts.count < RemoteTmux.fleetLimit,
               !Settings.remoteTmuxHosts.contains(host) else { return }
         model.update { Settings.remoteTmuxHosts = Settings.remoteTmuxHosts + [host] }
         newRemoteHost = ""

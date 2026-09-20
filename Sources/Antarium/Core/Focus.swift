@@ -21,6 +21,9 @@ import AppKit
 /// for Automation consent the first time; if it is declined we still raise the
 /// app, which is what this used to do for everyone.
 enum Focus {
+    static func canRevealLocally(_ row: AgentRow) -> Bool {
+        !row.isRemote && row.localObservationIssue == nil
+    }
     /// What a click actually did. Worth naming: "raised the app" and "landed on
     /// the agent's own tab" look identical from the outside but are not.
     enum Result: Equatable {
@@ -45,7 +48,8 @@ enum Focus {
     @discardableResult
     @MainActor
     static func reveal(_ row: AgentRow) -> Result {
-        Log.info("focus", "reveal \(row.name) tmux=\(row.tmuxTarget ?? "—") pid=\(row.pid.map(String.init) ?? "—")")
+        guard canRevealLocally(row) else { return .nothing }
+        Log.info("focus", "reveal local session requested")
         if let target = row.tmuxTarget, focusTmux(target) { return .tmux(target) }
         if let pid = row.pid {
             let result = activateOwningApp(of: pid)
@@ -123,7 +127,7 @@ enum Focus {
     @discardableResult
     @MainActor
     static func attachToPane(_ target: String) -> Bool {
-        Log.info("focus", "attach \(target)")
+        Log.info("focus", "Local tmux attach requested.")
         if let tmux = tmuxPath() {
             let pane = target
             // Split at the last dot: a session name may contain one, and

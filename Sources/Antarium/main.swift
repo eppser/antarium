@@ -18,6 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// NSApplication keeps only a weak reference to its delegate.
 var retainedDelegate: AnyObject?
 
+if let issue = LaunchArguments.validate(Array(CommandLine.arguments.dropFirst())) {
+    FileHandle.standardError.write(Data((issue + "\n").utf8))
+    exit(2)
+}
+if LaunchArguments.requestsHelp(Array(CommandLine.arguments.dropFirst())) {
+    print(LaunchArguments.help); exit(0)
+}
+
 // Top-level code is nonisolated; everything below is main-thread-only AppKit.
 // `antarium run -- claude` runs before any AppKit exists: it is a terminal
 // program, not the menu bar app.
@@ -32,6 +40,14 @@ if let i = CommandLine.arguments.firstIndex(of: "run"), i == 1 {
 }
 
 MainActor.assumeIsolated {
+    if CommandLine.arguments.contains("--print-remote-discovery-command") {
+        print(RemoteTmux.remoteCommand,terminator:"")
+        exit(0)
+    }
+    if let i = CommandLine.arguments.firstIndex(of:"--verify-remote-discovery-reply"), i + 1 < CommandLine.arguments.count {
+        exit(RemoteDiscoveryEvaluation.verify(file:CommandLine.arguments[i + 1]))
+    }
+
     // Design harness: render sample states to a PNG and exit.
     if let i = CommandLine.arguments.firstIndex(of: "--preview"),
        i + 1 < CommandLine.arguments.count {

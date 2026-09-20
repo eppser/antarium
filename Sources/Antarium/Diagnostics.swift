@@ -132,12 +132,20 @@ enum Diagnostics {
         return true
     }
 
+    private static func scanOrExit() -> [AgentRow] {
+        do { return try AgentScan.scan() }
+        catch {
+            fputs("Local process discovery failed; no complete inventory is available.\n", stderr)
+            exit(1)
+        }
+    }
+
     /// `--dashboard out.png`
     @MainActor
     static func renderDashboardAndExit(to path: String) -> Never {
         Task { @MainActor in
             let store = AgentStore.shared
-            store.adoptForPreview(AgentScan.scan())
+            store.adoptForPreview(scanOrExit())
             exit(writeThemeSheet(DashboardView(store: store, onSettings: {}, onTogglePin: {}),
                                  to: path) ? 0 : 1)
         }
@@ -149,7 +157,7 @@ enum Diagnostics {
     @MainActor
     static func renderAlertAndExit(to path: String) -> Never {
         Task { @MainActor in
-            let rows = AgentScan.scan()
+            let rows = scanOrExit()
             guard let row = rows.first(where: { $0.state.rank <= 2 && $0.costUSD != nil })
                     ?? rows.first else { exit(1) }
             exit(writeThemeSheet(AgentAlert.previewCard(row), to: path, gap: 18) ? 0 : 1)
@@ -169,7 +177,7 @@ enum Diagnostics {
             if let i = CommandLine.arguments.firstIndex(of: "--focus"),
                i + 1 < CommandLine.arguments.count {
                 let want = CommandLine.arguments[i + 1].lowercased()
-                let rows = AgentScan.scan()
+                let rows = scanOrExit()
                 guard let row = rows.first(where: { $0.name.lowercased() == want })
                     ?? rows.first(where: { $0.name.lowercased().contains(want)
                         || $0.agentID.lowercased().contains(want) }) else {
@@ -187,7 +195,7 @@ enum Diagnostics {
             // Design harness: render the first-run screen.
             if let i = CommandLine.arguments.firstIndex(of: "--onboarding"),
                i + 1 < CommandLine.arguments.count {
-                let rows = AgentScan.scan()
+                let rows = scanOrExit()
                 let view = OnboardingView(harnesses: Onboarding.harnesses(),
                                           accounts: Onboarding.accounts(ProviderRegistry.all),
                                           sessions: rows.count, onDone: {})
@@ -196,17 +204,21 @@ enum Diagnostics {
 
             // `--log [n]` — where the log is, what level it is at, and the tail.
             if let i = CommandLine.arguments.firstIndex(of: "--log") {
-                let count = (i + 1 < CommandLine.arguments.count
-                             ? Int(CommandLine.arguments[i + 1]) : nil) ?? 40
-                let size = (try? FileManager.default
-                    .attributesOfItem(atPath: Log.url.path)[.size] as? Int).flatMap { $0 } ?? 0
+                let argument = i + 1 < CommandLine.arguments.count ? CommandLine.arguments[i + 1] : "40"
+                guard let count = Int(argument), (0...1_000).contains(count) else {
+                    print("Log line count must be an integer from 0 through 1000."); exit(2)
+                }
                 print("level : \(Log.level.name)   (ANTARIUM_LOG, or \"logLevel\" in config.json)")
-                print("file  : \(Log.url.path)  \(size / 1024)KB")
-                let text = (try? String(contentsOf: Log.url, encoding: .utf8)) ?? ""
-                let lines = text.split(separator: "\n")
-                print("---- last \(min(count, lines.count)) of \(lines.count) lines ----")
-                for line in lines.suffix(count) { print(line) }
-                exit(0)
+                print("file  : \(Log.url.path)")
+                do {
+                    let tail = try DiagnosticLogFile.tail(Log.url,lineCount:count)
+                    print("---- \(tail.lines.count) complete lines · bounded 64 KiB tail\(tail.truncated ? "; earlier or incomplete lines omitted" : "") ----")
+                    for line in tail.lines { print(line) }
+                    exit(0)
+                } catch {
+                    print("The log could not be read safely. It may be missing, linked, unavailable or changed during the read.")
+                    exit(1)
+                }
             }
 
             // `--status` — a single readout of what the tool thinks is true.
@@ -219,7 +231,7 @@ enum Diagnostics {
                 if !HarnessDescriptor.failures.isEmpty {
                     for f in HarnessDescriptor.failures { print("    ! \(f)") }
                 }
-                let rows = AgentScan.scan()
+                let rows = scanOrExit()
                 var byHost: [String: Int] = [:]
                 for row in rows { byHost[row.hostApp ?? "—", default: 0] += 1 }
                 let working = rows.filter { if case .working = $0.state { return true }; return false }
@@ -238,7 +250,7 @@ enum Diagnostics {
             }
 
             if CommandLine.arguments.contains("--tmux") {
-                for row in AgentScan.scan() where row.hostApp == "tmux" {
+                for row in scanOrExit() where row.hostApp == "tmux" {
                     print("  \(row.name.padding(toLength: max(16, row.name.count), withPad: " ", startingAt: 0)) "
                         + "\(row.agentID.padding(toLength: 14, withPad: " ", startingAt: 0)) "
                         + "tmux=\(row.tmuxTarget ?? "— NONE")")
@@ -285,7 +297,7 @@ enum Diagnostics {
             if CommandLine.arguments.contains("--bench") {
                 for pass in 1...3 {
                     let t0 = ProcessInfo.processInfo.systemUptime
-                    let n = AgentScan.scan().count
+                    let n = scanOrExit().count
                     let ms = (ProcessInfo.processInfo.systemUptime - t0) * 1000
                     print(String(format: "pass %d: %6.1f ms  (%d sessions)", pass, ms, n))
                 }
@@ -293,13 +305,13 @@ enum Diagnostics {
                 HarnessEngine.saveCache()
                 exit(0)
             }
-            var rows = AgentScan.scan()
+            var rows = scanOrExit()
             if CommandLine.arguments.contains("--cloud") {
                 do {
                     rows = AgentScan.sorted(AgentScan.merge(
                         local: rows, cloud: try await CloudScan.codexTasks()))
                 } catch {
-                    fputs("cloud scan failed: \(error.localizedDescription)\n", stderr)
+                    fputs(CloudScan.issue(for:error) + "\n", stderr)
                 }
             }
             // Plain Swift padding: String(format:) with %s takes a pointer into

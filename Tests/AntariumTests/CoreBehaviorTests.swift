@@ -76,7 +76,7 @@ struct CoreBehaviorTests {
                                                      lastActivity: old), now: now).label, "Working")
         XCTAssertEqual(AgentStateMachine.state(.init(published: .waiting,
                                                      lastActivity: recent), now: now).label, "Waiting")
-        XCTAssertEqual(AgentStateMachine.state(.init(), now: now).label, "Waiting")
+        XCTAssertEqual(AgentStateMachine.state(.init(), now: now).label, "Unknown")
         XCTAssertEqual(AgentStateMachine.state(.init(lastActivity: recent), now: now).label, "Working")
         XCTAssertEqual(AgentStateMachine.state(.init(lastActivity: old), now: now).label, "Waiting")
         XCTAssertEqual(AgentStateMachine.state(.init(published: .waiting,

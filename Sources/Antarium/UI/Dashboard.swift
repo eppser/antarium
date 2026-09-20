@@ -467,6 +467,9 @@ private func stateTint(_ state: AgentRow.State) -> Color {
     case .shell:   return .purple
     case .ended:   return .secondary
     case .cloud:   return .blue
+    // Not observed is not idle. It reads as secondary rather than borrowing
+    // another state's colour, so an unknown never looks like a fact.
+    case .unobserved: return .secondary
     }
 }
 

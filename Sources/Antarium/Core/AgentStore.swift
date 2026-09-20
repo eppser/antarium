@@ -37,11 +37,13 @@ final class AgentStore: ObservableObject {
     /// Why a host last contributed nothing, for the settings panel.
     @Published private(set) var remoteIssues: [String: String] = [:]
     private var lastRemoteAttempt = Date.distantPast
-    private var remoteTask: Task<Void, Never>?
+    private let remoteScan = RemoteScanController()
     /// The most recent local and cloud passes, so a remote result arriving on
     /// its own clock can be merged without waiting for another local scan.
     private var localRows: [AgentRow] = []
     @Published private(set) var scanIssue: String?
+    private var localScanIssue: String?
+    private var cloudScanIssue: String?
     /// Scan more often while the dashboard is on screen.
     private var visibleObservers = 0
 
@@ -59,8 +61,30 @@ final class AgentStore: ObservableObject {
         return previous.values.compactMap { was in
             guard was.state.rank > 2 else { return nil }        // wasn't working
             guard let still = now[was.id] else { return was }   // process is gone
+            if case .unobserved = still.state { return nil }
             return still.state.rank <= 2 ? still : nil
         }
+    }
+
+    static func applyingLocal(_ observation: AgentScan.Observation?, previous: [AgentRow]) -> (rows: [AgentRow], issue: String?) {
+        let issue = "Some local agent sources could not be read reliably. Affected agents have an unknown current state."
+        func stale(_ row: AgentRow) -> AgentRow {
+            var row = row
+            row.state = .unobserved; row.rssBytes = nil; row.localObservationIssue = issue
+            return row
+        }
+        guard let observation else { return (previous.map(stale), issue) }
+        var rows = observation.rows
+        var index = Dictionary(rows.enumerated().map { ($0.element.id, $0.offset) },uniquingKeysWith:{first,_ in first})
+        var affected = !observation.unavailableHarnesses.isEmpty || rows.contains { $0.localObservationIssue != nil }
+        for row in previous {
+            guard observation.unavailableHarnesses.contains(row.agentID)
+                || row.pid.map({ observation.unavailablePIDs.contains($0) }) == true else { continue }
+            affected = true
+            if let position = index[row.id] { rows[position] = stale(row) }
+            else { index[row.id] = rows.count; rows.append(stale(row)) }
+        }
+        return (rows, affected ? issue : nil)
     }
 
     private func noticeStops(in fresh: [AgentRow]) {
@@ -86,32 +110,45 @@ final class AgentStore: ObservableObject {
     static func applyRemote(results: [RemoteTmux.HostResult],
                             to current: [String: [AgentRow]],
                             issues: [String: String],
-                            configured: [String]) -> (rows: [String: [AgentRow]],
+                            configured: [String], now:Date = Date()) -> (rows: [String: [AgentRow]],
                                                       issues: [String: String]) {
         var rows = current
         var problems = issues
         for result in results {
             if result.answered {
-                rows[result.host] = result.rows
+                rows[result.host] = result.rows.map { row in
+                    var fresh = row; fresh.remoteObservedAt = now; fresh.remoteObservationIssue = nil
+                    return fresh
+                }
                 problems[result.host] = nil
             } else {
                 problems[result.host] = result.issue
+                rows[result.host] = rows[result.host]?.map { row in
+                    var stale = row; stale.state = .unobserved; stale.remoteObservationIssue = result.issue
+                    return stale
+                }
             }
         }
-        let keep = Set(configured)
+        let keep = Set(RemoteTmux.normalizedHosts(configured))
         return (rows.filter { keep.contains($0.key) },
                 problems.filter { keep.contains($0.key) })
     }
 
     /// Every machine's rows, in the order the hosts are configured, so the
     /// list does not reorder itself because one machine answered first.
+    static func orderedRemoteRows(hosts:[String],rowsByHost:[String:[AgentRow]]) -> [AgentRow] {
+        RemoteTmux.normalizedHosts(hosts).flatMap { rowsByHost[$0] ?? [] }
+    }
     private func remoteRows() -> [AgentRow] {
-        Settings.remoteTmuxHosts.flatMap { remoteRowsByHost[$0] ?? [] }
+        Self.orderedRemoteRows(hosts:Settings.remoteTmuxHosts,rowsByHost:remoteRowsByHost)
     }
 
     /// Merge whatever each source last produced and publish it. Called by the
     /// local scan and, separately, whenever a remote refresh lands.
     private func publish() {
+        let harnessIssue = HarnessDescriptor.failures.isEmpty ? nil : "Harness configuration needs attention. Last valid definitions are used when available; see Settings."
+        let issues = [localScanIssue,cloudScanIssue,harnessIssue].compactMap { $0 }
+        scanIssue = issues.isEmpty ? nil : issues.joined(separator:" ")
         let fresh = AgentScan.merge(local: localRows,
                                     cloud: cloudRows + (Settings.includeRemoteTmux ? remoteRows() : []))
         noticeStops(in: fresh)
@@ -125,32 +162,17 @@ final class AgentStore: ObservableObject {
     /// Starts a remote pass if one is due and none is running. Deliberately
     /// not awaited: the point is that it cannot delay the local rows.
     private func refreshRemoteIfDue(force: Bool) {
-        guard Settings.includeRemoteTmux else { return }
+        guard Settings.includeRemoteTmux else { remoteScan.cancel(); return }
         let hosts = Settings.remoteTmuxHosts
-        guard !hosts.isEmpty else { return }
-        // One in flight at a time. Hosts that time out take 20s each, which is
-        // longer than the scan interval, so without this the passes would pile
-        // up and re-ask a dead machine while the previous ask was still open.
-        guard remoteTask == nil else { return }
+        guard !hosts.isEmpty else { remoteScan.cancel(); return }
+        remoteScan.reconcile(hosts:hosts)
+        guard !remoteScan.isRunning else { return }
         guard force || Date().timeIntervalSince(lastRemoteAttempt) >= 30 else { return }
         lastRemoteAttempt = Date()
-        remoteTask = Task { [weak self] in
-            let results = await Task.detached(priority: .utility) {
-                RemoteTmux.scanAll(hosts: hosts)
-            }.value
-            guard let self else { return }
-            // Cleared on every exit, not just the happy one. Returning early
-            // without clearing left `remoteTask` non-nil forever, and the
-            // single-flight guard above then blocked every future remote scan
-            // for the rest of the session — remote agents would quietly stop
-            // updating with nothing in the log to say why.
-            defer { self.remoteTask = nil }
-            guard !Task.isCancelled else { return }
-
-            let merged = Self.applyRemote(results: results,
-                                          to: self.remoteRowsByHost,
-                                          issues: self.remoteIssues,
-                                          configured: Settings.remoteTmuxHosts)
+        remoteScan.start(hosts:hosts) { [weak self] results in
+            guard let self, Settings.includeRemoteTmux else { return }
+            let merged = Self.applyRemote(results:results,to:self.remoteRowsByHost,
+                issues:self.remoteIssues,configured:Settings.remoteTmuxHosts)
             self.remoteRowsByHost = merged.rows
             self.remoteIssues = merged.issues
             self.publish()
@@ -182,10 +204,9 @@ final class AgentStore: ObservableObject {
         timer?.invalidate(); timer = nil
         task?.cancel()
         task = nil
-        // An SSH sweep outlives the scan that started it — up to 20s per host
-        // — and would otherwise carry on and publish into a stopped store.
-        remoteTask?.cancel()
-        remoteTask = nil
+        // Cancelling propagates to queued hosts, SSH and credential subprocesses.
+        // The controller's generation gate also rejects late completions.
+        remoteScan.cancel()
         isScanning = false
         TranscriptStats.saveCache()
         HarnessEngine.saveCache()
@@ -218,6 +239,9 @@ final class AgentStore: ObservableObject {
     /// `force` is the refresh button: throw away what we are holding first, so
     /// the numbers on screen afterwards were all read just now.
     func refresh(force: Bool = false) {
+        // Apply a host removal or disabled switch before waiting for local IO.
+        if Settings.includeRemoteTmux { remoteScan.reconcile(hosts:Settings.remoteTmuxHosts) }
+        else { remoteScan.cancel() }
         if force {
             Log.info("scan", "refresh requested — dropping caches")
             HarnessEngine.invalidate()
@@ -234,12 +258,13 @@ final class AgentStore: ObservableObject {
         task = Task { [weak self] in
             Log.debug("scan", "starting")
             let began = ProcessInfo.processInfo.systemUptime
-            let local = await Task.detached(priority: .utility) { AgentScan.scan() }.value
-            Log.info("scan", "\(local.count) rows in "
+            let worker = Task.detached(priority: .utility) { Result { try AgentScan.observe() } }
+            let observation = await withTaskCancellationHandler(operation: { await worker.value }, onCancel: { worker.cancel() })
+            guard let self, self.generations.isCurrent(generation), !Task.isCancelled else { return }
+            let local = Self.applyingLocal(try? observation.get(),previous:self.localRows)
+            Log.info("scan", "\(local.rows.count) rows in "
                 + "\(String(format: "%.0f", (ProcessInfo.processInfo.systemUptime - began) * 1000))ms"
-                + " — working \(local.filter { if case .working = $0.state { return true }; return false }.count)")
-            guard let self, self.generations.isCurrent(generation),
-                  !Task.isCancelled else { return }
+                + " — working \(local.rows.filter { if case .working = $0.state { return true }; return false }.count)")
 
             var cloud = Settings.includeCloudAgents ? self.cloudRows : []
             if Settings.includeCloudAgents,
@@ -250,14 +275,16 @@ final class AgentStore: ObservableObject {
                     guard self.generations.isCurrent(generation),
                           !Task.isCancelled else { return }
                     self.cloudRows = cloud
-                    self.scanIssue = nil
+                    self.cloudScanIssue = nil
                 } catch {
-                    let message = "Cloud scan failed: \(error.localizedDescription)"
+                    guard self.generations.isCurrent(generation), !Task.isCancelled else { return }
+                    let message = CloudScan.issue(for:error)
                     Log.info("scan", message)
-                    self.scanIssue = message
-                    cloud = self.cloudRows
+                    self.cloudScanIssue = message
+                    cloud = CloudScan.unavailableRows(self.cloudRows,issue:message)
                 }
             }
+            if !Settings.includeCloudAgents { self.cloudScanIssue = nil }
 
             if !Settings.includeRemoteTmux {
                 self.remoteRowsByHost = [:]
@@ -266,7 +293,8 @@ final class AgentStore: ObservableObject {
 
             guard self.generations.isCurrent(generation),
                   !Task.isCancelled else { return }
-            self.localRows = local
+            self.localRows = local.rows
+            self.localScanIssue = local.issue
             self.cloudRows = cloud
             self.publish()
             self.scannedAt = Date()

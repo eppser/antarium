@@ -27,14 +27,8 @@ enum Log {
 
     static let directory = Config.directory.appendingPathComponent("logs")
     static let url = directory.appendingPathComponent("antarium.log")
-    private static let previous = directory.appendingPathComponent("antarium.1.log")
-    /// Past this, the file rotates. Big enough for a long session, small enough
-    /// to open in an editor.
-    private static let maxBytes = 4 * 1024 * 1024
-
+    private static let sink = DiagnosticLogFile(directory:directory)
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var handle: FileHandle?
-    nonisolated(unsafe) private static var written = 0
     nonisolated(unsafe) private static var resolved: Level?
 
     static var level: Level {
@@ -79,35 +73,28 @@ enum Log {
         return try body()
     }
 
+    private final class Capture:NSObject { var messages:[String] = [] }
+    private static let captureKey = "AntariumDiagnosticLogCapture"
+    /// Synchronous, thread-scoped diagnostic capture. It never writes to disk
+    /// and does not change another thread's configured logging behavior.
+    static func capture(_ body:() throws -> Void) rethrows -> [String] {
+        let dictionary = Thread.current.threadDictionary
+        let previous = dictionary[captureKey]
+        let capture = Capture(); dictionary[captureKey] = capture
+        defer { dictionary[captureKey] = previous }
+        try body()
+        return capture.messages
+    }
+
     private static func write(_ at: Level, _ area: String,
                               _ message: () -> String) {
+        if let capture = Thread.current.threadDictionary[captureKey] as? Capture {
+            capture.messages.append(area + ": " + message()); return
+        }
         guard level >= at, at != .off else { return }
         let line = "\(stamp()) \(at.name.uppercased().padding(toLength: 5, withPad: " ", startingAt: 0)) "
             + "\(area.padding(toLength: 16, withPad: " ", startingAt: 0)) \(message())\n"
-        guard let data = line.data(using: .utf8) else { return }
-        lock.lock(); defer { lock.unlock() }
-        if handle == nil { openLocked() }
-        handle?.write(data)
-        written += data.count
-        if written > maxBytes { rotateLocked() }
-    }
-
-    private static func openLocked() {
-        let fm = FileManager.default
-        try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
-        if !fm.fileExists(atPath: url.path) { _ = fm.createFile(atPath: url.path, contents: nil) }
-        handle = try? FileHandle(forWritingTo: url)
-        _ = try? handle?.seekToEnd()
-        written = (try? fm.attributesOfItem(atPath: url.path)[.size] as? Int).flatMap { $0 } ?? 0
-    }
-
-    private static func rotateLocked() {
-        try? handle?.close(); handle = nil
-        let fm = FileManager.default
-        try? fm.removeItem(at: previous)
-        try? fm.moveItem(at: url, to: previous)
-        written = 0
-        openLocked()
+        sink.append(line)
     }
 
     private static let formatter: DateFormatter = {

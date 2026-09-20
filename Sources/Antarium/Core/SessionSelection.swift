@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import SQLite3
 
 /// Reads the set of sessions a harness says are currently open. The descriptor
@@ -23,27 +24,30 @@ enum SessionSelection {
         guard let path = selection.path, let glob = selection.glob,
               let recordsPath = selection.records else { return nil }
         let directory = URL(fileURLWithPath: path.expandingTilde)
-        let files = ((try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil)) ?? [])
-            .filter { matches($0.lastPathComponent, glob) }
-        guard !files.isEmpty else { return nil }
+        guard let entries = try? BoundedDirectory.entries(directory) else { return nil }
+        let files = entries.filter { BoundedGlob.component($0.url.lastPathComponent, matches: glob) }.map(\.url)
+        guard !files.isEmpty, files.count <= 64 else { return nil }
 
         var foundIDs = Set<String>()
         var readAny = false
+        var bytesRead = 0
         for file in files {
-            guard let data = try? Data(contentsOf: file),
+            guard bytesRead < 8 * 1_024 * 1_024,
+                  let data = try? BoundedFile.read(file, maxBytes:min(4 * 1_024 * 1_024,8 * 1_024 * 1_024 - bytesRead)),
                   let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   var value = FieldPath.lookup(root, recordsPath)
-            else { continue }
+            else { return nil }
+            bytesRead += data.count
 
             if selection.decodesEmbeddedJSON, let text = value as? String {
                 guard let decoded = try? JSONSerialization.jsonObject(
-                    with: Data(text.utf8)) else { continue }
+                    with: Data(text.utf8)) else { return nil }
                 value = decoded
             }
-            guard let records = value as? [[String: Any]] else { continue }
+            guard let records = value as? [[String: Any]] else { return nil }
             readAny = true
-            foundIDs.formUnion(ids(in: records, selection: selection))
+            guard let ids = ids(in: records, selection: selection) else { return nil }
+            foundIDs.formUnion(ids)
         }
         return readAny ? foundIDs : nil
     }
@@ -51,46 +55,26 @@ enum SessionSelection {
     private static func sqliteIDs(_ selection: HarnessDescriptor.Selection) -> Set<String>? {
         guard let path = selection.path?.expandingTilde,
               let query = selection.query, !query.isEmpty else { return nil }
-        var database: OpaquePointer?
-        guard sqlite3_open_v2("file:\(path)?mode=ro", &database,
-                              SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
-              let database else {
-            if database != nil { sqlite3_close(database) }
-            return nil
+        guard let result = try? BoundedSQLite.query(path:path,sql:query) else { return nil }
+        let index:Int
+        if let wanted = selection.column {
+            guard result.columns.filter({ $0 == wanted }).count == 1,
+                  let found = result.columns.firstIndex(of:wanted) else { return nil }
+            index = found
+        } else { index = 0 }
+        var ids:Set<String> = []
+        for row in result.rows {
+            guard index < row.count, let id = row[index].string, !id.isEmpty else { return nil }
+            ids.insert(id)
         }
-        defer { sqlite3_close(database) }
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
-              let statement else { return nil }
-        defer { sqlite3_finalize(statement) }
-
-        let wanted = selection.column
-        var index: Int32 = 0
-        if let wanted {
-            for candidate in 0..<sqlite3_column_count(statement) {
-                if String(cString: sqlite3_column_name(statement, candidate)) == wanted {
-                    index = candidate
-                    break
-                }
-            }
-        }
-        var result = Set<String>()
-        var readAny = false
-        while sqlite3_step(statement) == SQLITE_ROW {
-            readAny = true
-            if let text = sqlite3_column_text(statement, index) {
-                let id = String(cString: text)
-                if !id.isEmpty { result.insert(id) }
-            }
-        }
-        return readAny ? result : []
+        return ids
     }
 
     private static func commandIDs(_ selection: HarnessDescriptor.Selection) -> Set<String>? {
         guard let command = selection.command,
               let executable = resolve(command) else { return nil }
         let result = Shell.execute(executable, selection.args ?? [], timeout: 10)
-        guard result.succeeded,
+        guard result.completeOutput,
               let data = result.stdout.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) else { return nil }
         let value: Any
@@ -106,25 +90,26 @@ enum SessionSelection {
     }
 
     private static func ids(in records: [[String: Any]],
-                            selection: HarnessDescriptor.Selection) -> Set<String> {
-        guard let idPath = selection.id else { return [] }
-        return Set(records.compactMap { record in
+                            selection: HarnessDescriptor.Selection) -> Set<String>? {
+        guard records.count <= 4_096, let idPath = selection.id else { return nil }
+        var result:Set<String> = []
+        for record in records {
             let accepted = (selection.filter ?? [:]).allSatisfy { path, values in
                 guard let raw = FieldPath.lookup(record, path) else { return false }
                 let text: String
                 switch raw {
                 case let value as String: text = value
-                case let value as Bool: text = value ? "true" : "false"
-                case let value as NSNumber: text = value.stringValue
+                case let value as NSNumber:
+                    text = CFGetTypeID(value) == CFBooleanGetTypeID() ? (value.boolValue ? "true" : "false") : value.stringValue
                 default: return false
                 }
                 return values.contains(text)
             }
-            guard accepted, let id = FieldPath.string(record, idPath), !id.isEmpty else {
-                return nil
-            }
-            return id
-        })
+            guard accepted else { continue }
+            guard let id = FieldPath.string(record,idPath), !id.isEmpty, id.utf8.count <= 1_024 else { return nil }
+            result.insert(id)
+        }
+        return result
     }
 
     private static func resolve(_ command: String) -> String? {
@@ -139,21 +124,4 @@ enum SessionSelection {
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    private static func matches(_ name: String, _ pattern: String) -> Bool {
-        let pieces = pattern.split(separator: "*", omittingEmptySubsequences: false)
-        guard pieces.count > 1 else { return name == pattern }
-        var remainder = name[...]
-        if let first = pieces.first, !first.isEmpty {
-            guard remainder.hasPrefix(first) else { return false }
-            remainder = remainder.dropFirst(first.count)
-        }
-        for (index, piece) in pieces.dropFirst().enumerated() where !piece.isEmpty {
-            if index == pieces.count - 2, !pattern.hasSuffix("*") {
-                return remainder.hasSuffix(piece)
-            }
-            guard let range = remainder.range(of: piece) else { return false }
-            remainder = remainder[range.upperBound...]
-        }
-        return true
-    }
 }

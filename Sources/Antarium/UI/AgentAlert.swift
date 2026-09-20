@@ -20,40 +20,7 @@ final class AgentAlert: NSObject {
     func post(_ row: AgentRow) {
         guard Settings.notifyOnIdle else { return }
 
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: 78),
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
-        panel.isFloatingPanel = true
-        panel.level = .screenSaver          // above full-screen apps too
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        panel.ignoresMouseEvents = false
-
-        let card = AlertCard(row: row,
-                             onOpen: { [weak self] in
-                                 Focus.reveal(row)
-                                 self?.dismiss(panel)
-                             },
-                             onClose: { [weak self] in self?.dismiss(panel) })
-        // Same reason as the dashboard: an alert nobody can dismiss on the
-        // first click is worse than no alert.
-        let hosting = PanelChrome.ClickThrough(rootView: card)
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView()
-        container.wantsLayer = true
-        panel.contentView = container
-        container.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            hosting.topAnchor.constraint(equalTo: container.topAnchor),
-            hosting.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        hosting.layoutSubtreeIfNeeded()
-        panel.setContentSize(hosting.fittingSize)
+        let panel = makePanel(row)
 
         panels.insert(panel, at: 0)
         restack()
@@ -72,6 +39,50 @@ final class AgentAlert: NSObject {
         }
     }
 
+    /// Builds an alert without showing it; construction owns no global state.
+    func makePanel(_ row: AgentRow) -> NSPanel {
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: 78),
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered, defer: false)
+        panel.isFloatingPanel = true
+        panel.level = .screenSaver          // above full-screen apps too
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.ignoresMouseEvents = false
+
+        let card = AlertCard(row: row,
+                             onOpen: { [weak self, weak panel] in
+                                 guard let panel else { return }
+                                 Focus.reveal(row)
+                                 self?.dismiss(panel)
+                             },
+                             onClose: { [weak self, weak panel] in
+                                 guard let panel else { return }
+                                 self?.dismiss(panel)
+                             })
+        // Same reason as the dashboard: an alert nobody can dismiss on the
+        // first click is worse than no alert.
+        let hosting = PanelChrome.ClickThrough(rootView: card)
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.wantsLayer = true
+        panel.contentView = container
+        container.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            hosting.topAnchor.constraint(equalTo: container.topAnchor),
+            hosting.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        hosting.layoutSubtreeIfNeeded()
+        panel.setContentSize(hosting.fittingSize)
+
+        return panel
+    }
+
     private func dismiss(_ panel: NSPanel) {
         guard panels.contains(panel) else { return }
         panels.removeAll { $0 == panel }
@@ -79,7 +90,12 @@ final class AgentAlert: NSObject {
             context.duration = 0.18
             panel.animator().alphaValue = 0
         } completionHandler: {
-            Task { @MainActor in panel.orderOut(nil) }
+            Task { @MainActor in
+                panel.orderOut(nil)
+                // Tear down the SwiftUI tree, including its animations and
+                // observers, as soon as the dismissal finishes.
+                panel.contentView = nil
+            }
         }
         restack()
     }
@@ -202,7 +218,7 @@ struct AlertCard: View {
         .accessibilityAction { onOpen() }
         .onHover { hovering = $0 }
         .onAppear {
-            withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) {
+            withAnimation(.easeOut(duration: 1.1)) {
                 pulse = true
             }
         }

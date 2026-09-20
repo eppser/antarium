@@ -504,12 +504,12 @@ struct ArchitectureContractTests {
         INSERT INTO thread_goals VALUES ('thread','Ship it','active',100,1000);
         """
         #expect(sqlite3_exec(database, ddl, nil, nil, nil) == SQLITE_OK)
-        #expect(CodexGoals.all(at: path)["thread"]?.isRunning == true)
+        #expect(try CodexGoals.all(at: path)["thread"]?.isRunning == true)
 
         #expect(sqlite3_exec(database,
             "UPDATE thread_goals SET status='complete' WHERE thread_id='thread'",
             nil, nil, nil) == SQLITE_OK)
-        #expect(CodexGoals.all(at: path)["thread"]?.isRunning == false)
+        #expect(try CodexGoals.all(at: path)["thread"]?.isRunning == false)
     }
 
     @Test("Capability cache follows configured filesystem evidence")

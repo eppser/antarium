@@ -128,8 +128,8 @@ enum Settings {
     /// place for it to go stale. A password, when one is needed, is kept in
     /// the Keychain under `RemoteTmux.keychainService` and never written here.
     static var remoteTmuxHosts: [String] {
-        get { Config.strings("remoteTmuxHosts") ?? [] }
-        set { Config.set("remoteTmuxHosts", newValue) }
+        get { RemoteTmux.normalizedHosts(Config.strings("remoteTmuxHosts") ?? []) }
+        set { Config.set("remoteTmuxHosts", RemoteTmux.normalizedHosts(newValue)) }
     }
 
     /// Points between the agent mark and the numbers.

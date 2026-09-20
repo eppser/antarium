@@ -131,8 +131,7 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         let shown = Set(gauges.map(\.id))
         let extras = candidates.filter { !shown.contains($0.id) }
 
-        Log.info("cursor", "plan=\(planName ?? "—") gauges=\(gauges.map(\.title)) "
-            + "used=\(gauges.map { String(format: "%.1f%%", $0.used * 100) })")
+        Log.info("cursor", "Usage response parsed: \(gauges.count) primary windows, \(extras.count) additional windows.")
 
         return Snapshot(providerID: "cursor", gauges: gauges, extras: extras,
                         accountLabel: planName, fetchedAt: Date())

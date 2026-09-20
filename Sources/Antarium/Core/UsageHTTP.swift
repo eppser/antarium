@@ -34,15 +34,33 @@ enum UsageHTTP {
 
     private static func jsonResponse(for req: URLRequest, host: String,
                                      session: URLSession) async throws -> [String: Any] {
-        let data: Data, response: URLResponse
+        let maximumBytes = 2 * 1_024 * 1_024
+        var data = Data()
         do {
-            (data, response) = try await session.data(for: req)
+            let (bytes, response) = try await session.bytes(for: req)
+            defer { bytes.task.cancel() }
+            try check(response, host: host)
+            guard response.expectedContentLength <= maximumBytes else {
+                throw ProviderError.badResponse("Usage response exceeds the 2 MiB safety limit.")
+            }
+            data.reserveCapacity(min(maximumBytes, max(0, Int(response.expectedContentLength))))
+            for try await byte in bytes {
+                guard data.count < maximumBytes else {
+                    throw ProviderError.badResponse("Usage response exceeds the 2 MiB safety limit.")
+                }
+                data.append(byte)
+            }
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as ProviderError {
+            throw error
         } catch let urlErr as URLError {
+            if Task.isCancelled { throw CancellationError() }
             throw ProviderError.transport(describe(urlErr, host: host))
         } catch {
-            throw ProviderError.transport(error.localizedDescription)
+            throw ProviderError.transport("The usage request could not be completed.")
         }
-        try check(response, host: host)
 
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ProviderError.badResponse("\(host) didn't return JSON.")
@@ -54,7 +72,7 @@ enum UsageHTTP {
         guard let http = response as? HTTPURLResponse else {
             throw ProviderError.badResponse("Unexpected response from \(host).")
         }
-        Log.debug("http", "\(http.statusCode) \(host)")
+        Log.debug("http", "Response status \(http.statusCode)")
         switch http.statusCode {
         case 200...299: return
         case 401, 403:  throw ProviderError.needsAuth("\(host) rejected the saved credentials.")
@@ -70,7 +88,11 @@ enum UsageHTTP {
         case .notConnectedToInternet, .networkConnectionLost: return "No network connection."
         case .timedOut: return "\(host) timed out."
         case .cannotFindHost, .dnsLookupFailed: return "Can't reach \(host)."
-        default: return err.localizedDescription
+        case .cancelled: return "The usage request was cancelled."
+        case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+             .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot:
+            return "A secure connection to \(host) could not be verified."
+        default: return "The usage request to \(host) failed (network error \(err.errorCode))."
         }
     }
 

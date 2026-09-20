@@ -339,7 +339,7 @@ struct SortAndRemoteTmuxTests {
         #expect(RemoteTmux.sshReason(crlf) == "Permission denied, please try again.")
 
         #expect(RemoteTmux.sshReason("ssh: Could not resolve hostname nope: nodename nor servname provided")
-                == "Could not resolve hostname nope: nodename nor servname provided")
+                == "Could not resolve the configured host.")
         #expect(RemoteTmux.sshReason("ssh: connect to host x port 22: Connection refused")?
             .contains("Connection refused") == true)
         // Nothing recognisable is not a reason; the caller has a better default.

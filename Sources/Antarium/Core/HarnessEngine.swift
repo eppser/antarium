@@ -35,6 +35,33 @@ enum HarnessEngine {
     }
 
     struct Session: Codable {
+        /// Nil only in older persisted/manual values. Parsed sources record
+        /// presence separately so an explicit zero never becomes missing data.
+        var observedNumericFields: Set<String>?
+        mutating func markNumeric(_ field:String) {
+            if observedNumericFields == nil { observedNumericFields = [] }
+            observedNumericFields?.insert(field)
+        }
+        func hasNumeric(_ field:String) -> Bool {
+            if let observedNumericFields { return observedNumericFields.contains(field) }
+            switch field {
+            case "inputTokens": return inputTokens > 0
+            case "outputTokens": return outputTokens > 0
+            case "cacheWrite": return cacheWrite > 0
+            case "cacheRead": return cacheRead > 0
+            case "cost": return costUSD > 0
+            case "toolCalls": return toolCalls > 0
+            case "turns": return turns > 0
+            case "subAgents": return subAgents > 0
+            default: return false
+            }
+        }
+        var sourceFile: String?
+        var numericIssue: String?
+        var sourceIssue: String?
+        var sourceBacklogged: Bool?
+        var sourceReadState: BoundedTraceReader.State?
+        var sourceStamp: String?
         var cwd: String?
         var title: String?
         var model: String?
@@ -77,9 +104,21 @@ enum HarnessEngine {
 
         /// What actually went over the wire. Cache reads are re-used
         /// server-side, not re-uploaded, so they are not "sent".
-        var sentTokens: Int {
+        var sentTokens: Int? {
+            guard inputTokens >= 0, cacheRead >= 0, cacheWrite >= 0 else { return nil }
             let uncached = inputIncludesCacheRead ? max(inputTokens - cacheRead, 0) : inputTokens
-            return uncached + cacheWrite
+            let total = uncached.addingReportingOverflow(cacheWrite)
+            return total.overflow ? nil : total.partialValue
+        }
+        var usageIssue: String? {
+            if let numericIssue { return numericIssue }
+            if let sourceIssue { return sourceIssue }
+            if sourceBacklogged == true { return "Trace history is still being read. Usage figures are unavailable until it catches up." }
+            guard [inputTokens, outputTokens, cacheRead, cacheWrite, toolCalls, turns, subAgents].allSatisfy({ $0 >= 0 }),
+                  costUSD.isFinite, costUSD >= 0, sentTokens != nil else {
+                return "Trace usage values are invalid or out of range. Usage figures are unavailable."
+            }
+            return nil
         }
     }
 
@@ -114,7 +153,7 @@ enum HarnessEngine {
         lock.lock()
         healthByID[id] = Health(message: message, observedAt: Date())
         lock.unlock()
-        Log.info("harness", "\(id): \(message)")
+        Log.info("harness", message)
     }
 
     // MARK: - Persistence
@@ -147,7 +186,8 @@ enum HarnessEngine {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         guard let data = try? encoder.encode(HarnessDescriptor.all()) else { return 0 }
-        var hash: UInt64 = 0xcbf29ce484222325
+        // Reader semantics changed: invalidate persisted counts lacking presence.
+        var hash: UInt64 = 0xcbf29ce484222325 ^ 3
         for byte in data {
             hash ^= UInt64(byte)
             hash &*= 0x100000001b3
@@ -240,7 +280,7 @@ enum HarnessEngine {
                                                     withIntermediateDirectories: true)
             try JSONEncoder().encode(store).write(to: cacheURL, options: .atomic)
         } catch {
-            NSLog("Antarium: couldn't write harness cache — %@", error.localizedDescription)
+            Log.warn("harness", "Could not save the harness cache.")
         }
     }
 
@@ -297,7 +337,7 @@ enum HarnessEngine {
         case .json, .jsonl:
             let root = URL(fileURLWithPath: descriptor.source.path.expandingTilde)
             let limit = min(max(descriptor.source.limit ?? 40, 1), 400)
-            return matchingFiles(under: root, glob: descriptor.source.glob ?? "*")
+            return ((try? matchingFiles(under: root, glob: descriptor.source.glob ?? "*")) ?? [])
                 .sorted { modified($0) > modified($1) }
                 .prefix(limit)
                 .reduce(0) { total, url in
@@ -337,13 +377,19 @@ enum HarnessEngine {
         if descriptor.source.kind == .none { return [] }
         if descriptor.source.kind == .command { return commandSessions(descriptor) }
 
-        let files = descriptor.source.kind == .sqlite
-            ? []
-            : matchingFiles(under: URL(fileURLWithPath: descriptor.source.path.expandingTilde),
-                            glob: descriptor.source.glob ?? "*")
+        let files: [URL]
+        do {
+            files = descriptor.source.kind == .sqlite ? [] : try matchingFiles(
+                under: URL(fileURLWithPath: descriptor.source.path.expandingTilde), glob: descriptor.source.glob ?? "*")
+        } catch {
+            fail(descriptor.id, "Source discovery is unavailable or exceeds its directory budget. Session details are unavailable.")
+            return []
+        }
         let fingerprint = sourceFingerprint(descriptor, files: files)
         lock.lock()
-        if let hit = cache[descriptor.id], hit.fingerprint == fingerprint {
+        if let hit = cache[descriptor.id], hit.fingerprint == fingerprint,
+           healthByID[descriptor.id] == nil,
+           !hit.sessions.contains(where: { $0.sourceBacklogged == true }) {
             lock.unlock()
             observed(descriptor.id, cacheHit: true)
             return hit.sessions
@@ -424,48 +470,29 @@ enum HarnessEngine {
             }
             guard let query = d.source.query else { return ([], "no query declared") }
             guard let columns = d.source.columns else { return ([], "no columns declared") }
-            var db: OpaquePointer?
-            guard sqlite3_open_v2("file:\(path)?mode=ro", &db,
-                                  SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
-                  let db else {
-                if db != nil { sqlite3_close(db) }
-                return ([], "could not open \(path)")
+            guard let result = try? BoundedSQLite.query(path:path,sql:query) else {
+                return ([],"SQLite source is unavailable, invalid, or exceeds its read budget.")
             }
-            defer { sqlite3_close(db) }
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK,
-                  let statement else {
-                let message = String(cString: sqlite3_errmsg(db))
-                return ([], "query failed: \(message)")
-            }
-            defer { sqlite3_finalize(statement) }
-
-            var rows: [[String: Any]] = []
-            let selected = Int(sqlite3_column_count(statement))
-            while sqlite3_step(statement) == SQLITE_ROW, rows.count < 20 {
-                var record: [String: Any] = [:]
-                for (index, field) in columns.enumerated() where index < selected {
-                    let i = Int32(index)
-                    switch sqlite3_column_type(statement, i) {
-                    case SQLITE_NULL: break
-                    case SQLITE_INTEGER: record[field] = Int(sqlite3_column_int64(statement, i))
-                    case SQLITE_FLOAT: record[field] = sqlite3_column_double(statement, i)
-                    default:
-                        if let raw = sqlite3_column_text(statement, i) {
-                            record[field] = String(cString: raw)
-                        }
+            guard result.columns.count == columns.count else { return ([],"SQLite columns do not match the declared mapping.") }
+            let rows:[[String:Any]] = result.rows.prefix(min(20,max(1,limit))).map { values in
+                var record:[String:Any] = [:]
+                for (field,value) in zip(columns,values) {
+                    switch value {
+                    case .null, .blob: break
+                    case .integer(let number): record[field] = Int(exactly:number)
+                    case .real(let number): record[field] = number
+                    case .text(let text): record[field] = text
                     }
                 }
-                rows.append(record)
+                return record
             }
-            let mismatch = selected != columns.count
-                ? " — query selects \(selected) column(s) but \(columns.count) are named"
-                : ""
-            return (rows, "sqlite: \(rows.count) row(s)\(mismatch)")
+            return (rows,"sqlite: \(rows.count) sampled row(s)")
         case .json, .jsonl:
             let root = URL(fileURLWithPath: d.source.path.expandingTilde)
-            let files = matchingFiles(under: root, glob: d.source.glob ?? "*")
-                .sorted { modified($0) > modified($1) }
+            guard let matched = try? matchingFiles(under: root, glob: d.source.glob ?? "*") else {
+                return ([], "Source discovery is unavailable or exceeds its directory budget.")
+            }
+            let files = matched.sorted { modified($0) > modified($1) }
             guard let newest = files.first else {
                 return ([], "no files matched \(d.source.path)/\(d.source.glob ?? "*")")
             }
@@ -474,43 +501,38 @@ enum HarnessEngine {
             // be the newest one the checker called every other field missing —
             // it reported Cursor's title as unreadable while the session next
             // to it had one.
-            let sampled = Array(files.prefix(5))
+            let budget = min(400, max(1, limit))
+            let sampled = Array(files.prefix(min(5, budget)))
+            let perFile = max(1, budget / sampled.count)
             var records: [[String: Any]] = []
+            var limited = false
             for file in sampled {
-            if d.source.kind == .json {
-                if let data = try? Data(contentsOf: file),
-                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    records.append(object)
-                }
-            } else if d.source.journal == true,
-                      let text = try? String(contentsOf: file, encoding: .utf8) {
-                let lines = text.split(separator: "\n").compactMap { line -> [String: Any]? in
-                    line.data(using: .utf8).flatMap {
-                        try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
-                    } ?? nil
-                }
-                if !lines.isEmpty { records.append(["v": Journal.fold(lines)]) }
-            } else if let text = try? String(contentsOf: file, encoding: .utf8) {
-                // Both ends, not just the head: a session's opening records and
-                // its latest ones carry different fields — Kimi writes its
-                // measured context only once a conversation is under way — and
-                // sampling the top alone reported a working field as missing.
-                let lines = text.split(separator: "\n")
-                let half = max(limit / 2, 1)
-                let sample = lines.count <= limit
-                    ? Array(lines)
-                    : Array(lines.prefix(half)) + Array(lines.suffix(half))
-                for line in sample {
-                    if let data = line.data(using: .utf8),
+                if d.source.kind == .json {
+                    if let data = try? BoundedFile.read(file),
                        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         records.append(object)
-                    }
-                }
-            }
+                    } else { limited = true }
+                } else if d.source.journal == true {
+                    // A journal must be folded from the full bounded document;
+                    // sampling its ends would manufacture an invalid state.
+                    if let data = try? BoundedFile.read(file) {
+                        let lines = data.split(separator: 0x0A).compactMap {
+                            try? JSONSerialization.jsonObject(with: Data($0)) as? [String: Any]
+                        }
+                        if !lines.isEmpty { records.append(["v": Journal.fold(lines)]) }
+                    } else { limited = true }
+                } else if let sample = try? BoundedFile.sampleJSONL(file, maxRecords: perFile) {
+                    limited = limited || sample.limited
+                    records.append(contentsOf: sample.records.compactMap {
+                        try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+                    })
+                } else { limited = true }
             }
             let extra = sampled.count > 1 ? " + \(sampled.count - 1) more" : ""
-            return (records,
-                    "\(files.count) file(s); newest \(newest.lastPathComponent)\(extra)")
+            let bounds = limited ? "; bounded sample, some history omitted" : ""
+            return (Array(records.prefix(budget)),
+                    "\(files.count) file(s); newest \(newest.lastPathComponent)\(extra)\(bounds)")
+
         }
     }
 
@@ -542,17 +564,16 @@ enum HarnessEngine {
         if let path = resolve(d.source.command ?? "") {
             clearHealth(d.id)
             let result = Shell.execute(path, d.source.args ?? [], timeout: 10)
-            guard result.succeeded else {
+            guard result.completeOutput else {
                 let reason: String
-                if let error = result.launchError {
-                    reason = "could not launch command: \(error)"
+                if result.launchError != nil {
+                    reason = "could not launch the configured command"
+                } else if result.stdoutTruncated {
+                    reason = "command output exceeded its size limit; no partial sessions were accepted"
                 } else if result.timedOut {
                     reason = "command timed out"
                 } else {
-                    let detail = result.stderr.trimmingCharacters(
-                        in: .whitespacesAndNewlines)
-                    reason = "command exit \(result.exitCode ?? -1)"
-                        + (detail.isEmpty ? "" : ": \(detail.prefix(240))")
+                    reason = "command exit \(result.exitCode ?? -1); private command output was omitted"
                 }
                 fail(d.id, reason)
                 lock.lock()
@@ -574,7 +595,7 @@ enum HarnessEngine {
                 for record in records {
                     var session = Session()
                     apply(record, to: &session, d.fields)
-                    if let key = d.fields.pid { session.pid = Int32(int(record, key)) }
+
                     sessions.append(session)
                 }
             } else {
@@ -583,7 +604,7 @@ enum HarnessEngine {
                     : "command did not return JSON")
             }
         } else {
-            fail(d.id, "command not found: \(d.source.command ?? "")")
+            fail(d.id, "configured command was not found")
         }
         let sorted = sessions.sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
         lock.lock(); commandCache[key] = (Date(), sorted); lock.unlock()
@@ -608,15 +629,18 @@ enum HarnessEngine {
     // MARK: - Files
 
     private static func readFiles(_ descriptor: HarnessDescriptor, _ files: [URL]) -> [Session] {
+        clearHealth(descriptor.id)
         let limit = min(max(descriptor.source.limit ?? 40, 1), 400)
         return files
             .sorted { modified($0) > modified($1) }
             .prefix(limit)                                // newest few; older ones are history
             .filter { !rejectedEarly($0, descriptor) }
             .compactMap { file in
-                descriptor.source.kind == .jsonl
+                var session = descriptor.source.kind == .jsonl
                     ? cachedJSONL(file, descriptor)
                     : readJSON(file, descriptor)
+                if descriptor.source.kind == .jsonl { session?.sourceFile = file.path }
+                return session
             }
             .filter { descriptor.source.filter == nil || $0.matchedFilter }
     }
@@ -628,14 +652,12 @@ enum HarnessEngine {
     /// mention the field is parsed in full and judged on its contents.
     private static func rejectedEarly(_ url: URL, _ d: HarnessDescriptor) -> Bool {
         guard let filter = d.source.filter else { return false }
-        let key = parsedFileKey(url, d)
+        let key = parsedFileKey(url, d) + "|" + FileStamp.of(url)
         lock.lock(); let known = rejected.contains(key); lock.unlock()
         if known { return true }
         lock.lock(); let parsed = files[parsedFileKey(url, d)] != nil; lock.unlock()
         if parsed { return false }          // already read; its verdict is cached
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-        defer { try? handle.close() }
-        guard let chunk = try? handle.read(upToCount: 16_384),
+        guard let chunk = try? BoundedFile.prefix(url,maxBytes:16_384),
               let text = String(data: chunk, encoding: .utf8),
               let line = text.split(separator: "\n").first,
               let data = line.data(using: .utf8),
@@ -650,25 +672,8 @@ enum HarnessEngine {
     }
 
     /// Minimal glob: `*` matches within one path component, `**` any depth.
-    private static func matchingFiles(under root: URL, glob: String) -> [URL] {
-        let parts = glob.split(separator: "/").map(String.init)
-        var level = [root]
-        for (index, part) in parts.enumerated() {
-            let isLast = index == parts.count - 1
-            var next: [URL] = []
-            for directory in level {
-                let entries = (try? FileManager.default.contentsOfDirectory(
-                    at: directory, includingPropertiesForKeys: nil)) ?? []
-                for entry in entries where matches(entry.lastPathComponent, part) {
-                    var isDir: ObjCBool = false
-                    FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDir)
-                    if isLast ? !isDir.boolValue : isDir.boolValue { next.append(entry) }
-                }
-            }
-            level = next
-            if level.isEmpty { break }
-        }
-        return level
+    private static func matchingFiles(under root: URL, glob: String) throws -> [URL] {
+        try BoundedGlob.files(under:root,pattern:glob)
     }
 
     /// Applies a source glob to an already-known absolute file without walking
@@ -681,26 +686,7 @@ enum HarnessEngine {
         guard fileParts.count > rootParts.count,
               fileParts.starts(with: rootParts) else { return false }
         let relative = Array(fileParts.dropFirst(rootParts.count))
-        let pattern = glob.split(separator: "/").map(String.init)
-        return matchesPath(relative[...], pattern[...])
-    }
-
-    private static func matchesPath(_ path: ArraySlice<String>,
-                                    _ pattern: ArraySlice<String>) -> Bool {
-        guard let wanted = pattern.first else { return path.isEmpty }
-        if wanted == "**" {
-            return matchesPath(path, pattern.dropFirst())
-                || (!path.isEmpty && matchesPath(path.dropFirst(), pattern))
-        }
-        guard let component = path.first, matches(component, wanted) else { return false }
-        return matchesPath(path.dropFirst(), pattern.dropFirst())
-    }
-
-    private static func matches(_ name: String, _ pattern: String) -> Bool {
-        if pattern == "*" || pattern == "**" { return !name.hasPrefix(".") }
-        if pattern.hasPrefix("*") { return name.hasSuffix(pattern.dropFirst()) }
-        if pattern.hasSuffix("*") { return name.hasPrefix(pattern.dropLast()) }
-        return name == pattern
+        return BoundedGlob.matches(path:relative,pattern:glob)
     }
 
     private static func modified(_ url: URL) -> Date {
@@ -709,9 +695,12 @@ enum HarnessEngine {
     }
 
     private static func readJSON(_ url: URL, _ d: HarnessDescriptor) -> Session? {
-        guard let data = try? Data(contentsOf: url),
+        guard let data = try? BoundedFile.read(url),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
+        else {
+            fail(d.id, "JSON source is unavailable, invalid, or exceeds the 4 MiB read limit.")
+            return nil
+        }
         observed(d.id, bytes: UInt64(data.count), records: 1)
         var session = Session()
         note(object, matching: d, in: &session)
@@ -724,91 +713,74 @@ enum HarnessEngine {
 
     /// Reads only what has been appended since the last scan.
     private static func cachedJSONL(_ url: URL, _ d: HarnessDescriptor) -> Session? {
-        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? UInt64)
-            .flatMap { $0 } ?? 0
         let key = parsedFileKey(url, d)
-
+        let stamp = FileStamp.of(url)
         lock.lock(); let hit = files[key]; lock.unlock()
-        // A file that shrank was rotated or rewritten: start it over.
-        if let hit, hit.bytes == size { return hit.session }
-        // A journal's meaning is in the whole file: a later line can overwrite
-        // an earlier one, so resuming halfway would apply patches to a document
-        // that was never rebuilt. Unchanged files still short-circuit above, so
-        // only a session being written right now is re-read — and those are
-        // small.
+        if let hit, hit.session.sourceStamp == stamp, hit.session.sourceBacklogged != true {
+            return hit.session
+        }
         let journal = d.source.journal == true
-        let from = journal ? 0 : ((hit?.bytes ?? 0) <= size ? (hit?.bytes ?? 0) : 0)
-
-        let read = readJSONL(url, d, from: from,
-                             carrying: (!journal && from > 0) ? hit?.session : nil)
-        guard var session = read.session else { return nil }
+        // Legacy caches lack an identity, so their counters cannot safely be
+        // combined with a file that may have been replaced since persistence.
+        let previous = !journal && hit?.session.sourceReadState != nil ? hit?.session : nil
+        guard var session = readJSONL(url, d, carrying: previous) else { return nil }
         applyPathFields(from: url, to: &session, d)
         applyManifest(near: url, to: &session, d)
         session.lastActivity = session.lastActivity ?? modified(url)
-
-        // Resume from the last *complete* record, not from the end of the file.
-        // Storing the file's size treated a half-written trailing line as read:
-        // the next pass began after it, so that record — and its tokens — were
-        // dropped for good, while any tool marker inside it had already counted.
-        lock.lock(); files[key] = (from + read.consumed, session); lock.unlock()
+        session.sourceStamp = stamp
+        lock.lock(); files[key] = (session.sourceReadState?.offset ?? 0, session); lock.unlock()
         return session
     }
 
-    /// Returns the session and how many bytes of complete records were read,
-    /// so the caller can resume exactly where a record ended.
     private static func readJSONL(_ url: URL, _ d: HarnessDescriptor,
-                                  from offset: UInt64 = 0,
-                                  carrying: Session? = nil) -> (session: Session?, consumed: UInt64) {
-        var data: Data
-        if offset > 0, let handle = try? FileHandle(forReadingFrom: url) {
-            defer { try? handle.close() }
-            try? handle.seek(toOffset: offset)
-            data = (try? handle.readToEnd()) ?? Data()
-        } else if let whole = try? Data(contentsOf: url) {
-            data = whole
-        } else {
-            return (nil, 0)
-        }
-        let bytesRead = UInt64(data.count)
-        // Everything after the final newline is a record still being written.
-        // It is left for the next pass rather than half-parsed now.
-        guard let lastBreak = data.lastIndex(of: 0x0A) else {
-            return (carrying, 0)
-        }
-        let consumed = UInt64(data.distance(from: data.startIndex, to: lastBreak) + 1)
-        data = data.prefix(upTo: data.index(after: lastBreak))
-        let text = String(data: data, encoding: .utf8) ?? ""
+                                  carrying: Session? = nil) -> Session? {
         var session = carrying ?? Session()
         var any = carrying != nil
         let journal = d.source.journal == true
         var folding: [[String: Any]] = []
         var parsedRecords = 0
-        autoreleasepool {
-            for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
-                if let marker = d.fields.toolMarker {
-                    // One record can carry several calls, so count occurrences.
-                    session.toolCalls += line.components(separatedBy: marker).count - 1
+        var invalidRecords = 0
+        do {
+            let batch = try BoundedTraceReader.read(url, state: session.sourceReadState ?? .init(),
+                onReset: { session = Session(); any = false }) { data in
+                    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                        invalidRecords += 1; return
+                    }
+                    parsedRecords += 1; any = true
+                    if let marker = d.fields.toolMarker, let line = String(data: data, encoding: .utf8) {
+                        session.markNumeric("toolCalls")
+                        let count = line.components(separatedBy: marker).count - 1
+                        let next = session.toolCalls.addingReportingOverflow(count)
+                        if next.overflow { session.numericIssue = "Trace tool count is out of range. Usage figures are unavailable." }
+                        else { session.toolCalls = next.partialValue }
+                    }
+                    if journal { folding.append(object); return }
+                    note(object, matching: d, in: &session)
+                    apply(object, to: &session, d.fields)
                 }
-                guard let data = line.data(using: .utf8),
-                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                else { continue }
-                parsedRecords += 1
-                any = true
-                if journal { folding.append(object); continue }
-                note(object, matching: d, in: &session)
-                apply(object, to: &session, d.fields)
+            session.sourceReadState = batch.state
+            session.sourceBacklogged = batch.backlogged
+            if batch.skipped > 0 || invalidRecords > 0 {
+                session.sourceIssue = "Some trace records were invalid or exceeded the read limit. Usage figures are unavailable."
             }
-            if journal, !folding.isEmpty {
-                // One document, mapped once: applying each patch on its own
-                // would add the same token count twice when a value is first
-                // appended and then set.
-                let record = ["v": Journal.fold(folding)]
-                note(record, matching: d, in: &session)
-                apply(record, to: &session, d.fields)
+            if journal {
+                if batch.backlogged {
+                    // Journal patches require the entire document. A truncated
+                    // fold must never masquerade as the complete session.
+                    session.sourceIssue = "The journal exceeds the 4 MiB read limit. Usage figures are unavailable."
+                    session.sourceBacklogged = false
+                } else if !folding.isEmpty {
+                    let record = ["v": Journal.fold(folding)]
+                    note(record, matching: d, in: &session)
+                    apply(record, to: &session, d.fields)
+                }
             }
+            observed(d.id, bytes: UInt64(batch.bytesRead), records: parsedRecords)
+            return any || session.usageIssue != nil ? session : nil
+        } catch {
+            fail(d.id, "Trace source could not be read as a regular file.")
+            return nil
         }
-        observed(d.id, bytes: bytesRead, records: parsedRecords)
-        return (any ? session : nil, consumed)
     }
 
 
@@ -826,7 +798,7 @@ enum HarnessEngine {
                                       _ d: HarnessDescriptor) {
         guard let manifest = d.source.manifest,
               let file = manifestURL(near: url, d) else { return }
-        guard let data = try? Data(contentsOf: file),
+        guard let data = try? BoundedFile.read(file),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return }
         apply(object, to: &session, manifest.map)
@@ -885,28 +857,82 @@ enum HarnessEngine {
             session.lastActivity = when
             if session.startedAt == nil { session.startedAt = when }
         }
-        if let path = map.inputTokens  { session.inputTokens  += int(record, path) }
+        if let path = map.pid, let value = FieldPath.lookup(record,path) {
+            session.pid = FieldPath.processID(value)
+        }
+        let integerPaths = [map.inputTokens, map.outputTokens, map.cacheRead, map.cacheWrite,
+                            map.contextWindow] + (map.contextTokens ?? []).map(Optional.some)
+        for path in integerPaths.compactMap({ $0 }) {
+            let values = FieldPath.each(record, path)
+            if !values.isEmpty && !values.allSatisfy({ $0 is NSNull }),
+               (FieldPath.int(record, path).map { $0 >= 0 } != true) {
+                session.numericIssue = "Trace usage values are invalid or out of range. Usage figures are unavailable."
+            }
+        }
+        if let path = map.cost, !FieldPath.each(record,path).isEmpty,
+           !FieldPath.each(record,path).allSatisfy({ $0 is NSNull }),
+           FieldPath.number(record, path).map({ $0 >= 0 }) != true {
+            session.numericIssue = "Trace cost is invalid or unavailable. Usage figures are unavailable."
+        }
+        if session.observedNumericFields == nil { session.observedNumericFields = [] }
+        for (field,path) in [("inputTokens",map.inputTokens),("outputTokens",map.outputTokens),
+                            ("cacheRead",map.cacheRead),("cacheWrite",map.cacheWrite)] {
+            if let path, let value = FieldPath.int(record,path), value >= 0 { session.markNumeric(field) }
+        }
+        if let path = map.cost, let amount = FieldPath.number(record,path), amount >= 0 { session.markNumeric("cost") }
         if map.inputIncludesCacheRead == true { session.inputIncludesCacheRead = true }
-        if let path = map.outputTokens { session.outputTokens += int(record, path) }
-        if let path = map.cacheRead    { session.cacheRead    += int(record, path) }
-        if let path = map.cacheWrite   { session.cacheWrite   += int(record, path) }
-        if let path = map.cost         { session.costUSD      += double(record, path) }
-        if let path = map.contextWindow {
-            let window = int(record, path)
-            if window > 0 { session.contextWindow = window }
+        if session.numericIssue == nil {
+            func accumulated(_ current: Int, path: String?) -> Int? {
+                let amount = path.flatMap { FieldPath.int(record, $0) } ?? 0
+                let total = current.addingReportingOverflow(amount)
+                return total.overflow ? nil : total.partialValue
+            }
+            if let input = accumulated(session.inputTokens, path: map.inputTokens),
+               let output = accumulated(session.outputTokens, path: map.outputTokens),
+               let read = accumulated(session.cacheRead, path: map.cacheRead),
+               let write = accumulated(session.cacheWrite, path: map.cacheWrite) {
+                session.inputTokens = input; session.outputTokens = output
+                session.cacheRead = read; session.cacheWrite = write
+            } else {
+                session.numericIssue = "Trace usage totals exceeded the supported range. Usage figures are unavailable."
+            }
+            if let path = map.cost, let amount = FieldPath.number(record, path) {
+                let total = session.costUSD + amount
+                if total.isFinite { session.costUSD = total }
+                else { session.numericIssue = "Trace cost exceeded the supported range. Usage figures are unavailable." }
+            }
+            if let path = map.contextWindow, let window = FieldPath.int(record, path), window > 0 {
+                session.contextWindow = window
+            }
+            if let paths = map.contextTokens {
+                var measured = 0
+                for path in paths {
+                    let total = measured.addingReportingOverflow(FieldPath.int(record, path) ?? 0)
+                    if total.overflow {
+                        session.numericIssue = "Trace context exceeded the supported range. Usage figures are unavailable."
+                        break
+                    }
+                    measured = total.partialValue
+                }
+                if session.numericIssue == nil && paths.contains(where: { FieldPath.int(record,$0) != nil }) {
+                    session.measuredContext = measured
+                }
+            }
         }
-        if let paths = map.contextTokens {
-            let measured = paths.reduce(0) { $0 + int(record, $1) }
-            if measured > 0 { session.measuredContext = measured }
+        func countIsPresent(_ path:String) -> Bool {
+            let value = FieldPath.lookup(record,path)
+            return value is [Any] || value is [String:Any]
         }
-        if let count = map.turns {
-            let total = FieldPath.count(record, path: count.path, match: count.filter)
-            if total > 0 { session.turns = total }
+        if let count = map.turns, countIsPresent(count.path) {
+            session.markNumeric("turns")
+            session.turns = FieldPath.count(record,path:count.path,match:count.filter)
         }
-        if let count = map.subAgents {
-            let total = FieldPath.count(record, path: count.path, match: count.filter)
-            if total > 0 { session.subAgents = total }
+        if let count = map.subAgents, countIsPresent(count.path) {
+            session.markNumeric("subAgents")
+            session.subAgents = FieldPath.count(record,path:count.path,match:count.filter)
         }
+        if map.turnWhere != nil { session.markNumeric("turns") }
+        if map.toolWhere != nil { session.markNumeric("toolCalls") }
 
         if let want = map.turnWhere,
            want.allSatisfy({ string(record, $0.key) == $0.value }) {
@@ -916,7 +942,8 @@ enum HarnessEngine {
            want.allSatisfy({ string(record, $0.key) == $0.value }) {
             session.toolCalls += 1
         }
-        if let count = map.toolCalls {
+        if let count = map.toolCalls, countIsPresent(count.path) {
+            session.markNumeric("toolCalls")
             session.toolCalls += FieldPath.count(record, path: count.path, match: count.filter)
         }
         if let status = map.status, let path = status.whileNotEmpty {
@@ -932,80 +959,57 @@ enum HarnessEngine {
 
     // MARK: - SQLite
 
-    /// A timestamp column is an epoch in some stores and an ISO string in
-    /// others — Copilot writes `2026-08-24T09:40:05.464Z`. Reading it as a
-    /// number gave zero, silently, so both are accepted.
-    private static func time(_ statement: OpaquePointer, _ index: Int32) -> Date? {
-        if sqlite3_column_type(statement, index) == SQLITE_TEXT,
-           let raw = sqlite3_column_text(statement, index) {
-            return UsageHTTP.parseDate(String(cString: raw))
-        }
-        return FieldPath.epoch(sqlite3_column_double(statement, index))
-    }
-
     private static func readSQLite(_ d: HarnessDescriptor) -> [Session] {
         clearHealth(d.id)
         guard let query = d.source.query, let columns = d.source.columns else {
             fail(d.id, "SQLite source is missing query or columns")
             return []
         }
-        var db: OpaquePointer?
-        let path = d.source.path.expandingTilde
-        guard sqlite3_open_v2("file:\(path)?mode=ro", &db,
-                              SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
-              let db else {
-            if db != nil { sqlite3_close(db) }
-            fail(d.id, "could not open SQLite database at \(path)")
+        let result:BoundedSQLite.Result
+        do { result = try BoundedSQLite.query(path:d.source.path.expandingTilde,sql:query) }
+        catch {
+            fail(d.id,(error as? BoundedSQLite.ReadError)?.message ?? "SQLite source could not be read.")
             return []
         }
-        defer { sqlite3_close(db) }
-
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK, let statement else {
-            fail(d.id, "SQLite query failed: \(String(cString: sqlite3_errmsg(db)))")
-            return []
+        guard columns.count == result.columns.count else {
+            fail(d.id,"SQLite result columns do not match the declared mapping."); return []
         }
-        defer { sqlite3_finalize(statement) }
-
-        var out: [Session] = []
-        var step = sqlite3_step(statement)
-        while step == SQLITE_ROW {
-            var session = Session()
-            for (index, field) in columns.enumerated() {
-                let i = Int32(index)
+        return result.rows.map { values in
+            var session = Session(); session.observedNumericFields = []
+            for (field,value) in zip(columns,values) {
+                if value == .null { continue }
                 switch field {
-                case "sessionID":    session.sessionID = text(statement, i)
-                case "cwd":          session.cwd = text(statement, i)
-                case "title":        session.title = text(statement, i)
-                case "model":        session.model = text(statement, i)
-                case "inputTokens":  session.inputTokens = Int(sqlite3_column_int64(statement, i))
-                case "outputTokens": session.outputTokens = Int(sqlite3_column_int64(statement, i))
-                case "cacheRead":    session.cacheRead = Int(sqlite3_column_int64(statement, i))
-                case "cacheWrite":   session.cacheWrite = Int(sqlite3_column_int64(statement, i))
-                case "toolCalls":    session.toolCalls = Int(sqlite3_column_int64(statement, i))
-                case "cost":         session.costUSD = sqlite3_column_double(statement, i)
-                case "startedAt":    session.startedAt = time(statement, i)
-                case "lastActivity": session.lastActivity = time(statement, i)
-                case "turns":        session.turns = Int(sqlite3_column_int64(statement, i))
-                case "subAgents":    session.subAgents = Int(sqlite3_column_int64(statement, i))
-                case "contextTokens":
-                    session.measuredContext = Int(sqlite3_column_int64(statement, i))
-                case "contextWindow":
-                    session.contextWindow = Int(sqlite3_column_int64(statement, i))
+                case "sessionID": session.sessionID = value.string
+                case "cwd": session.cwd = value.string
+                case "title": session.title = value.string
+                case "model": session.model = value.string
+                case "startedAt": session.startedAt = value.date
+                case "lastActivity": session.lastActivity = value.date
+                case "cost":
+                    if let amount = value.number, amount >= 0 { session.costUSD = amount; session.markNumeric("cost") }
+                    else { session.numericIssue = "SQLite usage values are invalid. Usage figures are unavailable." }
+                case "inputTokens","outputTokens","cacheRead","cacheWrite","toolCalls","turns","subAgents","contextTokens","contextWindow":
+                    guard let amount = value.integer, amount >= 0 else {
+                        session.numericIssue = "SQLite usage values are invalid. Usage figures are unavailable."; continue
+                    }
+                    session.markNumeric(field)
+                    switch field {
+                    case "inputTokens": session.inputTokens = amount
+                    case "outputTokens": session.outputTokens = amount
+                    case "cacheRead": session.cacheRead = amount
+                    case "cacheWrite": session.cacheWrite = amount
+                    case "toolCalls": session.toolCalls = amount
+                    case "turns": session.turns = amount
+                    case "subAgents": session.subAgents = amount
+                    case "contextTokens": session.measuredContext = amount
+                    case "contextWindow": session.contextWindow = amount > 0 ? amount : nil
+                    default: break
+                    }
                 default: break
                 }
             }
-            out.append(session)
-            step = sqlite3_step(statement)
+            return session
         }
-        if step != SQLITE_DONE {
-            fail(d.id, "SQLite query stopped: \(String(cString: sqlite3_errmsg(db)))")
-        }
-        return out
-    }
-
-    private static func text(_ statement: OpaquePointer, _ i: Int32) -> String? {
-        sqlite3_column_text(statement, i).map { String(cString: $0) }
     }
 
     /// Some stores hold seconds, some milliseconds; both are common enough that
@@ -1019,9 +1023,7 @@ enum HarnessEngine {
     /// recently, not whatever it started with.
     private static func string(_ r: [String: Any], _ p: String) -> String? { FieldPath.string(r, p) }
 
-    private static func int(_ r: [String: Any], _ p: String) -> Int { FieldPath.int(r, p) }
 
-    private static func double(_ r: [String: Any], _ p: String) -> Double { FieldPath.double(r, p) }
 
     private static func date(_ r: [String: Any], _ p: String) -> Date? { FieldPath.date(r, p) }
 

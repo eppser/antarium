@@ -21,37 +21,8 @@ enum OpenCodeTabs {
 
     /// Session ids with a tab open, or nil when the state cannot be read.
     static func open(in directory: URL = stateDirectory) -> Set<String>? {
-        let names = (try? FileManager.default
-            .contentsOfDirectory(atPath: directory.path))?
-            .filter { $0.hasPrefix("opencode.window.") && $0.hasSuffix(".dat") } ?? []
-        guard !names.isEmpty else { return nil }
-
-        var open: Set<String> = []
-        var readAny = false
-        for name in names {
-            guard let data = try? Data(contentsOf: directory
-                    .appendingPathComponent(name)),
-                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { continue }
-            // The value is JSON in its own right, stored as a string.
-            guard let raw = root["tabs"] else { continue }
-            let tabs: [Any]
-            if let list = raw as? [Any] {
-                tabs = list
-            } else if let text = raw as? String,
-                      let nested = try? JSONSerialization.jsonObject(
-                          with: Data(text.utf8)) as? [Any] {
-                tabs = nested
-            } else { continue }
-            readAny = true
-            for case let tab as [String: Any] in tabs
-            where (tab["type"] as? String) == "session" {
-                if let id = tab["sessionId"] as? String { open.insert(id) }
-            }
-        }
-        // A window with no session tabs is a real state, so an empty set is
-        // only meaningful if at least one file parsed.
-        Log.debug("opencode", readAny ? "\(open.count) tab(s) open" : "no window state readable")
-        return readAny ? open : nil
+        SessionSelection.openIDs(.init(kind: .jsonFiles, path: directory.path,
+            glob: "opencode.window.*.dat", records: "tabs", encodedJSON: true,
+            id: "sessionId", filter: ["type": ["session"]]))
     }
 }
