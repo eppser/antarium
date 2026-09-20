@@ -265,3 +265,30 @@ struct AgentListingTests {
         #expect(same.count == 2)
     }
 }
+
+@Suite("Dashboard explains withheld totals", .serialized)
+@MainActor
+struct DashboardWithheldTests {
+
+    private func row(_ note: String?) -> AgentRow {
+        var row = AgentRow(id: UUID().uuidString, agentID: "claude-code", name: "s",
+                           cwd: "/p", state: .waiting)
+        row.note = note
+        return row
+    }
+
+    @Test("Rows still reading history are counted for the footer")
+    func waitingRowsAreSummarised() {
+        // The totals beside this line are incomplete while any session is
+        // still being read. A cost of $670 appearing later is a worse surprise
+        // than a line saying it is coming.
+        #expect(DashboardView.rowsAwaitingHistory([]) == nil)
+        #expect(DashboardView.rowsAwaitingHistory([row(nil), row("Some other problem.")]) == nil)
+        #expect(DashboardView.rowsAwaitingHistory(
+            [row("Transcript history is still being read.")]) == "1 still reading")
+        #expect(DashboardView.rowsAwaitingHistory(
+            [row("Transcript history is still being read."),
+             row("Trace history is still being read."),
+             row(nil)]) == "2 still reading")
+    }
+}

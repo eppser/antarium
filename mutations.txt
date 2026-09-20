@@ -75,3 +75,4 @@ presence agents vanish from first run | Sources/Antarium/Core/Onboarding.swift |
 benchmark hides an unabsorbed backlog | Sources/Antarium/Core/TranscriptStats.swift | s/return cache.values.filter { \$0.backlog == true }.count/return 0/
 record limit back below real transcripts | Sources/Antarium/Core/BoundedTraceReader.swift | s/maxRecord: Int = 2 \* 1_024 \* 1_024/maxRecord: Int = 1_024 * 1_024/
 agent rows hide why their figures are missing | Sources/Antarium/Diagnostics.swift | s/        if let note = r.note, !note.isEmpty { lines.append("    \\(note)") }//
+dashboard hides that totals are incomplete | Sources/Antarium/UI/Dashboard.swift | s/let waiting = rows.filter { (\$0.note ?? "").contains("still being read") }.count/let waiting = 0/

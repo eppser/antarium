@@ -187,12 +187,37 @@ struct DashboardView: View {
                         + "On a subscription plan this is a size signal, not a bill.")
             }
             if store.totalRAM > 0 { Label(Fmt.bytes(store.totalRAM), systemImage: "memorychip") }
+            // Why some rows have no figures. It is on each row's tooltip too,
+            // but that needs knowing to hover: the totals beside this are
+            // incomplete while any session is still being read, and a cost of
+            // $670 appearing later is a worse surprise than a line saying it
+            // is coming.
+            if let waiting = Self.rowsAwaitingHistory(store.rows) {
+                Label(waiting, systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.tertiary)
+                    .help("These sessions have history still to read. Their tokens, "
+                        + "tool calls and cost are withheld until it is finished, "
+                        + "rather than shown low.")
+            }
             Spacer()
             Spacer()
             Text(store.scannedAt.map { Format.age($0) } ?? "—").foregroundStyle(.tertiary)
         }
         .font(.system(size: 9.5)).foregroundStyle(.secondary)
         .padding(.horizontal, 9).padding(.vertical, 5)
+    }
+}
+
+extension DashboardView {
+    /// How many rows are withholding figures because their history is still
+    /// being read, or nil when none are.
+    ///
+    /// Counted from the note the scan already put on each row rather than from
+    /// a second source, so the summary cannot disagree with the tooltips.
+    static func rowsAwaitingHistory(_ rows: [AgentRow]) -> String? {
+        let waiting = rows.filter { ($0.note ?? "").contains("still being read") }.count
+        guard waiting > 0 else { return nil }
+        return waiting == 1 ? "1 still reading" : "\(waiting) still reading"
     }
 }
 
