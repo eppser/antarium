@@ -110,7 +110,16 @@ enum Pricing {
         if let bracket = s.firstIndex(of: "[") { s = String(s[s.startIndex..<bracket]) }
 
         if s.hasPrefix("claude-") {
-            let parts = s.replacingOccurrences(of: "claude-", with: "").split(separator: "-")
+            // Drop the prefix, not every occurrence of it: `replacingOccurrences`
+            // would also eat it out of the middle of an id.
+            var parts = s.dropFirst("claude-".count).split(separator: "-")
+            // Claude ids carry a release date — `claude-haiku-4-5-20251001` is
+            // the shipped id for Haiku 4.5 — and joining every component after
+            // the family put "Haiku 4.5.20251001" in the menu bar. A version
+            // component is one or two digits; a date is not a version.
+            while let last = parts.last, last.count >= 6, last.allSatisfy(\.isNumber) {
+                parts.removeLast()
+            }
             guard let family = parts.first else { return nil }
             let version = parts.dropFirst().joined(separator: ".")
             return version.isEmpty ? family.capitalized : "\(family.capitalized) \(version)"

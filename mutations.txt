@@ -114,3 +114,6 @@ adoption forgets what it saw when it adopts nothing | Sources/Antarium/Core/Agen
 a rejected agent is adopted again | Sources/Antarium/Core/AgentAutoEnable.swift | s|where !seen.contains(provider.id) \&\& !enabled.contains(provider.id) {|where !enabled.contains(provider.id) {|
 adoption ignores the bar cap | Sources/Antarium/Core/AgentAutoEnable.swift | s|var room = limit - enabled.count|var room = 99|
 an unsigned agent is adopted | Sources/Antarium/Core/AgentAutoEnable.swift | s|guard provider.signedIn else { continue }||
+model label carries the release date | Sources/Antarium/Core/Pricing.swift | s|while let last = parts.last, last.count >= 6, last.allSatisfy(\\.isNumber) {|while false, let last = parts.last, last.count >= 6, last.allSatisfy(\\.isNumber) {|
+date stripping eats the version too | Sources/Antarium/Core/Pricing.swift | s|last.count >= 6, last.allSatisfy(\\.isNumber)|last.allSatisfy(\\.isNumber)|
+provider prefix treated as the model name | Sources/Antarium/Core/Pricing.swift | s|if let slash = s.lastIndex(of: "/") { s = String(s\[s.index(after: slash)...\]) }||
