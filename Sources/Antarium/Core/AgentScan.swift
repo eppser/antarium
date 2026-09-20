@@ -355,11 +355,19 @@ enum AgentScan {
     /// so both kinds of match belong here. Without the name check an agent that
     /// runs under an interpreter reported 0MB — its path is only ever "node".
     static func isAgent(_ candidate: String) -> Bool {
-        if HarnessDescriptor.matchFragments().contains(where: { candidate.contains($0) }) {
-            return true
-        }
-        return HarnessDescriptor.processNamesAll()
-            .contains((candidate as NSString).lastPathComponent)
+        isAgent(candidate,
+                fragments: HarnessDescriptor.matchFragments(),
+                names: HarnessDescriptor.processNamesAll())
+    }
+
+    /// The tables are parameters so this can be checked against the harnesses
+    /// the app ships rather than against whatever this Mac happens to have
+    /// seeded — the difference between a test and a description of one
+    /// developer's machine.
+    static func isAgent(_ candidate: String, fragments: [String],
+                        names: Set<String>) -> Bool {
+        if fragments.contains(where: { candidate.contains($0) }) { return true }
+        return names.contains((candidate as NSString).lastPathComponent)
     }
 
     static func liveProcesses() throws -> [Int32: Processes.Info] {

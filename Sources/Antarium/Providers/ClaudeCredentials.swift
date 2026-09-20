@@ -84,8 +84,16 @@ enum ClaudeCredentials {
 
     // MARK: - Sources
 
-    private static func fromFile() -> ClaudeToken? {
-        guard let data = try? Data(contentsOf: credentialsFile) else { return nil }
+    /// The file is a parameter so the bound below can be tested against a
+    /// synthetic one. Reading the real credentials file in a test would be
+    /// both unreliable and the wrong thing to do.
+    static func fromFile(_ credentialsFile: URL = ClaudeCredentials.credentialsFile)
+        -> ClaudeToken? {
+        // Another application writes this file, and every other reader here
+        // is bounded. A credential is a few kilobytes; nothing legitimate
+        // about this path is larger.
+        guard let data = try? BoundedFile.read(credentialsFile, maxBytes: 256 * 1_024)
+        else { return nil }
         return decode(data, source: .file)
     }
 

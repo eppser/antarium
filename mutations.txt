@@ -121,3 +121,11 @@ local bin dropped from the search again | Sources/Antarium/Core/CommandPath.swif
 a non-executable file counts as installed | Sources/Antarium/Core/CommandPath.swift | s|.first { FileManager.default.isExecutableFile(atPath: \$0) }|.first { FileManager.default.fileExists(atPath: $0) }|
 a command given as a path is not checked | Sources/Antarium/Core/CommandPath.swift | s|return FileManager.default.isExecutableFile(atPath: path) ? path : nil|return path|
 search order reversed | Sources/Antarium/Core/CommandPath.swift | s|return (places ?? Self.places)|return (places ?? Self.places).reversed()|
+claimed processes are not measured | Sources/Antarium/Core/AgentScan.swift | s|if fragments.contains(where: { candidate.contains(\$0) }) { return true }||
+claude credential file read unbounded again | Sources/Antarium/Providers/ClaudeCredentials.swift | s|BoundedFile.read(credentialsFile, maxBytes: 256 \* 1_024)|Data(contentsOf: credentialsFile)|
+codex reports signed in when the file merely exists | Sources/Antarium/Providers/CodexProvider.swift | s|ConfiguredProbe.value(id) { self.credentials() != nil }|FileManager.default.fileExists(atPath: codexHome.appendingPathComponent("auth.json").path)|
+codex sign-in forgets the API-key login | Sources/Antarium/Providers/CodexProvider.swift | s|?? auth?\["OPENAI_API_KEY"\] as? String|?? nil|
+credential output cap set absurdly low | Sources/Antarium/Providers/DescriptorProvider.swift | s|outputLimit: 8 \* 1_024|outputLimit: 8|
+credential output truncation passes as a token | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else { return nil }||
+live cache joins its own superseded list | Sources/Antarium/Core/TranscriptStats.swift | s|"transcripts-v4.json", "transcripts-v5.json",|"transcripts-v4.json", "transcripts-v5.json", "transcripts-v6.json",|
+the scanner measures everything | Sources/Antarium/Core/AgentScan.swift | s|return names.contains((candidate as NSString).lastPathComponent)|return true|

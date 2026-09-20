@@ -54,7 +54,10 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
 
     // MARK: - Credentials
 
-    private func token() -> String? {
+    /// Internal so the bound on a credential command's output can be tested:
+    /// `isConfigured` only asks whether the command resolves, and the output
+    /// is the part that becomes a bearer token.
+    func token() -> String? {
         guard let credential = quota.credential else { return "" }   // endpoint needs none
         switch credential.kind {
         case "env":
@@ -72,9 +75,15 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             let arguments = (credential.args ?? []).map {
                 $0.expandingTilde.replacingOccurrences(of: "~/", with: home + "/")
             }
-            let out = Shell.run(path, arguments, timeout: 10)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return (out?.isEmpty == false) ? out : nil
+            // A token is a few kilobytes at most. A command that breaks and
+            // prints an error page should fail here, legibly, rather than put
+            // megabytes into an Authorization header and fail somewhere less
+            // obvious.
+            let result = Shell.execute(path, arguments, timeout: 10, outputLimit: 8 * 1_024)
+            // Truncated output is not a short token, it is a different string.
+            guard result.completeOutput else { return nil }
+            let out = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            return out.isEmpty ? nil : out
         case "textFile":
             guard let path = credential.path?.expandingTilde,
                   let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }

@@ -30,8 +30,35 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
     /// Logged because "signed in" and "the API accepts it" are different
     /// things, and only the second one puts numbers on screen.
     var isConfigured: Bool {
-        FileManager.default.fileExists(atPath: codexHome.appendingPathComponent("auth.json").path)
-            || envToken != nil
+        ConfiguredProbe.value(id) { self.credentials() != nil }
+    }
+
+    /// Everything the Codex API needs, read once from one place.
+    ///
+    /// There were three answers to "is Codex signed in" in this file.
+    /// `isConfigured` asked whether auth.json existed, `fetch` extracted a
+    /// token four ways, and `storedAuth` extracted it three — omitting
+    /// `OPENAI_API_KEY`. A user whose auth.json holds only that key got a
+    /// working quota gauge and cloud tasks reporting "credentials
+    /// unavailable": two parts of the app disagreeing, each correct by its
+    /// own rule. `ClaudeCredentials` is the shape this should have had.
+    ///
+    /// Bounded, because another application writes this file and everything
+    /// else here reads through `BoundedFile`.
+    fileprivate func credentials() -> (token: String, accountID: String?)? {
+        let file = codexHome.appendingPathComponent("auth.json")
+        let auth = (try? BoundedFile.read(file, maxBytes: 256 * 1_024))
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? nil
+        // auth.json nests the ChatGPT login under `tokens`; an API-key login
+        // sits at the top level.
+        let tokens = auth?["tokens"] as? [String: Any]
+                  ?? auth?["chatgpt_auth_tokens"] as? [String: Any]
+        let token = tokens?["access_token"] as? String
+                 ?? auth?["access_token"] as? String
+                 ?? auth?["OPENAI_API_KEY"] as? String
+                 ?? envToken
+        guard let token, !token.isEmpty else { return nil }
+        return (token, tokens?["account_id"] as? String ?? auth?["account_id"] as? String)
     }
 
     /// The CLI accepts these in place of a stored login.
@@ -50,38 +77,21 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
 
     /// Shared with the cloud-task scanner.
     static func storedAuth() -> (token: String, accountID: String?)? {
-        let provider = CodexProvider()
-        let auth = (try? Data(contentsOf: provider.codexHome.appendingPathComponent("auth.json")))
-            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? nil
-        let tokens = auth?["tokens"] as? [String: Any]
-                  ?? auth?["chatgpt_auth_tokens"] as? [String: Any]
-        let token = tokens?["access_token"] as? String
-                 ?? auth?["access_token"] as? String
-                 ?? provider.envToken
-        guard let token, !token.isEmpty else { return nil }
-        return (token, tokens?["account_id"] as? String ?? auth?["account_id"] as? String)
+        CodexProvider().credentials()
     }
 
     func fetch() async throws -> Snapshot {
-        let auth = (try? Data(contentsOf: codexHome.appendingPathComponent("auth.json")))
-            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? nil
-
-        // auth.json nests the ChatGPT login under `tokens`; an API-key login
-        // sits at the top level.
-        let tokens = auth?["tokens"] as? [String: Any]
-                  ?? auth?["chatgpt_auth_tokens"] as? [String: Any]
-        let stored = tokens?["access_token"] as? String
-                  ?? auth?["access_token"] as? String
-                  ?? auth?["OPENAI_API_KEY"] as? String
-
-        guard let accessToken = stored ?? envToken, !accessToken.isEmpty else {
-            throw auth == nil
-                ? ProviderError.notConfigured("Codex isn't signed in on this Mac.")
-                : ProviderError.needsAuth("Codex's auth.json has no access token.")
+        guard let found = credentials() else {
+            // "No file at all" and "a file with no token in it" are different
+            // situations and want different advice.
+            throw FileManager.default.fileExists(
+                atPath: codexHome.appendingPathComponent("auth.json").path)
+                ? ProviderError.needsAuth("Codex's auth.json has no access token.")
+                : ProviderError.notConfigured("Codex isn't signed in on this Mac.")
         }
 
-        var headers = ["Authorization": "Bearer \(accessToken)"]
-        if let accountID = tokens?["account_id"] as? String ?? auth?["account_id"] as? String {
+        var headers = ["Authorization": "Bearer \(found.token)"]
+        if let accountID = found.accountID {
             headers["ChatGPT-Account-Id"] = accountID
         }
 

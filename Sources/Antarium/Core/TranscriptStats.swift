@@ -64,12 +64,15 @@ struct TranscriptStats: Codable {
     /// Versioned: a cache written before the token series existed can't be
     /// decoded into the current shape, and silently dropping it would look
     /// like a bug rather than a migration.
-    private static let cacheURL = Config.directory.appendingPathComponent("transcripts-v6.json")
+    /// Internal rather than private so the rule below can be stated as a test:
+    /// this name must never appear in `supersededCacheFilenames`.
+    static let cacheFilename = "transcripts-v6.json"
+    private static let cacheURL = Config.directory.appendingPathComponent(cacheFilename)
 
     /// Caches from earlier formats. Each version bump orphaned its predecessor
     /// in the user's folder, where three of these had accumulated — files the
     /// app writes are the app's to clean up.
-    private static let supersededCaches = [
+    static let supersededCacheFilenames = [
         "transcripts.json", "transcripts-v2.json", "transcripts-v3.json",
         "transcripts-v4.json", "transcripts-v5.json",
     ]
@@ -134,7 +137,7 @@ struct TranscriptStats: Codable {
     }
 
     static func removeSupersededCaches() {
-        for name in supersededCaches {
+        for name in supersededCacheFilenames {
             try? FileManager.default.removeItem(at: Config.directory.appendingPathComponent(name))
         }
     }
