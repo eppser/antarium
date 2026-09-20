@@ -1,0 +1,50 @@
+# Mutations that a healthy test suite must catch.
+#
+# Each line is: name | file | sed expression
+#
+# This is not a bug hunt. Every mutation here has been confirmed to fail at
+# least one test, so a SURVIVED result means a test has been weakened or
+# deleted — the failure mode that is otherwise invisible, because a suite full
+# of tests that cannot fail is indistinguishable from a suite that passes.
+#
+# Blank lines and lines starting with # are ignored.
+
+# --- product rules a user would notice
+auto-enable cap 4 -> 100 | Sources/Antarium/Core/AgentAutoEnable.swift | s/static let limit = 4/static let limit = 100/
+adopt providers that are not signed in | Sources/Antarium/Core/AgentAutoEnable.swift | s/            guard provider.signedIn else { continue }/            if false { continue }/
+idle threshold 90s -> 1 hour | Sources/Antarium/Core/AgentScan.swift | s/static let idleAfter: TimeInterval = 90/static let idleAfter: TimeInterval = 3600/
+stale threshold 12h -> 1 minute | Sources/Antarium/Core/AgentScan.swift | s/static let staleAfter: TimeInterval = 12 \* 3600/static let staleAfter: TimeInterval = 60/
+severity critical threshold 15% -> 1% | Sources/Antarium/Core/UsageModel.swift | s/case ..<0.15: return .critical/case ..<0.01: return .critical/
+balance gauge colours itself | Sources/Antarium/Core/UsageModel.swift | s/hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity/max(reportedSeverity, Severity.forRemaining(remaining))/
+longest pricing prefix no longer wins | Sources/Antarium/Core/Pricing.swift | s/.sorted { \$0.prefix.count > \$1.prefix.count }/.sorted { $0.prefix.count < $1.prefix.count }/
+
+# --- data integrity
+absent balance charts as zero | Sources/Antarium/Providers/DescriptorProvider.swift | s/guard let value = FieldPath.number(window, path) else { continue }/let value = FieldPath.number(window, path) ?? 0/
+negative token counts accepted | Sources/Antarium/Core/TranscriptStats.swift | s/guard value >= 0 else { return nil }/if false { return nil }/
+cost priced despite a usage issue | Sources/Antarium/Core/TranscriptStats.swift | s/guard usageIssue == nil, !usageByModel.isEmpty else { return nil }/guard !usageByModel.isEmpty else { return nil }/
+a provider error erases its last reading | Sources/Antarium/Core/QuotaStore.swift | s/if let last { snapshots\[providerID\] = last }//
+detection treats missing as found | Sources/Antarium/Core/Onboarding.swift | s/let found = FileManager.default.fileExists(atPath: path)/let found = true/
+countdown loses its absent case | Sources/Antarium/UI/Format.swift | s/guard let date else { return "—" }/if date == nil { return "0m" }; guard let date else { return "—" }/
+
+# --- identity and change detection
+identity drops the session id | Sources/Antarium/Core/AgentIdentity.swift | s/digest("\\(sessionID)|\\(project)")/digest(project)/
+identity drops the harness | Sources/Antarium/Core/AgentIdentity.swift | s/return "\\(harness)-session-/return "session-/
+
+# --- safety boundaries
+a descriptor may displace a native provider | Sources/Antarium/Core/UsageProvider.swift | s/let taken = Set(native.map(\\.id))/let taken = Set<String>()/
+config directory world-readable | Sources/Antarium/Core/ConfigurationFile.swift | s/\[.posixPermissions: 0o700\]/[.posixPermissions: 0o755]/
+harness directory world-readable | Sources/Antarium/Core/HarnessSeed.swift | s/\[.posixPermissions:0o700\]/[.posixPermissions:0o755]/
+private write follows a symlink destination | Sources/Antarium/Core/PrivateFile.swift | s/guard info.st_mode \& S_IFMT == S_IFREG else { throw WriteError.invalidDestination }/_ = info.st_mode/
+argument NUL bytes allowed | Sources/Antarium/Core/LaunchArguments.swift | s/ \&\& !\$0.contains("\\0")//
+host safety check disabled | Sources/Antarium/Core/RemoteTmux.swift | s/func isSafeHost(_ host: String) -> Bool {/func isSafeHost(_ host: String) -> Bool { if true { return true };/
+
+# --- reading and performance
+usage response declared-length cap removed | Sources/Antarium/Core/BoundedResponse.swift | s/let refuse = response.expectedContentLength > Int64(limit)/let refuse = false/
+usage response running-total cap removed | Sources/Antarium/Core/BoundedResponse.swift | s/if entry.data.count + data.count > limit {/if false {/
+trace reader drops the newline from its cursor | Sources/Antarium/Core/BoundedTraceReader.swift | s/                    readOffset += 1/                    readOffset += 0/
+marker scan stops at the first marker | Sources/Antarium/Core/TranscriptStats.swift | s/            if tools \&\& usage \&\& schedule { break }/            if tools || usage || schedule { break }/
+
+# --- workspace harnesses
+workspace harnesses emit rows again | Sources/Antarium/Core/AgentScan.swift | s/        if descriptor.contributesFocusOnly { return \[\] }//
+focus substitutes nothing | Sources/Antarium/Core/Focus.swift | s/\$0.replacingOccurrences(of: "{focusTarget}", with: target)/$0/
+ambiguous directory resolved anyway | Sources/Antarium/Core/AgentScan.swift | s/rowsPerDirectory\[cwd\] == 1,/true,/

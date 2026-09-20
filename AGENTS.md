@@ -69,6 +69,23 @@ temporary directory, so none of it touches your own settings. It also reports
 when the benchmark is still absorbing transcript history, because those numbers
 are throughput rather than steady state.
 
+When changing a test, or when a change makes one stop failing:
+
+```bash
+./mutate.sh
+```
+
+It breaks the application on purpose, one rule at a time, and reports anything
+the tests do not notice. Every mutation in `mutations.txt` has been confirmed
+to fail at least one test, so a `SURVIVED` line means a test was weakened or
+deleted — the one failure mode nothing else here can see, because a suite of
+tests that cannot fail looks exactly like a suite that passes. A mutation that
+no longer applies is also reported: the rule it guarded may have been rewritten
+without anyone noticing.
+
+Every mutation is reverted, including on interrupt. It takes several minutes,
+so it is not part of `verify.sh`.
+
 The parts, if you need one on its own:
 
 ```bash
