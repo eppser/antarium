@@ -122,27 +122,31 @@ struct HarnessFocusCommandTests {
 
     @Test("The target is substituted into the declared arguments")
     func targetIsSubstituted() throws {
+        // Calls the production builder. An earlier version did the
+        // substitution itself, so removing it from the app changed nothing
+        // and the test stayed green.
         for (id, expected) in [("herdr", ["tab", "focus", "w1:t1"]),
                                ("orca", ["terminal", "switch", "--terminal", "w1:t1"])] {
             let descriptor = try #require(HarnessCLI.bundledDescriptors().first { $0.id == id })
             let focus = try #require(descriptor.focus)
-            let arguments = (focus.args ?? []).map {
-                $0.replacingOccurrences(of: "{focusTarget}", with: "w1:t1")
-            }
-            #expect(arguments == expected, "\(id) built \(arguments)")
+            let arguments = Focus.focusArguments(focus, target: "w1:t1")
+            #expect(arguments == expected, "\(id) built \(arguments ?? [])")
         }
     }
 
-    @Test("A click on a row with no target does not run anything")
-    func noTargetRunsNothing() {
-        // Antarium falls back to raising the owning application or opening the
-        // folder. Running a focus command with an empty target would ask the
-        // workspace manager to focus "", which is a different pane or an error.
-        var row = AgentRow(id: "r", agentID: "herdr", name: "r", cwd: "/p", state: .waiting)
-        row.focusTarget = nil
-        #expect(row.focusTarget == nil)
-        row.focusTarget = ""
-        #expect(row.focusTarget?.isEmpty == true)
+    @Test("A target that cannot mean a pane runs nothing")
+    func unusableTargetsAreRefused() throws {
+        let descriptor = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "herdr" })
+        let focus = try #require(descriptor.focus)
+        // Empty would ask the manager to focus "", which is a different pane
+        // or an error — either way not the row that was clicked.
+        #expect(Focus.focusArguments(focus, target: "") == nil)
+        // A NUL truncates a C string, so the argument the manager receives
+        // would not be the one that was built.
+        #expect(Focus.focusArguments(focus, target: "w1\u{0}:t1") == nil)
+        // And a target no pane id could be is refused rather than passed on.
+        #expect(Focus.focusArguments(focus, target: String(repeating: "x", count: 600)) == nil)
+        #expect(Focus.focusArguments(focus, target: "w1:t1") != nil)
     }
 
     @Test("Every shipped focus command is on the reviewed allowlist")
@@ -209,5 +213,41 @@ struct WorkspaceDetectionTests {
                     "\(descriptor.id) would be listed as an installed agent")
         }
         #expect(seen >= 2, "no workspace harness was examined")
+    }
+    @Test("A workspace harness contributes no rows of its own")
+    func workspacesEmitNoRows() throws {
+        // The duplicate-row bug: before `contributes` existed, every agent
+        // appeared twice — once from its own harness with real figures, once
+        // from the workspace manager as an empty row. Checked through the
+        // scan's own row builder rather than by reading the descriptor.
+        let workspaces = HarnessCLI.bundledDescriptors().filter(\.contributesFocusOnly)
+        #expect(workspaces.count >= 2, "no workspace harness is shipped")
+        for descriptor in workspaces {
+            #expect(AgentScan.rows(for: descriptor, processes: [:]).isEmpty,
+                    "\(descriptor.id) produced rows that duplicate other harnesses'")
+        }
+        // Not vacuous: the same entry point, the same command source, and the
+        // only difference is the declaration. Herdr and Orca are the only
+        // command harnesses shipped, so the contrast has to be built.
+        func descriptor(contributingFocus: Bool) throws -> HarnessDescriptor {
+            var document: [String: Any] = [
+                "formatVersion": 1, "id": "synthetic", "name": "Synthetic",
+                "process": [:],
+                "source": ["kind": "command", "path": "",
+                           "command": "/bin/echo",
+                           "args": ["[{\"cwd\":\"/projects/sample\"}]"]],
+                "map": ["cwd": "cwd"],
+            ]
+            if contributingFocus { document["contributes"] = "focus" }
+            return try HarnessDocument.decode(
+                JSONSerialization.data(withJSONObject: document)).descriptor
+        }
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        let emitting = AgentScan.rows(for: try descriptor(contributingFocus: false),
+                                      processes: [:])
+        #expect(emitting.count == 1, "the control case produced no rows, so the check is empty")
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        #expect(AgentScan.rows(for: try descriptor(contributingFocus: true),
+                               processes: [:]).isEmpty)
     }
 }

@@ -579,6 +579,19 @@ enum AgentScan {
 
     /// One row per running process a descriptor claims, filled in from whatever
     /// that harness records. Adding a harness means adding a JSON file.
+    /// The rows one descriptor contributes. Exposed so the rule that a
+    /// workspace manager contributes none can be checked here rather than by
+    /// re-reading the descriptor in a test.
+    static func rows(for descriptor: HarnessDescriptor,
+                     processes: [Int32: Processes.Info]) -> [AgentRow] {
+        if descriptor.source.kind == .none { return [] }
+        if descriptor.contributesFocusOnly { return [] }
+        if descriptor.source.kind == .command {
+            return commandRows(descriptor, processes: processes)
+        }
+        return []
+    }
+
     private static func descriptorRows(processes: [Int32: Processes.Info]) -> [AgentRow] {
         var rows: [AgentRow] = []
         for descriptor in HarnessDescriptor.all() {

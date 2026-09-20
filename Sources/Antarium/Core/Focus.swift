@@ -80,14 +80,28 @@ enum Focus {
     /// local configuration, but neither is a reason to let a value become
     /// shell syntax. Bounded like every other subprocess, because a workspace
     /// manager that has wedged must not take the menu bar with it.
+    /// The command line a click would run, or nil when the target is not
+    /// usable. Separated from running it so the substitution can be checked
+    /// without a workspace manager installed — and so a test cannot quietly
+    /// re-implement the rule it is meant to be checking.
+    static func focusArguments(_ focus: HarnessDescriptor.Focus,
+                               target: String) -> [String]? {
+        // An empty target would ask the manager to focus "", which is either a
+        // different pane or an error, and either way not the row that was
+        // clicked.
+        guard !target.isEmpty, !target.contains("\0"), target.utf8.count <= 512 else {
+            return nil
+        }
+        return (focus.args ?? []).map {
+            $0.replacingOccurrences(of: "{focusTarget}", with: target)
+        }
+    }
+
     @MainActor
     private static func runHarnessFocus(_ focus: HarnessDescriptor.Focus,
                                         target: String) -> Bool {
-        guard !target.isEmpty, !target.contains("\0"), target.utf8.count <= 512,
+        guard let arguments = focusArguments(focus, target: target),
               let path = resolve(focus.command) else { return false }
-        let arguments = (focus.args ?? []).map {
-            $0.replacingOccurrences(of: "{focusTarget}", with: target)
-        }
         let result = Shell.execute(path, arguments, timeout: 5, outputLimit: 8_192)
         if result.exitCode != 0 {
             Log.info("focus", "harness focus command did not succeed")
