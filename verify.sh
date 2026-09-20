@@ -109,7 +109,14 @@ step "First run through the real app path"
 if [ -x "$APP" ]; then
     home=$(mktemp -d)
     ANTARIUM_HOME="$home" "$APP" >/dev/null 2>&1 & pid=$!
-    sleep 11; kill $pid 2>/dev/null; wait $pid 2>/dev/null
+    # Wait for the thing being checked rather than for a fixed time. A busy
+    # machine took longer than the eleven seconds this used to sleep, which
+    # failed the step for a reason that had nothing to do with the app.
+    for _ in $(seq 1 40); do
+        [ -s "$home/config.json" ] && grep -q enabledAgents "$home/config.json" 2>/dev/null && break
+        sleep 1
+    done
+    kill $pid 2>/dev/null; wait $pid 2>/dev/null
     chosen=$(python3 -c "
 import json,sys
 try: print(','.join(json.load(open('$home/config.json')).get('enabledAgents') or []))
