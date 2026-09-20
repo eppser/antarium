@@ -178,6 +178,28 @@ final class AgentItem: NSObject, NSMenuDelegate {
         }
     }
 
+    /// Which sounds a reading earns, at most one of each.
+    ///
+    /// A response may carry many windows, and several crossing at once is one
+    /// event to a listener rather than several — firing per gauge is a burst
+    /// of identical chirps.
+    static func crossings(from previous: [String: Gauge],
+                          to current: [Gauge]) -> (critical: Bool, rolledOver: Bool) {
+        var critical = false
+        var rolledOver = false
+        for gauge in current {
+            guard let was = previous[gauge.id] else { continue }
+            if was.severity != .critical, gauge.severity == .critical { critical = true }
+            // A window that rolled over: its reset moved later and headroom
+            // jumped back up.
+            if let old = was.resetsAt, let new = gauge.resetsAt,
+               new > old, gauge.remaining > was.remaining + 0.2 {
+                rolledOver = true
+            }
+        }
+        return (critical, rolledOver)
+    }
+
     /// Sounds fire on a *transition*, never on a standing state — otherwise a
     /// spent quota would chirp on every poll. Nothing fires on the first
     /// reading, when there is nothing to compare against.
@@ -188,19 +210,45 @@ final class AgentItem: NSObject, NSMenuDelegate {
         }
         guard !previousGauges.isEmpty else { return }
 
-        for gauge in snapshot.gauges {
-            guard let was = previousGauges[gauge.id] else { continue }
-            if was.severity != .critical, gauge.severity == .critical {
-                Sounds.play(.budgetCritical)
-            }
-            // A window that rolled over: its reset moved later and headroom
-            // jumped back up.
-            if let old = was.resetsAt, let new = gauge.resetsAt,
-               new > old, gauge.remaining > was.remaining + 0.2 {
-                Sounds.play(.quotaReset)
-            }
-        }
+        // At most one of each sound per reading. A response may carry many
+        // windows, and several crossing at once is one event to a listener,
+        // not several — playing it per gauge is a burst of identical chirps.
+        let crossed = Self.crossings(from: previousGauges, to: snapshot.gauges)
+        if crossed.critical { Sounds.play(.budgetCritical) }
+        if crossed.rolledOver { Sounds.play(.quotaReset) }
     }
+
+    /// When to look again. Pure, so the one place a response decides when the
+    /// app *acts* rather than what it shows can be tested without a timer.
+    ///
+    /// If a window rolls over sooner than the refresh interval, look again
+    /// just after it does — that is the moment the number the user cares
+    /// about jumps. The reset time comes from the server, though, so a window
+    /// reported as resetting a second from now, on every reading, would pull
+    /// the next poll to twenty-one seconds out for as long as the server kept
+    /// saying it: the user's refresh interval replaced by the endpoint's.
+    /// Never sooner than `minimumPollInterval`.
+    static func nextPoll(after now: Date, interval: TimeInterval,
+                         resets: [Date]) -> Date {
+        var next = now.addingTimeInterval(interval)
+        let floor = now.addingTimeInterval(minimumPollInterval)
+        for reset in resets {
+            let after = reset.addingTimeInterval(20)
+            // A reset already behind us says nothing about when to look next.
+            // Flooring first would lift every stale date into a valid poll,
+            // which is how a response full of yesterday's timestamps became a
+            // reason to fetch a minute from now.
+            guard after > now else { continue }
+            let candidate = max(after, floor)
+            if candidate < next { next = candidate }
+        }
+        return next
+    }
+
+    /// The soonest a reported reset may pull the next poll. Long enough that
+    /// a server cannot set the refresh rate, short enough that a real window
+    /// rollover — minutes or hours away — is unaffected.
+    static let minimumPollInterval: TimeInterval = 60
 
     private func scheduleNext(success: Bool, snapshot: Snapshot? = nil) {
         let interval = TimeInterval(Settings.refreshMinutes * 60)
@@ -210,14 +258,8 @@ final class AgentItem: NSObject, NSMenuDelegate {
                 min(interval, pow(2, Double(min(consecutiveFailures, 4))) * 60))
             return
         }
-        var next = Date().addingTimeInterval(interval)
-        // If a window rolls over sooner, look again just after it does — that's
-        // the moment the number the user cares about jumps.
-        for reset in (snapshot?.gauges ?? []).compactMap(\.resetsAt) {
-            let after = reset.addingTimeInterval(20)
-            if after > Date() && after < next { next = after }
-        }
-        nextFetch = next
+        nextFetch = Self.nextPoll(after: Date(), interval: interval,
+                                  resets: (snapshot?.gauges ?? []).compactMap(\.resetsAt))
     }
 
     /// Pull the next poll into line with a changed interval, without firing now.

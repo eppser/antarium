@@ -91,3 +91,6 @@ unbounded gauges from a list response | Sources/Antarium/Providers/DescriptorPro
 unbounded gauges from an object response | Sources/Antarium/Providers/DescriptorProvider.swift | s|^                .prefix(maxWindows)$||
 response text clamp does nothing | Sources/Antarium/Providers/DescriptorProvider.swift | s|text.count <= maxResponseText ? text : String(text.prefix(maxResponseText))|text|
 window cap set below what real plans report | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 2|
+server sets the poll rate through resetsAt | Sources/Antarium/AgentItem.swift | s|let candidate = max(after, floor)|let candidate = after|
+stale reset dates become a reason to poll | Sources/Antarium/AgentItem.swift | s|guard after > now else { continue }||
+poll floor swallows real rollovers | Sources/Antarium/AgentItem.swift | s|static let minimumPollInterval: TimeInterval = 60|static let minimumPollInterval: TimeInterval = 3600|
