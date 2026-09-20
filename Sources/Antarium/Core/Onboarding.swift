@@ -27,9 +27,14 @@ enum Onboarding {
     /// Which agents leave traces on this Mac. Every agent is a descriptor now,
     /// including the two read natively, so this is one list — appending those
     /// two separately listed them twice.
-    static func harnesses() -> [Finding] {
+    /// `descriptors` is a parameter so a test can supply stores it knows are
+    /// there and stores it knows are not. Reading the real catalog cannot
+    /// prove this reads the disk: on a machine where every agent happens to be
+    /// installed, claiming they all are looks identical to checking.
+    static func harnesses(_ descriptors: [HarnessDescriptor] = HarnessDescriptor.all())
+        -> [Finding] {
         var out: [Finding] = []
-        for descriptor in HarnessDescriptor.all() {
+        for descriptor in descriptors {
             // A quota-only agent — Copilot — declares no session store, so
             // there is nothing on disk to look for. It used to fail the
             // existence check and get listed as "not installed here" directly
