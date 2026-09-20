@@ -48,3 +48,17 @@ marker scan stops at the first marker | Sources/Antarium/Core/TranscriptStats.sw
 workspace harnesses emit rows again | Sources/Antarium/Core/AgentScan.swift | s/        if descriptor.contributesFocusOnly { return \[\] }//
 focus substitutes nothing | Sources/Antarium/Core/Focus.swift | s/\$0.replacingOccurrences(of: "{focusTarget}", with: target)/$0/
 ambiguous directory resolved anyway | Sources/Antarium/Core/AgentScan.swift | s/rowsPerDirectory\[cwd\] == 1,/true,/
+
+# --- descriptors
+#
+# Most agent-specific facts are configuration, not code, and a wrong field
+# path is the most likely way a harness silently stops reporting. These are
+# caught by the fixture and probe suites rather than by a unit test.
+copilot drops the has_quota filter | Resources/harnesses/copilot.json | s/"require": {/"requireX": {/
+copilot percent field renamed | Resources/harnesses/copilot.json | s/"percentRemaining": "percent_remaining"/"percentRemaining": "percentRemaining"/
+zai loses the unit half of its window key | Resources/harnesses/zai.json | s/        "unit"/        "unitX"/
+minimax limit field renamed | Resources/harnesses/minimax.json | s/"limit": "current_interval_total_count"/"limit": "total_count"/
+deepseek assumes dollars | Resources/harnesses/deepseek.json | s/"currency": "currency"/"currency": "USD"/
+commandcode envelope path renamed | Resources/harnesses/commandcode.json | s/"data.windowLimits"/"data.windowLimitsX"/
+herdr focus target renamed | Resources/harnesses/herdr.json | s/"focusTarget": "tab_id"/"focusTarget": "tabId"/
+orca records path renamed | Resources/harnesses/orca.json | s/"root": "result.terminals"/"root": "terminals"/

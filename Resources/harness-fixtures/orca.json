@@ -5,6 +5,7 @@
   "expected": {
     "sessions": 2,
     "sessionID": "term_22222222-2222-2222-2222-222222222222",
+    "focusTarget": "term_22222222-2222-2222-2222-222222222222",
     "cwd": "/projects/other",
     "title": "Other project",
     "model": null,

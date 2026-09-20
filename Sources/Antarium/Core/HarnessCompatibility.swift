@@ -15,6 +15,12 @@ enum HarnessCompatibility {
     struct Snapshot: Codable, Equatable {
         var sessions: Int
         var sessionID: String?
+        /// What a click would use to raise this session. Absent for a harness
+        /// that does not own its windows; verified for the ones that do,
+        /// because a focus mapping that resolves to nothing fails silently —
+        /// the row simply falls back to raising the application, and looks
+        /// like it worked.
+        var focusTarget: String?
         var cwd: String?
         var title: String?
         var model: String?
@@ -33,6 +39,7 @@ enum HarnessCompatibility {
             let first = sessions.first
             return Snapshot(sessions: sessions.count,
                             sessionID: first?.sessionID,
+                            focusTarget: first?.focusTarget,
                             cwd: first?.cwd,
                             title: first?.title,
                             model: first?.model,

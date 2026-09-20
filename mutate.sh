@@ -41,6 +41,8 @@ while IFS='|' read -r name file expression; do
         printf '  %-46s PATTERN NO LONGER MATCHES\n' "$name"
         broken=$((broken+1))
     else
+        # A descriptor change reaches the build only when resources are
+        # re-copied, which needs the manifest to look newer than them.
         touch Package.swift
         swift build >"$BACKUP/build" 2>&1
         if grep -q 'error:' "$BACKUP/build"; then

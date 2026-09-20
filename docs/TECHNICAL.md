@@ -449,8 +449,13 @@ The fixture replays a synthetic response through the real mapping and compares
 every gauge — id, badge, title, percentage, window length, reset time, and for
 a balance its figure and currency.
 
-A file holds either one case at the top level or a `cases` array, and a case
-declares `expected` or `expectError`. The second matters as much as the first:
+Session fixtures verify the focus target alongside the session fields. A focus
+mapping that resolves to nothing fails silently — the row falls back to raising
+the application, which looks like it worked — so renaming Herdr's `tab_id` was
+invisible until the fixture began checking it.
+
+A quota fixture file holds either one case at the top level or a `cases` array,
+and a case declares `expected` or `expectError`. The second matters as much as the first:
 a plan that includes no windows at all must be refused, not charted as a row of
 zeros, and that is a behaviour a success-only fixture cannot state. Copilot
 records a free plan whose every tier reports `has_quota: false`, MiniMax an
