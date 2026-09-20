@@ -212,6 +212,60 @@ enum HarnessCheck {
                + claimed.prefix(3).map { ($0.path as NSString).lastPathComponent }.joined(separator: ", "))
         }
 
+        // 3b. The quota block, which for a quota-only harness is the whole
+        //     point of the file and used to be reported on not at all: an
+        //     endpoint of "not a url" passed with no problems and failed at
+        //     the first fetch instead, which is the wrong moment to find out.
+        if let quota = descriptor.quota {
+            if let endpoint = URL(string: quota.endpoint), endpoint.scheme == "https",
+               let host = endpoint.host, !host.isEmpty {
+                ok("quota endpoint \(host)")
+            } else {
+                fail("quota.endpoint is not an https URL: \(quota.endpoint)")
+            }
+            if let credential = quota.credential {
+                let missing: String?
+                switch credential.kind {
+                case "env":      missing = credential.name == nil ? "name" : nil
+                case "textFile": missing = credential.path == nil ? "path" : nil
+                case "jsonFile":
+                    missing = credential.path == nil ? "path" : (credential.field == nil ? "field" : nil)
+                case "command":  missing = credential.command == nil ? "command" : nil
+                default:
+                    fail("quota.credential.kind \"\(credential.kind)\" is not one of "
+                         + "command, env, jsonFile, textFile")
+                    missing = nil
+                }
+                if let missing {
+                    fail("quota.credential of kind \(credential.kind) needs \(missing)")
+                }
+            }
+            let map = quota.windows
+            let figure = [map.usedPercent, map.percentRemaining, map.balance].contains { $0 != nil }
+                || (map.used != nil && map.limit != nil)
+            if figure {
+                let shape = map.list != nil ? "a list" : (map.single != nil ? "one flat window" : "an object")
+                ok("quota windows read from \(shape)")
+            } else {
+                fail("quota.windows declares no figure: give usedPercent, percentRemaining, "
+                     + "used and limit, or balance")
+            }
+            if map.list != nil && map.key == nil {
+                warn("quota.windows.list without key — windows will be numbered 0, 1, 2")
+            }
+            if map.single != nil && map.list != nil {
+                warn("quota.windows sets both single and list; list wins")
+            }
+            for (window, badge) in map.badges ?? [:] where badge.count > 4 || badge.isEmpty {
+                fail("quota.windows.badges.\(window) is \(badge.count) characters; "
+                     + "the menu bar fits four")
+            }
+            if let hint = quota.setupHint, hint.count > 48 {
+                warn("quota.setupHint is \(hint.count) characters and will truncate in the "
+                     + "first-run panel")
+            }
+        }
+
         // 4. The part that catches real mistakes: test every declared path
         //    against records the source actually produces.
         let (records, origin) = HarnessEngine.sampleRecords(descriptor)
