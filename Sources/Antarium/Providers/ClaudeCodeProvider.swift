@@ -11,7 +11,11 @@ final class ClaudeCodeProvider: UsageProvider, @unchecked Sendable {
     let displayName = "Claude Code"
     var setupHint: String { "Run `claude` in Terminal and sign in." }
     let signInCommand: String? = "claude auth login"
-    var isConfigured: Bool { ClaudeCredentials.hasAnyCredentials }
+    /// Memoised: the fallback path runs `/usr/bin/security`, and this is
+    /// read from a SwiftUI body.
+    var isConfigured: Bool {
+        ConfiguredProbe.value(id) { ClaudeCredentials.hasAnyCredentials }
+    }
     let isVerified = true
 
     private let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!

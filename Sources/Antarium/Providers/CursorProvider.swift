@@ -22,7 +22,11 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         "Accept": "application/json",
     ])
 
-    var isConfigured: Bool { accessToken() != nil }
+    /// Memoised: answering opens Cursor's SQLite state store, and this is
+    /// read from a SwiftUI body.
+    var isConfigured: Bool {
+        ConfiguredProbe.value(id) { accessToken() != nil }
+    }
 
     func fetch() async throws -> Snapshot {
         guard let token = accessToken() else {

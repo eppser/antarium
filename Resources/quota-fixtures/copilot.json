@@ -1,0 +1,46 @@
+{
+  "note": "Synthetic. Response shape follows GitHub's documented copilot_internal/user payload; every value is invented. No real account appears here.",
+  "verifiedAt": "2026-09-20",
+  "response": {
+    "copilot_plan": "copilot_business",
+    "quota_reset_date_utc": "2026-10-01T00:00:00Z",
+    "quota_snapshots": {
+      "chat": {
+        "has_quota": true,
+        "entitlement": 300,
+        "remaining": 240,
+        "percent_remaining": 80
+      },
+      "completions": {
+        "has_quota": true,
+        "unlimited": true,
+        "percent_remaining": 100
+      },
+      "premium_interactions": {
+        "has_quota": false,
+        "entitlement": 0,
+        "remaining": 0,
+        "percent_remaining": 0
+      }
+    }
+  },
+  "expected": {
+    "accountLabel": "copilot_business",
+    "gauges": [
+      {
+        "id": "chat",
+        "badge": "CHAT",
+        "title": "Chat",
+        "usedPercent": 20,
+        "resetsAt": "2026-10-01T00:00:00Z"
+      },
+      {
+        "id": "completions",
+        "badge": "CODE",
+        "title": "Code",
+        "usedPercent": 0,
+        "resetsAt": "2026-10-01T00:00:00Z"
+      }
+    ]
+  }
+}

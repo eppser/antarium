@@ -87,6 +87,10 @@ MainActor.assumeIsolated {
         exit(HarnessCLI.verifyBundledFixtures())
     }
 
+    if CommandLine.arguments.contains("--verify-harness-quota") {
+        exit(HarnessCLI.verifyBundledQuota())
+    }
+
     if CommandLine.arguments.contains("--verify-harness-installations") {
         exit(HarnessCLI.verifyBundledInstallations())
     }

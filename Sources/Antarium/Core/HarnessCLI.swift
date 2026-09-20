@@ -62,6 +62,31 @@ enum HarnessCLI {
         return failures == 0 ? 0 : 1
     }
 
+    /// Replays a recorded response shape through every descriptor's `quota`
+    /// mapping. No account, no network, no installed agent — a wrong field
+    /// path fails here rather than on a stranger's Mac.
+    static func verifyBundledQuota() -> Int32 {
+        let descriptors = bundledDescriptors().filter { $0.quota != nil }
+        var failures = 0
+        for descriptor in descriptors {
+            guard let report = QuotaFixture.verify(descriptor, in: AppResources.bundle) else { continue }
+            print("\(report.passed ? "✓" : "✗") \(report.id): \(report.detail)"
+                + (report.verifiedAt.map { " (\($0))" } ?? ""))
+            if !report.passed { failures += 1 }
+        }
+        if descriptors.isEmpty { print("no descriptor declares a quota block") }
+        return failures == 0 ? 0 : 1
+    }
+
+    /// Every shipped descriptor, decoded once.
+    static func bundledDescriptors() -> [HarnessDescriptor] {
+        (AppResources.bundle.urls(forResourcesWithExtension: "json", subdirectory: "harnesses") ?? [])
+            .compactMap { url in
+                (try? Data(contentsOf: url)).flatMap { try? HarnessDocument.decode($0).descriptor }
+            }
+            .sorted { $0.id < $1.id }
+    }
+
     /// Deterministically checks every declared install layout without running
     /// an installer. Each harness owns its evidence matrix in JSON; this code
     /// remains generic when a new package manager or harness is added.

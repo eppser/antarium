@@ -1,0 +1,60 @@
+{
+  "formatVersion": 1,
+  "id": "zai",
+  "name": "Z.ai GLM",
+  "presentation": {
+    "mark": "zai"
+  },
+  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live plan."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.z.ai/api/monitor/usage/quota/limit",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.claude/settings.json",
+      "field": "env.ANTHROPIC_AUTH_TOKEN"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "list": "data.limits",
+      "key": [
+        "type",
+        "unit"
+      ],
+      "keys": [
+        "TOKENS_LIMIT-3",
+        "TOKENS_LIMIT-6",
+        "TOKENS_LIMIT-7",
+        "TIME_LIMIT-5"
+      ],
+      "usedPercent": "percentage",
+      "resetsAt": "nextResetTime",
+      "labels": {
+        "TOKENS_LIMIT-3": "Session (5 hours)",
+        "TOKENS_LIMIT-6": "Weekly",
+        "TOKENS_LIMIT-7": "Monthly",
+        "TIME_LIMIT-5": "Tools"
+      },
+      "badges": {
+        "TOKENS_LIMIT-3": "5H",
+        "TOKENS_LIMIT-6": "7D",
+        "TOKENS_LIMIT-7": "30D",
+        "TIME_LIMIT-5": "TOOL"
+      }
+    },
+    "setupHint": "Point Claude Code at Z.ai, so ~/.claude/settings.json carries ANTHROPIC_AUTH_TOKEN.",
+    "verified": false
+  }
+}

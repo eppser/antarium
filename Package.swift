@@ -32,6 +32,7 @@ let package = Package(
                 .copy("Resources/harness.schema.json"),
                 .copy("Resources/harnesses"),
                 .copy("Resources/harness-fixtures"),
+                .copy("Resources/quota-fixtures"),
                 .copy("Resources/marks"),
                 .copy("Resources/logo"),
             ]

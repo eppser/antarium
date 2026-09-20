@@ -110,13 +110,9 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
 
     func makeSnapshot(_ json: [String: Any]) throws -> Snapshot {
         let map = quota.windows
-        let container: [String: Any] = map.root.flatMap { FieldPath.lookup(json, $0) as? [String: Any] }
-            ?? json
-        let keys = map.keys ?? container.keys.sorted()
 
         var gauges: [Gauge] = []
-        for key in keys {
-            guard let window = container[key] as? [String: Any] else { continue }
+        for (key, window) in Self.windows(in: json, map: map) {
             // A window the plan does not include is not a window at zero.
             if let require = map.require,
                require.contains(where: { (window[$0.key] as? Bool) != $0.value }) { continue }
@@ -134,7 +130,8 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             let named = map.labels?[key]
             gauges.append(Gauge(
                 id: key,
-                badge: named.map { Gauge.badge(from: $0) }
+                badge: map.badges?[key]?.uppercased()
+                    ?? named.map { Gauge.badge(from: $0) }
                     ?? Self.badge(seconds: span, fallback: key),
                 title: named
                     ?? map.title.flatMap { FieldPath.lookup(window, $0) as? String }
@@ -150,12 +147,83 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             throw ProviderError.unsupported("\(displayName) reported no usage window.")
         }
         // Shortest window first, so the fast-moving one is the top row.
-        gauges.sort { ($0.windowSeconds ?? .greatestFiniteMagnitude)
-                    < ($1.windowSeconds ?? .greatestFiniteMagnitude) }
+        // Explicitly stable: `sort` is not, and a service that reports no
+        // window length — Copilot — leaves every key equal, which would let
+        // the menu bar reorder itself between refreshes for no reason.
+        gauges = gauges.enumerated()
+            .sorted {
+                let left = $0.element.windowSeconds ?? .greatestFiniteMagnitude
+                let right = $1.element.windowSeconds ?? .greatestFiniteMagnitude
+                return left == right ? $0.offset < $1.offset : left < right
+            }
+            .map(\.element)
 
         return Snapshot(providerID: id, gauges: gauges, extras: [],
                         accountLabel: quota.accountLabel.flatMap { FieldPath.lookup(json, $0) as? String },
                         fetchedAt: Date())
+    }
+
+    /// The windows a response actually contains, in the order they should be
+    /// drawn, named so a gauge has an id.
+    ///
+    /// Two shapes exist in the wild. Most services return an object whose
+    /// member names *are* the window names — Copilot's `quota_snapshots`. Some
+    /// return an array instead, where the name is a field inside each element
+    /// — Z.ai's `data.limits` keyed by `type`, MiniMax's `model_remains` keyed
+    /// by `model_name`. Neither shape is agent-specific logic, so both belong
+    /// here rather than in a bespoke Swift provider.
+    static func windows(in json: [String: Any],
+                        map: HarnessDescriptor.Quota.Windows) -> [(key: String, window: [String: Any])] {
+        var found: [(key: String, window: [String: Any])]
+        if let path = map.list {
+            let elements = FieldPath.lookup(json, path) as? [Any] ?? []
+            found = elements.enumerated().compactMap { index, element in
+                guard let window = element as? [String: Any] else { return nil }
+                let parts = (map.key ?? []).compactMap { Self.name(window, $0) }
+                let name = parts.joined(separator: "-")
+                return (name.isEmpty ? "\(index)" : name, window)
+            }
+            // A list can repeat a name where an object cannot. Two gauges with
+            // one id would be two identical-looking rows, so later duplicates
+            // are numbered rather than dropped: the response said they were
+            // different windows.
+            var seen: [String: Int] = [:]
+            found = found.map { entry in
+                let count = (seen[entry.key] ?? 0) + 1
+                seen[entry.key] = count
+                return count == 1 ? entry : ("\(entry.key)-\(count)", entry.window)
+            }
+            // `keys`, when given, filters *and* orders — same contract as the
+            // object shape, so a descriptor author reading one understands the
+            // other. Entries sharing a key keep their response order.
+            if let wanted = map.keys {
+                found = wanted.flatMap { key in found.filter { $0.key == key } }
+            }
+        } else {
+            let container: [String: Any] = map.root
+                .flatMap { FieldPath.lookup(json, $0) as? [String: Any] } ?? json
+            // For an object the declared order is the drawing order.
+            found = (map.keys ?? container.keys.sorted()).compactMap { key in
+                (container[key] as? [String: Any]).map { (key, $0) }
+            }
+        }
+        return found
+    }
+
+    /// One component of a composite window name. A key field is as likely to
+    /// be a number as a string — Z.ai's `unit` is an integer — so both read as
+    /// text, and a boolean is refused because "true" names nothing.
+    private static func name(_ window: [String: Any], _ path: String) -> String? {
+        let value = FieldPath.lookup(window, path)
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        switch value {
+        case let text as String: return text.isEmpty ? nil : text
+        case let number as NSNumber:
+            let double = number.doubleValue
+            return double == double.rounded() && abs(double) < 1e15
+                ? String(Int64(double)) : String(double)
+        default: return nil
+        }
     }
 
     // MARK: - Helpers

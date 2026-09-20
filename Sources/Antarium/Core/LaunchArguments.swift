@@ -23,6 +23,7 @@ enum LaunchArguments {
       --evaluate-harness <file>       Evaluate a harness
       --verify-harness-fixtures      Verify bundled synthetic fixtures
       --verify-harness-installations Verify installation probes
+      --verify-harness-quota         Verify quota mappings against recorded shapes
     Synthetic activity validation:
       --activity-demo
       --activity-preview <png> [--explorer|--insights|--analysis] [--selected] [--empty] [--compact]
@@ -52,7 +53,7 @@ enum LaunchArguments {
         guard let first = arguments.first else { return nil }
         if first == "run" { return arguments.count > 1 ? nil : "The run wrapper requires a command." }
         let single:Set<String> = ["--help","-h","--activity-demo","--status","--bench","--tmux",
-            "--activity-model-worker","--print-remote-discovery-command","--verify-harness-fixtures","--verify-harness-installations"]
+            "--activity-model-worker","--print-remote-discovery-command","--verify-harness-fixtures","--verify-harness-installations","--verify-harness-quota"]
         let file:Set<String> = ["--verify-remote-discovery-reply","--activity-report-preview","--preview",
             "--dashboard","--alert","--check","--evaluate-harness","--settings","--focus","--onboarding"]
         var modes = Dictionary(uniqueKeysWithValues:single.map { ($0,Mode()) })

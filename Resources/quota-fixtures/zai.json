@@ -1,0 +1,59 @@
+{
+  "note": "Synthetic. Shape follows Z.ai's documented quota/limit payload, including the two TOKENS_LIMIT rows that differ only by unit. Every value is invented.",
+  "verifiedAt": "2026-09-20",
+  "response": {
+    "data": {
+      "limits": [
+        {
+          "type": "TOKENS_LIMIT",
+          "unit": 3,
+          "percentage": 65,
+          "nextResetTime": "2026-09-20T20:00:00Z"
+        },
+        {
+          "type": "TOKENS_LIMIT",
+          "unit": 6,
+          "percentage": 41.5,
+          "nextResetTime": "2026-09-24T00:00:00Z"
+        },
+        {
+          "type": "TIME_LIMIT",
+          "unit": 5,
+          "percentage": 12,
+          "nextResetTime": "2026-09-20T20:00:00Z"
+        },
+        {
+          "type": "UNKNOWN_LIMIT",
+          "unit": 99,
+          "percentage": 100,
+          "nextResetTime": "2026-09-20T20:00:00Z"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "gauges": [
+      {
+        "id": "TOKENS_LIMIT-3",
+        "badge": "5H",
+        "title": "Session (5 hours)",
+        "usedPercent": 65,
+        "resetsAt": "2026-09-20T20:00:00Z"
+      },
+      {
+        "id": "TOKENS_LIMIT-6",
+        "badge": "7D",
+        "title": "Weekly",
+        "usedPercent": 41.5,
+        "resetsAt": "2026-09-24T00:00:00Z"
+      },
+      {
+        "id": "TIME_LIMIT-5",
+        "badge": "TOOL",
+        "title": "Tools",
+        "usedPercent": 12,
+        "resetsAt": "2026-09-20T20:00:00Z"
+      }
+    ]
+  }
+}

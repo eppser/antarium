@@ -184,7 +184,22 @@ struct HarnessDescriptor: Codable {
         struct Windows: Codable {
             /// Dot-path to the object holding the windows.
             var root: String?
-            /// Which members of it are windows. Omit to take all of them.
+            /// Dot-path to an *array* of windows, for the services that report
+            /// one — Z.ai's `data.limits`, MiniMax's `model_remains`. A list
+            /// has no member names of its own, so `key` says which field
+            /// inside each element names it. Supersedes `root` when both are
+            /// given.
+            var list: String?
+            /// Field paths inside each list element that name that window.
+            /// Several are joined with "-" where one alone is ambiguous: Z.ai
+            /// reports two `TOKENS_LIMIT` rows and distinguishes them only by
+            /// `unit`, so keying on `type` alone silently collapses the weekly
+            /// cap into the session one. Without any key the elements are
+            /// numbered, which reads badly in a menu.
+            var key: [String]?
+            /// Which members are windows. Omit to take all of them. For an
+            /// object this also fixes their order; for a list the response's
+            /// own order is kept.
             var keys: [String]?
             /// 0–100. Some APIs report what is left instead of what is spent;
             /// give `percentRemaining` for those rather than making the author
@@ -202,6 +217,11 @@ struct HarnessDescriptor: Codable {
             /// What to call each window. Without it the badge is the first
             /// letters of the key, which reads as "CHA" and "COM".
             var labels: [String: String]?
+            /// What to *draw* for each window, when the label is too long to
+            /// abbreviate well. A label is truncated to three letters for the
+            /// menu bar, which turns "Premium" into "PRE" and "Tools" into
+            /// "TOO"; naming the badge outright avoids inventing a word.
+            var badges: [String: String]?
             var windowSeconds: String?
             var resetsAt: String?
             var title: String?

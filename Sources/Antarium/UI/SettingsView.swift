@@ -557,6 +557,18 @@ struct SettingsView: View {
                     }
                 }
             }
+            HStack(spacing: 6) {
+                Button("Detect installed agents") {
+                    model.update {
+                        ConfiguredProbe.invalidate()
+                        AgentAutoEnable.apply(providers: ProviderRegistry.all)
+                    }
+                }
+                .controlSize(.small)
+                .help("Switch on every agent that is signed in or has sessions on this Mac, and switch off the rest.")
+                Spacer()
+            }
+            .padding(.top, 2)
         }
     }
 

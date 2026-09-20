@@ -2,7 +2,9 @@
   "formatVersion": 1,
   "id": "copilot",
   "name": "GitHub Copilot",
-  "presentation": { "mark": "copilot" },
+  "presentation": {
+    "mark": "copilot"
+  },
   "note": "Quota only \u2014 Copilot's sessions are read through the vscode harness. The token comes from `gh auth token` rather than an environment variable, because an app launched from Finder inherits no shell. Windows without has_quota are skipped: a free plan lists a premium tier it does not have.",
   "process": {},
   "compatibility": {
@@ -44,6 +46,11 @@
         "chat": "Chat",
         "completions": "Code",
         "premium_interactions": "Premium"
+      },
+      "badges": {
+        "chat": "CHAT",
+        "completions": "CODE",
+        "premium_interactions": "PREM"
       }
     },
     "accountLabel": "copilot_plan",

@@ -470,6 +470,12 @@ public struct HarnessConfig: Codable {
 
         public struct Windows: Codable {
             public var root: String?
+            /// Dot-path to an array of windows, for services that report one
+            /// instead of a keyed object. Supersedes `root`.
+            public var list: String?
+            /// Field paths inside each list element that name that window.
+            /// Several are joined with "-" when one alone is ambiguous.
+            public var key: [String]?
             public var keys: [String]?
             public var usedPercent: String?
             public var percentRemaining: String?
@@ -477,13 +483,18 @@ public struct HarnessConfig: Codable {
             public var limit: String?
             public var require: [String: Bool]?
             public var labels: [String: String]?
+            /// Explicit menu-bar badge per window, when the label abbreviates badly.
+            public var badges: [String: String]?
             public var windowSeconds: String?
             public var resetsAt: String?
             public var title: String?
 
-            public init(root: String? = nil, keys: [String]? = nil) {
+            public init(root: String? = nil, keys: [String]? = nil,
+                        list: String? = nil, key: [String]? = nil) {
                 self.root = root
                 self.keys = keys
+                self.list = list
+                self.key = key
             }
         }
     }

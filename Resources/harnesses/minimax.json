@@ -1,0 +1,53 @@
+{
+  "formatVersion": 1,
+  "id": "minimax",
+  "name": "MiniMax",
+  "presentation": {
+    "mark": "minimax"
+  },
+  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live plan."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.minimax.io/v1/api/openplatform/coding_plan/remains",
+    "credential": {
+      "kind": "env",
+      "name": "MINIMAX_API_KEY"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "list": "model_remains",
+      "key": [
+        "model_name"
+      ],
+      "used": "current_interval_usage_count",
+      "limit": "current_interval_total_count",
+      "resetsAt": "end_time",
+      "badges": {
+        "minimax-m2": "M2",
+        "minimax-m1": "M1",
+        "MiniMax-M2": "M2",
+        "MiniMax-M1": "M1"
+      },
+      "labels": {
+        "minimax-m2": "M2",
+        "minimax-m1": "M1",
+        "MiniMax-M2": "M2",
+        "MiniMax-M1": "M1"
+      }
+    },
+    "setupHint": "Set MINIMAX_API_KEY from platform.minimax.io.",
+    "verified": false
+  }
+}
