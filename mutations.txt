@@ -76,3 +76,8 @@ benchmark hides an unabsorbed backlog | Sources/Antarium/Core/TranscriptStats.sw
 record limit back below real transcripts | Sources/Antarium/Core/BoundedTraceReader.swift | s/maxRecord: Int = 2 \* 1_024 \* 1_024/maxRecord: Int = 1_024 * 1_024/
 agent rows hide why their figures are missing | Sources/Antarium/Diagnostics.swift | s/        if let note = r.note, !note.isEmpty { lines.append("    \\(note)") }//
 dashboard hides that totals are incomplete | Sources/Antarium/UI/Dashboard.swift | s/let waiting = rows.filter { (\$0.note ?? "").contains("still being read") }.count/let waiting = 0/
+cache reads billed at the input rate | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheRead) / 1_000_000 \* rate.cacheRead|+ Double(usage.cacheRead) / 1_000_000 * rate.input|
+per-million divisor off by a thousand | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.input) / 1_000_000 \* rate.input|Double(usage.input) / 1_000 * rate.input|
+one-hour cache writes dropped from the bill | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheWrite1h) / 1_000_000 \* rate.cacheWrite1h||
+unexplained cache writes billed at the dearer rate | Sources/Antarium/Core/TranscriptStats.swift | s|let write5 = add(w5, max(0, writeTotal - classified))|let write5 = add(w5, 0)|
+an unpriced model silently drops out of the total | Sources/Antarium/Core/TranscriptStats.swift | s|.allSatisfy({ \$0.isFinite \&\& \$0 >= 0 }) else { return nil }|.allSatisfy({ $0.isFinite \&\& $0 >= 0 }) else { continue }|
