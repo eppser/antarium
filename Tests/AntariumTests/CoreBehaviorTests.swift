@@ -374,3 +374,56 @@ struct DeclaredStatusTests {
         #expect(unknown?.isWorking == nil)
     }
 }
+
+/// Cancellation is cooperative, so a superseded scan keeps running and
+/// finishes with rows it is no longer entitled to publish. Four call sites in
+/// AgentStore ask the same question before committing anything; this is the
+/// question.
+@Suite("Scan publication gate")
+struct ScanGenerationTests {
+
+    @Test("Only the newest generation may publish")
+    func onlyTheNewestPublishes() {
+        var generations = ScanGeneration()
+        let first = generations.begin()
+        #expect(generations.mayPublish(first, cancelled: false))
+
+        // A forced refresh replaces the generation. The first scan is still
+        // running — cancellation is cooperative — and must not commit.
+        let second = generations.begin()
+        #expect(!generations.mayPublish(first, cancelled: false))
+        #expect(generations.mayPublish(second, cancelled: false))
+    }
+
+    @Test("Cancellation and supersession are different, and either one stops a publish")
+    func bothHalvesMatter() {
+        var generations = ScanGeneration()
+        let generation = generations.begin()
+        // Current but cancelled: the store was stopped mid-scan.
+        #expect(!generations.mayPublish(generation, cancelled: true))
+        // Superseded but not cancelled: a forced refresh moved on without the
+        // old task noticing. Dropping either half of the condition lets one of
+        // these through.
+        _ = generations.begin()
+        #expect(!generations.mayPublish(generation, cancelled: false))
+    }
+
+    @Test("A generation from the future cannot publish")
+    func futureGenerationsAreRefused() {
+        var generations = ScanGeneration()
+        let first = generations.begin()
+        #expect(!generations.mayPublish(first + 1, cancelled: false))
+        #expect(generations.current == first)
+
+        // The initial value does compare current before anything has begun.
+        // That is the contract — "this generation is the latest" — and it is
+        // unreachable in practice because begin() always precedes the ticket
+        // it hands out. Stated here because the first version of this test
+        // asserted the opposite from assumption rather than from the code,
+        // and an unreachable case is worth naming rather than quietly
+        // asserting either way.
+        let fresh = ScanGeneration()
+        #expect(fresh.mayPublish(0, cancelled: false))
+        #expect(!fresh.mayPublish(0, cancelled: true))
+    }
+}

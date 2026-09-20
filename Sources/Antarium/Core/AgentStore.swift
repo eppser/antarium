@@ -260,7 +260,9 @@ final class AgentStore: ObservableObject {
             let began = ProcessInfo.processInfo.systemUptime
             let worker = Task.detached(priority: .utility) { Result { try AgentScan.observe() } }
             let observation = await withTaskCancellationHandler(operation: { await worker.value }, onCancel: { worker.cancel() })
-            guard let self, self.generations.isCurrent(generation), !Task.isCancelled else { return }
+            guard let self,
+                  self.generations.mayPublish(generation, cancelled: Task.isCancelled)
+            else { return }
             let local = Self.applyingLocal(try? observation.get(),previous:self.localRows)
             Log.info("scan", "\(local.rows.count) rows in "
                 + "\(String(format: "%.0f", (ProcessInfo.processInfo.systemUptime - began) * 1000))ms"
@@ -272,12 +274,11 @@ final class AgentStore: ObservableObject {
                 self.lastCloudAttempt = Date()
                 do {
                     cloud = try await CloudScan.codexTasks()
-                    guard self.generations.isCurrent(generation),
-                          !Task.isCancelled else { return }
+                    guard self.generations.mayPublish(generation, cancelled: Task.isCancelled) else { return }
                     self.cloudRows = cloud
                     self.cloudScanIssue = nil
                 } catch {
-                    guard self.generations.isCurrent(generation), !Task.isCancelled else { return }
+                    guard self.generations.mayPublish(generation, cancelled: Task.isCancelled) else { return }
                     let message = CloudScan.issue(for:error)
                     Log.info("scan", message)
                     self.cloudScanIssue = message
@@ -291,8 +292,7 @@ final class AgentStore: ObservableObject {
                 self.remoteIssues = [:]
             }
 
-            guard self.generations.isCurrent(generation),
-                  !Task.isCancelled else { return }
+            guard self.generations.mayPublish(generation, cancelled: Task.isCancelled) else { return }
             self.localRows = local.rows
             self.localScanIssue = local.issue
             self.cloudRows = cloud
