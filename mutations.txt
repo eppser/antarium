@@ -105,3 +105,6 @@ negative registry timestamps accepted | Sources/Antarium/Core/AgentScan.swift | 
 a dead process keeps its pid | Sources/Antarium/Core/AgentScan.swift | s|pid: alive ? pid : nil,|pid: pid,|
 sessions sharing an id collapse into one row | Sources/Antarium/Core/AgentScan.swift | s|sessionID: sessionID, cwd: cwd, pid: pid)|sessionID: sessionID, cwd: "", pid: nil)|
 a missing registry becomes a scan failure | Sources/Antarium/Core/AgentScan.swift | s|if errno == ENOENT { return \[\] }||
+application raised before the workspace manager | Sources/Antarium/Core/Focus.swift | s|if let pid = row.pid { steps.append(.app(pid: pid)) }|if let pid = row.pid { steps.insert(.app(pid: pid), at: 0) }|
+remote rows are routed to a local window | Sources/Antarium/Core/Focus.swift | s|guard canRevealLocally(row) else { return \[\] }||
+tmux tried after the application | Sources/Antarium/Core/Focus.swift | s|if let target = row.tmuxTarget, !target.isEmpty { steps.append(.tmux(target)) }||

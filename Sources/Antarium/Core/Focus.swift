@@ -48,27 +48,62 @@ enum Focus {
         }
     }
 
+    /// One thing a click could try, in the order it should be tried.
+    ///
+    /// Naming the order makes it a rule with a test instead of the shape of an
+    /// `if` chain inside three calls that need a window server, a tmux server
+    /// and a workspace manager to exercise. Which matters most for the first
+    /// entry: a harness that owns its own windows knows which pane of which
+    /// tab this session is, and raising the application instead lands on
+    /// whatever it had open last — the click appears to work and goes to the
+    /// wrong place.
+    enum Step: Equatable {
+        case harness(id: String, target: String)
+        case tmux(String)
+        case app(pid: Int32)
+        case folder(String)
+    }
+
+    /// What a click would try, in order. Pure: `descriptorHasFocus` answers
+    /// whether that harness declares a focus command, so the plan can be
+    /// checked without a catalog on disk.
+    static func plan(_ row: AgentRow,
+                     descriptorHasFocus: (String) -> Bool) -> [Step] {
+        guard canRevealLocally(row) else { return [] }
+        var steps: [Step] = []
+        if descriptorHasFocus(row.agentID), let target = row.focusTarget, !target.isEmpty {
+            steps.append(.harness(id: row.agentID, target: target))
+        }
+        if let target = row.tmuxTarget, !target.isEmpty { steps.append(.tmux(target)) }
+        if let pid = row.pid { steps.append(.app(pid: pid)) }
+        if !row.cwd.isEmpty { steps.append(.folder(row.cwd)) }
+        return steps
+    }
+
     @discardableResult
     @MainActor
     static func reveal(_ row: AgentRow) -> Result {
-        guard canRevealLocally(row) else { return .nothing }
+        let descriptors = HarnessDescriptor.all()
+        let steps = plan(row) { id in
+            descriptors.first { $0.id == id }?.focus != nil
+        }
+        guard !steps.isEmpty else { return .nothing }
         Log.info("focus", "reveal local session requested")
-        // A harness that owns its own windows is asked first: it knows which
-        // pane of which tab this session is, and raising the application
-        // instead would land on whatever it had open last.
-        if let descriptor = HarnessDescriptor.all().first(where: { $0.id == row.agentID }),
-           let focus = descriptor.focus, let target = row.focusTarget,
-           runHarnessFocus(focus, target: target) {
-            return .harness(descriptor.name)
-        }
-        if let target = row.tmuxTarget, focusTmux(target) { return .tmux(target) }
-        if let pid = row.pid {
-            let result = activateOwningApp(of: pid)
-            if result.succeeded { return result }
-        }
-        if !row.cwd.isEmpty {
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: row.cwd)])
-            return .folder
+        for step in steps {
+            switch step {
+            case .harness(let id, let target):
+                guard let descriptor = descriptors.first(where: { $0.id == id }),
+                      let focus = descriptor.focus else { continue }
+                if runHarnessFocus(focus, target: target) { return .harness(descriptor.name) }
+            case .tmux(let target):
+                if focusTmux(target) { return .tmux(target) }
+            case .app(let pid):
+                let result = activateOwningApp(of: pid)
+                if result.succeeded { return result }
+            case .folder(let cwd):
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: cwd)])
+                return .folder
+            }
         }
         return .nothing
     }
