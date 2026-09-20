@@ -74,9 +74,10 @@
     "contributes": {
       "enum": [
         "sessions",
-        "focus"
+        "focus",
+        "presence"
       ],
-      "description": "focus means this harness supplies focus targets for other harnesses' sessions and makes no rows of its own."
+      "description": "focus supplies focus targets for other harnesses' sessions; presence makes a row per running process for an agent that keeps no session record."
     },
     "idleAfter": {
       "type": "number",

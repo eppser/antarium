@@ -306,9 +306,17 @@ struct HarnessDescriptor: Codable {
     ///
     /// `focus` means: read these records, use them to say how each session is
     /// raised, and make no rows of your own.
-    enum Contribution: String, Codable { case sessions, focus }
+    /// `presence` is for an agent that keeps no durable session record.
+    /// Gemini CLI writes a project marker and nothing else — no transcript, no
+    /// token counts, no cost — so the running process is the only evidence
+    /// there is. A row for it says the agent is working in a directory and
+    /// leaves every figure absent, which is the truth; omitting it entirely
+    /// would say the opposite.
+    enum Contribution: String, Codable { case sessions, focus, presence }
     var contributes: Contribution?
     var contributesFocusOnly: Bool { contributes == .focus }
+    /// Rows come from the process table alone; no source is read.
+    var contributesPresenceOnly: Bool { contributes == .presence }
 
     struct Presentation: Codable {
         var mark: String?

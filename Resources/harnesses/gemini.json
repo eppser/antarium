@@ -1,0 +1,61 @@
+{
+  "formatVersion": 1,
+  "id": "gemini",
+  "name": "Gemini CLI",
+  "note": "Gemini CLI keeps no durable session record: ~/.gemini holds settings, a project list and a .project_root marker per directory, and nothing that describes a conversation. There is no transcript to read, so there are no tokens, no cost and no context figure \u2014 and a row that showed zeros would be claiming knowledge this harness does not have. It contributes presence only: the running process, the directory it is working in, and an explicit note that the rest is unknown. The process rule matches the executable name exactly: a path fragment of /bin/gemini also matches /bin/geminid, which the negative probe caught \u2014 the second time that check has found an over-broad matcher of mine.",
+  "process": {
+    "names": [
+      "gemini"
+    ],
+    "installationProbes": [
+      {
+        "method": "homebrew",
+        "path": "/opt/homebrew/bin/gemini",
+        "name": "gemini",
+        "argv0": "gemini",
+        "expected": true,
+        "evidence": "https://github.com/google-gemini/gemini-cli",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "npm global install",
+        "path": "/opt/example/lib/node_modules/@google/gemini-cli/bin/gemini",
+        "name": "gemini",
+        "argv0": "gemini",
+        "expected": true,
+        "evidence": "https://github.com/google-gemini/gemini-cli",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: an unrelated binary with a longer name",
+        "path": "/usr/local/bin/geminid",
+        "name": "geminid",
+        "argv0": "geminid",
+        "expected": false,
+        "evidence": "https://github.com/google-gemini/gemini-cli",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: a project directory named gemini",
+        "path": "/opt/example/src/gemini/node_modules/.bin/tsc",
+        "name": "tsc",
+        "argv0": "tsc",
+        "expected": false,
+        "evidence": "https://github.com/google-gemini/gemini-cli",
+        "verifiedAt": "2026-09-20"
+      }
+    ]
+  },
+  "compatibility": {
+    "level": "declared",
+    "note": "Presence only: verified against the installed CLI, which writes no session record to read."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "contributes": "presence",
+  "presentation": {
+    "sourceLabel": "Process only"
+  }
+}

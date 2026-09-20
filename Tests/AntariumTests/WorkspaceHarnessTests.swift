@@ -251,3 +251,72 @@ struct WorkspaceDetectionTests {
                                processes: [:]).isEmpty)
     }
 }
+
+/// An agent that keeps no durable session record. The running process is the
+/// whole of the evidence, and every figure stays absent rather than zero —
+/// this harness genuinely does not know the token count, and a zero would be a
+/// claim it cannot support.
+@Suite("Presence-only harnesses", .serialized)
+struct PresenceHarnessTests {
+
+    private let all = HarnessCLI.bundledDescriptors()
+
+    private func descriptor() throws -> HarnessDescriptor {
+        try #require(all.first { $0.contributesPresenceOnly },
+                     "no presence-only harness is shipped")
+    }
+
+    @Test("A row is made per matching process, and none without one")
+    func rowsComeFromProcessesAlone() throws {
+        let descriptor = try descriptor()
+        #expect(AgentScan.rows(for: descriptor, processes: [:]).isEmpty)
+
+        let matching = Processes.Info(pid: 4242, ppid: 1,
+                                      path: "/opt/homebrew/bin/gemini",
+                                      name: "gemini", argv0: "gemini", rss: 1_000)
+        let unrelated = Processes.Info(pid: 4243, ppid: 1,
+                                       path: "/usr/local/bin/geminid",
+                                       name: "geminid", argv0: "geminid", rss: 1_000)
+        // Through the scan's own row builder, so the wiring is covered too:
+        // testing presenceRows directly left "the scan never calls it" green.
+        let rows = AgentScan.rows(for: descriptor,
+                                  processes: [4242: matching, 4243: unrelated])
+        #expect(rows.count == 1, "matched \(rows.count) processes")
+        #expect(rows[0].pid == 4242)
+    }
+
+    @Test("Every figure stays absent, and the row says why")
+    func figuresAreAbsentNotZero() throws {
+        let descriptor = try descriptor()
+        let process = Processes.Info(pid: 4242, ppid: 1, path: "/opt/homebrew/bin/gemini",
+                                     name: "gemini", argv0: "gemini", rss: 1_000)
+        let row = try #require(
+            AgentScan.rows(for: descriptor, processes: [4242: process]).first)
+        // Unobserved, not waiting: "this agent is idle" is a claim about its
+        // state, and a harness with no session record cannot make it.
+        // State is not Equatable, so the case is matched rather than compared.
+        if case .unobserved = row.state {} else {
+            Issue.record("a presence row claimed to know the agent's state: \(row.state)")
+        }
+        // Absent, not zero: "no tokens recorded" and "zero tokens used" are
+        // different statements and only one of them is true here.
+        #expect(row.contextTokens == nil)
+        #expect(row.costUSD == nil)
+        #expect(row.sentTokens == nil)
+        #expect(row.model == nil)
+        // A row of dashes with no explanation reads as an idle agent.
+        #expect(row.localObservationIssue?.contains("no session record") == true,
+                "the row does not say why it is empty")
+    }
+
+    @Test("A presence harness declares no source to read")
+    func presenceHarnessesReadNothing() throws {
+        let descriptor = try descriptor()
+        #expect(descriptor.source.kind == .none)
+        #expect(descriptor.source.path.isEmpty)
+        #expect(descriptor.quota == nil, "it would become a menu bar item with nothing to show")
+        // And it is not offered as an installed agent, since there is no
+        // session store for onboarding to find.
+        #expect(!Onboarding.harnesses(all).contains { $0.id == descriptor.id })
+    }
+}

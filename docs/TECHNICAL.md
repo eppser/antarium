@@ -381,6 +381,19 @@ replace that command with one that prints a recorded reply, so the mapping,
 the records path and every field path are exercised without either tool being
 installed.
 
+### Agents that keep no session record
+
+Gemini CLI writes a settings file, a project list and a `.project_root` marker
+per directory, and nothing describing a conversation. There is no transcript,
+so there are no tokens, no cost and no context figure.
+
+`contributes: "presence"` makes a row per matching process and leaves every
+figure absent — not zero. "No tokens recorded" and "zero tokens used" are
+different statements and only the first is true. The state is `unobserved`
+rather than `waiting`, for the same reason: whether the agent is idle is a
+claim this harness cannot make. The row carries a note saying why it is empty,
+because a line of dashes otherwise reads as an agent that has done nothing.
+
 ### Descriptor-backed quota providers
 
 For agents without a built-in authentication flow, `quota` can describe a

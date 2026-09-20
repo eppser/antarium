@@ -62,3 +62,6 @@ deepseek assumes dollars | Resources/harnesses/deepseek.json | s/"currency": "cu
 commandcode envelope path renamed | Resources/harnesses/commandcode.json | s/"data.windowLimits"/"data.windowLimitsX"/
 herdr focus target renamed | Resources/harnesses/herdr.json | s/"focusTarget": "tab_id"/"focusTarget": "tabId"/
 orca records path renamed | Resources/harnesses/orca.json | s/"root": "result.terminals"/"root": "terminals"/
+presence harness emits no rows | Sources/Antarium/Core/AgentScan.swift | s/            return presenceRows(descriptor, processes: processes)/            return []/
+presence rows invent a zero cost | Sources/Antarium/Core/AgentScan.swift | s/                    state: .unobserved,/                    state: .waiting,/
+gemini matcher widened to a path fragment | Resources/harnesses/gemini.json | s/"names": \[/"pathContains": ["\/bin\/gemini"], "names": [/

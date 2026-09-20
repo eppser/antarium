@@ -584,8 +584,11 @@ enum AgentScan {
     /// re-reading the descriptor in a test.
     static func rows(for descriptor: HarnessDescriptor,
                      processes: [Int32: Processes.Info]) -> [AgentRow] {
-        if descriptor.source.kind == .none { return [] }
         if descriptor.contributesFocusOnly { return [] }
+        if descriptor.contributesPresenceOnly {
+            return presenceRows(descriptor, processes: processes)
+        }
+        if descriptor.source.kind == .none { return [] }
         if descriptor.source.kind == .command {
             return commandRows(descriptor, processes: processes)
         }
@@ -600,10 +603,14 @@ enum AgentScan {
             // `none` means the sessions are read elsewhere; this file exists to
             // say which processes are the agent's. It must not make rows of its
             // own, or every native harness would appear twice and empty.
-            if descriptor.source.kind == .none { continue }
             // A workspace manager's panes are other agents' sessions; they are
             // joined onto those rows afterwards rather than duplicating them.
             if descriptor.contributesFocusOnly { continue }
+            if descriptor.contributesPresenceOnly {
+                rows += self.rows(for: descriptor, processes: processes)
+                continue
+            }
+            if descriptor.source.kind == .none { continue }
             if descriptor.source.kind == .command {
                 rows += commandRows(descriptor, processes: processes)
                 continue
@@ -866,6 +873,38 @@ enum AgentScan {
             rows[index].focusTarget = target
             claimed.insert(target)
         }
+    }
+
+    /// One row per running process, and nothing else.
+    ///
+    /// For an agent that keeps no durable session record the process is the
+    /// whole of the evidence. Every figure stays absent rather than zero: this
+    /// harness genuinely does not know the token count, and saying zero would
+    /// be a claim it cannot support.
+    static func presenceRows(_ descriptor: HarnessDescriptor,
+                             processes: [Int32: Processes.Info]) -> [AgentRow] {
+        processes.values
+            .filter { descriptor.claims($0) }
+            .sorted { $0.pid < $1.pid }
+            .map { process in
+                let cwd = Processes.cwd(of: process.pid) ?? ""
+                let folder = URL(fileURLWithPath: cwd).lastPathComponent
+                var row = AgentRow(
+                    id: AgentIdentity.local(harness: descriptor.id, sessionID: nil,
+                                            cwd: cwd, pid: process.pid),
+                    agentID: descriptor.id,
+                    name: folder.isEmpty
+                        ? (descriptor.resolvedFallbackName ?? descriptor.name) : folder,
+                    cwd: cwd,
+                    state: .unobserved,
+                    pid: process.pid,
+                    rssBytes: process.rss)
+                // Said plainly, because a row with no numbers otherwise reads
+                // as an agent that has done nothing.
+                row.localObservationIssue =
+                    "\(descriptor.name) keeps no session record, so only its presence is known."
+                return row
+            }
     }
 
     private static func commandRows(_ descriptor: HarnessDescriptor,
