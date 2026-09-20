@@ -169,6 +169,18 @@ struct DashboardView: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
+            // Leftmost, so it sits in the corner and never moves: the cost and
+            // memory labels next to it come and go with what is running.
+            Button { NSWorkspace.shared.open(AppLinks.bugReport()) } label: {
+                Image(systemName: "ladybug")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Report a bug on GitHub")
+            .accessibilityLabel("Report a bug on GitHub")
+
             if store.totalCost > 0 {
                 Label(Pricing.money(store.totalCost), systemImage: "creditcard")
                     .help("Estimated list-price cost of every session's tokens. "
@@ -284,7 +296,14 @@ private struct AgentRowView: View {
                         Image(systemName: "square.split.2x2").font(.system(size: 7.5))
                             .foregroundStyle(.quaternary).help("tmux · \(tmux)")
                     }
-                    if row.isRemote {
+                    // A machine you can ssh to is not "the cloud", and one
+                    // icon for both would make a remote tmux pane look like a
+                    // hosted task with no pane to attach to.
+                    if row.hostApp == RemoteTmux.tag {
+                        Image(systemName: "server.rack").font(.system(size: 7.5))
+                            .foregroundStyle(.secondary)
+                            .help(row.note ?? "tmux on another machine")
+                    } else if row.isRemote {
                         Image(systemName: "cloud.fill").font(.system(size: 7.5))
                             .foregroundStyle(.secondary).help("Running in the cloud")
                     }

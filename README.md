@@ -51,6 +51,7 @@ integration status.
 - **Multi-session awareness** for agents running in the same folder or app.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
+- **Remote tmux agents** over SSH, from machines you already reach with `ssh`.
 - **Quota monitoring** for supported Claude, Codex, Cursor, and GitHub Copilot accounts.
 - **Per-agent project setup overview** for supported harnesses, including
   instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
@@ -136,11 +137,65 @@ It does not invent quota, context, token, cost, or session values. Cost is
 clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
 
+## Remote tmux agents
+
+Agents running under tmux on another machine appear alongside local ones,
+tagged `tmux-remote`.
+
+Adding a machine costs one line — the string you would type after `ssh`:
+
+```json
+{
+  "includeRemoteTmux": true,
+  "remoteTmuxHosts": ["quibus", "10.0.0.4", "deploy@build-box"]
+}
+```
+
+List as many machines as you like. Each is asked in parallel, so a sweep costs
+roughly the slowest host rather than the sum of them, and each is kept
+independently: a machine that cannot be reached keeps the agents it last showed
+and says why, while the others carry on updating. A machine that answers with
+*no* agents is believed — that is a fact about that machine, not a failure — so
+finished sessions disappear rather than lingering.
+
+Nothing else is configured here on purpose. `~/.ssh/config` already holds the
+port, the identity file, the real hostname and any jump host, and restating any
+of it in Antarium would only be a second place for it to go stale.
+
+**The prerequisite is that `ssh <host>` already works from your Terminal.**
+Unknown host keys are not auto-accepted, so connect once by hand first and
+verify the fingerprint yourself.
+
+- **Key authentication** needs nothing further, and is the case to prefer.
+- **Password authentication** is entered once in Settings and stored in your
+  login Keychain under the service `Antarium tmux-remote`, never in
+  `config.json`. It also needs [`sshpass`](https://sourceforge.net/projects/sshpass/)
+  on this Mac: `brew install sshpass`.
+
+Antarium runs one command per host per sweep — `tmux list-panes`, `ps`, and
+`readlink /proc/*/exe` — and never starts, attaches to, or writes to a remote
+session.
+
+**What a remote row does not show:** status, token counts and cost. Those come
+from transcript files that stay on the remote machine, so a remote row reports
+the host and pane instead of a live status rather than guessing at one.
+
+To see what each host actually answered:
+
+```bash
+Antarium --remote-tmux            # every configured host
+Antarium --remote-tmux quibus     # just this one
+```
+
 ## Private by design
 
 Antarium runs locally and has no telemetry. It reads configured process and
 session metadata and uses existing provider credentials only when requesting
-supported quota information. The built-in dashboard can focus sessions, but it
+supported quota information.
+
+Remote tmux is the one feature that connects outward to a machine you name, and
+it is off until you turn it on. It sends no data — it runs read-only inspection
+commands and reads their output. The built-in dashboard can focus sessions, but it
 does not terminate agents, terminal applications, or tmux sessions.
 
 Custom harnesses are trusted local configuration and should be reviewed before

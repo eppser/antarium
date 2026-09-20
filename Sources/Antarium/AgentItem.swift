@@ -368,7 +368,7 @@ final class AgentItem: NSObject, NSMenuDelegate {
         menu.addItem(action("Settings…", #selector(openSettings), key: ","))
 
         let login = action("Open at Login", #selector(toggleLogin))
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        login.state = LaunchAtLogin.isEnabled ? .on : .off
         menu.addItem(login)
 
         menu.addItem(.separator())
@@ -499,15 +499,5 @@ final class AgentItem: NSObject, NSMenuDelegate {
         refresh(reason: .manual)
     }
 
-    @objc private func toggleLogin() {
-        do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
-            }
-        } catch {
-            NSLog("Antarium: login item toggle failed — %@", error.localizedDescription)
-        }
-    }
+    @objc private func toggleLogin() { LaunchAtLogin.toggle() }
 }

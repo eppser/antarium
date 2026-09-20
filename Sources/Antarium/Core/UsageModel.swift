@@ -105,3 +105,13 @@ enum ProviderError: LocalizedError, Equatable {
         }
     }
 }
+
+extension Gauge {
+    /// A short, upper-case tag for a window: the whole name when it is already
+    /// short enough to read as one, otherwise its first three letters.
+    /// Both providers derived this the same way; the rule belongs with the
+    /// type that displays it.
+    static func badge(from name: String) -> String {
+        name.count <= 4 ? name.uppercased() : String(name.prefix(3)).uppercased()
+    }
+}

@@ -134,8 +134,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             let named = map.labels?[key]
             gauges.append(Gauge(
                 id: key,
-                badge: named.map { $0.count <= 4 ? $0.uppercased()
-                                                 : String($0.prefix(3)).uppercased() }
+                badge: named.map { Gauge.badge(from: $0) }
                     ?? Self.badge(seconds: span, fallback: key),
                 title: named
                     ?? map.title.flatMap { FieldPath.lookup(window, $0) as? String }

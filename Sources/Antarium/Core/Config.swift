@@ -106,6 +106,14 @@ enum Config {
                 withJSONObject: snapshot, options: [.prettyPrinted, .sortedKeys])
             // Atomic: never leave a half-written config behind.
             try data.write(to: url, options: .atomic)
+            // 0600. The file is documented as the place for values the menu
+            // does not expose, and that includes provider API keys — see the
+            // nested `Config.string("kimi", "api_key")` accessor. Default
+            // permissions make it world-readable, which on a shared Mac hands
+            // every other account a live credential. Set after the write:
+            // an atomic write replaces the inode, taking its mode with it.
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: url.path)
             // Our own write is not an edit to pick up on the next read.
             lock.lock(); stamp = FileStamp.of(url); lock.unlock()
         } catch {

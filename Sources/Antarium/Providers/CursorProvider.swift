@@ -146,7 +146,7 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
             guard let max = intValue(bucket["maxRequestUsage"]), max > 0,
                   let used = intValue(bucket["numRequests"]) else { continue }
             let percent = Double(used) / Double(max) * 100
-            let badge = key.count <= 4 ? key.uppercased() : String(key.prefix(3)).uppercased()
+            let badge = Gauge.badge(from: key)
             gauges.append(Gauge(id: key, badge: badge, title: key,
                                 used: Swift.min(Swift.max(percent / 100, 0), 1), resetsAt: nil,
                                 reportedSeverity: .normal))

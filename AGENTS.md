@@ -35,6 +35,10 @@ product contracts:
 - `Sources/Antarium/Core`: collection, mapping, caching, lifecycle, and models.
 - `Sources/Antarium/Providers`: native authenticated quota integrations.
 - `Sources/Antarium/UI`: AppKit/SwiftUI presentation only.
+- `Sources/Antarium/Core/RemoteTmux.swift`: SSH-backed tmux discovery on
+  other machines. Hosts come from `remoteTmuxHosts`; a password, when one
+  is needed, lives in the Keychain. Rows are tagged `tmux-remote` and
+  deliberately carry no `tmuxTarget`, which drives the *local* focus path.
 - `Resources/harnesses`: shipped declarative descriptors.
 - `Resources/harness-fixtures`: synthetic dated compatibility evidence.
 - `Tests/AntariumTests`: behavior, architecture, numeric, performance, and UI
@@ -54,7 +58,8 @@ swift build --scratch-path /tmp/antarium-strict \
 For harness changes, also run the built executable with
 `--verify-harness-fixtures`, `--verify-harness-installations`, and `--check`
 against the changed descriptor when the corresponding upstream application is
-installed. A process-backed bundled harness must carry positive installation
+installed. For remote tmux changes, `--remote-tmux [host ...]` reports what each
+configured machine answered, including why one contributed nothing. A process-backed bundled harness must carry positive installation
 probes and negative collision/helper probes with synthetic paths and dated
 official evidence.
 
