@@ -2,9 +2,6 @@
   "formatVersion": 1,
   "id": "zai",
   "name": "Z.ai GLM",
-  "presentation": {
-    "mark": "zai"
-  },
   "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most.",
   "process": {},
   "compatibility": {

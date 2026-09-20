@@ -212,6 +212,16 @@ enum HarnessCheck {
                + claimed.prefix(3).map { ($0.path as NSString).lastPathComponent }.joined(separator: ", "))
         }
 
+        // A declared mark with no artwork silently falls back to a letter.
+        // That is the right behaviour, but a descriptor that declares one is
+        // stating something untrue, and the author cannot see it happen.
+        if let mark = descriptor.resolvedMark, !mark.isEmpty,
+           AppResources.bundle.url(forResource: mark, withExtension: "png",
+                                   subdirectory: "marks") == nil {
+            warn("presentation.mark \"\(mark)\" has no artwork in Resources/marks; "
+                 + "the row will show a letter instead")
+        }
+
         // 3b. The quota block, which for a quota-only harness is the whole
         //     point of the file and used to be reported on not at all: an
         //     endpoint of "not a url" passed with no problems and failed at

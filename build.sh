@@ -84,6 +84,15 @@ if [[ -d Resources/harness-fixtures ]]; then
     cp -R Resources/harness-fixtures "$APP/Contents/Resources/harness-fixtures"
     echo "    bundled compatibility fixtures: $(find Resources/harness-fixtures -name '*.json' | wc -l | tr -d ' ')"
 fi
+# Recorded quota response shapes. Without these --verify-harness-quota reports
+# every descriptor as having no fixture, which is what shipped until this line
+# existed: the app bundle is assembled by copying named directories, so a new
+# resource directory declared in Package.swift reaches the SwiftPM bundle and
+# not the app.
+if [[ -d Resources/quota-fixtures ]]; then
+    cp -R Resources/quota-fixtures "$APP/Contents/Resources/quota-fixtures"
+    echo "    bundled quota fixtures: $(find Resources/quota-fixtures -name '*.json' | wc -l | tr -d ' ')"
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

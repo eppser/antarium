@@ -2,9 +2,6 @@
   "formatVersion": 1,
   "id": "deepseek",
   "name": "DeepSeek",
-  "presentation": {
-    "mark": "deepseek"
-  },
   "note": "Quota only, and a balance rather than a meter: DeepSeek is pay-per-use and publishes no cap, so there is no percentage to report. One row per currency the account holds \u2014 the currency is read from the response rather than assumed, because Chinese accounts are billed in CNY and labelling that with a dollar sign would misstate the balance by an exchange rate. Set quota.credential to {\"kind\":\"textFile\",\"path\":\"~/.<name>-key\"} or paste the key straight into this file. The environment variable works too, but only when Antarium is launched from a shell \u2014 an app started from Finder inherits no environment.",
   "process": {},
   "compatibility": {

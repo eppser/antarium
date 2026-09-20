@@ -2,9 +2,6 @@
   "formatVersion": 1,
   "id": "minimax",
   "name": "MiniMax",
-  "presentation": {
-    "mark": "minimax"
-  },
   "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name. Set quota.credential to {\"kind\":\"textFile\",\"path\":\"~/.<name>-key\"} or paste the key straight into this file. The environment variable works too, but only when Antarium is launched from a shell \u2014 an app started from Finder inherits no environment.",
   "process": {},
   "compatibility": {

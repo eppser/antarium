@@ -2,9 +2,6 @@
   "formatVersion": 1,
   "id": "vercel-gateway",
   "name": "Vercel AI Gateway",
-  "presentation": {
-    "mark": "vercel"
-  },
   "note": "Quota only, and a balance rather than a meter: the credits endpoint states what is left and never what a full tank was, so there is nothing honest to fill a bar against. The key comes from AI_GATEWAY_API_KEY \u2014 an app launched from Finder inherits no shell, so set it in ~/.antarium/harnesses/vercel-gateway.json as a textFile credential if the environment variable is not visible. Set quota.credential to {\"kind\":\"textFile\",\"path\":\"~/.<name>-key\"} or paste the key straight into this file. The environment variable works too, but only when Antarium is launched from a shell \u2014 an app started from Finder inherits no environment.",
   "process": {},
   "compatibility": {

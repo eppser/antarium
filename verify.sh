@@ -41,10 +41,18 @@ if ./build.sh >/tmp/verify-build.log 2>&1; then ok "dist/Antarium.app"
 else bad "build.sh — see /tmp/verify-build.log"; fi
 
 step "Descriptor verification"
-for c in --verify-harness-quota --verify-harness-fixtures --verify-harness-installations; do
-    if "$BIN" "$c" >/tmp/verify-$$.log 2>&1
-    then ok "$c ($(grep -c '^✓' /tmp/verify-$$.log) passed)"
-    else bad "$c"; grep '^✗' /tmp/verify-$$.log | head -3; fi
+# Against the built app as well as the debug binary. They do not carry
+# resources the same way: the app is assembled by copying named directories,
+# so a resource that reaches the SwiftPM bundle can be missing from the thing
+# that actually ships. Checking only the debug binary hid exactly that.
+for runner in "$BIN" "$APP"; do
+    label=$([ "$runner" = "$BIN" ] && echo debug || echo app)
+    if [ ! -x "$runner" ]; then bad "$label binary missing"; continue; fi
+    for c in --verify-harness-quota --verify-harness-fixtures --verify-harness-installations; do
+        if "$runner" "$c" >/tmp/verify-$$.log 2>&1
+        then ok "$label $c ($(grep -c '^✓' /tmp/verify-$$.log) passed)"
+        else bad "$label $c"; grep '^✗' /tmp/verify-$$.log | head -3; fi
+    done
 done
 rm -f /tmp/verify-$$.log
 
