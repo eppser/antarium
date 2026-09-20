@@ -1,0 +1,30 @@
+{
+  "formatVersion": 1,
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "presentation": { "mark": "deepseek" },
+  "note": "Quota only, and a balance rather than a meter: DeepSeek is pay-per-use and publishes no cap, so there is no percentage to report. One row per currency the account holds — the currency is read from the response rather than assumed, because Chinese accounts are billed in CNY and labelling that with a dollar sign would misstate the balance by an exchange rate.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live account."
+  },
+  "source": { "kind": "none", "path": "" },
+  "quota": {
+    "endpoint": "https://api.deepseek.com/user/balance",
+    "credential": { "kind": "env", "name": "DEEPSEEK_API_KEY" },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "list": "balance_infos",
+      "key": ["currency"],
+      "balance": "total_balance",
+      "currency": "currency"
+    },
+    "setupHint": "Set DEEPSEEK_API_KEY from platform.deepseek.com.",
+    "verified": false
+  }
+}

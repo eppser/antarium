@@ -33,9 +33,56 @@ struct Gauge: Equatable {
     /// Length of the window in seconds, when the provider reports it. Used to
     /// order rows shortest-first rather than trusting the response's ordering.
     var windowSeconds: Double? = nil
+    /// A figure with no denominator: a credit balance, where the service says
+    /// what is left but never what a full tank was.
+    ///
+    /// These cannot honestly be a bar. Pinning such a gauge to 100% — what a
+    /// balance-only provider has to do to fit a percentage model — paints the
+    /// same full green meter whether $500 or two cents remain, which is worse
+    /// than showing no meter at all. So a gauge carrying an amount draws its
+    /// figure and no bar.
+    var amount: Amount? = nil
+
+    struct Amount: Equatable {
+        let value: Double
+        /// ISO 4217 where the service states one. Kept as given rather than
+        /// assumed: DeepSeek bills Chinese accounts in CNY and calling that
+        /// "$" would misreport the balance by an exchange rate.
+        let currency: String
+    }
+
+    /// True when this gauge has a denominator and can be drawn as a meter.
+    var hasMeter: Bool { amount == nil }
 
     var remaining: Double { min(max(1 - used, 0), 1) }
-    var severity: Severity { max(reportedSeverity, Severity.forRemaining(remaining)) }
+    /// A balance has no headroom to judge, so it never colours itself urgent
+    /// off its own figure — only a severity the provider actually reported.
+    var severity: Severity {
+        hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity
+    }
+
+    /// The balance, formatted for a menu bar: no decimals once it is large
+    /// enough that they are noise, two below that so a nearly-empty account
+    /// does not read as a round zero.
+    var amountText: String? {
+        guard let amount else { return nil }
+        let magnitude = abs(amount.value)
+        let digits = magnitude >= 100 ? 0 : 2
+        let number = String(format: "%.\(digits)f", amount.value)
+        return Gauge.symbol(for: amount.currency).map { $0 + number }
+            ?? "\(number) \(amount.currency)"
+    }
+
+    /// Only the symbols that are unambiguous. Anything else keeps its code,
+    /// because a wrong symbol is a wrong number.
+    static func symbol(for currency: String) -> String? {
+        switch currency.uppercased() {
+        case "USD": return "$"
+        case "EUR": return "€"
+        case "GBP": return "£"
+        default:    return nil
+        }
+    }
 
     /// Rounded so a nonzero sliver never reads as a flat 0%.
     var remainingPercentText: String { Gauge.percentText(remaining) }

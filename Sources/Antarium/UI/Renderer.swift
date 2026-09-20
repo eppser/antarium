@@ -5,7 +5,9 @@ import AppKit
 struct StatusRender: Equatable {
     struct Row: Equatable {
         /// 0...1 of the bar to light, already resolved for the meter mode.
-        let fill: Double
+        /// Nil for a credit balance, which has no denominator to fill against
+        /// — that row draws its figure and no bar.
+        let fill: Double?
         let percentText: String
         let resetText: String
         let severity: Severity
@@ -21,8 +23,9 @@ struct StatusRender: Equatable {
     static func rows(for snapshot: Snapshot) -> [Row] {
         let mode = Settings.meterMode
         return snapshot.gauges.prefix(2).map { g in
-            Row(fill: mode == .used ? g.used : g.remaining,
-                percentText: mode == .used ? g.usedPercentText : g.remainingPercentText,
+            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,
+                percentText: g.amountText
+                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),
                 resetText: Format.shortCountdown(to: g.resetsAt),
                 // Severity is headroom either way, so the colours never flip
                 // meaning when the mode changes.
@@ -150,15 +153,19 @@ enum Renderer {
         var x = rect.minX
         let context = NSColor.labelColor.withAlphaComponent(contextAlpha * alpha)
 
-        if true {
-            text(row.percentText, font: percentFont,
-                 color: NSColor.labelColor.withAlphaComponent(alpha),
-                 at: x, width: percentW, align: .right, in: rect)
-            x += percentW + gap
-        }
+        text(row.percentText, font: percentFont,
+             color: NSColor.labelColor.withAlphaComponent(alpha),
+             at: x, width: percentW, align: .right, in: rect)
+        x += percentW + gap
 
-        drawBar(fill: row.fill, severity: row.severity, agentID: agentID, row: index,
-                alpha: alpha, in: NSRect(x: x, y: rect.midY - barH / 2, width: barW, height: barH))
+        // A credit balance has nothing to fill a bar against, so it keeps the
+        // space rather than drawing a meter it cannot justify. The reset text
+        // still lines up with every other row.
+        if let fill = row.fill {
+            drawBar(fill: fill, severity: row.severity, agentID: agentID, row: index,
+                    alpha: alpha,
+                    in: NSRect(x: x, y: rect.midY - barH / 2, width: barW, height: barH))
+        }
         x += barW + resetGap
 
         // Always shown: with no 5H/7D label, "2h" versus "6d" is what tells the

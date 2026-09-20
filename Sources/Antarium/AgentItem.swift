@@ -292,22 +292,25 @@ final class AgentItem: NSObject, NSMenuDelegate {
         }
     }
 
+    /// One tooltip line. A balance has no "used" and no "left" to report, so
+    /// it states the figure instead of inventing both halves of a percentage.
+    private static func line(_ g: Gauge) -> String {
+        if let amount = g.amountText { return "\(g.title): \(amount) left" }
+        return "\(g.title): \(g.usedPercentText) used, \(g.remainingPercentText) left"
+    }
+
     private func tooltip() -> String {
         switch state {
         case .loading:
             return "\(provider.displayName) — checking…"
         case .ready(let s):
-            let lines = (s.gauges + s.extras).map {
-                "\($0.title): \($0.usedPercentText) used, \($0.remainingPercentText) left"
-            }
+            let lines = (s.gauges + s.extras).map(Self.line)
             return ([provider.displayName] + lines).joined(separator: "\n")
         case .failed(let e, let last):
             guard let last else {
                 return "\(provider.displayName) — \(e.errorDescription ?? "error")"
             }
-            let lines = (last.gauges + last.extras).map {
-                "\($0.title): \($0.usedPercentText) used, \($0.remainingPercentText) left"
-            }
+            let lines = (last.gauges + last.extras).map(Self.line)
             return ([provider.displayName + " — as of " + Format.age(last.fetchedAt)]
                 + lines + ["Last refresh failed: \(e.errorDescription ?? "error")"])
                 .joined(separator: "\n")
@@ -390,7 +393,9 @@ final class AgentItem: NSObject, NSMenuDelegate {
         for (i, gauge) in s.gauges.enumerated() {
             menu.addItem(gaugeItem(gauge, stale: stale, row: i))
         }
-        for extra in s.extras where extra.used > 0 {
+        // A zero balance is a reading, not an absence — the filter is about
+        // hiding windows that were never touched, which a balance never is.
+        for extra in s.extras where extra.used > 0 || !extra.hasMeter {
             menu.addItem(gaugeItem(extra, stale: stale, row: 1))
         }
     }
@@ -400,16 +405,20 @@ final class AgentItem: NSObject, NSMenuDelegate {
     private func gaugeItem(_ g: Gauge, stale: Bool, row: Int) -> NSMenuItem {
         let item = NSMenuItem()
         item.isEnabled = true
-        item.image = Renderer.chip(fill: Settings.meterMode == .used ? g.used : g.remaining,
-                                   severity: g.severity, agentID: provider.id, row: row,
-                                   appearance: NSApp.effectiveAppearance, scale: scale)
+        if g.hasMeter {
+            item.image = Renderer.chip(fill: Settings.meterMode == .used ? g.used : g.remaining,
+                                       severity: g.severity, agentID: provider.id, row: row,
+                                       appearance: NSApp.effectiveAppearance, scale: scale)
+        }
         let title = NSMutableAttributedString(
             string: g.title + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
                          .foregroundColor: stale ? NSColor.secondaryLabelColor : NSColor.labelColor])
         // Both framings, always — this is where "is 75% good or bad?" gets settled.
+        let detail = g.amountText.map { "\($0) left · \(Format.longReset(g.resetsAt))" }
+            ?? "\(g.usedPercentText) used · \(g.remainingPercentText) left · \(Format.longReset(g.resetsAt))"
         title.append(NSAttributedString(
-            string: "\(g.usedPercentText) used · \(g.remainingPercentText) left · \(Format.longReset(g.resetsAt))",
+            string: detail,
             attributes: [.font: NSFont.systemFont(ofSize: 11),
                          .foregroundColor: NSColor.secondaryLabelColor]))
         item.attributedTitle = title

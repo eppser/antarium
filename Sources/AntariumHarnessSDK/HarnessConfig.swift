@@ -481,6 +481,12 @@ public struct HarnessConfig: Codable {
             public var keys: [String]?
             public var usedPercent: String?
             public var percentRemaining: String?
+            /// Path to a credit balance — a figure with no denominator.
+            public var balance: String?
+            /// Currency of `balance`: a path into the window, or a literal code.
+            public var currency: String?
+            /// Names the container itself as one window, for flat responses.
+            public var single: String?
             public var used: String?
             public var limit: String?
             public var require: [String: Bool]?

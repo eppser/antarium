@@ -179,3 +179,93 @@ func quotaFixtureCatchesABrokenMapping() {
     #expect(problems.count == 1)
     #expect(problems[0].contains("week used"))
 }
+
+// MARK: - Credit balances
+
+@Test("A balance carries no meter and never colours itself off a phantom fill")
+func balanceGaugeHasNoMeter() {
+    let balance = Gauge(id: "credits", badge: "BAL", title: "Credits", used: 0,
+                        resetsAt: nil, reportedSeverity: .normal,
+                        amount: Gauge.Amount(value: 0.02, currency: "USD"))
+    #expect(!balance.hasMeter)
+    // `used: 0` would otherwise read as "100% headroom, all is well" — which is
+    // exactly the false reassurance a balance-as-percentage gives.
+    #expect(balance.severity == .normal)
+    #expect(balance.amountText == "$0.02")
+
+    let metered = Gauge(id: "week", badge: "7D", title: "Weekly", used: 0,
+                        resetsAt: nil, reportedSeverity: .normal)
+    #expect(metered.hasMeter)
+    #expect(metered.amountText == nil)
+}
+
+@Test("A balance keeps the currency the service reported")
+func balanceKeepsItsCurrency() {
+    let yuan = Gauge(id: "CNY", badge: "CNY", title: "CNY", used: 0, resetsAt: nil,
+                     reportedSeverity: .normal,
+                     amount: Gauge.Amount(value: 8.25, currency: "CNY"))
+    // No symbol is invented for a currency we cannot render unambiguously.
+    #expect(yuan.amountText == "8.25 CNY")
+    #expect(Gauge.symbol(for: "usd") == "$")
+    #expect(Gauge.symbol(for: "CNY") == nil)
+}
+
+@Test("Large balances drop the cents; small ones keep them")
+func balanceFormatting() {
+    func text(_ value: Double) -> String? {
+        Gauge(id: "b", badge: "BAL", title: "B", used: 0, resetsAt: nil,
+              reportedSeverity: .normal,
+              amount: Gauge.Amount(value: value, currency: "USD")).amountText
+    }
+    #expect(text(99.5) == "$99.50")
+    #expect(text(100) == "$100")
+    #expect(text(1234.56) == "$1235")
+    #expect(text(0) == "$0.00")
+}
+
+@Test("A menu bar row for a balance asks for no bar")
+@MainActor
+func balanceRowHasNoFill() {
+    let snapshot = Snapshot(
+        providerID: "vercel-gateway",
+        gauges: [Gauge(id: "credits", badge: "BAL", title: "Credits", used: 0,
+                       resetsAt: nil, reportedSeverity: .normal,
+                       amount: Gauge.Amount(value: 95.5, currency: "USD")),
+                 Gauge(id: "week", badge: "7D", title: "Weekly", used: 0.4,
+                       resetsAt: nil, reportedSeverity: .normal)],
+        extras: [], accountLabel: nil, fetchedAt: Date())
+    let rows = StatusRender.rows(for: snapshot)
+    #expect(rows[0].fill == nil)
+    #expect(rows[0].percentText == "$95.50")
+    #expect(rows[1].fill != nil)
+}
+
+@Test("A flat response can be one window; a declared envelope that is missing is not the whole reply")
+func singleWindowAndMissingEnvelope() {
+    var flat = HarnessDescriptor.Quota.Windows()
+    flat.single = "credits"
+    let found = DescriptorProvider.windows(in: ["balance": 95.5], map: flat)
+    #expect(found.count == 1)
+    #expect(found[0].key == "credits")
+
+    // A declared root that does not resolve must yield nothing, not the entire
+    // response — otherwise every top-level key becomes a candidate window.
+    var rooted = HarnessDescriptor.Quota.Windows()
+    rooted.roots = ["data.windowLimits", "windowLimits"]
+    #expect(DescriptorProvider.windows(in: ["other": ["a": 1]], map: rooted).isEmpty)
+    #expect(DescriptorProvider.windows(in: ["windowLimits": ["a": ["used": 1]]], map: rooted)
+        .map(\.key) == ["a"])
+}
+
+@Test("Currency is read from the window when a path is given, kept literal otherwise")
+func currencyResolution() {
+    var map = HarnessDescriptor.Quota.Windows()
+    #expect(DescriptorProvider.currency(map, window: [:]) == "USD")
+    map.currency = "USD"
+    #expect(DescriptorProvider.currency(map, window: ["currency": "CNY"]) == "USD")
+    map.currency = "currency"
+    #expect(DescriptorProvider.currency(map, window: ["currency": "CNY"]) == "CNY")
+    // A declared path that resolves to nothing keeps the code asked for rather
+    // than silently relabelling the money as dollars.
+    #expect(DescriptorProvider.currency(map, window: [:]) == "currency")
+}

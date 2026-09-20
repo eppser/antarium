@@ -116,6 +116,25 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             // A window the plan does not include is not a window at zero.
             if let require = map.require,
                require.contains(where: { (window[$0.key] as? Bool) != $0.value }) { continue }
+            // A balance is charted instead of a percentage, not alongside
+            // one: the two answer different questions and only one of them
+            // can be a bar.
+            if let path = map.balance {
+                guard let value = FieldPath.number(window, path) else { continue }
+                let named = map.labels?[key]
+                gauges.append(Gauge(
+                    id: key,
+                    badge: map.badges?[key]?.uppercased()
+                        ?? named.map { Gauge.badge(from: $0) }
+                        ?? String(key.prefix(3)).uppercased(),
+                    title: named ?? key,
+                    used: 0,
+                    resetsAt: map.resetsAt.flatMap { FieldPath.date(window, $0) ?? FieldPath.date(json, $0) },
+                    reportedSeverity: .normal,
+                    amount: Gauge.Amount(value: value,
+                                         currency: Self.currency(map, window: window))))
+                continue
+            }
             let percent: Double
             if let path = map.usedPercent, let value = FieldPath.number(window, path) {
                 percent = value
@@ -199,6 +218,14 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             if let wanted = map.keys {
                 found = wanted.flatMap { key in found.filter { $0.key == key } }
             }
+        } else if let name = map.single {
+            // A flat response — no per-window object exists, so the container
+            // itself is the one window.
+            let candidates = map.roots ?? map.root.map { [$0] } ?? []
+            let container: [String: Any]? = candidates.isEmpty
+                ? json
+                : candidates.lazy.compactMap { FieldPath.lookup(json, $0) as? [String: Any] }.first
+            found = container.map { [(name, $0)] } ?? []
         } else {
             // First candidate that actually resolves to an object. An absent
             // envelope is a different shape, not an empty one, so falling
@@ -215,6 +242,20 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             }
         }
         return found
+    }
+
+    /// The currency for a balance: a path into the window when the service
+    /// reports one, otherwise the literal the descriptor gave. Defaults to USD
+    /// only when nothing was declared at all — a descriptor that names a path
+    /// and gets nothing back keeps the code it asked for rather than silently
+    /// relabelling the money.
+    static func currency(_ map: HarnessDescriptor.Quota.Windows,
+                         window: [String: Any]) -> String {
+        guard let declared = map.currency else { return "USD" }
+        if let found = FieldPath.lookup(window, declared) as? String, !found.isEmpty {
+            return found
+        }
+        return declared
     }
 
     /// One component of a composite window name. A key field is as likely to

@@ -27,6 +27,12 @@ enum QuotaFixture {
             var windowSeconds: Double?
             /// ISO 8601, compared to the second.
             var resetsAt: String?
+            /// For a credit balance: the figure and its currency. Both must be
+            /// stated together, and a row expecting neither must not produce
+            /// one — otherwise a balance mapping could be wrong in every way
+            /// that matters and still pass on `usedPercent: 0`.
+            var amount: Double?
+            var currency: String?
         }
         var accountLabel: String?
         let gauges: [Row]
@@ -115,6 +121,22 @@ enum QuotaFixture {
             if !same(got.windowSeconds, row.windowSeconds) {
                 problems.append("\(row.id) windowSeconds \(describe(got.windowSeconds))"
                     + " ≠ \(describe(row.windowSeconds))")
+            }
+            switch (row.amount, got.amount) {
+            case (nil, nil):
+                break
+            case (nil, let actual?):
+                problems.append("\(row.id) reported a balance of \(actual.value) \(actual.currency)"
+                    + " where none was expected")
+            case (let expected?, nil):
+                problems.append("\(row.id) reported no balance; expected \(expected)")
+            case (let expected?, let actual?):
+                if abs(actual.value - expected) > tolerance {
+                    problems.append("\(row.id) balance \(actual.value) ≠ \(expected)")
+                }
+                if let currency = row.currency, actual.currency != currency {
+                    problems.append("\(row.id) currency \(actual.currency) ≠ \(currency)")
+                }
             }
             let resets = got.resetsAt.map(iso.string(from:))
             if resets != row.resetsAt {

@@ -213,6 +213,18 @@ struct HarnessDescriptor: Codable {
             /// do arithmetic a config file cannot express.
             var usedPercent: String?
             var percentRemaining: String?
+            /// Path to a credit balance: a figure with no denominator. A
+            /// window mapped this way draws its amount and no bar, because a
+            /// balance cannot honestly be a percentage of anything.
+            var balance: String?
+            /// Currency of `balance`. A path into the window when the service
+            /// states one, otherwise a literal code such as "USD". Assuming
+            /// dollars would misreport a CNY balance by an exchange rate.
+            var currency: String?
+            /// Names the container itself as one window, for the flat
+            /// responses that have no per-window object at all — Vercel's
+            /// credits endpoint is `{"balance": …}` and nothing more.
+            var single: String?
             /// Some APIs report counts rather than a percentage. Give both and
             /// the ratio is worked out — a window whose limit is missing is
             /// skipped, because "0 of nothing" is not 0%.

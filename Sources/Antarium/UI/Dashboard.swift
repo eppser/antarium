@@ -699,15 +699,20 @@ private struct AccountQuotaBar: View {
 
     var body: some View {
         HStack(spacing: 3.5) {
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
-                Capsule().fill(tint).frame(width: max(2, 34 * gauge.used), height: 4)
+            // A credit balance has no denominator, so it shows the figure and
+            // no meter rather than a full bar that means nothing.
+            if gauge.hasMeter {
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
+                    Capsule().fill(tint).frame(width: max(2, 34 * gauge.used), height: 4)
+                }
             }
-            Text(gauge.usedPercentText)
+            Text(gauge.amountText ?? gauge.usedPercentText)
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary).fixedSize()
         }
-        .help("\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage")
+        .help(gauge.amountText.map { "\(gauge.title): \($0) left" }
+            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage")
     }
 }
 
