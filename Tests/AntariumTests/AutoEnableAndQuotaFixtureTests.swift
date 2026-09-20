@@ -33,6 +33,33 @@ func autoEnablePicksWhatIsPresent() {
     #expect(!chosen.contains("cursor"))
 }
 
+@Test("A crowded Mac gets the strongest evidence, not everything at once")
+func autoEnableCapsTheBar() {
+    // Ten providers ship; a developer's Mac can carry traces of most of them.
+    let evidence = (1...8).map { index in
+        AgentAutoEnable.Evidence(id: "used-\(index)", signedIn: false, hasSessions: true)
+    } + [
+        AgentAutoEnable.Evidence(id: "both", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "credential-only", signedIn: true, hasSessions: false),
+    ]
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(chosen.count == AgentAutoEnable.limit)
+    // Signed-in-and-used first, then credential-only, before any of the eight
+    // that can only say "sign in".
+    #expect(chosen.contains("both"))
+    #expect(chosen.contains("credential-only"))
+}
+
+@Test("Two Macs with the same agents installed get the same bar")
+func autoEnableIsDeterministic() {
+    let evidence = (1...6).map {
+        AgentAutoEnable.Evidence(id: "agent-\($0)", signedIn: true, hasSessions: true)
+    }
+    let first = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(AgentAutoEnable.resolve(evidence.reversed(), fallback: ["x"]) == first)
+    #expect(AgentAutoEnable.resolve(evidence.shuffled(), fallback: ["x"]) == first)
+}
+
 @Test("A signed-out agent with sessions still earns a slot")
 func autoEnableCountsSessionsAlone() {
     let only = [AgentAutoEnable.Evidence(id: "codex", signedIn: false, hasSessions: true)]
@@ -268,4 +295,28 @@ func currencyResolution() {
     // A declared path that resolves to nothing keeps the code asked for rather
     // than silently relabelling the money as dollars.
     #expect(DescriptorProvider.currency(map, window: [:]) == "currency")
+}
+
+@Test("A recorded choice is never overwritten, however weak or odd it is")
+func autoEnableNeverOverwritesAChoice() {
+    let evidence = [
+        AgentAutoEnable.Evidence(id: "claude-code", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "codex", signedIn: true, hasSessions: true),
+    ]
+    let fallback = ["claude-code", "codex"]
+
+    // Nothing recorded: choose.
+    #expect(AgentAutoEnable.decision(recorded: nil, evidence: evidence, fallback: fallback)
+        == ["claude-code", "codex"])
+
+    // Anything recorded — including a deliberately narrow choice, or one
+    // naming an agent that is not installed — is the user's and stands.
+    for recorded in [["codex"], ["not-installed"], [] as [String]] {
+        #expect(AgentAutoEnable.decision(recorded: recorded, evidence: evidence,
+                                         fallback: fallback) == nil,
+                "a recorded \(recorded) must not be rewritten")
+    }
+
+    // No providers at all: write nothing rather than an empty set.
+    #expect(AgentAutoEnable.decision(recorded: nil, evidence: [], fallback: []) == nil)
 }

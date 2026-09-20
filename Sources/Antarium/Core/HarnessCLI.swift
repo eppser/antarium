@@ -78,6 +78,42 @@ enum HarnessCLI {
         return failures == 0 ? 0 : 1
     }
 
+    /// Reports what a first run would switch on, and why.
+    ///
+    /// Read-only unless `apply` is given, and even then it goes through
+    /// `applyIfNeeded`, which declines when a choice already exists — so
+    /// running it against a live installation cannot overwrite one.
+    static func detectAgents(apply: Bool = false) -> Int32 {
+        HarnessDescriptor.seed()
+        let providers = ProviderRegistry.all
+        let sessions = AgentAutoEnable.sessionsPresent()
+        let evidence = AgentAutoEnable.evidence(providers: providers, sessionsPresent: sessions)
+        let chosen = AgentAutoEnable.resolve(evidence, fallback: providers.map(\.id))
+        print("settings   \(Config.directory.path)")
+        print("providers  \(providers.count), showing at most \(AgentAutoEnable.limit)")
+        print("recorded   " + (AgentAutoEnable.isUnconfigured
+            ? "nothing yet — a first run would choose"
+            : "a choice already exists and would be left alone"))
+        for item in evidence.sorted(by: { ($0.strength, $1.id) > ($1.strength, $0.id) }) {
+            let why: String
+            switch (item.signedIn, item.hasSessions) {
+            case (true, true):   why = "signed in, sessions here"
+            case (true, false):  why = "signed in"
+            case (false, true):  why = "sessions here, not signed in"
+            case (false, false): why = "no trace on this Mac"
+            }
+            print("\(chosen.contains(item.id) ? "●" : "○") \(item.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \(why)")
+        }
+        if apply {
+            if let written = AgentAutoEnable.applyIfNeeded(providers: providers) {
+                print("wrote      enabledAgents = \(written.sorted().joined(separator: ", "))")
+            } else {
+                print("wrote      nothing — a recorded choice is the user's to change")
+            }
+        }
+        return 0
+    }
+
     /// Every shipped descriptor, decoded once.
     static func bundledDescriptors() -> [HarnessDescriptor] {
         (AppResources.bundle.urls(forResourcesWithExtension: "json", subdirectory: "harnesses") ?? [])

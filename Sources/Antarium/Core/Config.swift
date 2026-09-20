@@ -10,6 +10,17 @@ enum Config {
     /// Resolved once, on first use, which is before anything can read a
     /// setting or a descriptor.
     static let directory: URL = {
+        // An isolated settings directory, so first-run behaviour — seeding,
+        // agent detection, the onboarding flag — can be exercised for real
+        // without touching the settings of whoever is running the test.
+        // `homeDirectoryForCurrentUser` deliberately ignores $HOME on macOS,
+        // so there is no other way to do it. Absolute paths only: a relative
+        // one would follow the working directory somewhere unintended.
+        if let override = ProcessInfo.processInfo.environment["ANTARIUM_HOME"],
+           override.hasPrefix("/"), !override.contains("\0") {
+            return URL(fileURLWithPath: override, isDirectory: true)
+                .standardizedFileURL
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let mine = home.appendingPathComponent(".antarium")
         // The app was called SpiceEye until 0.1. Carry an existing install over

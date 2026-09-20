@@ -8,6 +8,10 @@ import Foundation
 /// user actually had. This replaces the guess with evidence: an agent earns a
 /// slot when it is signed in here, or has left sessions on this Mac.
 ///
+/// At most `limit` are switched on, strongest evidence first — ten providers
+/// ship now, and a Mac with traces of eight of them should not open to eight
+/// menu bar items. Settings lists every one of them for adding the rest.
+///
 /// It runs once, on the first launch that finds no choice recorded. After that
 /// `enabledAgents` is the user's, and detection never rewrites it — an agent
 /// switched off on purpose stays off however plainly it is installed. The
@@ -26,7 +30,29 @@ enum AgentAutoEnable {
         let hasSessions: Bool
 
         var present: Bool { signedIn || hasSessions }
+
+        /// How strong the case for a menu bar slot is. An agent that is both
+        /// signed in and used here is the clearest; a credential with no
+        /// sessions is next; sessions with no credential last, since that item
+        /// can only say "sign in" until the user does something about it.
+        var strength: Int {
+            switch (signedIn, hasSessions) {
+            case (true, true):  return 3
+            case (true, false): return 2
+            case (false, true): return 1
+            case (false, false): return 0
+            }
+        }
     }
+
+    /// How many agents a first run will switch on.
+    ///
+    /// Every agent with any evidence used to qualify, which was fine at three
+    /// providers and is not at ten: a developer's Mac can easily show traces
+    /// of eight, and eight menu bar items is not a default anybody wants. The
+    /// strongest evidence wins the slots, and Settings lists every provider
+    /// for the user to add the rest.
+    static let limit = 4
 
     /// The set to enable, given what was found. Pure, so the policy is testable
     /// without a Mac that has any particular agent installed on it.
@@ -36,8 +62,14 @@ enum AgentAutoEnable {
     /// registered provider is shown, exactly as `ProviderRegistry.enabled`
     /// already guarantees at render time.
     static func resolve(_ evidence: [Evidence], fallback: [String]) -> Set<String> {
-        let found = evidence.filter(\.present).map(\.id)
-        if !found.isEmpty { return Set(found) }
+        // Ties break on id so two Macs with the same agents installed get the
+        // same bar, rather than whatever order the registry happened to build.
+        let ranked = evidence
+            .filter(\.present)
+            .sorted { ($0.strength, $1.id) > ($1.strength, $0.id) }
+            .prefix(limit)
+            .map(\.id)
+        if !ranked.isEmpty { return Set(ranked) }
         return Set(fallback.prefix(1))
     }
 
@@ -61,12 +93,30 @@ enum AgentAutoEnable {
     /// `enabledAgents` — including one this very function wrote — settles it.
     static var isUnconfigured: Bool { Config.strings("enabledAgents") == nil }
 
+    /// The whole first-run decision as one pure function, so "a recorded
+    /// choice is never overwritten" is a property with a test rather than a
+    /// promise spread across a guard and a call site.
+    ///
+    /// Returns nil to mean *write nothing*: either a choice already exists, or
+    /// there is no provider to choose from.
+    static func decision(recorded: [String]?, evidence: [Evidence],
+                         fallback: [String]) -> Set<String>? {
+        guard recorded == nil, !fallback.isEmpty else { return nil }
+        let chosen = resolve(evidence, fallback: fallback)
+        return chosen.isEmpty ? nil : chosen
+    }
+
     /// First launch only. Returns what it chose, or nil when it declined to
     /// act because a choice already exists.
     @discardableResult
     static func applyIfNeeded(providers: [UsageProvider]) -> Set<String>? {
-        guard isUnconfigured, !providers.isEmpty else { return nil }
-        return apply(providers: providers)
+        guard !providers.isEmpty else { return nil }
+        guard let chosen = decision(
+            recorded: Config.strings("enabledAgents"),
+            evidence: evidence(providers: providers, sessionsPresent: sessionsPresent()),
+            fallback: providers.map(\.id)) else { return nil }
+        Settings.enabledAgents = chosen
+        return chosen
     }
 
     /// Re-runs detection over the user's existing choice. Only ever called

@@ -24,6 +24,7 @@ enum LaunchArguments {
       --verify-harness-fixtures      Verify bundled synthetic fixtures
       --verify-harness-installations Verify installation probes
       --verify-harness-quota         Verify quota mappings against recorded shapes
+      --detect-agents [--apply]      Report what a first run would switch on
     Synthetic activity validation:
       --activity-demo
       --activity-preview <png> [--explorer|--insights|--analysis] [--selected] [--empty] [--compact]
@@ -63,6 +64,7 @@ enum LaunchArguments {
         modes["--once"] = Mode(maximum:1)
         modes["--log"] = Mode(maximum:1)
         modes["--agents"] = Mode(options:["--cloud"])
+        modes["--detect-agents"] = Mode(options:["--apply"])
         modes["--activity-preview"] = Mode(minimum:1,maximum:1,options:["--explorer","--analysis","--insights","--empty","--selected","--compact"])
         modes["--soak-activity"] = Mode(minimum:1,maximum:1)
         modes["--soak-activity-ui"] = Mode(minimum:1,maximum:1,options:["--model","--background","--patches"])
