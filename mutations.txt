@@ -129,3 +129,5 @@ credential output cap set absurdly low | Sources/Antarium/Providers/DescriptorPr
 credential output truncation passes as a token | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else { return nil }||
 live cache joins its own superseded list | Sources/Antarium/Core/TranscriptStats.swift | s|"transcripts-v4.json", "transcripts-v5.json",|"transcripts-v4.json", "transcripts-v5.json", "transcripts-v6.json",|
 the scanner measures everything | Sources/Antarium/Core/AgentScan.swift | s|return names.contains((candidate as NSString).lastPathComponent)|return true|
+negative usage accepted by the harness engine | Sources/Antarium/Core/HarnessEngine.swift | s|(FieldPath.int(record, path).map { \$0 >= 0 } != true) {|(FieldPath.int(record, path) == nil) {|
+a missing usage field fails the read | Sources/Antarium/Core/HarnessEngine.swift | s|let amount = path.flatMap { FieldPath.int(record, \$0) } ?? 0|let amount = path.flatMap { FieldPath.int(record, $0) } ?? -1|
