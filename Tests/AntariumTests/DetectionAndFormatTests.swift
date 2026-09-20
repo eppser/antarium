@@ -41,11 +41,21 @@ struct AgentDetectionTests {
     }
 
     @Test("A harness with no session store is not offered as found")
-    func quotaOnlyHarnessesAreNotSessionFindings() {
+    func quotaOnlyHarnessesAreNotSessionFindings() throws {
         // Copilot declares no session store: it exists for the menu bar gauge.
         // It used to fail the existence check and appear as "not installed
         // here" directly under its own "signed in" row.
-        #expect(!Onboarding.harnesses().contains { $0.id == "copilot" })
+        //
+        // Asked of the live catalog this passes on a machine with no
+        // harnesses seeded, because nothing is listed at all. The descriptors
+        // come from the bundle so both a quota-only and a session harness are
+        // present to tell apart.
+        let bundled = HarnessCLI.bundledDescriptors()
+        let copilot = try #require(bundled.first { $0.id == "copilot" })
+        let withSessions = try #require(bundled.first { !$0.source.path.isEmpty })
+        let findings = Onboarding.harnesses([copilot, withSessions])
+        #expect(!findings.contains { $0.id == "copilot" })
+        #expect(findings.contains { $0.id == withSessions.id })
     }
 }
 

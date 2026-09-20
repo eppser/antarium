@@ -414,9 +414,31 @@ func quotaOnlyHarnessRowIsHonest() throws {
 func derivedLookupsMatchTheirSource() {
     // These are now read off the catalog snapshot rather than recomputed per
     // call. The saving is only safe while they still say the same thing.
-    let enabled = HarnessDescriptor.all()
-    #expect(HarnessDescriptor.matchFragments() == enabled.flatMap(\.match))
-    #expect(HarnessDescriptor.processNamesAll() == Set(enabled.flatMap(\.processNames)))
+    // Built from a catalog the test controls: comparing two derived values
+    // from an empty catalog agrees trivially, which is what happens on a
+    // machine where nothing has been seeded.
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("lookups-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    for (id, fragment) in [("one", "/opt/one/bin/one"), ("two", "/opt/two/bin/two")] {
+        let document: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id,
+            "process": ["pathContains": [fragment], "names": ["\(id)-bin"]],
+            "source": ["kind": "none", "path": ""],
+        ]
+        try? JSONSerialization.data(withJSONObject: document)
+            .write(to: root.appendingPathComponent("\(id).json"))
+    }
+    let snapshot = HarnessCatalog(directory: root).snapshot(force: true)
+    #expect(snapshot.enabled.count == 2, "the catalog under test must not be empty")
+    #expect(snapshot.matchFragments == snapshot.enabled.flatMap(\.match))
+    #expect(snapshot.processNames == Set(snapshot.enabled.flatMap(\.processNames)))
+
+    // And the shipped accessors agree with the catalog they read.
+    let live = HarnessDescriptor.all()
+    #expect(HarnessDescriptor.matchFragments() == live.flatMap(\.match))
+    #expect(HarnessDescriptor.processNamesAll() == Set(live.flatMap(\.processNames)))
 }
 
 @Test("A disabled descriptor contributes nothing to the process lookups")
