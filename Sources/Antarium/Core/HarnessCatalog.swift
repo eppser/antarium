@@ -6,7 +6,31 @@ final class HarnessCatalog: @unchecked Sendable {
     struct Snapshot {
         var descriptors:[HarnessDescriptor] = []
         var issues:[String] = []
-        var enabled:[HarnessDescriptor] { descriptors.filter(\.isEnabled) }
+        /// Derived once per catalog change, because the process scan asks for
+        /// them once per process.
+        ///
+        /// `isAgent` is handed to `Processes.snapshot` as a predicate and runs
+        /// for every process on the machine. It used to call
+        /// `HarnessDescriptor.matchFragments()` and `processNamesAll()`, each
+        /// of which filtered the whole catalog, flat-mapped it into a fresh
+        /// array and — for the names — built a fresh Set, on every single
+        /// call. With several hundred processes that is several hundred
+        /// rebuilds of the same two collections per scan, which is why the
+        /// scan cost a flat ~8 ms per descriptor whatever that descriptor
+        /// had to do: a quota-only harness with no session store at all paid
+        /// the same as a real one.
+        let enabled:[HarnessDescriptor]
+        let matchFragments:[String]
+        let processNames:Set<String>
+
+        init(descriptors:[HarnessDescriptor] = [], issues:[String] = []) {
+            self.descriptors = descriptors
+            self.issues = issues
+            let live = descriptors.filter(\.isEnabled)
+            self.enabled = live
+            self.matchFragments = live.flatMap(\.match)
+            self.processNames = Set(live.flatMap(\.processNames))
+        }
     }
     let directory:URL
     private let defaults:[URL]

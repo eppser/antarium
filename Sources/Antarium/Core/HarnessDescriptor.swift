@@ -446,8 +446,10 @@ struct HarnessDescriptor: Codable {
 
     /// Read-only, bounded and cached; startup explicitly seeds shipped defaults.
     static func all() -> [HarnessDescriptor] { catalog.snapshot().enabled }
-    static func matchFragments() -> [String] { all().flatMap(\.match) }
-    static func processNamesAll() -> Set<String> { Set(all().flatMap(\.processNames)) }
+    /// Both are derived once when the catalog changes, not per caller: the
+    /// process scan asks for them once per process.
+    static func matchFragments() -> [String] { catalog.snapshot().matchFragments }
+    static func processNamesAll() -> Set<String> { catalog.snapshot().processNames }
     static func reload() { catalog.invalidate() }
 
     /// Puts the shipped harnesses in your folder, and keeps them current.

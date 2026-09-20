@@ -401,3 +401,46 @@ func quotaOnlyHarnessRowIsHonest() throws {
                 "\(descriptor.id) reported \(row.compatibilityLabel)")
     }
 }
+
+// MARK: - Process lookups derived once
+
+@Test("Derived process lookups match the enabled descriptors they come from")
+func derivedLookupsMatchTheirSource() {
+    // These are now read off the catalog snapshot rather than recomputed per
+    // call. The saving is only safe while they still say the same thing.
+    let enabled = HarnessDescriptor.all()
+    #expect(HarnessDescriptor.matchFragments() == enabled.flatMap(\.match))
+    #expect(HarnessDescriptor.processNamesAll() == Set(enabled.flatMap(\.processNames)))
+}
+
+@Test("A disabled descriptor contributes nothing to the process lookups")
+func disabledDescriptorsAreExcludedFromLookups() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("catalog-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    func write(_ id: String, enabled: Bool, fragment: String) throws {
+        let document: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id, "enabled": enabled,
+            "process": ["pathContains": [fragment], "names": ["\(id)-bin"]],
+            "source": ["kind": "none", "path": ""],
+        ]
+        try JSONSerialization.data(withJSONObject: document)
+            .write(to: root.appendingPathComponent("\(id).json"))
+    }
+    try write("live", enabled: true, fragment: "/live/agent")
+    try write("off", enabled: false, fragment: "/off/agent")
+
+    let snapshot = HarnessCatalog(directory: root).snapshot(force: true)
+    #expect(snapshot.descriptors.count == 2)
+    #expect(snapshot.enabled.map(\.id) == ["live"])
+    #expect(snapshot.matchFragments.contains("/live/agent"))
+    #expect(!snapshot.matchFragments.contains("/off/agent"))
+    #expect(snapshot.processNames.contains("live-bin"))
+    #expect(!snapshot.processNames.contains("off-bin"))
+    // And they agree with deriving them the long way, which is what the
+    // per-call versions used to do.
+    #expect(snapshot.matchFragments == snapshot.enabled.flatMap(\.match))
+    #expect(snapshot.processNames == Set(snapshot.enabled.flatMap(\.processNames)))
+}
