@@ -55,11 +55,14 @@ struct RemoteReplyTests {
         try tool("tmux","exit 0") // A successful empty pane inventory.
         try tool("ps","exit 2")
         try tool("readlink","exit 1")
-        let failed = Shell.execute("/bin/sh",["-c",RemoteTmux.remoteCommand],timeout:2,environment:["PATH":root.path])
+        // Generous on purpose: these stub tools exit immediately, so the
+        // limit exists to stop a hang, and a short one turns machine load into
+        // a test failure that reads like a discovery bug.
+        let failed = Shell.execute("/bin/sh",["-c",RemoteTmux.remoteCommand],timeout:30,environment:["PATH":root.path])
         #expect(!RemoteTmux.usable(failed))
         #expect(RemoteTmux.discoveryReplyIssue(failed) != nil)
         try tool("ps","printf '910 1 fixture fixture\\n'")
-        let empty = Shell.execute("/bin/sh",["-c",RemoteTmux.remoteCommand],timeout:2,environment:["PATH":root.path])
+        let empty = Shell.execute("/bin/sh",["-c",RemoteTmux.remoteCommand],timeout:30,environment:["PATH":root.path])
         #expect(RemoteTmux.usable(empty))
         #expect(RemoteTmux.parse(empty.stdout,host:"fixture").isEmpty)
     }

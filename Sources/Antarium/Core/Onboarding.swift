@@ -55,6 +55,18 @@ enum Onboarding {
         }
     }
 
+    /// Splits accounts into the ones worth a row each and the ones worth a
+    /// single line naming them.
+    ///
+    /// Ten providers ship. Giving every unconfigured one a row with its setup
+    /// hint filled the first-run panel with things the user has not got, under
+    /// a heading that says Antarium is ready — and the hints, being long
+    /// enough to be useful, truncated mid-word in the space left for them.
+    static func partition(_ accounts: [Finding])
+        -> (signedIn: [Finding], connectable: [Finding]) {
+        (accounts.filter(\.found), accounts.filter { !$0.found })
+    }
+
     private static func shorten(_ path: String) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path

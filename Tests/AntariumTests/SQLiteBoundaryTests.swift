@@ -94,7 +94,11 @@ struct SQLiteBoundaryTests {
         let executable = repository.appendingPathComponent(".build/debug/Antarium")
         // A process boundary keeps this regression bounded even if a future
         // SQLite open starts blocking again; no hung test thread is left behind.
-        let result = Shell.execute(executable.path,["--check",config.path],timeout:2,outputLimit:8_192)
+        // The budget bounds a hang, not performance: a blocking FIFO open
+        // never returns, so any finite limit catches it. Two seconds also
+        // caught a loaded machine that was merely slow to launch a debug
+        // binary, which is a false failure about something else entirely.
+        let result = Shell.execute(executable.path,["--check",config.path],timeout:30,outputLimit:8_192)
         #expect(!result.timedOut)
         #expect(!result.cancelled)
         #expect(result.stdout.contains("SQLite") || result.stdout.contains("sqlite"))

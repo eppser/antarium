@@ -456,10 +456,16 @@ func envCredentialHintsMentionTheLimitation() throws {
         guard let quota = descriptor.quota,
               quota.credential?.kind == "env" else { continue }
         let hint = try #require(quota.setupHint, "\(descriptor.id) has no setup hint")
-        let offersAnAlternative = hint.contains("textFile") || hint.contains("jsonFile")
-            || hint.contains("terminal")
+        // The route has to be one that works however Antarium was launched.
+        // Naming the harness file qualifies; naming only the variable does not.
+        let offersAnAlternative = hint.contains(".json") || hint.contains("textFile")
+            || hint.contains("jsonFile") || hint.contains("terminal")
         #expect(offersAnAlternative,
                 "\(descriptor.id): an env-only credential must offer a route that works for an app launched from Finder — hint was: \(hint)")
+        // And it has to fit the panel it is drawn in, which is 380pt wide with
+        // the name beside it. A hint that truncates mid-word helps nobody.
+        #expect(hint.count <= 48,
+                "\(descriptor.id): hint is \(hint.count) characters and will truncate — \(hint)")
     }
 }
 
@@ -473,4 +479,23 @@ func everyQuotaProviderHasAHint() {
         // must name something concrete rather than restate the problem.
         #expect(hint.count > 12, "\(descriptor.id): hint is too vague — \(hint)")
     }
+}
+
+@Test("First run gives a row to accounts that work and a single line to the rest")
+func onboardingSummarisesUnconfiguredAccounts() {
+    func finding(_ id: String, signedIn: Bool) -> Onboarding.Finding {
+        Onboarding.Finding(id: id, name: id,
+                           detail: signedIn ? "signed in" : "not signed in",
+                           found: signedIn,
+                           hint: signedIn ? nil : "Add your API key to \(id).json.")
+    }
+    let accounts = [finding("claude-code", signedIn: true), finding("copilot", signedIn: true)]
+        + (1...8).map { finding("other-\($0)", signedIn: false) }
+
+    let split = Onboarding.partition(accounts)
+    #expect(split.signedIn.map(\.id) == ["claude-code", "copilot"])
+    #expect(split.connectable.count == 8)
+    // The panel is 380pt wide and says "Antarium is ready" at the top. Eight
+    // unchecked rows with a hint each is the thing this prevents.
+    #expect(split.signedIn.count < accounts.count)
 }
