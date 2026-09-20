@@ -538,6 +538,29 @@ CI also evaluates a synthetic 20,000-record JSONL source. The time budget is a
 catastrophic-regression guardrail; exact cold, warm, and append byte/record
 counts are the stronger algorithmic assertions.
 
+### Reading a large transcript history
+
+`BoundedTraceReader` reads at most a few megabytes per file per scan, so no
+single scan can block on a long history. A session's transcript is append-only
+and can reach hundreds of megabytes: two on the development machine measured
+193 MB and 105 MB. Absorbing those takes tens of scans rather than one.
+
+While a file is behind, its stats carry `backlog` and the session reports
+that its usage figures are not yet available — deliberately, since a partial
+read is a wrong total, not a smaller one. The cursor advances monotonically and
+is persisted, so the work is never repeated and a relaunch resumes where the
+last process stopped.
+
+The practical shape, measured on a history of that size: the first scans cost
+roughly 100–170 ms and CPU sits near 10% of one core, falling to ~13 ms and
+under 2% once the backlog clears — around six minutes at the default interval.
+
+**This makes `--bench` on a machine with an unabsorbed backlog a measurement of
+catch-up throughput, not of steady state.** Run it repeatedly until
+`transcripts-v6.json` reports no file with `backlog` set before comparing
+builds, or the numbers describe how fast history is being consumed rather than
+what a scan costs.
+
 ## Diagnostics
 
 ```bash
