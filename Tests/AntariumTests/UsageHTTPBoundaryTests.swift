@@ -11,6 +11,7 @@ private final class SyntheticUsageProtocol: URLProtocol, @unchecked Sendable {
         let status: Int
         switch path {
         case "/large": body = Data(("{\"padding\":\"" + String(repeating: "x", count: 2 * 1_024 * 1_024) + "\"}").utf8); status = 200
+        case "/big": body = Data(("{\"padding\":\"" + String(repeating: "x", count: 1_000_000) + "\"}").utf8); status = 200
         case "/malformed": body = Data("not json".utf8); status = 200
         case "/denied": body = Data("{}".utf8); status = 401
         default: body = Data("{\"used\":0}".utf8); status = 200
@@ -26,10 +27,10 @@ private final class SyntheticUsageProtocol: URLProtocol, @unchecked Sendable {
 
 @Suite("Usage HTTP response boundaries")
 struct UsageHTTPBoundaryTests {
+    /// Built the way a provider builds one, so the bounded-body delegate and
+    /// its cap are actually in the path being tested.
     private func session() -> URLSession {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [SyntheticUsageProtocol.self]
-        return URLSession(configuration: config)
+        UsageHTTP.makeSession(headers: [:], protocolClasses: [SyntheticUsageProtocol.self])
     }
     @Test("Oversized usage responses are rejected even without Content-Length")
     func oversized() async {
@@ -37,8 +38,30 @@ struct UsageHTTPBoundaryTests {
         do {
             _ = try await UsageHTTP.getJSON(URL(string: "https://usage.invalid/large")!, headers: [:], session: client)
             Issue.record("Oversized response was accepted")
-        } catch { #expect(error is ProviderError) }
+        } catch let error as ProviderError {
+            // Specifically the cap, not merely "some ProviderError" — this
+            // test passed for the wrong reason once already.
+            #expect(error == .badResponse("Usage response exceeds the 2 MiB safety limit."))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
+    @Test("A large but legal response is read in bulk, not a byte at a time")
+    func largeResponseIsNotReadByteByByte() async throws {
+        let client = session(); defer { client.invalidateAndCancel() }
+        let started = Date()
+        let json = try await UsageHTTP.getJSON(URL(string: "https://usage.invalid/big")!,
+                                               headers: [:], session: client)
+        let elapsed = Date().timeIntervalSince(started)
+        #expect((json["padding"] as? String)?.count == 1_000_000)
+        // Read in bulk this is milliseconds. Accumulated one byte at a time
+        // through an async sequence — which is what this replaced — the same
+        // megabyte measured 9 to 11 seconds against a local server. The bound
+        // is deliberately loose: it is here to catch that regression, not to
+        // police normal variation on a busy machine.
+        #expect(elapsed < 2.0, "1 MB usage response took \(elapsed)s to read")
+    }
+
     @Test("Explicit zero is preserved and malformed or rejected responses are errors")
     func statuses() async throws {
         let client = session(); defer { client.invalidateAndCancel() }

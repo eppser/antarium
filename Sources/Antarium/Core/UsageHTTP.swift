@@ -3,13 +3,40 @@ import Foundation
 /// Shared plumbing for providers: one configured session, one JSON GET, one
 /// place that decides what an HTTP status means.
 enum UsageHTTP {
-    static func makeSession(headers: [String: String]) -> URLSession {
+    /// Usage responses are small; the cap is here so a misbehaving or
+    /// compromised endpoint cannot make the app buffer arbitrarily.
+    static let maximumBytes = 2 * 1_024 * 1_024
+
+    /// One delegate per session, shared by its tasks. Holding it here keeps it
+    /// alive for the session's lifetime — `URLSession` retains its delegate,
+    /// and these sessions live as long as their provider.
+    nonisolated(unsafe) private static var readers: [ObjectIdentifier: BoundedBodyDelegate] = [:]
+    private static let readerLock = NSLock()
+
+    /// `protocolClasses` exists so a test can substitute a synthetic server
+    /// and still travel the production path, delegate and cap included. A test
+    /// that builds its own `URLSession` gets no bounded reader, and would pass
+    /// on the wrong error.
+    static func makeSession(headers: [String: String],
+                            protocolClasses: [AnyClass]? = nil) -> URLSession {
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForRequest = 15
         cfg.timeoutIntervalForResource = 20
         cfg.waitsForConnectivity = false
         cfg.httpAdditionalHeaders = headers
-        return URLSession(configuration: cfg)
+        if let protocolClasses { cfg.protocolClasses = protocolClasses }
+        let reader = BoundedBodyDelegate(limit: maximumBytes)
+        let session = URLSession(configuration: cfg, delegate: reader, delegateQueue: nil)
+        readerLock.lock()
+        readers[ObjectIdentifier(session)] = reader
+        readerLock.unlock()
+        return session
+    }
+
+    private static func reader(for session: URLSession) -> BoundedBodyDelegate? {
+        readerLock.lock()
+        defer { readerLock.unlock() }
+        return readers[ObjectIdentifier(session)]
     }
 
     static func getJSON(_ url: URL, headers: [String: String],
@@ -34,25 +61,23 @@ enum UsageHTTP {
 
     private static func jsonResponse(for req: URLRequest, host: String,
                                      session: URLSession) async throws -> [String: Any] {
-        let maximumBytes = 2 * 1_024 * 1_024
-        var data = Data()
+        guard let reader = reader(for: session) else {
+            throw ProviderError.badResponse("The usage session was not configured to read a bounded body.")
+        }
+        let data: Data
         do {
-            let (bytes, response) = try await session.bytes(for: req)
-            defer { bytes.task.cancel() }
+            let (body, response) = try await reader.body(for: req, on: session)
+            // Status first: a 401 body is not worth parsing, and "sign in" is a
+            // better message than "that wasn't JSON".
             try check(response, host: host)
-            guard response.expectedContentLength <= maximumBytes else {
-                throw ProviderError.badResponse("Usage response exceeds the 2 MiB safety limit.")
-            }
-            data.reserveCapacity(min(maximumBytes, max(0, Int(response.expectedContentLength))))
-            for try await byte in bytes {
-                guard data.count < maximumBytes else {
-                    throw ProviderError.badResponse("Usage response exceeds the 2 MiB safety limit.")
-                }
-                data.append(byte)
-            }
+            data = body
             try Task.checkCancellation()
         } catch is CancellationError {
             throw CancellationError()
+        } catch BoundedBodyDelegate.Failure.tooLarge {
+            throw ProviderError.badResponse("Usage response exceeds the 2 MiB safety limit.")
+        } catch BoundedBodyDelegate.Failure.noResponse {
+            throw ProviderError.badResponse("\(host) returned no response.")
         } catch let error as ProviderError {
             throw error
         } catch let urlErr as URLError {
