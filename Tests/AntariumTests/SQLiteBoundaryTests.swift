@@ -22,6 +22,69 @@ struct SQLiteBoundaryTests {
             "selection":["kind":"sqlite","path":file.path,"query":query,"column":column]]
         return try HarnessDocument.decode(JSONSerialization.data(withJSONObject:object)).descriptor.sessionSelection
     }
+    /// A harness descriptor supplies the SQL. Descriptors are trusted local
+    /// configuration, but "trusted" means the app does not sandbox the author
+    /// — not that a mistake or an edited file should be able to write to the
+    /// database it is reading, attach another one, or load native code.
+    ///
+    /// This pins that behaviour. It does not pin the authorizer specifically,
+    /// and it would be dishonest to claim otherwise: weakening the authorizer
+    /// changes nothing observable here, because `sqlite3_stmt_readonly` already
+    /// refuses every write and attach at prepare time, and `load_extension` is
+    /// not a function this build exposes at all. The authorizer is a second
+    /// line behind both — worth keeping for the build where one of those
+    /// assumptions stops holding, and not something a test through this API
+    /// can distinguish. Measured, not assumed: with the authorizer's default
+    /// branch flipped to permit, all four statements still fail identically.
+    @Test("The authorizer permits reading and nothing else")
+    func authorizerDeniesEverythingButReads() throws {
+        let file = try fixture(); defer { try? FileManager.default.removeItem(at:file.deletingLastPathComponent()) }
+        let plain = file.deletingLastPathComponent().appendingPathComponent("authz.sqlite")
+        try FileManager.default.copyItem(at:file,to:plain)
+
+        // Reading is the whole point and must keep working.
+        #expect(try BoundedSQLite.query(path:plain.path,sql:"SELECT id FROM sample").rows.count == 2)
+        #expect(try BoundedSQLite.query(path:plain.path,sql:"SELECT upper(id) FROM sample").rows.count == 2)
+
+        // Loading a native extension is arbitrary code execution. SQL function
+        // names are case-insensitive, so the check has to be too.
+        for spelling in ["load_extension", "LOAD_EXTENSION", "Load_Extension"] {
+            #expect(throws: (any Error).self) {
+                try BoundedSQLite.query(path:plain.path,
+                                        sql:"SELECT \(spelling)('/tmp/x.dylib')")
+            }
+        }
+
+        // Writes, schema changes and attaching another database are all
+        // refused: this reads somebody else's store and must leave it alone.
+        for statement in ["INSERT INTO sample VALUES('three',3)",
+                          "UPDATE sample SET n = 1",
+                          "DELETE FROM sample",
+                          "CREATE TABLE other(x)",
+                          "DROP TABLE sample",
+                          "ATTACH DATABASE '/tmp/other.sqlite' AS other"] {
+            #expect(throws: (any Error).self, "permitted: \(statement)") {
+                try BoundedSQLite.query(path:plain.path,sql:statement)
+            }
+        }
+
+        // And the database really is untouched afterwards.
+        #expect(try BoundedSQLite.query(path:plain.path,sql:"SELECT id FROM sample").rows.count == 2)
+    }
+
+    @Test("An over-long statement is refused before it runs")
+    func sqlLengthIsBounded() throws {
+        let file = try fixture(); defer { try? FileManager.default.removeItem(at:file.deletingLastPathComponent()) }
+        let plain = file.deletingLastPathComponent().appendingPathComponent("length.sqlite")
+        try FileManager.default.copyItem(at:file,to:plain)
+        // 65_536 is the declared ceiling; a statement past it is refused
+        // rather than parsed.
+        let padding = String(repeating: "a", count: 70_000)
+        #expect(throws: (any Error).self) {
+            try BoundedSQLite.query(path:plain.path, sql:"SELECT '\(padding)' AS id")
+        }
+    }
+
     @Test("A malformed SQLite row expression is unavailable, not an empty set of open sessions")
     func steppingError() throws {
         let file = try fixture(); defer { try? FileManager.default.removeItem(at:file.deletingLastPathComponent()) }
