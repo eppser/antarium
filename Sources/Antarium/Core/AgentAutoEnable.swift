@@ -109,15 +109,29 @@ enum AgentAutoEnable {
     /// First launch only. Returns what it chose, or nil when it declined to
     /// act because a choice already exists.
     @discardableResult
+    /// What a first launch should record, given what it found.
+    ///
+    /// Both halves or neither. `known` is what lets a later launch tell an
+    /// agent that shipped since from one the user turned off — so a first run
+    /// that chooses without recording would disable adoption for ever, and
+    /// nothing about the bar it produced would look wrong.
+    static func firstRunRecord(recorded: [String]?, evidence: [Evidence],
+                               fallback: [String])
+        -> (enabled: Set<String>, known: Set<String>)? {
+        guard let chosen = decision(recorded: recorded, evidence: evidence,
+                                    fallback: fallback) else { return nil }
+        return (chosen, Set(evidence.map(\.id)))
+    }
+
     static func applyIfNeeded(providers: [UsageProvider]) -> Set<String>? {
         guard !providers.isEmpty else { return nil }
-        guard let chosen = decision(
-            recorded: Config.strings("enabledAgents"),
-            evidence: evidence(providers: providers, sessionsPresent: sessionsPresent()),
-            fallback: providers.map(\.id)) else { return nil }
-        Settings.enabledAgents = chosen
-        known = Set(providers.map(\.id))
-        return chosen
+        let found = evidence(providers: providers, sessionsPresent: sessionsPresent())
+        guard let record = firstRunRecord(recorded: Config.strings("enabledAgents"),
+                                          evidence: found,
+                                          fallback: providers.map(\.id)) else { return nil }
+        Settings.enabledAgents = record.enabled
+        known = record.known
+        return record.enabled
     }
 
     /// Provider ids this install has already put in front of the user, so a
@@ -168,16 +182,26 @@ enum AgentAutoEnable {
         return adopted
     }
 
+    /// What one later launch should record. Again both halves together: the
+    /// `known` set has to grow whether anything was adopted or not, or a
+    /// provider stays "new" for ever and comes back every launch after the
+    /// user switches it off.
+    static func adoptionRecord(known seen: Set<String>, enabled: Set<String>,
+                               providers: [(id: String, signedIn: Bool)])
+        -> (adopted: Set<String>, known: Set<String>) {
+        (adoptions(known: seen, enabled: enabled, providers: providers),
+         seen.union(Set(providers.map(\.id))))
+    }
+
     @discardableResult
     static func adoptNewProviders(providers: [UsageProvider]) -> Set<String> {
         guard !providers.isEmpty else { return [] }
-        let seen = known
-        defer { known = seen.union(Set(providers.map(\.id))) }
         let enabled = Settings.enabledAgents
-        let adopted = adoptions(known: seen, enabled: enabled,
-                                providers: providers.map { ($0.id, $0.isConfigured) })
-        if !adopted.isEmpty { Settings.enabledAgents = enabled.union(adopted) }
-        return adopted
+        let record = adoptionRecord(known: known, enabled: enabled,
+                                    providers: providers.map { ($0.id, $0.isConfigured) })
+        if !record.adopted.isEmpty { Settings.enabledAgents = enabled.union(record.adopted) }
+        known = record.known
+        return record.adopted
     }
 
     /// Re-runs detection over the user's existing choice. Only ever called

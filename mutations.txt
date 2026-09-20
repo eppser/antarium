@@ -108,3 +108,9 @@ a missing registry becomes a scan failure | Sources/Antarium/Core/AgentScan.swif
 application raised before the workspace manager | Sources/Antarium/Core/Focus.swift | s|if let pid = row.pid { steps.append(.app(pid: pid)) }|if let pid = row.pid { steps.insert(.app(pid: pid), at: 0) }|
 remote rows are routed to a local window | Sources/Antarium/Core/Focus.swift | s|guard canRevealLocally(row) else { return \[\] }||
 tmux tried after the application | Sources/Antarium/Core/Focus.swift | s|if let target = row.tmuxTarget, !target.isEmpty { steps.append(.tmux(target)) }||
+first run chooses without recording what it saw | Sources/Antarium/Core/AgentAutoEnable.swift | s|return (chosen, Set(evidence.map(\\.id)))|return (chosen, [])|
+first run records only what it enabled | Sources/Antarium/Core/AgentAutoEnable.swift | s|return (chosen, Set(evidence.map(\\.id)))|return (chosen, chosen)|
+adoption forgets what it saw when it adopts nothing | Sources/Antarium/Core/AgentAutoEnable.swift | s|seen.union(Set(providers.map(\\.id))))|seen)|
+a rejected agent is adopted again | Sources/Antarium/Core/AgentAutoEnable.swift | s|where !seen.contains(provider.id) \&\& !enabled.contains(provider.id) {|where !enabled.contains(provider.id) {|
+adoption ignores the bar cap | Sources/Antarium/Core/AgentAutoEnable.swift | s|var room = limit - enabled.count|var room = 99|
+an unsigned agent is adopted | Sources/Antarium/Core/AgentAutoEnable.swift | s|guard provider.signedIn else { continue }||
