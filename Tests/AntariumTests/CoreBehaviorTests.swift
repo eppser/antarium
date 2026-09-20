@@ -242,3 +242,135 @@ struct CoreBehaviorTests {
         XCTAssertEqual(OpenCodeTabs.open(in: root), ["one"])
     }
 }
+
+/// The two thresholds that decide what a row says about an agent. They are
+/// product decisions, not implementation details, and nothing was pinning
+/// them: stretching the idle threshold from 90 seconds to an hour, or
+/// shrinking the stale one from twelve hours to a minute, changed no test
+/// while changing what every row reports.
+@Suite("Activity thresholds")
+struct ActivityThresholdTests {
+
+    @Test("Quiet longer than the idle threshold reads as waiting, not working")
+    func idleThresholdDecidesTheState() {
+        let now = Date()
+        func state(quietFor seconds: TimeInterval) -> AgentRow.State {
+            AgentStateMachine.state(.init(
+                processAlive: true, published: nil,
+                lastActivity: now.addingTimeInterval(-seconds),
+                idleAfter: AgentScan.idleAfter, looping: false))
+        }
+        // Just inside the window is still work in progress; past it, the agent
+        // is waiting on the person rather than busy.
+        #expect(state(quietFor: 1).isBusy)
+        #expect(state(quietFor: AgentScan.idleAfter - 1).isBusy)
+        #expect(!state(quietFor: AgentScan.idleAfter + 1).isBusy)
+        #expect(!state(quietFor: 3600).isBusy)
+
+        // The shipped value itself: long enough to cover a model thinking,
+        // short enough that a finished agent does not keep claiming to work.
+        #expect(AgentScan.idleAfter == 90)
+    }
+
+    @Test("A detached harness goes stale; a CLI agent never does")
+    func staleThresholdAppliesOnlyToDetachedHarnesses() throws {
+        func descriptor(detached: Bool) throws -> HarnessDescriptor {
+            var document: [String: Any] = [
+                "formatVersion": 1, "id": "example", "name": "Example",
+                "process": [:], "source": ["kind": "none", "path": ""],
+            ]
+            if detached { document["detached"] = true }
+            return try HarnessDocument.decode(
+                JSONSerialization.data(withJSONObject: document)).descriptor
+        }
+        let now = Date()
+        let app = try descriptor(detached: true)
+        let cli = try descriptor(detached: false)
+
+        #expect(!AgentScan.isStale(now.addingTimeInterval(-60), app, now: now))
+        #expect(!AgentScan.isStale(now.addingTimeInterval(-AgentScan.staleAfter + 60), app, now: now))
+        #expect(AgentScan.isStale(now.addingTimeInterval(-AgentScan.staleAfter - 60), app, now: now))
+
+        // A CLI agent's running process is the evidence, so age never retires
+        // it — Zed kept a row for a thread last touched two days earlier, and
+        // that is the case this rule exists for, not this one.
+        #expect(!AgentScan.isStale(now.addingTimeInterval(-90 * 24 * 3600), cli, now: now))
+        // Absent activity is not old activity.
+        #expect(!AgentScan.isStale(nil, app, now: now))
+
+        // Long enough to cover a lunch break, short enough that yesterday's
+        // work does not read as today's.
+        #expect(AgentScan.staleAfter == 12 * 3600)
+    }
+}
+
+/// A harness that publishes its own status is stating evidence, and evidence
+/// outranks inference. Dropping the mapping entirely left every test green,
+/// because the state machine then falls back to guessing from activity time —
+/// which reads a freshly idle agent as busy.
+@Suite("Declared status reaches the session", .serialized)
+struct DeclaredStatusTests {
+
+    private func session(status: [String: Any], record: [String: Any]) throws
+        -> HarnessEngine.Session? {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("status-\(UUID().uuidString)")
+        let project = root.appendingPathComponent("Project")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data((String(decoding: try JSONSerialization.data(withJSONObject: record),
+                         as: UTF8.self) + "\n").utf8)
+            .write(to: project.appendingPathComponent("session.jsonl"))
+
+        let document: [String: Any] = [
+            "formatVersion": 1, "id": "status-example", "name": "Status Example",
+            "process": [:],
+            "source": ["kind": "jsonl", "path": root.path, "glob": "*/*.jsonl"],
+            "map": ["status": status, "timestamp": "timestamp"],
+        ]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: document)).descriptor
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        return HarnessEngine.sessions(descriptor).first
+    }
+
+    @Test("A declared working value is carried through, not inferred")
+    func declaredWorkingIsCarried() throws {
+        let working = try session(status: ["field": "state", "working": ["busy"], "idle": ["ready"]],
+                                  record: ["state": "busy", "timestamp": "2026-09-20T12:00:00Z"])
+        #expect(working?.isWorking == true)
+    }
+
+    @Test("A declared idle value survives recent activity")
+    func declaredIdleBeatsRecency() throws {
+        // The record is timestamped now, so inference alone would call this
+        // busy. The harness says otherwise and the harness wins.
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let idle = try session(status: ["field": "state", "working": ["busy"], "idle": ["ready"]],
+                               record: ["state": "ready", "timestamp": stamp])
+        #expect(idle?.isWorking == false)
+    }
+
+    @Test("A non-empty collection means working, an empty one means idle")
+    func whileNotEmptyDecidesFromACollection() throws {
+        // The shape the VS Code harness uses: Copilot publishes an array of
+        // requests in flight, so "is that array empty?" is the status.
+        let busy = try session(status: ["whileNotEmpty": "pending"],
+                               record: ["pending": [["id": 1]],
+                                        "timestamp": "2026-09-20T12:00:00Z"])
+        #expect(busy?.isWorking == true)
+
+        // Empty is a reading, not an absence: the agent has nothing in flight.
+        let quiet = try session(status: ["whileNotEmpty": "pending"],
+                                record: ["pending": [] as [Any],
+                                         "timestamp": ISO8601DateFormatter().string(from: Date())])
+        #expect(quiet?.isWorking == false)
+    }
+
+    @Test("A value in neither list leaves the state unstated rather than guessed")
+    func unknownValueStaysUnstated() throws {
+        let unknown = try session(status: ["field": "state", "working": ["busy"], "idle": ["ready"]],
+                                  record: ["state": "reticulating", "timestamp": "2026-09-20T12:00:00Z"])
+        #expect(unknown?.isWorking == nil)
+    }
+}
