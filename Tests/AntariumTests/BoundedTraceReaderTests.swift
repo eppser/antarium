@@ -114,6 +114,24 @@ struct BoundedTraceReaderBoundaryTests {
         #expect(seen == ["{\"n\":1}", "{\"n\":2}"])
     }
 
+    @Test("The shipped record limit admits the records real transcripts contain")
+    func defaultRecordLimitFitsRealRecords() throws {
+        // Measured on this machine: the longest records in large transcripts
+        // are about 1.36 MB, and four of eight had one. At a 1 MiB limit every
+        // one of those sessions reported no usage at all — a skipped record
+        // makes the totals incomplete, and an incomplete total is withheld
+        // rather than shown low. Sessions worth $670 and $1380 displayed
+        // nothing until this limit was raised.
+        let record = String(repeating: "x", count: 1_400_000)
+        let url = try write("{\"pad\":\"" + record + "\"}\n{\"n\":2}\n")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        var seen = 0
+        let batch = try BoundedTraceReader.read(url, state: .init()) { _ in seen += 1 }
+        #expect(batch.skipped == 0, "a 1.4 MB record was skipped at the shipped limit")
+        #expect(seen == 2)
+    }
+
     @Test("A record ending exactly on the limit is kept; one byte more is not")
     func recordLimitBoundary() throws {
         func skipped(bodyLength: Int, limit: Int) throws -> (Int, [String]) {

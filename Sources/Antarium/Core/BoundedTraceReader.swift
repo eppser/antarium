@@ -23,7 +23,14 @@ enum BoundedTraceReader {
 
     static func read(_ url: URL, state previous: State,
                      maxRead: Int = 4 * 1_024 * 1_024,
-                     maxRecord: Int = 1_024 * 1_024,
+                     // Measured rather than guessed: the longest records in
+                     // this machine's large transcripts are about 1.36 MB,
+                     // and four of eight had one. At 1 MiB every one of those
+                     // sessions lost its whole usage figure to a margin of
+                     // 300 KB, because a skipped record makes the totals
+                     // incomplete and an incomplete total is not reported.
+                     // A record still cannot exceed one read budget.
+                     maxRecord: Int = 2 * 1_024 * 1_024,
                      onReset: () -> Void = {},
                      consume: (Data) -> Void) throws -> Batch {
         let limit = min(16 * 1_024 * 1_024, max(2, maxRead))

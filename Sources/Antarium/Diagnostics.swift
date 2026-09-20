@@ -106,6 +106,34 @@ enum Diagnostics {
     /// Renders a SwiftUI view once per appearance and writes the two side by
     /// side, each on the backdrop its theme would sit on. Every `--*` harness
     /// composed this by hand before; it is the same picture every time.
+    /// One agent as `--agents` prints it: the table row, then any reason its
+    /// figures are missing.
+    ///
+    /// A row of dashes has a reason and the row already knows it. Printing the
+    /// columns alone leaves the reader to guess whether the agent has done
+    /// nothing, the harness records nothing, or the transcript is still being
+    /// read — three different answers that look identical in a table. This
+    /// machine had two sessions reporting no cost because records slightly
+    /// over the read limit were skipped, and the table gave no hint of it.
+    static func agentLines(for r: AgentRow) -> [String] {
+        let ctx = r.contextFraction.map { String(format: "%.0f%%", $0 * 100) }
+            ?? (r.contextTokens.map { "\($0 / 1000)k" } ?? "—")
+        let ram = r.rssBytes.map { String(format: "%.0fMB", Double($0) / 1_048_576) } ?? "—"
+        let chips = r.context.present.map { $0.kind.label }.joined(separator: ",")
+        var lines = [tableRow([r.name, r.state.label, r.hostApp ?? "—",
+                               Pricing.shortName(r.model) ?? "—",
+                               ctx,
+                               r.toolCalls.map(String.init) ?? r.turns.map { "\($0)t" } ?? "—",
+                               r.costUSD.map { Pricing.money($0) } ?? "—",
+                               ram,
+                               chips.isEmpty ? "—" : chips])]
+        if let note = r.note, !note.isEmpty { lines.append("    \(note)") }
+        if let issue = r.localObservationIssue, !issue.isEmpty, issue != r.note {
+            lines.append("    \(issue)")
+        }
+        return lines
+    }
+
     @MainActor
     static func writeThemeSheet<V: View>(_ view: @autoclosure () -> V, to path: String,
                                          gap: CGFloat = 16) -> Bool {
@@ -353,19 +381,7 @@ enum Diagnostics {
             // Plain Swift padding: String(format:) with %s takes a pointer into
             // an NSString temporary that is freed before the format runs.
             print(tableRow(["NAME", "STATE", "HOST", "MODEL", "CONTEXT", "TOOLS", "COST", "RAM", "CONTEXT FILES"]))
-            for r in rows {
-                let ctx = r.contextFraction.map { String(format: "%.0f%%", $0 * 100) }
-                    ?? (r.contextTokens.map { "\($0 / 1000)k" } ?? "—")
-                let ram = r.rssBytes.map { String(format: "%.0fMB", Double($0) / 1_048_576) } ?? "—"
-                let chips = r.context.present.map { $0.kind.label }.joined(separator: ",")
-                print(tableRow([r.name, r.state.label, r.hostApp ?? "—",
-                                Pricing.shortName(r.model) ?? "—",
-                                ctx,
-                                r.toolCalls.map(String.init) ?? r.turns.map { "\($0)t" } ?? "—",
-                                r.costUSD.map { Pricing.money($0) } ?? "—",
-                                ram,
-                                chips.isEmpty ? "—" : chips]))
-            }
+            for r in rows { agentLines(for: r).forEach { print($0) } }
             // Every descriptor-driven harness, reported whether or not one is
             // running right now, so each reader is verifiable on its own.
             for d in HarnessDescriptor.all() {

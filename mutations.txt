@@ -73,3 +73,5 @@ openclaw accumulates the context size | Resources/harnesses/openclaw.json | s/"m
 openclaw glob loses the agent level | Resources/harnesses/openclaw.json | s|"glob": "\*/sessions/\*.jsonl"|"glob": "*.jsonl"|
 presence agents vanish from first run | Sources/Antarium/Core/Onboarding.swift | s/            if descriptor.contributesPresenceOnly {/            if false {/
 benchmark hides an unabsorbed backlog | Sources/Antarium/Core/TranscriptStats.swift | s/return cache.values.filter { \$0.backlog == true }.count/return 0/
+record limit back below real transcripts | Sources/Antarium/Core/BoundedTraceReader.swift | s/maxRecord: Int = 2 \* 1_024 \* 1_024/maxRecord: Int = 1_024 * 1_024/
+agent rows hide why their figures are missing | Sources/Antarium/Diagnostics.swift | s/        if let note = r.note, !note.isEmpty { lines.append("    \\(note)") }//

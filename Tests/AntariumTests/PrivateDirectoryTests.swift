@@ -224,3 +224,44 @@ struct TranscriptBacklogTests {
                 "a fully read transcript is still reported as behind")
     }
 }
+
+@Suite("Agent listing explains itself", .serialized)
+struct AgentListingTests {
+
+    private func row(note: String? = nil, issue: String? = nil,
+                     cost: Double? = nil) -> AgentRow {
+        var row = AgentRow(id: "r", agentID: "claude-code", name: "sample",
+                           cwd: "/projects/sample", state: .waiting)
+        row.note = note
+        row.localObservationIssue = issue
+        row.costUSD = cost
+        return row
+    }
+
+    @Test("A row with no figures says why")
+    func missingFiguresAreExplained() {
+        let lines = Diagnostics.agentLines(
+            for: row(note: "Transcript history is still being read."))
+        #expect(lines.count == 2, "the reason was dropped")
+        #expect(lines[1].contains("still being read"))
+        // The table row itself still shows the absence as absence.
+        #expect(lines[0].contains("—"))
+    }
+
+    @Test("A row with figures carries no explanation")
+    func completeRowsAreNotAnnotated() {
+        #expect(Diagnostics.agentLines(for: row(cost: 12.5)).count == 1)
+    }
+
+    @Test("An observation problem is reported alongside, not instead")
+    func bothReasonsAppearWithoutRepeating() {
+        let both = Diagnostics.agentLines(
+            for: row(note: "Usage figures are unavailable.",
+                     issue: "This process could not be inspected."))
+        #expect(both.count == 3)
+        // The same sentence twice would read as two separate problems.
+        let same = Diagnostics.agentLines(
+            for: row(note: "Same sentence.", issue: "Same sentence."))
+        #expect(same.count == 2)
+    }
+}
