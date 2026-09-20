@@ -76,7 +76,11 @@ Command Code, Vercel AI Gateway, DeepSeek.
 Native, because their authentication is control flow: Claude Code (Keychain and
 OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store).
 
-Not currently integrated, with the reason each would need native code:
+Not currently integrated, with the reason each would need native code. The
+table is the answer to "add every provider some other tool supports", and it
+is worth reading before starting one: a mapping being expressible is not the
+same as a provider being shippable, and the difference is almost always the
+credential rather than the response.
 
 | Service | Why a descriptor cannot express it |
 | --- | --- |
@@ -84,8 +88,9 @@ Not currently integrated, with the reason each would need native code:
 | Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
-| Gemini | OAuth against an internal Cloud Code endpoint |
-| Kiro, Omp, Mistral, AmpCode | usage is the text output of a CLI, parsed with regular expressions |
+| Gemini | OAuth against an internal Cloud Code endpoint. The mapping itself is expressible — `POST v1internal:retrieveUserQuota` returns `buckets[]` with `remainingFraction` — and was written and then reverted: `~/.gemini/oauth_creds.json` holds an access token good for about an hour and a refresh token nothing here can spend, so the gauge would read "sign in" most of the time. It needs the refresh, which is control flow, not a field path |
+| Kiro, Mistral, AmpCode | usage is the text output of a CLI, parsed with regular expressions |
+| Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
 | Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
 
 A provider whose credential expires with no way to renew it is deliberately

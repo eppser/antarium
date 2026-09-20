@@ -226,12 +226,6 @@ struct HarnessDescriptor: Codable {
             /// do arithmetic a config file cannot express.
             var usedPercent: String?
             var percentRemaining: String?
-            /// Headroom as a fraction of one rather than a percentage.
-            /// Gemini's `remainingFraction` is 0.87 for 87% left; read as a
-            /// percentage that is 99.13% used, which is both wrong and
-            /// alarming. Separate field rather than a scale factor, so a
-            /// descriptor says which one the service actually reports.
-            var fractionRemaining: String?
             /// Path to a credit balance: a figure with no denominator. A
             /// window mapped this way draws its amount and no bar, because a
             /// balance cannot honestly be a percentage of anything.
@@ -266,10 +260,6 @@ struct HarnessDescriptor: Codable {
         }
         let endpoint: String
         var headers: [String: String]?
-        /// `GET` unless stated. Some usage endpoints are POST-only —
-        /// Gemini's `v1internal:retrieveUserQuota` is — and send an empty
-        /// object as the body.
-        var method: String?
         var credential: Credential?
         let windows: Windows
         var accountLabel: String?

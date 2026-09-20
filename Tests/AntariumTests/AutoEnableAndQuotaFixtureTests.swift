@@ -401,12 +401,7 @@ func quotaOnlyHarnessRowIsHonest() throws {
     for descriptor in descriptors where descriptor.source.kind == .none && descriptor.quota != nil {
         quotaOnly += 1
         let row = HarnessRowPresentation(descriptor: descriptor, edited: false)
-        // "Quota only" unless the descriptor names its own label, which one
-        // that is also process-detected does. Either way the label has to
-        // name the quota, because that is where its figures come from.
-        #expect(row.sourceLabel.lowercased().contains("quota"),
-                Comment(rawValue: "\(descriptor.id) reads only quota but its row says "
-                        + row.sourceLabel))
+        #expect(row.sourceLabel == "Quota only")
         #expect(row.compatibilityLabel == "Quota fixture verified",
                 "\(descriptor.id) reported \(row.compatibilityLabel)")
     }

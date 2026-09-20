@@ -33,12 +33,12 @@ enum HarnessCheck {
                 "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
                 "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status", "pid", "sessionID",
                 "inputIncludesCacheRead"],
-        "quota": ["endpoint", "headers", "method", "credential", "windows", "accountLabel",
+        "quota": ["endpoint", "headers", "credential", "windows", "accountLabel",
                   "setupHint", "signInCommand", "verified"],
         "focus": ["command", "args"],
         "quota.credential": ["kind", "path", "field", "name", "command", "args", "requires"],
         "quota.windows": ["root", "roots", "list", "key", "keys", "single", "balance",
-                          "currency", "usedPercent", "percentRemaining", "fractionRemaining",
+                          "currency", "usedPercent", "percentRemaining",
                           "used", "limit", "require", "labels", "badges", "windowSeconds", "resetsAt",
                           "title"],
         "selection": ["kind", "path", "glob", "records", "encodedJSON", "id", "filter",
@@ -256,14 +256,13 @@ enum HarnessCheck {
                 }
             }
             let map = quota.windows
-            let figure = [map.usedPercent, map.percentRemaining, map.fractionRemaining,
-                          map.balance].contains { $0 != nil }
+            let figure = [map.usedPercent, map.percentRemaining, map.balance].contains { $0 != nil }
                 || (map.used != nil && map.limit != nil)
             if figure {
                 let shape = map.list != nil ? "a list" : (map.single != nil ? "one flat window" : "an object")
                 ok("quota windows read from \(shape)")
             } else {
-                fail("quota.windows declares no figure: give usedPercent, percentRemaining, fractionRemaining, "
+                fail("quota.windows declares no figure: give usedPercent, percentRemaining, "
                      + "used and limit, or balance")
             }
             if map.list != nil && map.key == nil {

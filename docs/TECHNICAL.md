@@ -417,16 +417,6 @@ those reads as a Z.ai sign-in and is sent to Z.ai's endpoint. Z.ai requires
 absent field fails closed, and the check is refused at decode on any other
 credential kind, where it would silently do nothing.
 
-`method` is `GET` unless stated; `POST` sends an empty JSON object as the
-body, which is what Cloud Code's `v1internal:retrieveUserQuota` expects.
-
-Alongside `usedPercent` and `percentRemaining`, a window may declare
-`fractionRemaining` for a service reporting headroom as a fraction of one.
-Gemini's `remainingFraction` is 0.87 for 87% left; read as a percentage that
-becomes 99.13% used, which is wrong and alarming rather than merely wrong.
-A separate field rather than a scale factor, so the descriptor states which
-one the service actually reports.
-
 A usage endpoint must be `https` with a host, checked before the request is
 built: every usage request carries a credential, and a descriptor saying
 `http` is not a reason to send a bearer token in the clear.
