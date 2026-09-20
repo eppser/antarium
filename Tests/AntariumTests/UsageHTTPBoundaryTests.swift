@@ -12,12 +12,19 @@ private final class SyntheticUsageProtocol: URLProtocol, @unchecked Sendable {
         switch path {
         case "/large": body = Data(("{\"padding\":\"" + String(repeating: "x", count: 2 * 1_024 * 1_024) + "\"}").utf8); status = 200
         case "/big": body = Data(("{\"padding\":\"" + String(repeating: "x", count: 1_000_000) + "\"}").utf8); status = 200
+        case "/declared-huge":
+            // Small body, enormous declared length: the cap has to refuse this
+            // before a byte of it is read, which is a different check from the
+            // running total and the only one a well-behaved server trips.
+            body = Data("{}".utf8); status = 200
         case "/malformed": body = Data("not json".utf8); status = 200
         case "/denied": body = Data("{}".utf8); status = 401
         default: body = Data("{\"used\":0}".utf8); status = 200
         }
+        var headers = ["Content-Type": "application/json"]
+        if path == "/declared-huge" { headers["Content-Length"] = "9999999" }
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1",
-                                       headerFields: ["Content-Type":"application/json"])!
+                                       headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: body)
         client?.urlProtocolDidFinishLoading(self)
@@ -46,6 +53,20 @@ struct UsageHTTPBoundaryTests {
             Issue.record("Unexpected error: \(error)")
         }
     }
+    @Test("A response that declares an oversized length is refused before it is read")
+    func declaredLengthIsRefused() async {
+        let client = session(); defer { client.invalidateAndCancel() }
+        do {
+            _ = try await UsageHTTP.getJSON(URL(string: "https://usage.invalid/declared-huge")!,
+                                            headers: [:], session: client)
+            Issue.record("a response declaring 9.5 MB was accepted")
+        } catch let error as ProviderError {
+            #expect(error == .badResponse("Usage response exceeds the 2 MiB safety limit."))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("A large but legal response is read in bulk, not a byte at a time")
     func largeResponseIsNotReadByteByByte() async throws {
         let client = session(); defer { client.invalidateAndCancel() }

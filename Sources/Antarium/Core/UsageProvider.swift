@@ -101,9 +101,19 @@ enum ProviderRegistry {
 
     /// Agents shown in the menu bar, in registry order so the items keep a
     /// stable left-to-right ordering between launches.
-    static var enabled: [UsageProvider] {
-        let on = Settings.enabledAgents
-        let result = all.filter { on.contains($0.id) }
-        return result.isEmpty ? [all[0]] : result
+    static var enabled: [UsageProvider] { shown(from: all, enabled: Settings.enabledAgents) }
+
+    /// The choice applied to a registry, with the empty case handled.
+    ///
+    /// A recorded choice can name only agents that no longer exist — an id
+    /// renamed, a descriptor deleted — and filtering on it would then leave no
+    /// menu bar items at all, which is the only way back into the app. The
+    /// first provider stands in. Separated from `enabled` so that rule is
+    /// testable without writing anybody's settings, and so the `all[0]` that
+    /// used to be written inline cannot trap on an empty registry.
+    static func shown(from providers: [UsageProvider], enabled: Set<String>) -> [UsageProvider] {
+        let result = providers.filter { enabled.contains($0.id) }
+        if !result.isEmpty { return result }
+        return providers.first.map { [$0] } ?? []
     }
 }
