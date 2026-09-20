@@ -2,6 +2,14 @@ import Foundation
 import Testing
 @testable import Antarium
 
+/// The descriptors that ship with the tests, rather than whatever the machine
+/// running them happens to have seeded into ~/.antarium/harnesses.
+///
+/// These tests read the user catalog by default and so passed only on a
+/// machine where Antarium had already run. CI, which checks out a fresh copy,
+/// had been failing on every one of them.
+private let bundledHarnesses: () -> [HarnessDescriptor] = { HarnessCLI.bundledDescriptors() }
+
 /// Sorting by the name the row shows, and the SSH-backed tmux source.
 struct SortAndRemoteTmuxTests {
 
@@ -84,7 +92,7 @@ struct SortAndRemoteTmuxTests {
 
     @Test("Remote panes are matched to the agents running inside them")
     func parsePlacesAgentsInPanes() {
-        let rows = RemoteTmux.parse(sample, host: "quibus")
+        let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
         let byAgent = Dictionary(grouping: rows, by: \.agentID).mapValues(\.count)
         #expect(byAgent["codex"] == 1)
         // Found only by walking up sh -> node, which is the whole point of the
@@ -99,13 +107,13 @@ struct SortAndRemoteTmuxTests {
     func parseDoesNotClaimUnrelatedCommands() {
         // `vim /home/se/.codex/notes.md` sits in a pane of its own. Matching
         // the whole command line would have turned the editor into a session.
-        let rows = RemoteTmux.parse(sample, host: "quibus")
+        let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
         #expect(!rows.contains { $0.cwd == "/srv/idle" })
     }
 
     @Test("Remote rows are tagged, marked remote, and carry no local tmux target")
     func parseTagsRowsAndWithholdsTheLocalFocusTarget() {
-        let rows = RemoteTmux.parse(sample, host: "quibus")
+        let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
         #expect(!rows.isEmpty)
         for row in rows {
             #expect(row.hostApp == RemoteTmux.tag)
@@ -122,8 +130,8 @@ struct SortAndRemoteTmuxTests {
 
     @Test("Row ids are stable across scans so the list does not churn")
     func parseProducesStableIdentity() {
-        let first = RemoteTmux.parse(sample, host: "quibus").map(\.id).sorted()
-        let again = RemoteTmux.parse(sample, host: "quibus").map(\.id).sorted()
+        let first = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses).map(\.id).sorted()
+        let again = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses).map(\.id).sorted()
         #expect(first == again)
         #expect(Set(first).count == first.count)
     }
@@ -137,17 +145,18 @@ struct SortAndRemoteTmuxTests {
             911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             912 911 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             """
-        #expect(RemoteTmux.parse(forked, host: "quibus").count == 1)
+        #expect(RemoteTmux.parse(forked, host: "quibus", descriptors: bundledHarnesses).count == 1)
     }
 
     @Test("Output that is not the expected two halves yields nothing")
     func parseRejectsUnusableOutput() {
         // A host that answered with an error, or where tmux was not running,
         // must produce no rows rather than half-read ones.
-        #expect(RemoteTmux.parse("", host: "quibus").isEmpty)
+        #expect(RemoteTmux.parse("", host: "quibus", descriptors: bundledHarnesses).isEmpty)
         #expect(RemoteTmux.parse("ssh: connect to host quibus port 22: refused",
-                                 host: "quibus").isEmpty)
-        #expect(RemoteTmux.parse(RemoteTmux.psSeparator + "\n910 1 bash -bash", host: "q").isEmpty)
+                                 host: "quibus",
+                                 descriptors: bundledHarnesses).isEmpty)
+        #expect(RemoteTmux.parse(RemoteTmux.psSeparator + "\n910 1 bash -bash", host: "q", descriptors: bundledHarnesses).isEmpty)
     }
 
     @Test("A ps line becomes a process observation the shared matcher can read")
@@ -193,7 +202,7 @@ struct SortAndRemoteTmuxTests {
             999 1 sh sh -c echo \(RemoteTmux.psSeparator)
             911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             """
-        let rows = RemoteTmux.parse(output, host: "quibus")
+        let rows = RemoteTmux.parse(output, host: "quibus", descriptors: bundledHarnesses)
         // The agent is listed *after* the stray marker, so a split on the last
         // or on every occurrence loses it.
         #expect(rows.count == 1)
@@ -214,7 +223,7 @@ struct SortAndRemoteTmuxTests {
             \(RemoteTmux.exeSeparator)
             911 /home/se/.local/share/claude/versions/2.1.241
             """
-        let rows = RemoteTmux.parse(output, host: "quibus")
+        let rows = RemoteTmux.parse(output, host: "quibus", descriptors: bundledHarnesses)
         #expect(rows.count == 1)
         #expect(rows.first?.agentID == "claude-code")
     }
@@ -230,7 +239,7 @@ struct SortAndRemoteTmuxTests {
             911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             \(RemoteTmux.exeSeparator)
             """
-        #expect(RemoteTmux.parse(output, host: "quibus").first?.agentID == "codex")
+        #expect(RemoteTmux.parse(output, host: "quibus", descriptors: bundledHarnesses).first?.agentID == "codex")
     }
 
     // Deliberately no test writes `remoteTmuxHosts` or `includeRemoteTmux`.

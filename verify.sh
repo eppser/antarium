@@ -26,6 +26,19 @@ else
     bad "test suite — see /tmp/verify-tests.log"
 fi
 
+step "Tests on a machine where Antarium has never run"
+# CI checks out a fresh copy and has no ~/.antarium. A test that reads the
+# user's seeded harnesses passes here and fails there, which is how the remote
+# tmux tests sat red in CI while green on the machine that wrote them.
+bare=$(mktemp -d)
+if ANTARIUM_HOME="$bare" ./test.sh >/tmp/verify-bare.log 2>&1; then
+    ok "$(grep -oE 'Test run with [0-9]+ tests' /tmp/verify-bare.log | tail -1)"
+else
+    bad "test suite depends on local state — see /tmp/verify-bare.log"
+    grep -E '^✘ Test "' /tmp/verify-bare.log | head -3
+fi
+rm -rf "$bare"
+
 # Package.swift excludes `dist` only when it exists, because SwiftPM warns
 # about an exclude that names nothing. SwiftPM also caches the evaluated
 # manifest, so that condition is frozen at whatever was true last time — and a
