@@ -318,6 +318,8 @@ public struct HarnessConfig: Codable {
 
     public struct Mapping: Codable {
         public var cwd: String?
+        /// Path to the value this harness's focus command needs.
+        public var focusTarget: String?
         public var contextWindow: String?
         public var contextTokens: [String]?
         public var model: String?

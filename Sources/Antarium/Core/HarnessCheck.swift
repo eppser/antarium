@@ -16,7 +16,7 @@ enum HarnessCheck {
     /// anything else in a file is a typo or a leftover.
     private static let known: [String: Set<String>] = [
         "": ["$schema", "formatVersion", "id", "name", "process", "match", "matchProcessName", "source", "map", "quota",
-             "capabilities", "selection",
+             "capabilities", "selection", "focus", "contributes",
              "idleAfter", "staleAfter", "fallbackName", "mark", "note", "detached",
              "multiSession", "openTabsOnly",
              "enabled", "presentation", "compatibility", "activity"],
@@ -29,12 +29,13 @@ enum HarnessCheck {
         "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
                    "journal"],
-        "map": ["cwd", "title", "model", "contextWindow", "contextTokens", "timestamp",
+        "map": ["cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
                 "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
                 "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status", "pid", "sessionID",
                 "inputIncludesCacheRead"],
         "quota": ["endpoint", "headers", "credential", "windows", "accountLabel",
                   "setupHint", "signInCommand", "verified"],
+        "focus": ["command", "args"],
         "quota.credential": ["kind", "path", "field", "name", "command", "args"],
         "quota.windows": ["root", "roots", "list", "key", "keys", "single", "balance",
                           "currency", "usedPercent", "percentRemaining",

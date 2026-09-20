@@ -354,6 +354,33 @@ Capabilities are scoped to one harness and are never borrowed from another:
 
 Supported probes are `content`, `directory`, `jsonObject`, and `toml`.
 
+### Workspace harnesses
+
+Herdr and Orca host other agents rather than being agents. A Claude session in
+a Herdr pane is the same conversation the `claude-code` harness already
+reports, so a harness that emitted both would show every agent twice — once
+with its real figures and once as an empty duplicate.
+
+`contributes: "focus"` says: read these records, use them to say how each
+session is raised, and make no rows. The join is on the agent's own session id
+where the manager publishes one — Herdr does, and it is exact. Otherwise on
+the working directory, which is weaker: one pane in a folder says nothing
+about which of two agents working there it holds, so a directory claimed by
+more than one row or pane is left alone. A target is never handed to two rows.
+Focusing the wrong pane is worse than focusing none.
+
+`focus` declares how to raise a session. `{focusTarget}` in an argument is
+replaced with the session's `map.focusTarget` value — a tab id for Herdr, a
+terminal handle for Orca, neither of which is the session id. The command runs
+directly rather than through a shell, and appears in the reviewed command
+allowlist alongside source and credential commands, because a command run when
+a row is clicked is still a command this application runs.
+
+Both read their live state through `source.kind: "command"`. Their fixtures
+replace that command with one that prints a recorded reply, so the mapping,
+the records path and every field path are exercised without either tool being
+installed.
+
 ### Descriptor-backed quota providers
 
 For agents without a built-in authentication flow, `quota` can describe a

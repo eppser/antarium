@@ -68,6 +68,16 @@
     "selection": {
       "$ref": "#/$defs/selection"
     },
+    "focus": {
+      "$ref": "#/$defs/focus"
+    },
+    "contributes": {
+      "enum": [
+        "sessions",
+        "focus"
+      ],
+      "description": "focus means this harness supplies focus targets for other harnesses' sessions and makes no rows of its own."
+    },
     "idleAfter": {
       "type": "number",
       "minimum": 0
@@ -535,6 +545,10 @@
         "cwd": {
           "type": "string"
         },
+        "focusTarget": {
+          "type": "string",
+          "description": "Path to the value this harness's focus command needs."
+        },
         "title": {
           "type": "string"
         },
@@ -978,6 +992,25 @@
           "type": "string"
         },
         "minItems": 1
+      }
+    },
+    "focus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command"
+      ],
+      "description": "How this harness raises one of its own sessions. {focusTarget} in an argument is replaced with map.focusTarget.",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

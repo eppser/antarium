@@ -100,6 +100,15 @@ struct AgentRow: Identifiable {
     }
     /// `session:@window.%pane` when the agent runs under tmux.
     var tmuxTarget: String?
+    /// What this row's harness needs to bring the session to the front, when
+    /// the harness owns its own windows and publishes a command for it.
+    var focusTarget: String?
+    /// The agent's own id for this conversation, where it has one.
+    ///
+    /// `id` already folds this in, but it folds in the project and the harness
+    /// too, so it cannot be compared against an id a workspace manager
+    /// publishes for the same session. This can.
+    var sessionID: String?
     var context = ProjectContext()
     /// Assistant turns per 10-minute bucket over the last 6 hours.
     var activity: [Int] = []
@@ -223,6 +232,11 @@ enum AgentScan {
             }
         }
         attachTmuxTargets(to: &rows, parents: parents, panes: Focus.tmuxPanesByPID)
+        // Workspace managers last: they say how a session is raised, and the
+        // rows they apply to have to exist first.
+        for descriptor in HarnessDescriptor.all() where descriptor.contributesFocusOnly {
+            attachWorkspaceTargets(to: &rows, panes: HarnessEngine.sessions(descriptor))
+        }
         for i in rows.indices where !rows[i].cwd.isEmpty {
             rows[i].context = ProjectContext.scan(rows[i].cwd, agentID: rows[i].agentID)
         }
@@ -467,6 +481,7 @@ enum AgentScan {
                 row.state = .unobserved
                 row.localObservationIssue = "This process could not be inspected. Its current state is unknown."
             }
+            row.sessionID = sessionID
             rows.append(row)
         }
         return rows
@@ -573,6 +588,9 @@ enum AgentScan {
             // say which processes are the agent's. It must not make rows of its
             // own, or every native harness would appear twice and empty.
             if descriptor.source.kind == .none { continue }
+            // A workspace manager's panes are other agents' sessions; they are
+            // joined onto those rows afterwards rather than duplicating them.
+            if descriptor.contributesFocusOnly { continue }
             if descriptor.source.kind == .command {
                 rows += commandRows(descriptor, processes: processes)
                 continue
@@ -737,6 +755,8 @@ enum AgentScan {
                               _ descriptor: HarnessDescriptor,
                               processAlive: Bool) {
         row.traceFile = session.sourceFile
+        row.focusTarget = session.focusTarget
+        row.sessionID = session.sessionID
         row.model = session.model
         row.note = nil // Diagnostics describe this observation, not an older failure.
         if let issue = session.usageIssue {
@@ -781,6 +801,60 @@ enum AgentScan {
     }
 
     /// One row per session reported by a harness's own CLI.
+    /// Joins a workspace manager's panes onto the rows they contain.
+    ///
+    /// Matched on the agent's own session id where the manager publishes one —
+    /// Herdr does, and it is exact. Otherwise on the working directory, which
+    /// is weaker: two agents in one folder cannot be told apart that way, so a
+    /// directory claimed by more than one pane is left alone rather than
+    /// guessed at. Focusing the wrong pane is worse than focusing none.
+    static func attachWorkspaceTargets(to rows: inout [AgentRow],
+                                       panes: [HarnessEngine.Session]) {
+        guard !panes.isEmpty else { return }
+        var bySession: [String: String] = [:]
+        var byDirectory: [String: String] = [:]
+        var ambiguous: Set<String> = []
+        for pane in panes {
+            guard let target = pane.focusTarget, !target.isEmpty else { continue }
+            if let id = pane.sessionID, !id.isEmpty { bySession[id] = target }
+            if let cwd = pane.cwd, !cwd.isEmpty {
+                if byDirectory[cwd] != nil, byDirectory[cwd] != target { ambiguous.insert(cwd) }
+                byDirectory[cwd] = target
+            }
+        }
+        // The session id is exact, and applied first — but not blindly. Claude
+        // reuses a session id across resumed sessions, so two live rows can
+        // carry the same one, and both would then be sent to a single pane.
+        var rowsPerSession: [String: Int] = [:]
+        for row in rows {
+            if let id = row.sessionID, !id.isEmpty { rowsPerSession[id, default: 0] += 1 }
+        }
+        var claimed: Set<String> = []
+        for index in rows.indices where rows[index].focusTarget == nil {
+            guard let id = rows[index].sessionID, rowsPerSession[id] == 1,
+                  let target = bySession[id], !claimed.contains(target) else { continue }
+            rows[index].focusTarget = target
+            claimed.insert(target)
+        }
+
+        // The directory is not. One pane in a folder says nothing about which
+        // of two agents working there it holds, and an earlier version of this
+        // gave a Claude row and a Codex row the same Orca terminal — clicking
+        // either would have raised one pane, silently wrong for the other. A
+        // directory is only used when exactly one row and one pane claim it.
+        var rowsPerDirectory: [String: Int] = [:]
+        for row in rows where row.focusTarget == nil && !row.cwd.isEmpty {
+            rowsPerDirectory[row.cwd, default: 0] += 1
+        }
+        for index in rows.indices where rows[index].focusTarget == nil {
+            let cwd = rows[index].cwd
+            guard !cwd.isEmpty, !ambiguous.contains(cwd), rowsPerDirectory[cwd] == 1,
+                  let target = byDirectory[cwd], !claimed.contains(target) else { continue }
+            rows[index].focusTarget = target
+            claimed.insert(target)
+        }
+    }
+
     private static func commandRows(_ descriptor: HarnessDescriptor,
                                     processes: [Int32: Processes.Info]) -> [AgentRow] {
         HarnessEngine.sessions(descriptor).compactMap { session in

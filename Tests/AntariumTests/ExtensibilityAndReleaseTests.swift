@@ -441,9 +441,24 @@ struct UIAndReleaseContractTests {
                credential.kind == "command", let command = credential.command {
                 commands.append("\(descriptor.id):credential \(([command] + (credential.args ?? [])).joined(separator: " "))")
             }
+            // A focus command is run when a row is clicked, so it belongs
+            // under the same gate as the ones run during a scan.
+            if let focus = descriptor.focus {
+                commands.append("\(descriptor.id):focus \(([focus.command] + (focus.args ?? [])).joined(separator: " "))")
+            }
         }
 
-        #expect(commands.sorted() == ["copilot:credential gh auth token"])
+        // Every command a shipped harness may run, listed here so adding one
+        // is a decision rather than a side effect. All three read state and
+        // write nothing: `gh auth token` prints a token, and the two workspace
+        // managers print their live pane inventory as JSON.
+        #expect(commands.sorted() == [
+            "copilot:credential gh auth token",
+            "herdr:focus herdr tab focus {focusTarget}",
+            "herdr:source herdr api snapshot",
+            "orca:focus orca terminal switch --terminal {focusTarget}",
+            "orca:source orca terminal list --json",
+        ])
     }
 
     @Test("The public repository uses the standard MIT license")

@@ -30,12 +30,15 @@ enum Focus {
         case tmux(String)
         case tab(String)
         case app(String)
+        /// A harness that owns its own windows raised one of them itself.
+        case harness(String)
         case folder
         case nothing
 
         var succeeded: Bool { self != .nothing }
         var description: String {
             switch self {
+            case .harness(let n): return "asked \(n) to show it"
             case .tmux(let t):  return "tmux pane \(t)"
             case .tab(let t):   return "terminal tab \(t)"
             case .app(let n):   return "raised \(n)"
@@ -50,6 +53,14 @@ enum Focus {
     static func reveal(_ row: AgentRow) -> Result {
         guard canRevealLocally(row) else { return .nothing }
         Log.info("focus", "reveal local session requested")
+        // A harness that owns its own windows is asked first: it knows which
+        // pane of which tab this session is, and raising the application
+        // instead would land on whatever it had open last.
+        if let descriptor = HarnessDescriptor.all().first(where: { $0.id == row.agentID }),
+           let focus = descriptor.focus, let target = row.focusTarget,
+           runHarnessFocus(focus, target: target) {
+            return .harness(descriptor.name)
+        }
         if let target = row.tmuxTarget, focusTmux(target) { return .tmux(target) }
         if let pid = row.pid {
             let result = activateOwningApp(of: pid)
@@ -60,6 +71,44 @@ enum Focus {
             return .folder
         }
         return .nothing
+    }
+
+    /// Runs a harness's own focus command, with `{focusTarget}` substituted.
+    ///
+    /// Executed directly, never through a shell: the target comes from a file
+    /// the harness wrote, and the descriptor supplying the command is trusted
+    /// local configuration, but neither is a reason to let a value become
+    /// shell syntax. Bounded like every other subprocess, because a workspace
+    /// manager that has wedged must not take the menu bar with it.
+    @MainActor
+    private static func runHarnessFocus(_ focus: HarnessDescriptor.Focus,
+                                        target: String) -> Bool {
+        guard !target.isEmpty, !target.contains("\0"), target.utf8.count <= 512,
+              let path = resolve(focus.command) else { return false }
+        let arguments = (focus.args ?? []).map {
+            $0.replacingOccurrences(of: "{focusTarget}", with: target)
+        }
+        let result = Shell.execute(path, arguments, timeout: 5, outputLimit: 8_192)
+        if result.exitCode != 0 {
+            Log.info("focus", "harness focus command did not succeed")
+        }
+        return result.exitCode == 0
+    }
+
+    /// Where a bare command name lives. A GUI app's PATH is short, so the
+    /// usual places are tried explicitly — the same list the quota providers
+    /// use for the same reason.
+    private static func resolve(_ command: String) -> String? {
+        if command.contains("/") {
+            let path = command.expandingTilde
+            return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+        }
+        let places = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":").map(String.init)
+            + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+               FileManager.default.homeDirectoryForCurrentUser.path + "/.local/bin"]
+        return places.map { "\($0)/\(command)" }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     /// `unruly-6:@6.%12` → select that pane, then raise its terminal.

@@ -278,6 +278,38 @@ struct HarnessDescriptor: Codable {
     var mark: String?
     var presentation: Presentation?
 
+    /// How to bring one of this harness's sessions to the front.
+    ///
+    /// A tmux pane is focused by attaching to it, and a desktop app by raising
+    /// it — both of which Antarium knows how to do. A workspace manager that
+    /// owns its own panes knows neither: Herdr focuses a tab through its
+    /// socket API, Orca switches terminals through its CLI. Both publish a
+    /// command for it, so the command is configuration and running it is not.
+    ///
+    /// `{focusTarget}` in an argument is replaced with the session's
+    /// `map.focusTarget` value. Nothing else is substituted, and the command
+    /// is executed directly rather than through a shell.
+    struct Focus: Codable {
+        let command: String
+        var args: [String]?
+    }
+
+    var focus: Focus?
+
+    /// What this harness contributes to the picture.
+    ///
+    /// A workspace manager hosts other agents rather than being one. Herdr and
+    /// Orca each report their panes, and every pane is already a row from the
+    /// agent's own harness — the Claude session in a Herdr pane is the same
+    /// conversation Claude Code reports. Emitting both shows every agent
+    /// twice, once with its real figures and once as an empty duplicate.
+    ///
+    /// `focus` means: read these records, use them to say how each session is
+    /// raised, and make no rows of your own.
+    enum Contribution: String, Codable { case sessions, focus }
+    var contributes: Contribution?
+    var contributesFocusOnly: Bool { contributes == .focus }
+
     struct Presentation: Codable {
         var mark: String?
         var fallbackName: String?
@@ -368,6 +400,8 @@ struct HarnessDescriptor: Codable {
     /// rather than showing a guess.
     struct Map: Codable {
         var cwd: String?
+        /// Path to whatever `focus.command` needs to raise this session.
+        var focusTarget: String?
         var contextWindow: String?
         /// What the harness says is currently in the context, as one or more
         /// fields summed. The newest record wins — unlike the token counts,

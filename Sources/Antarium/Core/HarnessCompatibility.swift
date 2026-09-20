@@ -116,7 +116,19 @@ enum HarnessCompatibility {
             var object = try JSONSerialization.jsonObject(
                 with: JSONEncoder().encode(descriptor)) as? [String: Any] ?? [:]
             var source = object["source"] as? [String: Any] ?? [:]
-            if descriptor.source.kind == .sqlite {
+            if descriptor.source.kind == .command {
+                // A command harness reads a tool's live output. Replaying it
+                // means running that tool, which needs it installed — and the
+                // whole point of a fixture is that nothing has to be. The
+                // command is replaced with one that prints the recorded reply,
+                // so the mapping, the records path and the field paths are all
+                // exercised exactly as they would be against the real thing.
+                guard let name = (fixture.files ?? [:]).keys.sorted().first else {
+                    throw FixtureError.sqlite("a command fixture needs a recorded reply in `files`")
+                }
+                source["command"] = "/bin/cat"
+                source["args"] = [root.appendingPathComponent(name).path]
+            } else if descriptor.source.kind == .sqlite {
                 let databaseURL = root.appendingPathComponent("fixture.sqlite")
                 var database: OpaquePointer?
                 guard sqlite3_open(databaseURL.path, &database) == SQLITE_OK,

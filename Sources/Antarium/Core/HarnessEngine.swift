@@ -82,6 +82,11 @@ enum HarnessEngine {
         var pid: Int32?
         /// The harness's own identifier for this session.
         var sessionID: String?
+        /// What this harness's focus command needs to bring the session to the
+        /// front — a tab id, a terminal handle. Distinct from `sessionID`,
+        /// which identifies the conversation: Herdr puts several panes in one
+        /// tab, so using the session id would focus the wrong thing or nothing.
+        var focusTarget: String?
         /// Whether a record has satisfied `source.filter`. Always true when the
         /// descriptor sets no filter.
         var matchedFilter = false
@@ -836,6 +841,9 @@ enum HarnessEngine {
                               _ map: HarnessDescriptor.Map) {
         if let path = map.sessionID, let value = string(record, path), !value.isEmpty {
             session.sessionID = value
+        }
+        if let path = map.focusTarget, let value = string(record, path), !value.isEmpty {
+            session.focusTarget = value
         }
         if let path = map.cwd, let value = string(record, path), !value.isEmpty {
             // VS Code records its folder as `file:///Users/...`, percent-encoded.
