@@ -137,3 +137,32 @@ struct TranscriptMarkerTests {
         #expect(markers("C") == (false, false, false))
     }
 }
+
+/// The preview sheet is the app's own visual surface for the menu bar, and it
+/// is how a row shape gets looked at before anyone ships it. A row shape with
+/// no sample is a row shape nobody has seen.
+@Suite("Menu bar preview coverage")
+@MainActor
+struct PreviewCoverageTests {
+
+    @Test("The preview includes a balance row, which has no meter to judge from the others")
+    func previewCoversBalances() {
+        let renders = Preview.samplesForTesting()
+        let balanceRows = renders.flatMap(\.rows).filter { $0.fill == nil }
+        #expect(!balanceRows.isEmpty,
+                "no sample exercises a row with no meter")
+        // And a balance shows its figure rather than a percentage.
+        #expect(balanceRows.contains { $0.percentText.contains("$") })
+        // A currency without an unambiguous symbol keeps its code.
+        #expect(balanceRows.contains { $0.percentText.contains("CNY") })
+    }
+
+    @Test("Every metered sample still carries a fill, so the two shapes stay distinct")
+    func meteredSamplesKeepTheirFill() {
+        let renders = Preview.samplesForTesting()
+        let metered = renders.flatMap(\.rows).filter { $0.percentText.hasSuffix("%") }
+        #expect(!metered.isEmpty)
+        #expect(metered.allSatisfy { $0.fill != nil },
+                "a percentage row lost its bar")
+    }
+}
