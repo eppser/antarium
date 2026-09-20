@@ -143,25 +143,40 @@ enum AgentAutoEnable {
     ///
     /// An install that has never recorded `knownAgents` records the current
     /// list and adopts nothing, because it cannot tell new from rejected.
-    @discardableResult
-    static func adoptNewProviders(providers: [UsageProvider]) -> Set<String> {
-        guard !providers.isEmpty else { return [] }
-        let all = Set(providers.map(\.id))
-        let seen = known
-        defer { known = seen.union(all) }
+    /// The adoption decision, with no I/O in it.
+    ///
+    /// Separated from the settings it reads and writes because a test that
+    /// reimplements this rule proves only that the test agrees with itself —
+    /// which is what the first version of its test did, and why mutating the
+    /// signed-in requirement in the real function changed nothing.
+    static func adoptions(known seen: Set<String>, enabled: Set<String>,
+                          providers: [(id: String, signedIn: Bool)]) -> Set<String> {
+        // Nothing recorded means new and rejected cannot be told apart.
         guard !seen.isEmpty else { return [] }
-
-        var enabled = Settings.enabledAgents
-        guard enabled.count < limit else { return [] }
+        var room = limit - enabled.count
+        guard room > 0 else { return [] }
         var adopted: Set<String> = []
         for provider in providers.sorted(by: { $0.id < $1.id })
         where !seen.contains(provider.id) && !enabled.contains(provider.id) {
-            guard enabled.count < limit else { break }
-            guard provider.isConfigured else { continue }
-            enabled.insert(provider.id)
+            guard room > 0 else { break }
+            // Sessions alone are not enough: that item could only say
+            // "sign in", which is worse to add unasked than nothing.
+            guard provider.signedIn else { continue }
             adopted.insert(provider.id)
+            room -= 1
         }
-        if !adopted.isEmpty { Settings.enabledAgents = enabled }
+        return adopted
+    }
+
+    @discardableResult
+    static func adoptNewProviders(providers: [UsageProvider]) -> Set<String> {
+        guard !providers.isEmpty else { return [] }
+        let seen = known
+        defer { known = seen.union(Set(providers.map(\.id))) }
+        let enabled = Settings.enabledAgents
+        let adopted = adoptions(known: seen, enabled: enabled,
+                                providers: providers.map { ($0.id, $0.isConfigured) })
+        if !adopted.isEmpty { Settings.enabledAgents = enabled.union(adopted) }
         return adopted
     }
 

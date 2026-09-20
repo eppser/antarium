@@ -166,3 +166,48 @@ struct PreviewCoverageTests {
                 "a percentage row lost its bar")
     }
 }
+
+/// The colour thresholds are a product decision — green above 40% headroom,
+/// amber below it, red below 15% and at zero. Nothing pinned them, so moving
+/// one silently changed when the bar turns red.
+@Suite("Gauge severity thresholds")
+struct SeverityThresholdTests {
+
+    @Test("Headroom decides the colour, at the stated boundaries")
+    func thresholds() {
+        #expect(Severity.forRemaining(1.0) == .normal)
+        #expect(Severity.forRemaining(0.41) == .normal)
+        #expect(Severity.forRemaining(0.40) == .normal)
+        #expect(Severity.forRemaining(0.399) == .low)
+        #expect(Severity.forRemaining(0.16) == .low)
+        #expect(Severity.forRemaining(0.15) == .low)
+        #expect(Severity.forRemaining(0.149) == .critical)
+        #expect(Severity.forRemaining(0.0) == .critical)
+        // A window reported as 99.97% consumed rounds to 100% in the text, so
+        // it has to read red rather than merely amber.
+        #expect(Severity.forRemaining(0.003) == .critical)
+    }
+
+    @Test("A provider's own severity is never softened by the arithmetic")
+    func reportedSeverityWins() {
+        let calm = Gauge(id: "w", badge: "5H", title: "W", used: 0.1,
+                         resetsAt: nil, reportedSeverity: .critical)
+        #expect(calm.severity == .critical, "a reported severity must not be downgraded")
+    }
+
+    @Test("A balance never colours itself, whatever `used` happens to hold")
+    func balanceNeverColoursItself() {
+        // Balance gauges are built with used: 0 today, so asserting on that
+        // value cannot tell the guard from its absence. This states the rule
+        // instead: no figure without a denominator produces a colour.
+        let balance = Gauge(id: "credits", badge: "BAL", title: "Credits", used: 0.99,
+                            resetsAt: nil, reportedSeverity: .normal,
+                            amount: Gauge.Amount(value: 0.02, currency: "USD"))
+        #expect(!balance.hasMeter)
+        #expect(balance.severity == .normal)
+        // And the same figure with a denominator does colour.
+        let metered = Gauge(id: "w", badge: "5H", title: "W", used: 0.99,
+                            resetsAt: nil, reportedSeverity: .normal)
+        #expect(metered.severity == .critical)
+    }
+}
