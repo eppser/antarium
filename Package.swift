@@ -22,7 +22,7 @@ let package = Package(
             exclude: [
                 ".gitignore", ".github", "AGENTS.md", "CLAUDE.md",
                 "CONTRIBUTING.md", "LICENSE", "Package.swift", "README.md", "Roadmap.md",
-                "SECURITY.md", "build.sh", "test.sh", "tools", "Tests", "docs",
+                "SECURITY.md", "build.sh", "test.sh", "verify.sh", "tools", "Tests", "docs",
                 "Sources/AntariumHarnessSDK",
                 "Resources/AppIcon.icns",
             ] + optionalGeneratedExcludes,

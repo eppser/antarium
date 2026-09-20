@@ -49,6 +49,20 @@ product contracts:
 Run from the repository root:
 
 ```bash
+./verify.sh
+```
+
+That runs the three commands below and the checks that were otherwise
+reassembled by hand: every shipped harness through `--check`, the command line
+on a machine that has never run it, a first run through the real app path, and
+the scan benchmark. Every step that writes runs under `ANTARIUM_HOME` in a
+temporary directory, so none of it touches your own settings. It also reports
+when the benchmark is still absorbing transcript history, because those numbers
+are throughput rather than steady state.
+
+The parts, if you need one on its own:
+
+```bash
 ./test.sh
 swift build --scratch-path /tmp/antarium-strict \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
