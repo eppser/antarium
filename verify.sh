@@ -26,6 +26,13 @@ else
     bad "test suite — see /tmp/verify-tests.log"
 fi
 
+# Package.swift excludes `dist` only when it exists, because SwiftPM warns
+# about an exclude that names nothing. SwiftPM also caches the evaluated
+# manifest, so that condition is frozen at whatever was true last time — and a
+# run that removes dist then builds gets "Invalid Exclude: File not found".
+# Making the directory before any build keeps the cached answer true.
+mkdir -p dist
+
 step "Strict concurrency"
 out=$(swift build --scratch-path /tmp/antarium-strict \
         -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency 2>&1)
