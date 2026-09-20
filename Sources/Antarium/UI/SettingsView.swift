@@ -15,6 +15,15 @@ struct SettingsView: View {
     @State private var passwordEntry = ""
     @State private var showRemoteHelp = false
 
+    /// Renders every section at full height instead of scrolling.
+    ///
+    /// The panel is capped at the screen's height so it scrolls on a small
+    /// display, which is right in the app and wrong for `--settings`: the
+    /// image then depends on whichever screen happened to be attached, and two
+    /// runs on two machines produce different sheets with different sections
+    /// missing. A preview nobody can compare is not a preview.
+    var unbounded = false
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -44,7 +53,9 @@ struct SettingsView: View {
                 .padding(14)
             }
             // Show the whole thing where the screen allows; scroll only if not.
-            .frame(maxHeight: max(320, (NSScreen.main?.visibleFrame.height ?? 900) - 160))
+            .frame(maxHeight: unbounded
+                ? .infinity
+                : max(320, (NSScreen.main?.visibleFrame.height ?? 900) - 160))
 
             Divider().opacity(0.4)
             footer

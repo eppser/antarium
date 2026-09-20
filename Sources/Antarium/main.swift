@@ -101,7 +101,7 @@ MainActor.assumeIsolated {
 
     if let i = CommandLine.arguments.firstIndex(of: "--settings"),
        i + 1 < CommandLine.arguments.count {
-        exit(Diagnostics.writeThemeSheet(SettingsView(model: SettingsModel()),
+        exit(Diagnostics.writeThemeSheet(SettingsView(model: SettingsModel(), unbounded: true),
                                          to: CommandLine.arguments[i + 1]) ? 0 : 1)
     }
 
