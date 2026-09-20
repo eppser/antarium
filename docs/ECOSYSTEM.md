@@ -60,6 +60,40 @@ and session-storage evidence. It should ship only after synthetic fixtures prove
 identity, working/waiting transitions, installation layouts, and the absence of
 helper-process collisions.
 
+## Which quota providers can be descriptors
+
+A descriptor makes one authenticated GET and maps the reply. That covers more
+services than it sounds like, and not the ones whose difficulty is in getting
+the token rather than reading the answer. The distinction is worth writing down,
+because "add every provider some other tool supports" is a reasonable-sounding
+request whose honest answer is "about half of them, and the rest are each a
+separate piece of Swift".
+
+Shipping as descriptors, each with a recorded response shape under
+`Resources/quota-fixtures`: GitHub Copilot, Z.ai GLM, MiniMax, OpenCode Zen,
+Command Code, Vercel AI Gateway, DeepSeek.
+
+Native, because their authentication is control flow: Claude Code (Keychain and
+OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store).
+
+Not currently integrated, with the reason each would need native code:
+
+| Service | Why a descriptor cannot express it |
+| --- | --- |
+| Grok | `~/.grok/auth.json` is keyed by `<issuer>::<client-id>`, which no fixed field path addresses, and the token expires with no CLI that reissues it |
+| Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
+| Amazon Bedrock | requests must be SigV4-signed |
+| Alibaba Model Studio | authentication is a browser cookie |
+| Gemini | OAuth against an internal Cloud Code endpoint |
+| Kiro, Omp, Mistral, AmpCode | usage is the text output of a CLI, parsed with regular expressions |
+| Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
+
+A provider whose credential expires with no way to renew it is deliberately
+left out rather than shipped degraded: a gauge that reads "sign in" most of the
+time is worse than an agent the settings list simply does not offer. The same
+reasoning already applies to Kimi's local endpoint, which only answers while
+Kimi itself is running.
+
 ## Positioning in one sentence
 
 > Orchestrators run your agent team; Antarium shows supported agents across your
