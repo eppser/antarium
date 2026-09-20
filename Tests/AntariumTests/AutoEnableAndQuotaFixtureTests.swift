@@ -320,3 +320,84 @@ func autoEnableNeverOverwritesAChoice() {
     // No providers at all: write nothing rather than an empty set.
     #expect(AgentAutoEnable.decision(recorded: nil, evidence: [], fallback: []) == nil)
 }
+
+// MARK: - The settings list
+
+@Test("Agents found on this Mac sort above those that are not")
+@MainActor
+func settingsListGroupsByPresence() {
+    let providers: [UsageProvider] = [
+        StubProvider("zeta", configured: false),
+        StubProvider("alpha", configured: true),
+        StubProvider("beta", configured: false),
+    ]
+    let evidence = [
+        AgentAutoEnable.Evidence(id: "zeta", signedIn: false, hasSessions: false),
+        AgentAutoEnable.Evidence(id: "alpha", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "beta", signedIn: false, hasSessions: true),
+    ]
+    let rows = SettingsView.agentRows(providers: providers, enabled: ["alpha"],
+                                      evidence: evidence)
+    // Present first, alphabetical within each group.
+    #expect(rows.map(\.id) == ["alpha", "beta", "zeta"])
+    #expect(rows.map(\.present) == [true, true, false])
+    #expect(rows[0].enabled)
+    #expect(!rows[1].enabled)
+}
+
+@Test("Each row says why it is where it is")
+@MainActor
+func settingsListExplainsEachRow() {
+    let providers: [UsageProvider] = [StubProvider("a", configured: true)]
+    func detail(signedIn: Bool, sessions: Bool) -> String {
+        SettingsView.agentRows(
+            providers: providers, enabled: [],
+            evidence: [AgentAutoEnable.Evidence(id: "a", signedIn: signedIn,
+                                                hasSessions: sessions)])[0].detail
+    }
+    #expect(detail(signedIn: true, sessions: true) == "Signed in · sessions on this Mac")
+    #expect(detail(signedIn: true, sessions: false) == "Signed in")
+    #expect(detail(signedIn: false, sessions: true).hasPrefix("Sessions on this Mac · "))
+    // Not found: the row carries the provider's own setup hint, not a blank.
+    #expect(detail(signedIn: false, sessions: false) == "stub")
+}
+
+@Test("An unverified integration says so in the list")
+@MainActor
+func settingsListMarksUnverified() {
+    let rows = SettingsView.agentRows(
+        providers: [StubProvider("a", configured: true)], enabled: [],
+        evidence: [AgentAutoEnable.Evidence(id: "a", signedIn: true, hasSessions: false)])
+    // StubProvider reports isVerified == false, as every descriptor-backed
+    // provider does until its figures are checked against a live account.
+    #expect(rows[0].unverified)
+}
+
+@Test("A quota-only harness says so, and reports the evidence it actually has")
+func quotaOnlyHarnessRowIsHonest() throws {
+    let descriptors = HarnessCLI.bundledDescriptors()
+
+    // Copilot reads no sessions at all: it exists for the menu bar gauge.
+    // "Native metadata" — what an unqualified `none` source used to say —
+    // implied a reader that does not exist.
+    let copilot = try #require(descriptors.first { $0.id == "copilot" })
+    let quotaRow = HarnessRowPresentation(descriptor: copilot, edited: false)
+    #expect(quotaRow.sourceLabel == "Quota only")
+    #expect(quotaRow.compatibilityLabel == "Quota fixture verified")
+
+    // Claude Code has no descriptor source either, but for the opposite
+    // reason — it is read natively — and it declares no quota block, so it
+    // keeps the old label.
+    let claude = try #require(descriptors.first { $0.id == "claude-code" })
+    #expect(claude.quota == nil)
+    #expect(HarnessRowPresentation(descriptor: claude, edited: false).sourceLabel
+        == "Native metadata")
+
+    // Every quota-only descriptor must be able to say its mapping is verified.
+    for descriptor in descriptors where descriptor.source.kind == .none && descriptor.quota != nil {
+        let row = HarnessRowPresentation(descriptor: descriptor, edited: false)
+        #expect(row.sourceLabel == "Quota only")
+        #expect(row.compatibilityLabel == "Quota fixture verified",
+                "\(descriptor.id) reported \(row.compatibilityLabel)")
+    }
+}

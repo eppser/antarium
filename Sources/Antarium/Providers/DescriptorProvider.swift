@@ -35,6 +35,13 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     /// command credential the cheap question is "is the command there?" — the
     /// token itself is fetched later, off the main thread, in `fetch()`.
     var isConfigured: Bool {
+        // Memoised for the same reason the native providers are: this is read
+        // once per provider per settings redraw, and answering means a file
+        // read or a PATH walk.
+        ConfiguredProbe.value(id) { self.probeConfigured() }
+    }
+
+    private func probeConfigured() -> Bool {
         guard let credential = quota.credential else { return true }
         switch credential.kind {
         case "command":

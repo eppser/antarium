@@ -543,19 +543,61 @@ struct SettingsView: View {
         }
     }
 
+    /// One provider as the settings list needs it. Built once per redraw
+    /// rather than asking each provider three questions from inside the loop.
+    struct AgentRow: Identifiable {
+        let id: String
+        let name: String
+        let enabled: Bool
+        let detail: String
+        let unverified: Bool
+        /// Whether this Mac shows any sign of the agent at all.
+        let present: Bool
+    }
+
+    /// Ten providers ship, and on most Macs only a few are real. Splitting the
+    /// list on that means the ones you have are at the top and the rest are
+    /// still there to switch on, rather than a flat list where "not signed in"
+    /// is the most common line.
+    static func agentRows(providers: [UsageProvider], enabled: Set<String>,
+                          evidence: [AgentAutoEnable.Evidence]) -> [AgentRow] {
+        let byID = Dictionary(uniqueKeysWithValues: evidence.map { ($0.id, $0) })
+        return providers.map { provider in
+            let found = byID[provider.id]
+            let detail: String
+            switch (found?.signedIn ?? false, found?.hasSessions ?? false) {
+            case (true, true):   detail = "Signed in · sessions on this Mac"
+            case (true, false):  detail = "Signed in"
+            case (false, true):  detail = "Sessions on this Mac · " + provider.setupHint
+            case (false, false): detail = provider.setupHint
+            }
+            return AgentRow(id: provider.id, name: provider.displayName,
+                            enabled: enabled.contains(provider.id),
+                            detail: detail, unverified: !provider.isVerified,
+                            present: found?.present ?? false)
+        }
+        .sorted { ($0.present ? 0 : 1, $0.name.lowercased())
+                < ($1.present ? 0 : 1, $1.name.lowercased()) }
+    }
+
     private var agentControls: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            ForEach(ProviderRegistry.all, id: \.id) { provider in
-                Toggle(title: provider.displayName,
-                       subtitle: provider.isConfigured ? nil : provider.setupHint,
-                       on: Settings.enabledAgents.contains(provider.id)) { on in
-                    model.update {
-                        var set = Settings.enabledAgents
-                        if on { set.insert(provider.id) } else { set.remove(provider.id) }
-                        // Never leave an empty menu bar — there'd be no way back.
-                        if !set.isEmpty { Settings.enabledAgents = set }
-                    }
-                }
+        let providers = ProviderRegistry.all
+        let enabled = Settings.enabledAgents
+        let rows = Self.agentRows(
+            providers: providers, enabled: enabled,
+            evidence: AgentAutoEnable.evidence(providers: providers,
+                                               sessionsPresent: AgentAutoEnable.sessionsPresent()))
+        let here = rows.filter(\.present)
+        let elsewhere = rows.filter { !$0.present }
+
+        return VStack(alignment: .leading, spacing: 7) {
+            ForEach(here) { agentToggle($0) }
+            if !elsewhere.isEmpty {
+                Text("Not found on this Mac")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+                ForEach(elsewhere) { agentToggle($0) }
             }
             HStack(spacing: 6) {
                 Button("Detect installed agents") {
@@ -567,9 +609,27 @@ struct SettingsView: View {
                 .controlSize(.small)
                 .help("Switch on every agent that is signed in or has sessions on this Mac, and switch off the rest.")
                 Spacer()
+                Text("\(enabled.count) of \(rows.count) shown")
+                    .font(.system(size: 9.5)).foregroundStyle(.tertiary)
             }
             .padding(.top, 2)
         }
+    }
+
+    private func agentToggle(_ row: AgentRow) -> some View {
+        Toggle(title: row.name + (row.unverified ? " · unverified" : ""),
+               subtitle: row.detail,
+               on: row.enabled) { on in
+            model.update {
+                var set = Settings.enabledAgents
+                if on { set.insert(row.id) } else { set.remove(row.id) }
+                // Never leave an empty menu bar — there'd be no way back.
+                if !set.isEmpty { Settings.enabledAgents = set }
+            }
+        }
+        .help(row.unverified
+            ? "\(row.name): the mapping is checked against a recorded response, but the figures have not been confirmed against a live account."
+            : row.detail)
     }
 
     private var dashboardControls: some View {

@@ -54,7 +54,7 @@
         "TIME_LIMIT-5": "TOOL"
       }
     },
-    "setupHint": "Point Claude Code at Z.ai, so ~/.claude/settings.json carries ANTHROPIC_AUTH_TOKEN.",
+    "setupHint": "Point Claude Code at Z.ai and sign in.",
     "verified": false
   }
 }

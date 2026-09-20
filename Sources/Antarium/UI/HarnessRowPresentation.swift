@@ -12,10 +12,25 @@ struct HarnessRowPresentation {
     init(descriptor: HarnessDescriptor, edited: Bool,
          compatibilityStatus supplied: HarnessCompatibility.Status? = nil) {
         name = descriptor.name
-        sourceLabel = descriptor.presentation?.sourceLabel ?? Self.source(descriptor.source.kind)
-        let status = supplied
-            ?? HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle).status
-        compatibilityLabel = Self.compatibility(status)
+        // A descriptor with no session source and a quota block reads no
+        // sessions at all — it is there for the menu bar gauge. Calling that
+        // "Native metadata", which is what an unqualified `none` used to say,
+        // implied a reader that does not exist.
+        let quotaOnly = descriptor.source.kind == .none && descriptor.quota != nil
+        sourceLabel = descriptor.presentation?.sourceLabel
+            ?? (quotaOnly ? "Quota only" : Self.source(descriptor.source.kind))
+        if quotaOnly {
+            // Its evidence is the quota fixture, not a session fixture, so
+            // that is what the row reports.
+            let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+            compatibilityLabel = report.map { $0.passed ? "Quota fixture verified"
+                                                        : "Quota mapping failed" }
+                ?? "Declared"
+        } else {
+            let status = supplied
+                ?? HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle).status
+            compatibilityLabel = Self.compatibility(status)
+        }
         accessibilityLabel = [descriptor.name, sourceLabel, compatibilityLabel,
                               edited ? "edited" : "bundled"]
             .joined(separator: ", ")
