@@ -69,6 +69,17 @@ else
     grep -E '^✘ Test "' /tmp/verify-tz.log | head -3
 fi
 
+step "Mutation catalogue still applies"
+# Every entry has been confirmed to fail a test, but only against the code as
+# it was then. A rewrite can leave one matching nothing, and mutate.sh only
+# says so during a full run, which takes hours.
+if out=$(python3 tools/check-mutations.py mutations.txt 2>&1); then
+    printf '%s\n' "$out" | tail -1
+else
+    bad "mutations.txt has entries that no longer apply"
+    printf '%s\n' "$out" | grep FAIL | head -5
+fi
+
 step "Strict concurrency"
 out=$(swift build --scratch-path /tmp/antarium-strict \
         -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency 2>&1)

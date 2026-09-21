@@ -143,7 +143,6 @@ gemini staleness margin removed | Sources/Antarium/Providers/GeminiProvider.swif
 gemini buckets unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|buckets.prefix(maxBuckets)|buckets|
 gemini bucket text unclamped | Sources/Antarium/Providers/GeminiProvider.swift | s|text.count <= maxText ? text : String(text.prefix(maxText))|text|
 gemini credential file read unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|BoundedFile.read(url, maxBytes: 256 \* 1_024)|Data(contentsOf: url)|
-gemini charts an unreadable bucket at zero | Sources/Antarium/Providers/GeminiProvider.swift | s|fraction.isFinite else { continue }|fraction.isFinite || true else { continue }|
 gemini charts a bucket with no fraction | Sources/Antarium/Providers/GeminiProvider.swift | s|guard !id.isEmpty else { continue }||
 amp meter inverted | Sources/Antarium/Providers/AmpProvider.swift | s|used: min(max(1 - amount / total, 0), 1),|used: min(max(amount / total, 0), 1),|
 amp reads a later price in the line | Sources/Antarium/Providers/AmpProvider.swift | s|guard let start = text.firstIndex(of: "\$") else { return nil }|guard let start = text.lastIndex(of: "$") else { return nil }|
@@ -345,8 +344,6 @@ migration invents an empty process block | Sources/AntariumHarnessSDK/HarnessCon
 migration loses the mark | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|presentation\["mark"\] = value||
 migration does not stamp the new version | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object\["formatVersion"\] = HarnessConfig.currentFormatVersion||
 a superseded key is not reported | Sources/Antarium/Core/HarnessCheck.swift | s|.filter { object\[\$0\] != nil }|.filter { _ in false }|
-a genuine v0 document is nagged | Sources/Antarium/Core/HarnessCheck.swift | s|guard (object\["formatVersion"\] as? NSNumber)?.intValue\n                == HarnessDocument.currentVersion else { return \[\] }||
-a superseded key fails the check | Sources/Antarium/Core/HarnessCheck.swift | s|for legacy in supersededKeys(in: object) {\n            warn(|for legacy in supersededKeys(in: object) {\n            fail(|
 fixture cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !passed { failed.append(descriptor.id) }||
 fixture cli skips every descriptor | Sources/Antarium/Core/HarnessCLI.swift | s|guard descriptor.source.kind != .none else { continue }|guard false else { continue }|
 fixture cli checks the ones with no source | Sources/Antarium/Core/HarnessCLI.swift | s|guard descriptor.source.kind != .none else { continue }|guard descriptor.source.kind == .none else { continue }|
@@ -356,3 +353,5 @@ fixture cli fails a clean run | Sources/Antarium/Core/HarnessCLI.swift | s|summa
 quota cli counts descriptors with no quota | Sources/Antarium/Core/HarnessCLI.swift | s|for descriptor in descriptors where descriptor.quota != nil {|for descriptor in descriptors {|
 quota cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !report.passed { failed.append(report.id) }||
 installation cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|            if !passed { failed.append(descriptor.id) }||
+a genuine v0 document is nagged | Sources/Antarium/Core/HarnessCheck.swift | s|(object\["formatVersion"\] as? NSNumber)?.intValue|(object["formatVersion"] as? NSNumber)?.intValue ?? HarnessDocument.currentVersion|
+a superseded key fails the check | Sources/Antarium/Core/HarnessCheck.swift | s|            warn("\\(legacy) is a v0 key.|            fail("\\(legacy) is a v0 key.|
