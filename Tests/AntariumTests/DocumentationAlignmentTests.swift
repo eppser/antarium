@@ -94,6 +94,18 @@ struct ValidatorSchemaAlignmentTests {
         ("compatibility", "compatibility"),
     ]
 
+    /// A parameterised test over an empty list passes. Both tests below take
+    /// their arguments from `pairs`, so emptying it would turn the whole
+    /// alignment check into two green ticks — which is the failure this
+    /// suite exists to prevent, one level out.
+    @Test("Every object with a key list is compared")
+    func everyObjectIsCompared() {
+        #expect(Self.pairs.count >= 10,
+                "only \(Self.pairs.count) objects are compared")
+        #expect(Set(Self.pairs.map(\.path)).count == Self.pairs.count,
+                "an object is listed twice, so one of them is not being checked")
+    }
+
     private func schemaProperties(_ definition: String) throws -> Set<String> {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

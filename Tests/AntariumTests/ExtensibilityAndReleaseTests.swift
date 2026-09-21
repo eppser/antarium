@@ -319,9 +319,11 @@ struct HarnessEvaluationTests {
         defer { HarnessEngineTestIsolation.lock.unlock() }
         let urls = AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
+        var checked = 0
         for url in urls {
             let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
             guard descriptor.source.kind != .none else { continue }
+            checked += 1
             let report = HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle)
             #expect(report.status == .fixtureVerified,
                     "\(descriptor.id): \(report.detail)")
@@ -329,6 +331,11 @@ struct HarnessEvaluationTests {
             #expect(report.expected == report.actual,
                     "\(descriptor.id) fixture numbers differ")
         }
+        // Every assertion above is inside a loop with a `continue` in it, so
+        // a bundle that failed to load, or a day when every harness happened
+        // to be quota-only, would leave this test green having checked
+        // nothing.
+        #expect(checked >= 10, "only \(checked) data-backed harnesses were checked")
     }
 }
 

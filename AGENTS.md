@@ -86,6 +86,13 @@ without anyone noticing.
 Every mutation is reverted, including on interrupt. It takes several minutes,
 so it is not part of `verify.sh`.
 
+A test that asserts inside a loop asserts nothing when the loop does not run,
+and a parameterised test over an empty list passes. Where the collection
+comes from the bundle, from the filesystem, or from a list somebody maintains
+by hand, count what was examined and assert the count — `verify.sh` already
+refuses a test run that reports no tests, and this is the same rule one level
+in.
+
 A rule that lists its subjects covers only the instances that prompted it.
 The test that stopped four surfaces claiming an agent was "not installed"
 named those four files, and two providers went on making the same claim from
