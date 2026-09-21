@@ -202,8 +202,20 @@ enum Renderer {
     /// least one, so "barely started" reads as started rather than as empty.
     static func litCount(_ fill: Double, of count: Int? = nil) -> Int {
         let n = count ?? segments
+        // A figure that is not a number lights nothing. `min(1, nan)` returns
+        // 1 — NaN compares false against everything, so the clamp below hands
+        // it straight through — and the bar came out full: a reading nobody
+        // could take, drawn as a spent quota. `Gauge` normalises its own
+        // figure, so nothing reaches this today; it takes a bare Double and
+        // must not depend on that.
+        guard fill.isFinite else { return 0 }
         let clamped = max(0, min(1, fill))
         guard clamped > 0 else { return 0 }
+        // `min(n, …)` has no catalogue entry and cannot get one: `clamped` is
+        // already at most 1, so the product can never exceed `n` and removing
+        // the bound changes no answer. Kept because it states the range the
+        // caller draws against, and because the clamp above is a line
+        // somebody may move.
         return max(1, min(n, Int((clamped * Double(n)).rounded())))
     }
 

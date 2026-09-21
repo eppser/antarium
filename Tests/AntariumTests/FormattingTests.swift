@@ -262,3 +262,71 @@ struct MeterModeTests {
         }
     }
 }
+
+/// How many beams light up. The drawing around it cannot be tested, but the
+/// count can, and it carries the rule the menu bar is read by: a window that
+/// has barely started must not look untouched.
+@Suite("Beams lit for a reading")
+@MainActor
+struct LitCountTests {
+
+    private let n = 5
+
+    @Test("Nothing used lights nothing")
+    func emptyIsEmpty() {
+        #expect(Renderer.litCount(0, of: n) == 0)
+    }
+
+    /// The rule the function exists for. Rounding alone would leave anything
+    /// under a tenth of the bar dark, so a session that has started would
+    /// look exactly like one that has not.
+    @Test("Any nonzero reading lights at least one beam",
+          arguments: [0.0001, 0.01, 0.05, 0.09, 0.1])
+    func slightlyUsedIsVisible(fill: Double) {
+        #expect(Renderer.litCount(fill, of: n) >= 1,
+                Comment(rawValue: "\(fill) of the bar was drawn as untouched"))
+    }
+
+    @Test("A spent window lights every beam")
+    func fullIsFull() {
+        #expect(Renderer.litCount(1, of: n) == n)
+    }
+
+    /// Never fewer beams for more usage. The clamp and the rounding are two
+    /// separate chances to break the order, and a bar that goes backwards is
+    /// the one thing a glance would notice and not believe.
+    @Test("More used is never fewer beams")
+    func monotonic() {
+        var last = 0
+        for step in 0...100 {
+            let lit = Renderer.litCount(Double(step) / 100, of: n)
+            #expect(lit >= last, Comment(rawValue: "\(step)% lit \(lit) after \(last)"))
+            #expect((0...n).contains(lit), Comment(rawValue: "\(step)% lit \(lit) of \(n)"))
+            last = lit
+        }
+    }
+
+    @Test("A reading outside the scale is drawn at its ends")
+    func outsideTheScale() {
+        #expect(Renderer.litCount(-5, of: n) == 0)
+        #expect(Renderer.litCount(9, of: n) == n)
+    }
+
+    /// `min(1, nan)` returns 1, so the clamp handed NaN straight through and
+    /// the bar came out full — a reading nobody could take, drawn as a spent
+    /// quota.
+    @Test("A figure that is not a number lights nothing")
+    func notANumber() {
+        #expect(Renderer.litCount(.nan, of: n) == 0)
+        #expect(Renderer.litCount(.infinity, of: n) == 0)
+        #expect(Renderer.litCount(-.infinity, of: n) == 0)
+    }
+
+    /// The bar is configurable, so the count is not a constant.
+    @Test("The rules hold whatever the bar is made of", arguments: [1, 3, 5, 12])
+    func anyNumberOfBeams(count: Int) {
+        #expect(Renderer.litCount(0, of: count) == 0)
+        #expect(Renderer.litCount(1, of: count) == count)
+        #expect(Renderer.litCount(0.0001, of: count) >= 1)
+    }
+}

@@ -653,3 +653,7 @@ a narrow screen pushes the dashboard off its left edge | Sources/Antarium/UI/Das
 a saved position is never respected | Sources/Antarium/UI/DashboardPlacement.swift | s|        if userMoved, let saved {|        if false, let saved = saved {|
 a saved position wins before it is moved | Sources/Antarium/UI/DashboardPlacement.swift | s|        if userMoved, let saved {|        if let saved {|
 a position that is not a number becomes a frame | Sources/Antarium/UI/DashboardPlacement.swift | s|        guard value.isFinite else { return low }||
+a barely started window reads as untouched | Sources/Antarium/UI/Renderer.swift | s|        return max(1, min(n, Int((clamped \* Double(n)).rounded())))|        return min(n, Int((clamped * Double(n)).rounded()))|
+a figure that is not a number fills the bar | Sources/Antarium/UI/Renderer.swift | s|        guard fill.isFinite else { return 0 }||
+an empty window lights a beam anyway | Sources/Antarium/UI/Renderer.swift | s|        guard clamped > 0 else { return 0 }||
+the bar reads backwards | Sources/Antarium/UI/Renderer.swift | s|        return max(1, min(n, Int((clamped \* Double(n)).rounded())))|        return max(1, min(n, n - Int((clamped * Double(n)).rounded())))|
