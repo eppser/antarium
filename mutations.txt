@@ -137,3 +137,11 @@ unreadable clock yields a wrong-length window | Sources/Antarium/Core/Transcript
 future buckets pulled into the window | Sources/Antarium/Core/TranscriptStats.swift | s|let newest = epoch / bucketSeconds|let newest = epoch / bucketSeconds + 50|
 remote host fills the dashboard unbounded | Sources/Antarium/Core/RemoteTmux.swift | s|if panes.count > maxRows {|if false {|
 remote row cap set below a real fleet machine | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 2|
+gemini headroom read as a percentage | Sources/Antarium/Providers/GeminiProvider.swift | s|used: min(max(1 - fraction, 0), 1),|used: min(max(fraction, 0), 1),|
+gemini token never refreshed before use | Sources/Antarium/Providers/GeminiProvider.swift | s|guard let expiresAt else { return false }|return false; guard let expiresAt else { return false }|
+gemini staleness margin removed | Sources/Antarium/Providers/GeminiProvider.swift | s|return expiresAt.timeIntervalSince(now) <= margin|return expiresAt.timeIntervalSince(now) <= 0|
+gemini buckets unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|buckets.prefix(maxBuckets)|buckets|
+gemini bucket text unclamped | Sources/Antarium/Providers/GeminiProvider.swift | s|text.count <= maxText ? text : String(text.prefix(maxText))|text|
+gemini credential file read unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|BoundedFile.read(url, maxBytes: 256 \* 1_024)|Data(contentsOf: url)|
+gemini charts an unreadable bucket at zero | Sources/Antarium/Providers/GeminiProvider.swift | s|fraction.isFinite else { continue }|fraction.isFinite || true else { continue }|
+gemini charts a bucket with no fraction | Sources/Antarium/Providers/GeminiProvider.swift | s|guard !id.isEmpty else { continue }||

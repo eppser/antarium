@@ -39,6 +39,10 @@ enum ProviderRegistry {
         ClaudeCodeProvider(),
         CodexProvider(),
         CursorProvider(),
+        // Gemini's access token lasts about an hour and refreshing it means
+        // writing the result back, which is control flow rather than a field
+        // path. See GeminiProvider.
+        GeminiProvider(),
     ]
 
     /// Providers contributed as config. Built once and kept, so a provider's

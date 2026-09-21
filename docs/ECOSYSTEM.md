@@ -74,7 +74,12 @@ Shipping as descriptors, each with a recorded response shape under
 Command Code, Vercel AI Gateway, DeepSeek.
 
 Native, because their authentication is control flow: Claude Code (Keychain and
-OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store).
+OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store), and
+Gemini — its access token lasts about an hour, and renewing it means running
+the CLI and letting it rewrite `~/.gemini/oauth_creds.json`. The mapping alone
+was written as a descriptor first and reverted, because a correct mapping
+behind a credential that expires is exactly what the note below says not to
+ship.
 
 Not currently integrated, with the reason each would need native code. The
 table is the answer to "add every provider some other tool supports", and it
@@ -88,7 +93,6 @@ credential rather than the response.
 | Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
-| Gemini | OAuth against an internal Cloud Code endpoint. The mapping itself is expressible — `POST v1internal:retrieveUserQuota` returns `buckets[]` with `remainingFraction` — and was written and then reverted: `~/.gemini/oauth_creds.json` holds an access token good for about an hour and a refresh token nothing here can spend, so the gauge would read "sign in" most of the time. It needs the refresh, which is control flow, not a field path |
 | Kiro, Mistral, AmpCode | usage is the text output of a CLI, parsed with regular expressions |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
 | Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
