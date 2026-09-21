@@ -292,3 +292,21 @@ struct DashboardWithheldTests {
              row(nil)]) == "2 still reading")
     }
 }
+
+@Suite("Settings redraw cost", .serialized)
+struct SettingsRedrawCostTests {
+    /// `agentControls` calls this on every redraw. `ConfiguredProbe` memoises
+    /// the provider half for exactly this reason; this half had no memo.
+    @Test("Harness presence is cheap enough to run on every redraw")
+    func harnessPresenceCost() {
+        _ = Onboarding.harnesses()                     // warm any caches
+        let started = Date()
+        for _ in 0..<20 { _ = Onboarding.harnesses() }
+        let each = Date().timeIntervalSince(started) / 20 * 1000
+        print("  Onboarding.harnesses(): \(String(format: "%.2f", each)) ms per call")
+        // Measured at ~0.14 ms, so this is 140x headroom — loose enough not
+        // to flake on a loaded machine, tight enough to catch the regression
+        // that matters: a subprocess per descriptor would be ~10 ms each.
+        #expect(each < 20, "a settings redraw would stall on this")
+    }
+}

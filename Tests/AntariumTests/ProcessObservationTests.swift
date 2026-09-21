@@ -72,3 +72,82 @@ struct ProcessObservationTests {
         #expect(!Focus.canRevealLocally(row))
     }
 }
+
+/// Bounds on the process table. Two of these guards are early exits that a
+/// later check would also catch, so mutating them changes nothing — which
+/// makes the outcome worth pinning rather than the line that produces it.
+@Suite("Process enumeration stays within its budget")
+struct ProcessBudgetTests {
+
+    @Test("A machine reporting more processes than the budget is refused, specifically")
+    func oversizedMachine() {
+        #expect(throws: Processes.ObservationError.capacityExceeded) {
+            // Sizing call reports far beyond the 65,536 ceiling.
+            _ = try Processes.processIDs { buffer, _ in buffer == nil ? 1_000_000 : 0 }
+        }
+    }
+
+    @Test("A machine at the budget is still read")
+    func machineAtTheBudget() throws {
+        let pids = try Processes.processIDs { buffer, _ in
+            guard let buffer else { return 2 }
+            let values = buffer.assumingMemoryBound(to: Int32.self)
+            values[0] = 11; values[1] = 12
+            return 2
+        }
+        #expect(pids == [11, 12])
+    }
+
+    /// `openFilePaths` takes a limit because a process can hold thousands of
+    /// descriptors, and the buffer is sized from it. The paths are then
+    /// deduplicated, so this needs distinct files: forty handles on one file
+    /// collapse to a single path and the limit is never reached — which is
+    /// how the first version of this test passed while proving nothing.
+    @Test("Open file paths honour the limit they are given")
+    func openFilesRespectTheLimit() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fds-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var held: [FileHandle] = []
+        defer { held.forEach { try? $0.close() } }
+        for i in 0..<40 {
+            let file = dir.appendingPathComponent("file-\(i).txt")
+            try Data("x".utf8).write(to: file)
+            if let handle = try? FileHandle(forReadingFrom: file) { held.append(handle) }
+        }
+        #expect(held.count >= 30, "could not open enough files to reach the limit")
+
+        let few = Processes.openFilePaths(of: getpid(), limit: 5)
+        #expect(few.count <= 5, "asked for 5 paths and got \(few.count)")
+        // And a larger limit returns more, so the bound is a bound rather than
+        // a reader that always returns almost nothing.
+        let more = Processes.openFilePaths(of: getpid(), limit: 500)
+        #expect(more.count > few.count, "the limit made no difference: \(few.count) vs \(more.count)")
+    }
+
+    /// The same deduplication, stated directly: many handles on one file are
+    /// one path, because the caller wants to know which files are open and
+    /// not how many times.
+    @Test("Repeated handles on one file are a single path")
+    func duplicatePathsCollapse() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dup-\(UUID()).txt")
+        try Data("x".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        var held: [FileHandle] = []
+        defer { held.forEach { try? $0.close() } }
+        for _ in 0..<20 {
+            if let handle = try? FileHandle(forReadingFrom: file) { held.append(handle) }
+        }
+        let found = Processes.openFilePaths(of: getpid(), limit: 500)
+            .filter { $0.hasSuffix(file.lastPathComponent) }
+        #expect(found.count == 1, "one file appeared \(found.count) times")
+    }
+
+    @Test("A limit of zero or less returns nothing rather than everything")
+    func nonPositiveLimit() {
+        #expect(Processes.openFilePaths(of: getpid(), limit: 0).isEmpty)
+        #expect(Processes.openFilePaths(of: getpid(), limit: -1).isEmpty)
+    }
+}

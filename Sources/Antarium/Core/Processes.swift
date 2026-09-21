@@ -15,6 +15,8 @@ enum Processes {
     static func processIDs(using list: PIDList = proc_listallpids) throws -> [Int32] {
         let maximum = 65_536
         let required = list(nil, 0)
+        // Early exit: the `count > 0` check inside the loop refuses the same
+        // answer a moment later, so no mutation of this line can be caught.
         guard required > 0 else { throw ObservationError.unavailable }
         guard required < maximum else { throw ObservationError.capacityExceeded }
         var capacity = min(maximum, Int(required) + 128)

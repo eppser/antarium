@@ -226,3 +226,7 @@ grok refresh posts to any host the file names | Sources/Antarium/Providers/GrokP
 grok credential file read unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|BoundedFile.read(file ?? credentialsFile, maxBytes: 256 \* 1_024)|Data(contentsOf: file ?? credentialsFile)|
 grok credential missing issuer still refreshable | Sources/Antarium/Providers/GrokProvider.swift | s|refreshToken != nil \&\& issuer != nil \&\& clientID != nil|refreshToken != nil|
 grok credits charted as headroom | Sources/Antarium/Providers/GrokProvider.swift | s|used: min(max(used / 100, 0), 1), resetsAt: resets,|used: min(max(1 - used / 100, 0), 1), resetsAt: resets,|
+process table truncation accepted as complete | Sources/Antarium/Core/Processes.swift | s|if count < capacity { return Array(pids.prefix(Int(count))).filter { \$0 > 0 } }|return Array(pids.prefix(Int(count))).filter { $0 > 0 }|
+process count bound removed | Sources/Antarium/Core/Processes.swift | s|guard required < maximum else { throw ObservationError.capacityExceeded }||
+process retry loop unbounded | Sources/Antarium/Core/Processes.swift | s|for _ in 0..<3 {|while true {|
+open file paths unbounded | Sources/Antarium/Core/Processes.swift | s|let capacity = min((Int(requiredBytes) / itemSize) + 16, limit)|let capacity = (Int(requiredBytes) / itemSize) + 16|
