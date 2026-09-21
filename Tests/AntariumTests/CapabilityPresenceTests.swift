@@ -343,6 +343,31 @@ struct ShippedCapabilityTests {
                 "the editor claimed a file only the CLI documents")
     }
 
+    /// OpenClaw's workspace is the session's working directory, so its
+    /// bootstrap files are found where the probe already looks — no
+    /// environment variable has to be read to locate them, which is unusual
+    /// among these and worth pinning.
+    @Test("OpenClaw reads its workspace bootstrap files")
+    func openclawWorkspace() throws {
+        let rules = try descriptor("openclaw").capabilityRules
+
+        let instruction = try #require(rules["instruction"])
+        #expect(instruction.resolvedProbe == .content)
+        #expect(instruction.projectPaths == ["AGENTS.md", "SOUL.md"],
+                "the persona would be reported as the operating instructions")
+
+        // MEMORY.md is a sibling of memory/, not a file inside it, so this is
+        // two paths rather than a directory probe with an index.
+        let memory = try #require(rules["memory"])
+        #expect(memory.projectPaths == ["MEMORY.md", "memory"])
+        #expect(memory.resolvedProbe == .content)
+
+        let skills = try #require(rules["skills"])
+        #expect(skills.projectPaths == ["skills"])
+        #expect(skills.inheritedPaths == ["~/.openclaw/skills"],
+                "the managed skills are not the workspace's own")
+    }
+
     /// Kimi Code documents a Kimi-specific location beside a generic one at
     /// every scope. The specific one is declared first throughout, which is
     /// the order its own documentation gives: Project before User, and the
