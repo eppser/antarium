@@ -479,3 +479,13 @@ a clock that went backwards makes a reading stale | Sources/Antarium/Core/QuotaS
 the quota bar never mentions its age | Sources/Antarium/UI/Dashboard.swift | s|return figure + " — as of " + Format.age(fetchedAt)|return figure|
 the quota bar always mentions its age | Sources/Antarium/UI/Dashboard.swift | s|guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }||
 the quota staleness window is a day | Sources/Antarium/Core/QuotaStore.swift | s|nonisolated static let staleAfter: TimeInterval = 5 \* 60|nonisolated static let staleAfter: TimeInterval = 86_400|
+a remote agent is checked for a local process | Sources/Antarium/Core/AgentState.swift | s|if let remote = evidence.remote { return .cloud(remote) }||
+a dead process still reports what the files say | Sources/Antarium/Core/AgentState.swift | s|guard evidence.processAlive else { return .ended }||
+inference outranks the harness's own word | Sources/Antarium/Core/AgentState.swift | /switch evidence.published/,/case nil:      break/ s|case .working: return .working|case .working: break|
+a looping agent reads as waiting on you | Sources/Antarium/Core/AgentState.swift | s|case .waiting: return evidence.looping ? .looping : .waiting|case .waiting: return .waiting|
+an agent with no timestamp claims to be working | Sources/Antarium/Core/AgentState.swift | s|guard let last = evidence.lastActivity else { return evidence.looping ? .looping : .unobserved }|guard let last = evidence.lastActivity else { return .working }|
+the idle boundary is inclusive | Sources/Antarium/Core/AgentState.swift | s|return age > evidence.idleAfter ? quiet : .working|return age >= evidence.idleAfter ? quiet : .working|
+a quiet transcript still reads as working | Sources/Antarium/Core/AgentState.swift | s|return age > evidence.idleAfter ? quiet : .working|return .working|
+a time that is not a number is charted | Sources/Antarium/Core/AgentState.swift | s|guard age.isFinite, age >= 0, evidence.idleAfter.isFinite, evidence.idleAfter >= 0 else {|guard true else {|
+a shell sits below the wants-you threshold | Sources/Antarium/Core/AgentScan.swift | s|            case .shell:   return 3|            case .shell:   return 2|
+a looping agent is announced as stopped | Sources/Antarium/Core/AgentScan.swift | s|            case .looping: return 4|            case .looping: return 1|
