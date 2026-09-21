@@ -112,6 +112,25 @@ time is worse than an agent the settings list simply does not offer. The same
 reasoning already applies to Kimi's local endpoint, which only answers while
 Kimi itself is running.
 
+## Project context each agent understands
+
+A row can report what a project gives its agent — instructions, memory,
+skills, MCP servers, permissions — but only where the convention is written
+down by the vendor and unambiguous enough to probe without guessing.
+
+Described so far: Claude Code (five), Codex and Codex Desktop (four each),
+Cursor (`.cursor/rules/*.mdc`, filtered to `.mdc` because Cursor's docs say a
+plain `.md` there is ignored), Zed (`.rules`, `.cursorrules`, `CLAUDE.md`,
+`AGENTS.md`).
+
+Not described: the remaining seventeen. That is a gap rather than a decision,
+and closing one means finding the vendor's own statement of where the files
+live — a convention taken from memory would report a capability the agent
+never reads, or miss one it does. Two shapes make it harder than it looks: a
+folder where only one extension counts needs `fileExtensions`, and a
+capability whose location moves between versions needs whichever paths are
+still honoured, not only the newest.
+
 ## Positioning in one sentence
 
 > Orchestrators run your agent team; Antarium shows supported agents across your

@@ -235,3 +235,55 @@ struct CapabilityExtensionFilterTests {
         #expect(try scope(root, extensions: nil) == .absent)
     }
 }
+
+/// The conventions each shipped harness declares. These are claims about
+/// somebody else's product, taken from that vendor's own documentation, and
+/// a wrong one reports a capability the agent never reads.
+@Suite("Shipped capability conventions")
+struct ShippedCapabilityTests {
+
+    private func descriptor(_ id: String) throws -> HarnessDescriptor {
+        let url = try #require(AppResources.bundle.url(
+            forResource: id, withExtension: "json", subdirectory: "harnesses"))
+        return try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+    }
+
+    /// Cursor's documentation states that a plain `.md` in `.cursor/rules` is
+    /// ignored because it carries no frontmatter, so the probe counts `.mdc`
+    /// and nothing else.
+    @Test("Cursor reads .mdc rules from .cursor/rules")
+    func cursorRules() throws {
+        let rule = try #require(try descriptor("cursor").capabilityRules["instruction"])
+        #expect(rule.resolvedProbe == .directory)
+        #expect(rule.projectPaths == [".cursor/rules"])
+        #expect(rule.countedExtensions == ["mdc"], "an ignored file would count as instructions")
+    }
+
+    /// Zed names four project instruction files. Each is a single file, so an
+    /// empty one is not instructions — a content probe, not a directory one.
+    @Test("Zed reads its four project instruction files")
+    func zedRules() throws {
+        let rule = try #require(try descriptor("zed").capabilityRules["instruction"])
+        #expect(rule.resolvedProbe == .content)
+        #expect(Set(rule.projectPaths) == [".rules", ".cursorrules", "CLAUDE.md", "AGENTS.md"])
+    }
+
+    /// Every declared capability names a kind the app knows how to draw. A
+    /// typo here is a rule that is read, accepted and never shown.
+    @Test("Every shipped capability is one the app renders")
+    func capabilitiesAreKnown() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        let known = Set(Capability.Kind.allCases.map(\.rawValue))
+        var declared = 0
+        for url in urls {
+            let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+            for (kind, _) in descriptor.capabilityRules {
+                declared += 1
+                #expect(known.contains(kind),
+                        Comment(rawValue: "\(descriptor.id) declares \(kind), which is not drawn"))
+            }
+        }
+        #expect(declared >= 10, "too few capabilities declared to have proved anything")
+    }
+}

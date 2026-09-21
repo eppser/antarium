@@ -368,3 +368,5 @@ capability filter rejects a leading dot | Sources/Antarium/Core/HarnessDescripto
 finished agents are shown again | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|rows|
 the active filter hides everything | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|[]|
 filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift | s|noticeStops(in: fresh)|noticeStops(in: Self.active(fresh))|
+zed instructions read from the wrong file | Resources/harnesses/zed.json | s|".rules",|".rulez",|
+cursor instructions unfiltered | Resources/harnesses/cursor.json | s|".mdc"|".md"|
