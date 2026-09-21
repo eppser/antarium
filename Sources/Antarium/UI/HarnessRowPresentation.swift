@@ -22,10 +22,24 @@ struct HarnessRowPresentation {
         if quotaOnly {
             // Its evidence is the quota fixture, not a session fixture, so
             // that is what the row reports.
-            let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
-            compatibilityLabel = report.map { $0.passed ? "Quota fixture verified"
-                                                        : "Quota mapping failed" }
-                ?? "Declared"
+            //
+            // Three answers, not two. A descriptor with no fixture beside it
+            // has not been checked against anything, and `verify` reports
+            // that as a failed report — so the row said "Quota mapping
+            // failed", which claims the mapping was tried and broke. For a
+            // shipped harness that cannot happen, because verify.sh requires
+            // a fixture; for somebody's own descriptor it is the ordinary
+            // case, and telling them their mapping is broken when they have
+            // simply not written a fixture sends them to look at the wrong
+            // thing.
+            if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {
+                compatibilityLabel = "Declared"
+            } else {
+                let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+                compatibilityLabel = report.map { $0.passed ? "Quota fixture verified"
+                                                            : "Quota mapping failed" }
+                    ?? "Declared"
+            }
         } else {
             let status = supplied
                 ?? HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle).status

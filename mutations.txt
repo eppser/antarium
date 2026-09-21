@@ -547,3 +547,15 @@ the log file follows a symlink | Sources/Antarium/Core/DiagnosticLogFile.swift |
 the log is written to a hard link | Sources/Antarium/Core/DiagnosticLogFile.swift | s|info.st_mode \& S_IFMT == S_IFREG, info.st_nlink == 1,|info.st_mode \& S_IFMT == S_IFREG,|
 the log permissions are not reasserted | Sources/Antarium/Core/DiagnosticLogFile.swift | s|guard fchmod(fd,0o600) == 0 else { return fail("permissions") }||
 the log never rotates | Sources/Antarium/Core/DiagnosticLogFile.swift | s|if info.st_size > maximumBytes - data.count {|if false {|
+a quota-only harness claims a session reader | Sources/Antarium/UI/HarnessRowPresentation.swift | s|let quotaOnly = descriptor.source.kind == .none \&\& descriptor.quota != nil|let quotaOnly = false|
+a session harness is called quota only | Sources/Antarium/UI/HarnessRowPresentation.swift | s|let quotaOnly = descriptor.source.kind == .none \&\& descriptor.quota != nil|let quotaOnly = descriptor.quota != nil|
+an edited harness reads as bundled | Sources/Antarium/UI/HarnessRowPresentation.swift | s|edited ? "edited" : "bundled"|"bundled"|
+the spoken row omits its compatibility | Sources/Antarium/UI/HarnessRowPresentation.swift | s|\[descriptor.name, sourceLabel, compatibilityLabel,|[descriptor.name, sourceLabel,|
+the configured probe never expires | Sources/Antarium/Core/ConfiguredProbe.swift | s|now - entry.at < ttl|true|
+the configured probe trusts a clock that went backwards | Sources/Antarium/Core/ConfiguredProbe.swift | s|now >= entry.at, now - entry.at < ttl|now - entry.at < ttl|
+the configured probe ttl is a day | Sources/Antarium/Core/ConfiguredProbe.swift | s|static let ttl: TimeInterval = 30|static let ttl: TimeInterval = 86_400|
+invalidating one key clears everything | Sources/Antarium/Core/ConfiguredProbe.swift | s|if let key { entries.removeValue(forKey: key) } else { entries.removeAll() }|entries.removeAll()|
+a declared source label is overruled | Sources/Antarium/UI/HarnessRowPresentation.swift | s|sourceLabel = descriptor.presentation?.sourceLabel|sourceLabel = nil ?? String?.none|
+a failed quota mapping reads as verified | Sources/Antarium/UI/HarnessRowPresentation.swift | s|report.map { \$0.passed ? "Quota fixture verified"|report.map { (\$0.passed \|\| true) ? "Quota fixture verified"|
+the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swift | s|now - entry.at < ttl|false|
+a harness with no fixture is called broken | Sources/Antarium/UI/HarnessRowPresentation.swift | s|if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {|if false {|
