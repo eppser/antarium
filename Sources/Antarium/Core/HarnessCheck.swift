@@ -12,6 +12,22 @@ import Foundation
 /// says what it would actually show.
 enum HarnessCheck {
 
+    /// Source fields only some kinds read, and which kinds those are.
+    ///
+    /// A key list catches a typo. It cannot catch a field that is spelled
+    /// correctly and ignored — a `limit` on a SQLite source, which bounds
+    /// newest *files* and so means nothing where there is one file, or a
+    /// `query` on a JSONL one. Both passed `--check` clean while doing
+    /// nothing, which is the same silence that let `quota.command` be
+    /// reported as no field at all, in the other direction.
+    static let sourceFieldKinds: [String: Set<HarnessDescriptor.Source.Kind>] = [
+        "glob": [.json, .jsonl], "limit": [.json, .jsonl],
+        "journal": [.json, .jsonl], "pathFields": [.json, .jsonl],
+        "manifest": [.json, .jsonl],
+        "query": [.sqlite], "columns": [.sqlite],
+        "args": [.command], "refreshEvery": [.command], "root": [.command],
+    ]
+
     /// Every key the loader understands. The schema's authority lives here, so
     /// anything else in a file is a typo or a leftover.
     static let known: [String: Set<String>] = [
@@ -221,6 +237,20 @@ enum HarnessCheck {
         ok("loads as harness \"\(descriptor.id)\" (\(descriptor.name))")
         if let old = document.migratedFrom {
             warn("format v\(old) is supported through an in-memory migration; rewrite it as v\(HarnessDocument.currentVersion) with the SDK")
+        }
+
+        // A field the declared kind never reads. Spelled correctly, accepted
+        // by the key list, and doing nothing — which is worse than a typo,
+        // because a typo is at least reported.
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let source = object["source"] as? [String: Any] {
+            for key in source.keys.sorted() {
+                guard let kinds = sourceFieldKinds[key],
+                      !kinds.contains(descriptor.source.kind) else { continue }
+                let names = kinds.map(\.rawValue).sorted().joined(separator: " or ")
+                warn("source.\(key) is only read for a \(names) source, and this one is "
+                     + "\(descriptor.source.kind.rawValue) — it will be ignored")
+            }
         }
 
         // 3. Which live processes it claims.

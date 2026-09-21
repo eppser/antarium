@@ -542,6 +542,16 @@ Five steps, none of which need the service installed or an account with it.
    `./mutate.sh` over just those lines. A fixture proves the mapping works
    today; a mutation proves a test would notice when it stops.
 
+A source field that its `kind` never reads is reported by `--check`. A key
+list catches a typo; it cannot catch a field spelled correctly and ignored —
+`limit` on a SQLite source, which bounds newest *files* and so means nothing
+where there is one file, or `query` on a JSONL one. Both passed clean while
+doing nothing. `glob`, `limit`, `journal`, `pathFields` and `manifest` are
+read for `json` and `jsonl`; `query` and `columns` for `sqlite`; `args`,
+`refreshEvery` and `root` for `command`. It is a warning rather than a
+refusal: a leftover field does no harm beyond the silence, and refusing would
+break files people already have.
+
 ### Quota transport
 
 A `balance` must declare a `currency` — a path into the response where the

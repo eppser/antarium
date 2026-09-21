@@ -995,3 +995,67 @@ struct PostQuotaTests {
         #expect(checked >= 8, "only \(checked) endpoint quotas were checked")
     }
 }
+
+/// A source field the declared kind never reads.
+///
+/// The key list catches a typo. It cannot catch a field spelled correctly and
+/// ignored — a `limit` on a SQLite source, which bounds newest *files* and so
+/// means nothing where there is one file, or a `query` on a JSONL one. Both
+/// passed `--check` clean while doing nothing, which is the same silence that
+/// reported `quota.command` as no field at all, from the other side.
+@Suite("Source fields that do not apply are reported")
+struct SourceFieldApplicabilityTests {
+
+    /// Stated against the table rather than by running the checker, because
+    /// the checker prints and the table is the rule.
+    @Test("A file-only field does not apply to SQLite or command sources",
+          arguments: ["glob", "limit", "journal", "pathFields", "manifest"])
+    func fileOnlyFields(_ field: String) throws {
+        let kinds = try #require(HarnessCheck.sourceFieldKinds[field])
+        #expect(kinds == [.json, .jsonl])
+    }
+
+    @Test("A SQLite-only field does not apply to a file source",
+          arguments: ["query", "columns"])
+    func sqliteOnlyFields(_ field: String) throws {
+        #expect(try #require(HarnessCheck.sourceFieldKinds[field]) == [.sqlite])
+    }
+
+    @Test("A command-only field does not apply to a file source",
+          arguments: ["args", "refreshEvery", "root"])
+    func commandOnlyFields(_ field: String) throws {
+        #expect(try #require(HarnessCheck.sourceFieldKinds[field]) == [.command])
+    }
+
+    /// `path` and `kind` are read by everything and must not be in the table,
+    /// or every descriptor would be warned about its own path.
+    @Test("Fields every kind reads are not in the table", arguments: [
+        "kind", "path", "filter", "paths",
+    ])
+    func universalFieldsAreAbsent(_ field: String) {
+        #expect(HarnessCheck.sourceFieldKinds[field] == nil,
+                "\(field) would be reported as inapplicable on every harness")
+    }
+
+    /// And no shipped harness declares a field its own kind ignores, which is
+    /// what makes this safe to warn about rather than merely describe.
+    @Test("No shipped harness declares a field its kind ignores")
+    func shippedHarnessesAreClean() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        var checked = 0
+        for url in urls {
+            let data = try Data(contentsOf: url)
+            let descriptor = try HarnessDocument.decode(data).descriptor
+            let object = try #require(
+                try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let source = (object["source"] as? [String: Any]) ?? [:]
+            for (key, kinds) in HarnessCheck.sourceFieldKinds where source[key] != nil {
+                #expect(kinds.contains(descriptor.source.kind), Comment(rawValue:
+                    "\(descriptor.id) is \(descriptor.source.kind.rawValue) and declares \(key)"))
+            }
+            checked += 1
+        }
+        #expect(checked >= 20, "only \(checked) harnesses were checked")
+    }
+}

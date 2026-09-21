@@ -602,3 +602,6 @@ a countdown just under a minute reads as nought | Sources/Antarium/UI/Format.swi
 an age rounds into a band it has not reached | Sources/Antarium/UI/Format.swift | s|if s < 3600 { return "\\(max(1, Int(s / 60))) min ago" }|if s < 3600 { return "\\(Int((s / 60).rounded())) min ago" }|
 an exact hour reads as an hour and no minutes | Sources/Antarium/UI/Format.swift | s|span = m > 0 ? "\\(h)h \\(m)m" : "\\(h)h"|span = "\\(h)h \\(m)m"|
 an exact day reads as a day and no hours | Sources/Antarium/UI/Format.swift | s|span = h > 0 ? "\\(d)d \\(h)h" : "\\(d)d"|span = "\\(d)d \\(h)h"|
+a file-only source field applies everywhere | Sources/Antarium/Core/HarnessCheck.swift | s|"glob": \[.json, .jsonl\], "limit": \[.json, .jsonl\],|"glob": [.json, .jsonl, .sqlite], "limit": [.json, .jsonl, .sqlite],|
+a sqlite-only source field applies everywhere | Sources/Antarium/Core/HarnessCheck.swift | s|"query": \[.sqlite\], "columns": \[.sqlite\],|"query": [.sqlite, .jsonl], "columns": [.sqlite, .jsonl],|
+the path field is reported as inapplicable | Sources/Antarium/Core/HarnessCheck.swift | s|"manifest": \[.json, .jsonl\],|"manifest": [.json, .jsonl], "path": [.command],|
