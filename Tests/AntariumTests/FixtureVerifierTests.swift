@@ -166,3 +166,103 @@ struct QuotaFixtureVerifierTests {
         #expect(!report.passed, "an unproven mapping was reported as fine")
     }
 }
+
+/// The third verifier, and the same blind spot. `--verify-harness-installations`
+/// reports sixteen probes passing on every release; that says nothing unless
+/// it can report one failing.
+@Suite("The installation probe evaluator can fail")
+struct InstallationEvaluatorTests {
+
+    private func descriptor(match: [String], probes: [[String: Any]]) throws
+        -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "probe-\(UUID().uuidString)", "name": "Fixture",
+            "process": ["pathContains": match, "installationProbes": probes],
+            "source": ["kind": "none", "path": ""]]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    private func probe(_ path: String, expected: Bool, method: String = "synthetic",
+                       evidence: String = "https://example.invalid/docs",
+                       verifiedAt: String = "2026-09-21") -> [String: Any] {
+        ["method": method, "path": path, "name": "tool", "argv0": "tool",
+         "expected": expected, "evidence": evidence, "verifiedAt": verifiedAt]
+    }
+
+    /// The positive control.
+    @Test("Probes that agree with the matcher pass")
+    func agreeingProbesPass() throws {
+        let report = HarnessInstallationEvaluator.evaluate(try descriptor(
+            match: ["/synthetic/"],
+            probes: [probe("/synthetic/bin/tool", expected: true),
+                     probe("/elsewhere/bin/tool", expected: false)]))
+        #expect(report.failures.isEmpty, Comment(rawValue: report.failures.joined(separator: "; ")))
+        #expect(report.passed == 2)
+    }
+
+    /// The case the whole mechanism exists for: a descriptor claiming to
+    /// recognise an installation that its own matcher does not.
+    @Test("A probe expecting a match the matcher does not make is a failure")
+    func falsePositiveProbeFails() throws {
+        let report = HarnessInstallationEvaluator.evaluate(try descriptor(
+            match: ["/synthetic/"],
+            probes: [probe("/elsewhere/bin/tool", expected: true),
+                     probe("/other/bin/tool", expected: false)]))
+        #expect(report.passed == 1)
+        #expect(report.failures.contains { $0.contains("expected match") })
+    }
+
+    /// The other direction, which is how the over-broad matchers were caught:
+    /// a path documented as *not* this agent that the matcher claims anyway.
+    @Test("A probe expecting no match that the matcher claims is a failure")
+    func overBroadMatcherFails() throws {
+        let report = HarnessInstallationEvaluator.evaluate(try descriptor(
+            match: ["/synthetic/"],
+            probes: [probe("/synthetic/bin/tool", expected: true),
+                     probe("/synthetic/bin/tool-helper", expected: false)]))
+        #expect(report.failures.contains { $0.contains("expected no match") })
+    }
+
+    @Test("A harness with no positive probe is reported")
+    func missingPositiveProbe() throws {
+        let report = HarnessInstallationEvaluator.evaluate(try descriptor(
+            match: ["/synthetic/"], probes: [probe("/elsewhere/tool", expected: false)]))
+        #expect(report.failures.contains { $0.contains("no positive") })
+    }
+
+    @Test("A harness with no negative probe is reported")
+    func missingNegativeProbe() throws {
+        let report = HarnessInstallationEvaluator.evaluate(try descriptor(
+            match: ["/synthetic/"], probes: [probe("/synthetic/tool", expected: true)]))
+        #expect(report.failures.contains { $0.contains("no negative") })
+    }
+
+    /// A probe is a claim about the world, so it has to say where the claim
+    /// came from and when it was checked. The evaluator checks this too, but
+    /// a descriptor carrying such a probe never decodes, so the rule is
+    /// tested where it is reachable.
+    @Test("A probe without usable provenance never decodes", arguments: [
+        ("evidence", "http://example.invalid/docs"),
+        ("evidence", "not a url"),
+        ("verifiedAt", "someday"),
+        ("method", "   "),
+    ])
+    func unprovenProbes(_ field: String, _ value: String) throws {
+        var bad = probe("/synthetic/tool", expected: true)
+        bad[field] = value
+        #expect(throws: (any Swift.Error).self) {
+            _ = try descriptor(match: ["/synthetic/"],
+                               probes: [bad, probe("/elsewhere/tool", expected: false)])
+        }
+    }
+
+    /// And the good one still decodes, so the refusals above are not
+    /// satisfied by a decoder that rejects every probe.
+    @Test("A probe with provenance decodes")
+    func provenProbeDecodes() throws {
+        _ = try descriptor(match: ["/synthetic/"],
+                           probes: [probe("/synthetic/tool", expected: true),
+                                    probe("/elsewhere/tool", expected: false)])
+    }
+}

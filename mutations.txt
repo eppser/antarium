@@ -214,3 +214,7 @@ missing fixture file reported as verified | Sources/Antarium/Core/HarnessCompati
 declared level reported as fixture verified | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: declaration.level == .experimental ? .experimental : .declared,|return Report(status: .fixtureVerified,|
 quota fixture always passes | Sources/Antarium/Core/QuotaFixture.swift | s|return Report(id: descriptor.id, passed: problems.isEmpty,|return Report(id: descriptor.id, passed: true,|
 quota fixture tolerance swallows a wrong mapping | Sources/Antarium/Core/QuotaFixture.swift | s|static let tolerance = 0.005|static let tolerance = 1000.0|
+installation probes always pass | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if actual == probe.expected {|if true {|
+installation evaluator reports no failures | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|return Report(passed: passed, total: probes.count, failures: failures)|return Report(passed: probes.count, total: probes.count, failures: [])|
+a harness may ship with no positive probe | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if !probes.contains(where: \\.expected) {|if false {|
+a harness may ship with no negative probe | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if !probes.contains(where: { !\$0.expected }) {|if false {|
