@@ -141,9 +141,26 @@ enum Pricing {
         return pretty.joined(separator: " ")
     }
 
+    /// Four bands: whole dollars above a hundred, one decimal above ten,
+    /// cents above a penny, and below that a statement that something was
+    /// spent rather than a figure claiming nothing was.
+    ///
+    /// The band is chosen from the rounded figure where rounding can widen
+    /// it. Choosing first and rounding second printed "$100.0" for 99.999 and
+    /// "$10.00" for 9.999 — the narrower band's precision on a number that
+    /// had just left it, which is the same mistake as a loop reading "loops
+    /// in 60m".
+    ///
+    /// The last boundary is deliberately not rounded that way. Nine tenths of
+    /// a cent rounds to a penny, and printing "$0.01" would claim a penny was
+    /// spent when less was; "<$0.01" says what is true.
     static func money(_ usd: Double) -> String {
-        if usd >= 100 { return String(format: "$%.0f", usd) }
-        if usd >= 10 { return String(format: "$%.1f", usd) }
+        // Widen when the figure *as the narrower band would print it* reads
+        // as the boundary. Testing the whole-dollar rounding instead widens
+        // everything from 99.50 up, which turns "$99.9" into "$100" and
+        // loses a digit that was worth having.
+        if ((usd * 10).rounded() / 10) >= 100 { return String(format: "$%.0f", usd) }
+        if ((usd * 100).rounded() / 100) >= 10 { return String(format: "$%.1f", usd) }
         if usd >= 0.01 { return String(format: "$%.2f", usd) }
         return usd > 0 ? "<$0.01" : "$0"
     }

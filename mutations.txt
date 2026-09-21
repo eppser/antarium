@@ -587,3 +587,13 @@ the walkthrough loses its verification step | docs/TECHNICAL.md | s|   `antarium
 status stops reporting how many harnesses loaded | Sources/Antarium/Diagnostics.swift | s|harnesses \\(descriptors.count) loaded from|harnesses loaded from|
 a folder is revealed as a memory index | Sources/Antarium/Core/ProjectContext.swift | s|            guard info.st_mode \& S_IFMT == S_IFREG else { return false }||
 an empty index file is revealed | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|
+a cost is charted from an unreadable transcript | Sources/Antarium/Core/TranscriptStats.swift | s|guard usageIssue == nil, !usageByModel.isEmpty else { return nil }|guard !usageByModel.isEmpty else { return nil }|
+no usage reads as no cost rather than no answer | Sources/Antarium/Core/TranscriptStats.swift | s|guard usageIssue == nil, !usageByModel.isEmpty else { return nil }|guard usageIssue == nil else { return nil }|
+cache reads are charged as input | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.cacheRead) / 1_000_000 \* rate.cacheRead|Double(usage.cacheRead) / 1_000_000 * rate.input|
+cache writes are not charged at all | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheWrite5m) / 1_000_000 \* rate.cacheWrite5m||
+the per-million divisor is per-thousand | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.input) / 1_000_000 \* rate.input|Double(usage.input) / 1_000 * rate.input|
+a sliver of a cent reads as nothing | Sources/Antarium/Core/Pricing.swift | s|return usd > 0 ? "<\$0.01" : "\$0"|return "$0"|
+a negative rate is charted | Sources/Antarium/Core/TranscriptStats.swift | s|.allSatisfy({ \$0.isFinite \&\& \$0 >= 0 })|.allSatisfy({ \$0.isFinite })|
+money loses its cents | Sources/Antarium/Core/Pricing.swift | s|        if usd >= 0.01 { return String(format: "\$%.2f", usd) }||
+money picks its band before rounding | Sources/Antarium/Core/Pricing.swift | s|if ((usd \* 100).rounded() / 100) >= 10|if usd >= 10|
+money widens a band it has not reached | Sources/Antarium/Core/Pricing.swift | s|if ((usd \* 10).rounded() / 10) >= 100|if usd.rounded() >= 100|

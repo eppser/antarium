@@ -122,6 +122,10 @@ struct TranscriptStats: Codable {
                 + Double(usage.cacheWrite5m) / 1_000_000 * rate.cacheWrite5m
                 + Double(usage.cacheWrite1h) / 1_000_000 * rate.cacheWrite1h
                 + Double(usage.cacheRead) / 1_000_000 * rate.cacheRead
+            // No catalogue entry: the rates above are already finite and the
+            // counts are integers, so reaching an infinity here needs a sum
+            // no machine will produce. Kept because a price table is edited
+            // by hand and this costs nothing.
             guard total.isFinite else { return nil }
         }
         return total
