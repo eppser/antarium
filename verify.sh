@@ -144,6 +144,29 @@ for flag in --agents --status --detect-agents; do
     rm -rf "$home"
 done
 
+# The unconfigured state exists only on a machine that has never run this.
+# `Config` binds its file path at first touch, so a test process that has
+# already read a real config cannot get back to it — which is why the default
+# for `enabledAgents` went from empty to a fixed list of three and back with
+# no test objecting.
+step "A machine that has never run it has chosen nothing"
+home=$(mktemp -d)
+out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents 2>&1)
+if printf '%s' "$out" | grep -q "recorded   nothing yet"; then
+    ok "no recorded choice"
+else
+    bad "a never-run machine reports a recorded choice"
+fi
+# And the first run writes one rather than assuming it.
+out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents --apply 2>&1)
+printf '%s' "$out" | grep -q "^wrote      enabledAgents = " \
+    && ok "first run recorded its choice" || bad "first run wrote nothing"
+# A second run leaves it alone: this is the whole of "the user's choice wins".
+out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents --apply 2>&1)
+printf '%s' "$out" | grep -q "wrote      nothing" \
+    && ok "a recorded choice is left alone" || bad "a second run rewrote the choice"
+rm -rf "$home"
+
 step "First run through the real app path"
 if [ -x "$APP" ]; then
     home=$(mktemp -d)

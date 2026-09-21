@@ -400,3 +400,5 @@ pi skills miss the shared project folder | Resources/harnesses/pi.json | s|^    
 an empty declared file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|
 claude-code project memory template unknown | Resources/harnesses/claude-code.json | s|{cwdSlug}|{projectSlug}|
 zed instruction path cannot be reached | Resources/harnesses/zed.json | s|"AGENTS.md"|"AGENTS.md/"|
+enabled agents default to a fixed list again | Sources/Antarium/UI/Settings.swift | s|recorded.map(Set.init) ?? \[\]|recorded.map(Set.init) ?? ["claude-code", "codex", "cursor"]|
+an empty choice reads as no choice | Sources/Antarium/UI/Settings.swift | s|static func unconfigured(recorded: \[String\]?) -> Bool { recorded == nil }|static func unconfigured(recorded: [String]?) -> Bool { (recorded ?? []).isEmpty }|

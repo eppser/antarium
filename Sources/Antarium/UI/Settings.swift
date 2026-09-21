@@ -22,10 +22,55 @@ enum MeterMode: String, CaseIterable {
 enum Settings {
 
     /// Which agents get a menu bar item, in registry order.
+    ///
+    /// Empty when nothing has been recorded, and deliberately so. The default
+    /// used to be `["claude-code", "codex", "cursor"]` — the fixed list
+    /// `AgentAutoEnable` exists to replace — which made this property and
+    /// a separate `AgentAutoEnable.isUnconfigured` disagreed about whether the user had
+    /// chosen anything: one said three agents, the other said none, and both
+    /// were right by their own rule. On a Mac with none of those three
+    /// installed it also put back exactly the symptom detection was written
+    /// to fix, in the one state where detection had not run.
+    ///
+    /// Nothing has to stand in here, because `ProviderRegistry.shown` already
+    /// falls back to the first provider when the choice names nothing that
+    /// exists — an empty set is that case.
     static var enabledAgents: Set<String> {
-        get { Set(Config.strings("enabledAgents") ?? ["claude-code", "codex", "cursor"]) }
+        get { agents(recorded: recordedAgents) }
         set { Config.set("enabledAgents", Array(newValue).sorted()) }
     }
+
+    /// The key as written, with "never chosen" kept distinct from "chose
+    /// nothing".
+    static var recordedAgents: [String]? { Config.strings("enabledAgents") }
+
+    /// What a recorded value means, and whether there is one.
+    ///
+    /// Both are functions of the recorded value rather than properties
+    /// reading the config, because a test of a property can only see the
+    /// state the machine running it happens to be in: on a Mac with a choice
+    /// recorded, an assertion about the no-choice case asserts nothing, and
+    /// putting the old fixed default back changed no test at all.
+    ///
+    /// Nothing stands in for an absent record. `ProviderRegistry.shown`
+    /// already falls back to the first provider when the choice names nothing
+    /// that exists, and an empty set is that case — so the default used to be
+    /// `["claude-code", "codex", "cursor"]` for no reason, and the reason it
+    /// was wrong is that it made this and the flag beside it
+    /// answer differently about the same state.
+    static func agents(recorded: [String]?) -> Set<String> {
+        recorded.map(Set.init) ?? []
+    }
+
+    /// True while nobody has chosen. Writing an empty list is a choice.
+    ///
+    /// The only reading of that question in the app. There was a second, an
+    /// `AgentAutoEnable.isUnconfigured` that asked the config directly; it
+    /// was deleted rather than pointed here, because the two agreed on every
+    /// state this machine could be in and so nothing could hold them
+    /// together — the difference showed only for a recorded empty list, and
+    /// a test that cannot reach a state does not guard it.
+    static func unconfigured(recorded: [String]?) -> Bool { recorded == nil }
 
     /// Accent preset id, or a `#RRGGBB` string straight from the config file.
     static var accent: String {

@@ -89,10 +89,6 @@ enum AgentAutoEnable {
         Set(Onboarding.harnesses().filter(\.found).map(\.id))
     }
 
-    /// True while the user has never expressed a preference. A written
-    /// `enabledAgents` — including one this very function wrote — settles it.
-    static var isUnconfigured: Bool { Config.strings("enabledAgents") == nil }
-
     /// The whole first-run decision as one pure function, so "a recorded
     /// choice is never overwritten" is a property with a test rather than a
     /// promise spread across a guard and a call site.
@@ -126,7 +122,7 @@ enum AgentAutoEnable {
     static func applyIfNeeded(providers: [UsageProvider]) -> Set<String>? {
         guard !providers.isEmpty else { return nil }
         let found = evidence(providers: providers, sessionsPresent: sessionsPresent())
-        guard let record = firstRunRecord(recorded: Config.strings("enabledAgents"),
+        guard let record = firstRunRecord(recorded: Settings.recordedAgents,
                                           evidence: found,
                                           fallback: providers.map(\.id)) else { return nil }
         Settings.enabledAgents = record.enabled

@@ -141,7 +141,7 @@ enum HarnessCLI {
         let chosen = AgentAutoEnable.resolve(evidence, fallback: providers.map(\.id))
         print("settings   \(Config.directory.path)")
         print("providers  \(providers.count), showing at most \(AgentAutoEnable.limit)")
-        print("recorded   " + (AgentAutoEnable.isUnconfigured
+        print("recorded   " + (Settings.unconfigured(recorded: Settings.recordedAgents)
             ? "nothing yet — a first run would choose"
             : "a choice already exists and would be left alone"))
         for item in evidence.sorted(by: { ($0.strength, $1.id) > ($1.strength, $0.id) }) {

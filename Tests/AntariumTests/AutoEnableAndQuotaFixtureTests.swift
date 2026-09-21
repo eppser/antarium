@@ -654,3 +654,88 @@ struct AgentCountSummaryTests {
         #expect(allPresent, "the agent it passed over is present here")
     }
 }
+
+/// "Has the user chosen which agents to show?" had two answers.
+///
+/// `Settings.enabledAgents` returned `["claude-code", "codex", "cursor"]` when
+/// nothing was recorded, and a separate `AgentAutoEnable.isUnconfigured` said
+/// nothing was recorded. Both were right by their own rule, and the combination put back
+/// the exact symptom auto-detection exists to fix — a bar opening to three
+/// fixed agents regardless of what the Mac has — in the one state where
+/// detection had not run yet.
+///
+/// These run against whatever this machine has recorded, which is the point:
+/// the property has to hold in both states, so neither a developer's
+/// configured Mac nor the bare home `verify.sh` runs the suite under can
+/// satisfy it by accident.
+@Suite("One answer to whether agents have been chosen")
+struct EnabledAgentsAgreementTests {
+
+    /// Nothing recorded means nothing enabled. This is the assertion the
+    /// fixed default broke, and it is written against the value rather than
+    /// against the machine — on a Mac with a choice recorded, a property test
+    /// of the no-choice case asserts nothing, which is how the fixed default
+    /// went back in without a single test noticing.
+    @Test("Nothing recorded means nothing enabled")
+    func absentRecordEnablesNothing() {
+        #expect(Settings.agents(recorded: nil).isEmpty,
+                "an agent is enabled that nobody chose")
+        #expect(Settings.unconfigured(recorded: nil))
+    }
+
+    /// Choosing nothing is a choice, and not the same as never choosing.
+    /// Collapsing the two would make a first run rewrite a bar the user had
+    /// deliberately emptied.
+    @Test("An empty record is a choice, not the absence of one")
+    func emptyRecordIsAChoice() {
+        #expect(Settings.unconfigured(recorded: []) == false)
+        #expect(Settings.agents(recorded: []).isEmpty)
+    }
+
+    @Test("A record is what is enabled, in every shape")
+    func recordIsHonoured() {
+        #expect(Settings.agents(recorded: ["codex"]) == ["codex"])
+        #expect(Settings.agents(recorded: ["b", "a", "b"]) == ["a", "b"])
+    }
+
+    /// The property the two used to break. Stated over the values rather than
+    /// read off this machine, so both states are covered wherever it runs.
+    @Test("Unconfigured always means empty", arguments: [
+        nil, [], ["codex"], ["codex", "cursor"],
+    ] as [[String]?])
+    func unconfiguredImpliesEmpty(_ recorded: [String]?) {
+        if Settings.unconfigured(recorded: recorded) {
+            #expect(Settings.agents(recorded: recorded).isEmpty)
+        }
+    }
+
+    /// And the live property is wired to the function rather than
+    /// reimplementing it.
+    @Test("The live setting reads through the same function")
+    func livePropertyAgrees() {
+        #expect(Settings.enabledAgents == Settings.agents(recorded: Settings.recordedAgents))
+    }
+
+    /// The empty set is not a hole in the menu bar. `shown` stands in the
+    /// first provider, which is what makes defaulting to empty safe — without
+    /// it, a fresh install before detection would have no items and no way
+    /// back into the app.
+    @Test("An empty choice still yields a menu bar item")
+    func emptyChoiceStillShowsSomething() {
+        let providers = ProviderRegistry.all
+        guard !providers.isEmpty else { return }
+        let shown = ProviderRegistry.shown(from: providers, enabled: [])
+        #expect(shown.count == 1)
+        #expect(shown.first?.id == providers.first?.id)
+    }
+
+    /// And a choice naming only agents that no longer exist is the same case.
+    @Test("A choice naming nothing that exists yields a menu bar item")
+    func staleChoiceStillShowsSomething() {
+        let providers = ProviderRegistry.all
+        guard !providers.isEmpty else { return }
+        let shown = ProviderRegistry.shown(from: providers,
+                                           enabled: ["an-agent-that-was-renamed"])
+        #expect(shown.count == 1)
+    }
+}
