@@ -78,16 +78,34 @@ step "Descriptor verification"
 # resources the same way: the app is assembled by copying named directories,
 # so a resource that reaches the SwiftPM bundle can be missing from the thing
 # that actually ships. Checking only the debug binary hid exactly that.
+# A verifier that checks nothing exits zero. "0 passed" was reported as ok,
+# so a build that shipped no descriptors at all would have gone out green —
+# which is the very failure the paragraph above describes. Two rules now: the
+# count must be above zero, and the app must verify exactly as many as the
+# debug binary. The second is self-maintaining, because adding a descriptor
+# raises both numbers without touching this script.
+declare -a counts=()
 for runner in "$BIN" "$APP"; do
     label=$([ "$runner" = "$BIN" ] && echo debug || echo app)
     if [ ! -x "$runner" ]; then bad "$label binary missing"; continue; fi
     for c in --verify-harness-quota --verify-harness-fixtures --verify-harness-installations; do
-        if "$runner" "$c" >/tmp/verify-$$.log 2>&1
-        then ok "$label $c ($(grep -c '^✓' /tmp/verify-$$.log) passed)"
+        if "$runner" "$c" >/tmp/verify-$$.log 2>&1; then
+            n=$(grep -c '^✓' /tmp/verify-$$.log)
+            counts+=("$label $c $n")
+            if [ "$n" -gt 0 ]
+            then ok "$label $c ($n passed)"
+            else bad "$label $c verified nothing — a check that checks nothing exits zero"; fi
         else bad "$label $c"; grep '^✗' /tmp/verify-$$.log | head -3; fi
     done
 done
 rm -f /tmp/verify-$$.log
+for c in --verify-harness-quota --verify-harness-fixtures --verify-harness-installations; do
+    d=$(printf '%s\n' "${counts[@]}" | awk -v c="$c" '$1=="debug" && $2==c {print $3}')
+    a=$(printf '%s\n' "${counts[@]}" | awk -v c="$c" '$1=="app"   && $2==c {print $3}')
+    if [ -n "$d" ] && [ -n "$a" ] && [ "$d" != "$a" ]; then
+        bad "$c: debug verified $d, the app verified $a — a resource did not reach the bundle"
+    fi
+done
 
 step "Every shipped harness checks clean"
 dirty=0
