@@ -644,3 +644,85 @@ struct EnvCredentialFallbackTests {
                     .isConfigured == false)
     }
 }
+
+/// OpenRouter reports two lifetime figures and no balance.
+///
+/// `data.total_credits` is everything ever added to the account and
+/// `data.total_usage` everything ever spent, so the meter is spend against
+/// purchases: empty after a top-up, full when the credits are gone. There is
+/// no remaining-balance field, and the window map cannot subtract, which is
+/// why this is a meter where the other credit providers draw an amount.
+@Suite("OpenRouter charts spend against purchases")
+struct OpenRouterQuotaTests {
+
+    private func descriptor() throws -> HarnessDescriptor {
+        let url = try #require(AppResources.bundle.url(
+            forResource: "openrouter", withExtension: "json", subdirectory: "harnesses"))
+        return try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+    }
+
+    /// The endpoint answers 403 to an ordinary inference key and only a
+    /// management key works. Reading the conventional OPENROUTER_API_KEY
+    /// would take the key most people have and fail with it for ever, which
+    /// is the degraded shipping docs/ECOSYSTEM.md rules out.
+    @Test("The key is read from a file and never from the usual variable")
+    func credentialIsFileOnly() throws {
+        let credential = try #require(try descriptor().quota?.credential)
+        #expect(credential.kind == "textFile")
+        #expect(credential.name == nil,
+                "an inference key would be picked up and 403 for ever")
+        #expect(credential.path == "~/.antarium/keys/openrouter")
+    }
+
+    @Test("The hint names the file and says which key belongs in it")
+    func hintNamesTheRightKey() throws {
+        let hint = try #require(try descriptor().quota?.setupHint)
+        #expect(hint.contains("~/.antarium/keys/openrouter"))
+        #expect(hint.lowercased().contains("management"),
+                "a user would put an inference key there and see 403 for ever")
+        #expect(hint.count <= 48)
+    }
+
+    @Test("Spend is charted against purchases, not against a balance")
+    func mapsUsedOverLimit() throws {
+        let windows = try #require(try descriptor().quota?.windows)
+        #expect(windows.used == "data.total_usage")
+        #expect(windows.limit == "data.total_credits")
+        #expect(windows.balance == nil, "there is no remaining figure to chart")
+    }
+
+    /// The figures themselves have not been seen against a live account, and
+    /// the row says so rather than presenting them as confirmed.
+    @Test("The numbers are declared unverified")
+    func unverified() throws {
+        #expect(try descriptor().quota?.verified != true)
+    }
+
+    private func snapshot(credits: Double, usage: Double) throws -> Snapshot {
+        let provider = try #require(DescriptorProvider(try descriptor()))
+        return try provider.makeSnapshot(
+            ["data": ["total_credits": credits, "total_usage": usage]])
+    }
+
+    @Test("A quarter spent reads as a quarter")
+    func quarterSpent() throws {
+        let gauge = try #require(try snapshot(credits: 100, usage: 25).gauges.first)
+        #expect(abs(gauge.used - 0.25) < 0.0001)
+        #expect(gauge.title == "Credits")
+        #expect(gauge.hasMeter, "a meter, because there are two figures to make one from")
+    }
+
+    /// An account that has never added credits would divide by zero. "Nothing
+    /// of nothing" is not nought per cent, and a full green meter would be
+    /// the worst of the available wrong answers.
+    @Test("An account with no credits reports nothing rather than a figure")
+    func noCreditsIsNotZeroPercent() {
+        #expect(throws: (any Error).self) { _ = try snapshot(credits: 0, usage: 0) }
+    }
+
+    @Test("Exhausted credits read as full, not as absent")
+    func exhaustedReadsFull() throws {
+        let gauge = try #require(try snapshot(credits: 40, usage: 40).gauges.first)
+        #expect(abs(gauge.used - 1.0) < 0.0001)
+    }
+}

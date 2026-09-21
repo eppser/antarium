@@ -441,3 +441,7 @@ an env key file is preferred to the variable | Sources/Antarium/Providers/Descri
 an env key file keeps its trailing newline | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)|let trimmed = raw|
 an env key file is read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
 an env hint names a file nothing reads | Resources/harnesses/deepseek.json | s|^      "path": "~/.antarium/keys/deepseek"$|      "unusedPath": "~/.antarium/keys/deepseek"|
+openrouter reads the inference key variable | Resources/harnesses/openrouter.json | s|"kind": "textFile",|"kind": "env", "name": "OPENROUTER_API_KEY",|
+openrouter charts purchases as usage | Resources/harnesses/openrouter.json | s|"used": "data.total_usage",|"used": "data.total_credits",|
+openrouter divides by a missing limit | Sources/Antarium/Providers/DescriptorProvider.swift | s|let limit = FieldPath.number(window, limitPath), limit > 0 {|let limit = FieldPath.number(window, limitPath), limit >= 0 {|
+openrouter numbers claim to be verified | Resources/harnesses/openrouter.json | s|"verified": false|"verified": true|

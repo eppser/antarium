@@ -91,6 +91,16 @@ was written as a descriptor first and reverted, because a correct mapping
 behind a credential that expires is exactly what the note below says not to
 ship.
 
+OpenRouter is charted as spend against purchases. Its credits endpoint
+reports two lifetime figures — everything ever added and everything ever
+spent — and no remaining balance, so the meter is the ratio of the two:
+empty after a top-up, full when the credits are gone. The key is read
+from a file rather than from `OPENROUTER_API_KEY`, because the endpoint
+answers 403 to an ordinary inference key and only a management key
+works; reading the conventional variable would take the key most people
+have and fail with it for ever, which is the degraded shipping this
+document rules out two paragraphs below.
+
 Not currently integrated, with the reason each would need native code — or,
 for the first, the reason it still cannot be written even though it no longer
 would. The
