@@ -192,3 +192,10 @@ an unobserved agent is reported as stopped | Sources/Antarium/Core/AgentStore.sw
 sqlite negative usage accepted | Sources/Antarium/Core/HarnessEngine.swift | s|guard let amount = value.integer, amount >= 0 else {|guard let amount = value.integer else {|
 sqlite negative cost accepted | Sources/Antarium/Core/HarnessEngine.swift | s|if let amount = value.number, amount >= 0 { session.costUSD = amount; session.markNumeric("cost") }|if let amount = value.number { session.costUSD = amount; session.markNumeric("cost") }|
 shipped pricing table emptied | Resources/pricing.json | s|"models"|"modelsX"|
+command harness accepts truncated output | Sources/Antarium/Core/HarnessEngine.swift | s|guard result.completeOutput else {|guard true else {|
+command harness leaks output into its failure message | Sources/Antarium/Core/HarnessEngine.swift | s|reason = "command exit \\(result.exitCode ?? -1); private command output was omitted"|reason = "command exit \\(result.exitCode ?? -1): \\(result.stdout)"|
+command harness leaks output when it prints no JSON | Sources/Antarium/Core/HarnessEngine.swift | s|: "command did not return JSON")|: "command did not return JSON: \\(out)")|
+command harness sessions unbounded | Sources/Antarium/Core/HarnessEngine.swift | s|records.prefix(maxCommandSessions)|records|
+command harness session cap below a real workspace | Sources/Antarium/Core/HarnessEngine.swift | s|static let maxCommandSessions = 256|static let maxCommandSessions = 2|
+command harness refresh interval ignored | Sources/Antarium/Core/HarnessEngine.swift | s|Date().timeIntervalSince(hit.at) < every|false|
+command harness refresh interval defaulted away | Sources/Antarium/Core/HarnessEngine.swift | s|let every = d.source.refreshEvery ?? 30|let every = 0.0|

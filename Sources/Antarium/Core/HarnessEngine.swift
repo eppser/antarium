@@ -556,6 +556,11 @@ enum HarnessEngine {
     nonisolated(unsafe) private static var commandCache:
         [String: (at: Date, sessions: [Session])] = [:]
 
+    /// The most sessions one command harness may contribute in a reading. A
+    /// workspace manager reporting more panes than this is reporting
+    /// something other than a workspace.
+    static let maxCommandSessions = 256
+
     private static func commandSessions(_ d: HarnessDescriptor) -> [Session] {
         let every = d.source.refreshEvery ?? 30
         let key = "\(d.id)|\(fingerprint(d))"
@@ -597,7 +602,12 @@ enum HarnessEngine {
                 } else {
                     records = (object as? [[String: Any]]) ?? []
                 }
-                for record in records {
+                // The command's output is bounded, which is not the same as
+                // bounding what is built from it: four megabytes of small
+                // records is tens of thousands of sessions, and each becomes a
+                // row, a sort key and a transcript read. The same cap as the
+                // other readers that take input from outside this process.
+                for record in records.prefix(maxCommandSessions) {
                     var session = Session()
                     apply(record, to: &session, d.fields)
 
