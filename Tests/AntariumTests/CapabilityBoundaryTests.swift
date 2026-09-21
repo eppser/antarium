@@ -82,3 +82,77 @@ struct CapabilityBoundaryTests {
         #expect(ProjectContext.cachedContextCount <= 256)
     }
 }
+
+/// An `index` that names a folder rather than a file.
+///
+/// `index` exists to reveal a memory index — `MEMORY.md` inside a memory
+/// folder — and counts the folder's other entries beside it. Naming a folder
+/// there is a misconfiguration, and what it used to do was report that folder
+/// as the capability's own file. A directory's `st_size` is a block count
+/// rather than a statement about content, so the shape of the answer depended
+/// on which branch happened to be reached.
+@Suite("An index naming a folder", .serialized)
+struct CapabilityIndexShapeTests {
+
+    private func descriptor(index: String) throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "index-fixture", "name": "Index",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "capabilities": ["memory": ["probe": "directory",
+                                        "project": ["memory"], "index": index]]]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    private func scan(_ index: String, build: (URL) throws -> Void) throws -> Capability {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("index-\(UUID().uuidString)")
+        let memory = root.appendingPathComponent("memory")
+        try FileManager.default.createDirectory(at: memory, withIntermediateDirectories: true)
+        try build(memory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        ProjectContext.invalidate()
+        let found = ProjectContext.scan(root.path, agentID: "index-fixture",
+                                        descriptor: try descriptor(index: index))
+        return try #require(found.capabilities.first { $0.kind == .memory })
+    }
+
+    /// The ordinary case, so the rest cannot pass by refusing everything.
+    @Test("An index that is a file is revealed, and the rest are counted")
+    func fileIndexIsRevealed() throws {
+        let found = try scan("MEMORY.md") { memory in
+            try Data("curated\n".utf8).write(to: memory.appendingPathComponent("MEMORY.md"))
+            try Data("a\n".utf8).write(to: memory.appendingPathComponent("2026-09-21.md"))
+        }
+        #expect(found.scope == .project)
+        #expect(found.url?.lastPathComponent == "MEMORY.md")
+        #expect(found.count == 1, "the index counted itself among the others")
+    }
+
+    /// A folder named as the index is not the file it was meant to reveal, so
+    /// the capability reports the folder it was already looking at rather
+    /// than pointing at something that cannot be opened as an index.
+    @Test("An index that is a folder is not revealed as one")
+    func folderIndexIsNotRevealed() throws {
+        let found = try scan("MEMORY.md") { memory in
+            try FileManager.default.createDirectory(
+                at: memory.appendingPathComponent("MEMORY.md"),
+                withIntermediateDirectories: true)
+            try Data("a\n".utf8).write(to: memory.appendingPathComponent("2026-09-21.md"))
+        }
+        #expect(found.scope == .project, "the capability vanished entirely")
+        #expect(found.url?.lastPathComponent == "memory",
+                "a folder was reported as the memory index")
+    }
+
+    /// And an empty file named as the index is not an index either — the
+    /// same rule the rest of this app applies to a placeholder.
+    @Test("An empty index file is not revealed")
+    func emptyIndexIsNotRevealed() throws {
+        let found = try scan("MEMORY.md") { memory in
+            try Data().write(to: memory.appendingPathComponent("MEMORY.md"))
+            try Data("a\n".utf8).write(to: memory.appendingPathComponent("2026-09-21.md"))
+        }
+        #expect(found.url?.lastPathComponent == "memory")
+    }
+}

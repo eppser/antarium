@@ -227,7 +227,6 @@ migration reports nothing was migrated | Sources/Antarium/Core/HarnessDocument.s
 loading rewrites the user's file | Sources/Antarium/Core/HarnessDocument.swift | s|guard let value = object\["formatVersion"\] else { return 0 }|guard let value = object["formatVersion"] else { return currentVersion }|
 a capability probe follows a symlink | Sources/Antarium/Core/ProjectContext.swift | s|info.st_mode \& S_IFMT == S_IFDIR|true|
 an empty file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return info.st_size > 0|return true|
-an empty directory counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return try !entries(url, suffixes: suffixes).isEmpty|return true|
 a multiline TOML string is read as configuration | Sources/Antarium/Core/ProjectContext.swift | s|guard !text.contains("\\"\\"\\""), !text.contains("'''") else { throw ProbeError.unsupported }||
 a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|
 bounded read returns nothing | Sources/Antarium/Core/BoundedFile.swift | s|^        return data$|        return Data()|
@@ -586,3 +585,5 @@ the https-only claim comes back | docs/TECHNICAL.md | s|A usage endpoint must be
 the get-only claim comes back | docs/TECHNICAL.md | s|An endpoint quota may declare `method: "POST"`|A descriptor makes one authenticated GET and|
 the walkthrough loses its verification step | docs/TECHNICAL.md | s|   `antarium --verify-harness-quota` for the mapping|   nothing for the mapping|
 status stops reporting how many harnesses loaded | Sources/Antarium/Diagnostics.swift | s|harnesses \\(descriptors.count) loaded from|harnesses loaded from|
+a folder is revealed as a memory index | Sources/Antarium/Core/ProjectContext.swift | s|            guard info.st_mode \& S_IFMT == S_IFREG else { return false }||
+an empty index file is revealed | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|

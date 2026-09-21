@@ -145,16 +145,21 @@ struct ProjectContext {
             remainingBytes -= bytes.count
             return bytes
         }
-        /// A directory here is filtered the same way a directory probe is.
-        /// Without that, a rule listing both files and a folder — Copilot
-        /// lists `.github/copilot-instructions.md` beside `.github/
-        /// instructions/` — would apply the suffixes to one and not the
-        /// other, and the folder would count files the agent ignores.
-        func hasContent(_ url: URL, suffixes: [String] = []) throws -> Bool {
+        /// A regular file with something in it.
+        ///
+        /// Directories answer false rather than being counted here. They used
+        /// to be, back when a `content` rule delegated the whole question —
+        /// but that rule counts its own entries now, so the branch became
+        /// reachable only through an `index` naming a folder, which is a
+        /// misconfiguration and was exercised by nothing. A full mutation run
+        /// found it as a survivor, which is what those are for.
+        ///
+        /// The guard is explicit rather than absent: a directory's `st_size`
+        /// is a block count, not a statement about content, so falling
+        /// through would read every folder as full.
+        func hasContent(_ url: URL) throws -> Bool {
             guard let info = try metadata(url) else { return false }
-            if info.st_mode & S_IFMT == S_IFDIR {
-                return try !entries(url, suffixes: suffixes).isEmpty
-            }
+            guard info.st_mode & S_IFMT == S_IFREG else { return false }
             return info.st_size > 0
         }
 
