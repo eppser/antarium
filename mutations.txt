@@ -277,3 +277,5 @@ log timestamps follow the reader's clock preference | Sources/Antarium/Core/Log.
 log timestamps pinned to UTC rather than the machine | Sources/Antarium/Core/Log.swift | s|f.timeZone = timeZone|f.timeZone = TimeZone(identifier: "UTC")|
 a fixed date format ships unpinned | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")|f.timeZone = timeZone|
 sdk fixed date format ships unpinned | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|formatter.locale = Locale(identifier: "en_US_POSIX")||
+cwd matched by bytes rather than canonically | Sources/Antarium/Core/HarnessEngine.swift | s|if let match = all.first(where: { \$0.cwd == cwd }) { return match }|if let match = all.first(where: { Array((\$0.cwd ?? "").utf8) == Array(cwd.utf8) }) { return match }|
+cwd match falls back to an unrelated session | Sources/Antarium/Core/HarnessEngine.swift | s|return all.allSatisfy { \$0.cwd == nil } ? all.first : nil|return all.first|

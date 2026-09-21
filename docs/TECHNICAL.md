@@ -428,6 +428,13 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
+Paths are compared as Strings, never as bytes. macOS hands back a decomposed
+filename — `e` followed by a combining acute — while a path an agent writes
+into its transcript is usually composed, and the two are equal as Strings and
+different as bytes. A project folder with an accent in its name loses its
+session the moment a comparison is made on `utf8` for speed, which has already
+happened once in this file for a different scan.
+
 A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`, and a
 test in `ArchitectureContractTests` reads the sources to enforce it. That is a
 source rule rather than a run under another locale because `Locale.current` on

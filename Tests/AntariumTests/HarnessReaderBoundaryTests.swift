@@ -116,3 +116,68 @@ struct HarnessFieldMappingTests {
         #expect(try session(#"{"cwd":"/p","title":"just this"}"#).title == "just this")
     }
 }
+
+/// A project folder with an accent in its name. macOS hands back a decomposed
+/// filename — `e` followed by a combining acute — while a path written into a
+/// transcript by an agent is usually composed. Swift compares Strings
+/// canonically, so the two match today; they do not match as bytes, and this
+/// file has already had one String scan replaced by a byte scan for speed.
+@Suite("Accented project paths match across normalisation forms", .serialized)
+struct PathNormalisationTests {
+
+    private let composed = "/synthetic/Caf\u{00E9}/project"      // é as one scalar
+    private let decomposed = "/synthetic/Cafe\u{0301}/project"   // e + combining acute
+
+    @Test("The two forms are equal as Strings and differ as bytes")
+    func premise() {
+        #expect(composed == decomposed, "Swift stopped comparing canonically")
+        #expect(Array(composed.utf8) != Array(decomposed.utf8), "the forms are not distinct")
+    }
+
+    private func descriptor(_ root: URL) throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "normalisation-fixture", "name": "Fixture",
+            "process": [:], "source": ["kind": "jsonl", "path": root.path, "glob": "*.jsonl"],
+            "map": ["cwd": "cwd", "inputTokens": "input"]]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    /// The session's directory is written one way and looked up the other,
+    /// which is what happens when the agent records a path it was given and
+    /// the scanner reads one back from the filesystem.
+    @Test("A session written in one form is found by the other")
+    func matchesAcrossForms() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("normalisation-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data((#"{"cwd":"\#(decomposed)","input":42}"# + "\n").utf8)
+            .write(to: root.appendingPathComponent("trace.jsonl"))
+
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        let descriptor = try descriptor(root)
+        let found = HarnessEngine.session(descriptor, forCwd: composed)
+        #expect(found?.inputTokens == 42, "an accented project directory lost its session")
+    }
+
+    /// And a genuinely different directory still does not match, so the test
+    /// above is not satisfied by a comparison that matches everything.
+    @Test("A different directory still does not match")
+    func differentDirectory() throws {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("normalisation-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data((#"{"cwd":"\#(decomposed)","input":42}"# + "\n").utf8)
+            .write(to: root.appendingPathComponent("trace.jsonl"))
+
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        #expect(HarnessEngine.session(try descriptor(root),
+                                      forCwd: "/synthetic/Other/project") == nil)
+    }
+}
