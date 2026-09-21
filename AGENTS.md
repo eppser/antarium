@@ -95,6 +95,13 @@ disagree when somebody moves it. The same applies to a `count` compared
 against `Registry.all.count`, and to any expectation built by calling the
 function under test. Observe the value first, then assert it.
 
+A mutation that removes a sort is caught only if the unsorted order differs
+from the sorted one, and with a small fixture it often does not: three rows
+come out of a `Dictionary` in ascending order about one run in six, and the
+seed changes per process, so the same mutation is caught on one run and
+survives the next. Ordering fixtures want eight or ten entries, written out
+of order. A `SURVIVED` line that does not reproduce is this, not luck.
+
 A mutation reported as `caught (never finished)` was caught by a test that
 hung rather than one that failed. That is a real catch and the harness treats
 it as one, but it is a slow one: prefer a test that fails outright on the same

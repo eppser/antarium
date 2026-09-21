@@ -104,16 +104,28 @@ struct RemoteRowConstructionTests {
 
     /// Rows must not shuffle between scans. The order is the pid order, not
     /// whatever the dictionary yields.
+    ///
+    /// Ten of them, and not the three this started with. Dropping the sort
+    /// leaves `Dictionary` iteration, which is seeded per process and so
+    /// lands in ascending order by chance about one run in six with three
+    /// entries — the test passed or failed depending on the seed, and a
+    /// mutation run caught it once and missed it once. One run in 3,628,800
+    /// is a test.
     @Test("Rows come back in a stable order")
     func stableOrder() throws {
         let loaded = try descriptors()
+        // Written out of order, so the fixture cannot be mistaken for one
+        // that arrives sorted already.
+        let pids = [700, 100, 400, 900, 200, 1_000, 300, 800, 500, 600]
         let text = reply(
-            panes: [(300, "s:@1.%1", "/synthetic/c"), (100, "s:@1.%2", "/synthetic/a"),
-                    (200, "s:@1.%3", "/synthetic/b")],
-            ps: [(300, 1, "node", claude), (100, 1, "node", claude), (200, 1, "node", claude)],
-            exe: [(300, claude), (100, claude), (200, claude)])
+            panes: pids.enumerated().map {
+                (pid: $1, target: "s:@1.%\($0 + 1)", cwd: "/synthetic/p\($1)")
+            },
+            ps: pids.map { (pid: $0, ppid: 1, comm: "node", args: claude) },
+            exe: pids.map { (pid: $0, path: claude) })
         let first = RemoteTmux.parse(text, host: "example.invalid") { loaded }
-        #expect(first.map(\.cwd) == ["/synthetic/a", "/synthetic/b", "/synthetic/c"])
+        #expect(first.map(\.cwd) == pids.sorted().map { "/synthetic/p\($0)" },
+                "rows came back in the dictionary's order rather than by pid")
         let again = RemoteTmux.parse(text, host: "example.invalid") { loaded }
         #expect(again.map(\.cwd) == first.map(\.cwd))
     }
