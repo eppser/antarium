@@ -178,6 +178,23 @@ struct InstalledButUnusedTests {
 @Suite("Finding nothing is reported the same way everywhere")
 struct AbsenceVocabularyTests {
 
+    /// Every Swift file the app ships, so the rule cannot be outrun by
+    /// writing the claim somewhere new.
+    static func sources() throws -> [String] {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        var out: [String] = []
+        for folder in ["Sources/Antarium", "Sources/Antarium/Core",
+                       "Sources/Antarium/UI", "Sources/Antarium/Providers"] {
+            let files = try FileManager.default.contentsOfDirectory(
+                at: root.appendingPathComponent(folder), includingPropertiesForKeys: nil)
+                .filter { $0.pathExtension == "swift" }
+            out += files.map { folder + "/" + $0.lastPathComponent }
+        }
+        return out.sorted()
+    }
+
     private func source(_ path: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -192,12 +209,16 @@ struct AbsenceVocabularyTests {
 
     /// Nothing may state that an agent is not installed, because nothing here
     /// can establish it.
-    @Test("No surface claims an agent is not installed", arguments: [
-        "Sources/Antarium/Core/Onboarding.swift",
-        "Sources/Antarium/Core/HarnessCLI.swift",
-        "Sources/Antarium/UI/OnboardingView.swift",
-        "Sources/Antarium/UI/SettingsView.swift",
-    ])
+    /// Every source, not a list of four.
+    ///
+    /// The first version named the four surfaces that were wrong at the time,
+    /// and two providers went on saying "Amp isn't installed on this Mac"
+    /// from a failed PATH lookup — which is the same over-claim, in the two
+    /// places most exposed to it, because a command installed through nvm,
+    /// volta, mise or a custom prefix is in none of the places this app
+    /// looks. A rule that lists its subjects only ever covers the instances
+    /// that prompted it.
+    @Test("No source claims an agent is not installed", arguments: try sources())
     func noSurfaceClaimsAbsence(_ path: String) throws {
         let text = try source(path)
         for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false)

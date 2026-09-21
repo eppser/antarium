@@ -265,7 +265,8 @@ enum HarnessCheck {
                 if CommandPath.resolve(command) != nil {
                     ok("quota command \(([command] + (quota.args ?? [])).joined(separator: " "))")
                 } else {
-                    warn("quota.command \(command) is not on this Mac — fine if the agent isn't installed")
+                    warn("quota.command \(command) was not found in the usual places"
+                         + " — fine if the agent lives somewhere else")
                 }
             } else if let raw = quota.endpoint {
                 if let endpoint = URL(string: raw), endpoint.scheme == "https",

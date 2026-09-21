@@ -459,3 +459,6 @@ synthetic charts the ceiling as the spend | Resources/harnesses/synthetic.json |
 synthetic loses its renewal | Resources/harnesses/synthetic.json | s|"resetsAt": "subscription.renewsAt",||
 synthetic numbers claim to be verified | Resources/harnesses/synthetic.json | s|"verified": false|"verified": true|
 synthetic reads no key file | Resources/harnesses/synthetic.json | s|"path": "~/.antarium/keys/synthetic"|"path": "~/.antarium/keys/synthetic-api"|
+amp claims a failed path lookup means not installed | Sources/Antarium/Providers/AmpProvider.swift | s|Amp wasn't found in the usual places.|Amp isn't installed on this Mac.|
+kiro claims a failed path lookup means not installed | Sources/Antarium/Providers/KiroProvider.swift | s|Kiro wasn't found in the usual places.|Kiro isn't installed on this Mac.|
+the check warning claims absence | Sources/Antarium/Core/HarnessCheck.swift | s|was not found in the usual places"|is not on this Mac"|

@@ -26,7 +26,7 @@ final class AmpProvider: UsageProvider, @unchecked Sendable {
 
     func fetch() async throws -> Snapshot {
         guard let path = CommandPath.resolve("amp") else {
-            throw ProviderError.notConfigured("Amp isn't installed on this Mac.")
+            throw ProviderError.notConfigured("Amp wasn't found in the usual places.")
         }
         let result = Shell.execute(path, ["usage", "--no-color"],
                                    timeout: 15, outputLimit: 64 * 1_024)

@@ -21,7 +21,7 @@ final class KiroProvider: UsageProvider, @unchecked Sendable {
 
     func fetch() async throws -> Snapshot {
         guard let path = CommandPath.resolve("kiro-cli") else {
-            throw ProviderError.notConfigured("Kiro isn't installed on this Mac.")
+            throw ProviderError.notConfigured("Kiro wasn't found in the usual places.")
         }
         // Interactive: it reads `/usage` and then has to be told to leave, or
         // it sits on the pipe until the timeout.
