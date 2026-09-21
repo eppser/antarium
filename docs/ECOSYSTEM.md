@@ -123,13 +123,21 @@ Cursor (`.cursor/rules/*.mdc`, filtered to `.mdc` because Cursor's docs say a
 plain `.md` there is ignored), Zed (`.rules`, `.cursorrules`, `CLAUDE.md`,
 `AGENTS.md`).
 
-Not described: the remaining fifteen. That is a gap rather than a decision,
-and closing one means finding the vendor's own statement of where the files
-live — a convention taken from memory would report a capability the agent
-never reads, or miss one it does. Two shapes make it harder than it looks: a
-folder where only some names count needs `fileSuffixes`, and a capability
-whose location moves between versions needs whichever paths are still
-honoured, not only the newest.
+Not described: `cursor-cli`, `gemini`, `hermes`, `kimi`, `openclaw`,
+`opencode` and `pi`. Seven, not the fifteen that "every descriptor without
+capabilities" suggests — project context hangs off a row, and the other eight
+make none. A quota-only harness like `copilot` or `zai` reads no session
+source, and a focus-only one like `herdr` or `orca` reports panes that are
+already somebody else's rows. A capability rule on either is configuration
+nothing will ever read, so a test refuses one and this list is derived from
+the descriptors rather than counted by hand.
+
+The seven are a gap rather than a decision, and closing one means finding the
+vendor's own statement of where the files live — a convention taken from
+memory would report a capability the agent never reads, or miss one it does.
+Two shapes make it harder than it looks: a folder where only some names count
+needs `fileSuffixes`, and a capability whose location moves between versions
+needs whichever paths are still honoured, not only the newest.
 
 One gap is recorded rather than approximated. GitHub documents Copilot's
 scoped instructions as living "within or below" `.github/instructions`; the

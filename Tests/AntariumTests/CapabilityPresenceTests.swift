@@ -334,3 +334,59 @@ struct ShippedCapabilityTests {
         #expect(declared >= 10, "too few capabilities declared to have proved anything")
     }
 }
+
+/// Which harnesses a capability rule can usefully be written for.
+///
+/// Project context is attached to a row, so a harness that makes no rows has
+/// nowhere to put one. Counting every descriptor without capabilities as a
+/// gap overstated it by nine and would have sent the next reader hunting for
+/// documentation on where GitHub Copilot's quota endpoint keeps its
+/// instruction files, which is not a question.
+@Suite("Capability rules belong to harnesses that make rows")
+struct CapabilityApplicabilityTests {
+
+    /// A harness puts rows on the dashboard if it reads a session source, if
+    /// it names transcript paths for a native scanner, or if it reports
+    /// presence from the process table alone. Focus-only harnesses
+    /// deliberately make none: every pane they see is already somebody else's
+    /// row.
+    private func makesRows(_ d: HarnessDescriptor) -> Bool {
+        if d.contributesFocusOnly { return false }
+        if d.contributesPresenceOnly { return true }
+        return d.source.kind != .none || !(d.source.paths ?? [:]).isEmpty
+    }
+
+    private var shipped: [HarnessDescriptor] {
+        get throws {
+            let urls = try #require(AppResources.bundle.urls(
+                forResourcesWithExtension: "json", subdirectory: "harnesses"))
+            return try urls.sorted { $0.path < $1.path }.map {
+                try HarnessDocument.decode(Data(contentsOf: $0)).descriptor
+            }
+        }
+    }
+
+    @Test("No harness declares project context it can never show")
+    func noDeadCapabilityRules() throws {
+        for descriptor in try shipped where !descriptor.capabilityRules.isEmpty {
+            #expect(makesRows(descriptor),
+                    Comment(rawValue: "\(descriptor.id) declares capabilities and makes no rows"))
+        }
+    }
+
+    /// The gap ECOSYSTEM.md records, derived rather than counted by hand so
+    /// it cannot drift from the descriptors it describes.
+    @Test("The documented gap is the harnesses that make rows and say nothing")
+    func documentedGapMatches() throws {
+        let missing = try shipped
+            .filter { makesRows($0) && $0.capabilityRules.isEmpty }
+            .map(\.id).sorted()
+        let doc = try String(contentsOf: URL(fileURLWithPath: "docs/ECOSYSTEM.md"),
+                             encoding: .utf8)
+        for id in missing {
+            #expect(doc.contains("`\(id)`"),
+                    Comment(rawValue: "\(id) has no capability rule and is not recorded as a gap"))
+        }
+        #expect(!missing.isEmpty, "the list is empty, so this test asserts nothing")
+    }
+}
