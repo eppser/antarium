@@ -452,3 +452,95 @@ struct RemainingCLISummaryTests {
         #expect(installs.lines.count == installs.checked.count)
     }
 }
+
+/// The path somebody outside this repository actually walks.
+///
+/// The five documented steps for adding a quota provider end at
+/// `--verify-harness-quota`, which only ever looks at the shipped
+/// descriptors. An author with a harness in `~/.antarium/harnesses` could
+/// write the mapping and write the fixture and have no way to run one
+/// against the other — and the verifier said nothing about the omission, so
+/// its list of passes looked like it covered theirs.
+///
+/// `--check` is the command the seeded README tells them to run, so the
+/// fixture is replayed there, from a file beside the descriptor.
+@Suite("A descriptor somebody wrote themselves can be checked against a fixture", .serialized)
+struct FixtureBesideDescriptorTests {
+
+    private func write(_ name: String, _ object: [String: Any], in root: URL) throws -> URL {
+        let url = root.appendingPathComponent(name)
+        try JSONSerialization.data(withJSONObject: object).write(to: url)
+        return url
+    }
+
+    private var descriptor: [String: Any] {
+        ["formatVersion": 1, "id": "mine", "name": "Mine",
+         "process": [:], "source": ["kind": "none", "path": ""],
+         "quota": ["endpoint": "https://api.example.invalid/u",
+                   "credential": ["kind": "textFile", "path": "~/.antarium/keys/mine"],
+                   "windows": ["single": "info", "usedPercent": "info.pct"]]]
+    }
+
+    private func root() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("beside-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    @Test("A fixture beside the descriptor is found")
+    func fixtureIsFound() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try write("mine.json", descriptor, in: root)
+        #expect(QuotaFixture.fixtureURL(besideDescriptorAt: d) == nil,
+                "a fixture was found before one was written")
+        _ = try write("mine.quota-fixture.json", ["response": [:]], in: root)
+        #expect(QuotaFixture.fixtureURL(besideDescriptorAt: d)?.lastPathComponent
+                == "mine.quota-fixture.json")
+    }
+
+    /// A mapping that matches its fixture passes, which is the positive
+    /// control: without it everything below is satisfied by a checker that
+    /// refuses everything.
+    @Test("A mapping that matches its fixture is reported as passing")
+    func matchingFixturePasses() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try write("mine.json", descriptor, in: root)
+        _ = try write("mine.quota-fixture.json", [
+            "cases": [["name": "ordinary",
+                       "response": ["info": ["pct": 61.5]],
+                       "expected": ["gauges": [["id": "info", "badge": "INF",
+                                                "title": "INF", "usedPercent": 61.5]]]]],
+        ], in: root)
+        #expect(HarnessCheck.run(d.path) == 0)
+    }
+
+    /// And one that does not match is a problem, with the difference named.
+    /// This is what an author gets instead of finding out at the first fetch.
+    @Test("A mapping that disagrees with its fixture is a problem")
+    func mismatchingFixtureFails() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try write("mine.json", descriptor, in: root)
+        _ = try write("mine.quota-fixture.json", [
+            "cases": [["name": "ordinary",
+                       "response": ["info": ["pct": 61.5]],
+                       "expected": ["gauges": [["id": "info", "badge": "INF",
+                                                "title": "INF", "usedPercent": 12.0]]]]],
+        ], in: root)
+        #expect(HarnessCheck.run(d.path) != 0, "a wrong figure was accepted")
+    }
+
+    /// A descriptor with no fixture is not a failure — plenty of harnesses
+    /// declare no quota at all — but the omission is said out loud, because
+    /// silence is what made this invisible.
+    @Test("A descriptor with no fixture beside it still checks clean")
+    func noFixtureIsNotAFailure() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try write("mine.json", descriptor, in: root)
+        #expect(HarnessCheck.run(d.path) == 0)
+    }
+}

@@ -677,3 +677,6 @@ a placeholder with no field is accepted | Sources/Antarium/Core/HarnessDocument.
 a numeric account id is not an account id | Sources/Antarium/Providers/DescriptorProvider.swift | s|        if let number = FieldPath.lookup(object, field) as? NSNumber { return number.stringValue }||
 a credential file from another vendor is trusted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            else { return false }|            else { return true }|
 the validator insists on https again | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   endpoint.scheme == "https",|
+a fixture beside a descriptor is never replayed | Sources/Antarium/Core/HarnessCheck.swift | s|            if let fixture = QuotaFixture.fixtureURL(besideDescriptorAt: url) {|            if let fixture: URL = nil {|
+a failing fixture beside a descriptor passes | Sources/Antarium/Core/HarnessCheck.swift | s|                        fail("quota fixture \\(fixture.lastPathComponent): \\(report.detail)")|                        ok("quota fixture \\(fixture.lastPathComponent): \\(report.detail)")|
+any file counts as the fixture | Sources/Antarium/Core/QuotaFixture.swift | s|        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil|        return candidate|

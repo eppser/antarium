@@ -538,6 +538,12 @@ Five steps, none of which need the service installed or an account with it.
    `antarium --verify-harness-quota` for the mapping. The second runs the
    fixture through the real provider code, which is what makes this testable
    with nothing installed.
+
+   Outside this repository — a harness of your own in `~/.antarium/harnesses`
+   — put the fixture beside the descriptor as `<id>.quota-fixture.json` and
+   `--check` replays it there. `--verify-harness-quota` reads the shipped
+   descriptors only, and said nothing about a file it had not looked at, so
+   its list of passes read as though it covered yours.
 5. Add the mapping's load-bearing parts to `mutations.txt` and run
    `./mutate.sh` over just those lines. A fixture proves the mapping works
    today; a mutation proves a test would notice when it stops.

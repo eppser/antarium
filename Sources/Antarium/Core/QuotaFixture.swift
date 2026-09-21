@@ -98,6 +98,21 @@ enum QuotaFixture {
         return one(document, "response").map { [$0] } ?? []
     }
 
+    /// Where a fixture sits beside a descriptor somebody wrote themselves.
+    ///
+    /// The bundled ones live in the app; a harness in `~/.antarium/harnesses`
+    /// has no such folder, and until now nothing could replay a fixture for
+    /// it at all. The five documented steps for adding a quota provider ended
+    /// at a command that only ever looked at the shipped descriptors, so an
+    /// author outside this repository could write the mapping and the fixture
+    /// and have no way to run one against the other — which is the whole of
+    /// what makes this testable without the service installed.
+    static func fixtureURL(besideDescriptorAt path: URL) -> URL? {
+        let candidate = path.deletingPathExtension()
+            .appendingPathExtension("quota-fixture.json")
+        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+    }
+
     static func verify(_ descriptor: HarnessDescriptor, in bundle: Bundle) -> Report? {
         guard descriptor.quota != nil else { return nil }
         guard let url = fixtureURL(for: descriptor.id, in: bundle) else {
@@ -105,6 +120,12 @@ enum QuotaFixture {
                           detail: "no quota fixture — add Resources/quota-fixtures/\(descriptor.id).json",
                           verifiedAt: nil)
         }
+        return verify(descriptor, fixture: url)
+    }
+
+    /// The same replay, against a fixture named directly.
+    static func verify(_ descriptor: HarnessDescriptor, fixture url: URL) -> Report? {
+        guard descriptor.quota != nil else { return nil }
         guard let data = try? Data(contentsOf: url),
               let document = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return Report(id: descriptor.id, passed: false,

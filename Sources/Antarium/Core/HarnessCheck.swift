@@ -211,6 +211,8 @@ enum HarnessCheck {
         func fail(_ m: String) { print("  ✗ \(m)"); problems += 1 }
         func warn(_ m: String) { print("  ! \(m)"); warnings += 1 }
         func ok(_ m: String)   { print("  ✓ \(m)") }
+        // Neither a problem nor a warning: a thing the author could do next.
+        func note(_ m: String)  { print("  · \(m)") }
 
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         print("\nChecking \(url.lastPathComponent)\n")
@@ -365,6 +367,26 @@ enum HarnessCheck {
             } else {
                 fail("quota declares neither an endpoint nor a command")
             }
+            // A fixture beside the file, replayed. The five documented steps
+            // for adding a quota provider end at a command that only looks at
+            // the shipped descriptors, so an author working outside this
+            // repository could write a mapping and a fixture and have no way
+            // to run one against the other — which is the whole of what makes
+            // a provider testable without the service installed.
+            if let fixture = QuotaFixture.fixtureURL(besideDescriptorAt: url) {
+                if let report = QuotaFixture.verify(descriptor, fixture: fixture) {
+                    if report.passed {
+                        ok("quota fixture \(fixture.lastPathComponent): \(report.detail)")
+                    } else {
+                        fail("quota fixture \(fixture.lastPathComponent): \(report.detail)")
+                    }
+                }
+            } else {
+                note("no quota fixture beside this file — add "
+                     + "\(url.deletingPathExtension().lastPathComponent).quota-fixture.json "
+                     + "to check the mapping against a recorded reply, with nothing installed")
+            }
+
             if let credential = quota.credential {
                 let missing: String?
                 switch credential.kind {
