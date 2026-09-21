@@ -97,15 +97,35 @@ enum HarnessCLI {
     /// path fails here rather than on a stranger's Mac.
     static func verifyBundledQuota() -> Int32 {
         let descriptors = bundledDescriptors().filter { $0.quota != nil }
-        var failures = 0
-        for descriptor in descriptors {
-            guard let report = QuotaFixture.verify(descriptor, in: AppResources.bundle) else { continue }
-            print("\(report.passed ? "✓" : "✗") \(report.id): \(report.detail)"
-                + (report.verifiedAt.map { " (\($0))" } ?? ""))
-            if !report.passed { failures += 1 }
-        }
+        let summary = quotaSummary(bundledDescriptors(), in: AppResources.bundle)
+        for line in summary.lines { print(line) }
         if descriptors.isEmpty { print("no descriptor declares a quota block") }
-        return failures == 0 ? 0 : 1
+        return exitCode(for: summary)
+    }
+
+    /// A descriptor that declares quota and yields no report is a failure,
+    /// not something to pass over. The `continue` this replaces skipped it
+    /// silently, so a mapping that could not even be attempted counted as
+    /// fine.
+    static func quotaSummary(_ descriptors: [HarnessDescriptor],
+                             in bundle: Bundle) -> FixtureSummary {
+        var lines: [String] = [], checked: [String] = [], failed: [String] = []
+        // Filtered here rather than by the caller, so "produced no report"
+        // means something definite: every descriptor reaching the loop
+        // declares a quota block, and one that then yields nothing has a
+        // mapping that could not even be attempted.
+        for descriptor in descriptors where descriptor.quota != nil {
+            checked.append(descriptor.id)
+            guard let report = QuotaFixture.verify(descriptor, in: bundle) else {
+                failed.append(descriptor.id)
+                lines.append("✗ \(descriptor.id): declares quota but produced no report")
+                continue
+            }
+            if !report.passed { failed.append(report.id) }
+            lines.append("\(report.passed ? "✓" : "✗") \(report.id): \(report.detail)"
+                + (report.verifiedAt.map { " (\($0))" } ?? ""))
+        }
+        return FixtureSummary(lines: lines, checked: checked, failed: failed)
     }
 
     /// Reports what a first run would switch on, and why.
@@ -171,14 +191,29 @@ enum HarnessCLI {
             }
             .sorted { $0.id < $1.id }
 
-        var failures = 0
+        let summary = installationSummary(descriptors)
+        for line in summary.lines { print(line) }
+        return exitCode(for: summary)
+    }
+
+    /// A descriptor that claims processes must carry probes that pass. Zero
+    /// probes is a failure rather than a vacuous success — that is what
+    /// `report.total > 0` is for, and it had nothing holding it.
+    static func installationSummary(_ descriptors: [HarnessDescriptor]) -> FixtureSummary {
+        var lines: [String] = [], checked: [String] = [], failed: [String] = []
         for descriptor in descriptors {
             let report = HarnessInstallationEvaluator.evaluate(descriptor)
+            // `total > 0` cannot decide this on its own: an empty probe list
+            // already fails the evaluator's "no positive probe" and "no
+            // negative probe" rules, so `failures.isEmpty` implies probes of
+            // both polarities exist. Kept as a statement of intent; no
+            // mutation of it can be caught.
             let passed = report.failures.isEmpty && report.total > 0
-            print("\(passed ? "✓" : "✗") \(descriptor.id): \(report.passed)/\(report.total) probes"
+            checked.append(descriptor.id)
+            if !passed { failed.append(descriptor.id) }
+            lines.append("\(passed ? "✓" : "✗") \(descriptor.id): \(report.passed)/\(report.total) probes"
                 + (report.failures.isEmpty ? "" : " — \(report.failures.joined(separator: "; "))"))
-            if !passed { failures += 1 }
         }
-        return failures == 0 ? 0 : 1
+        return FixtureSummary(lines: lines, checked: checked, failed: failed)
     }
 }

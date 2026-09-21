@@ -353,3 +353,6 @@ fixture cli checks the ones with no source | Sources/Antarium/Core/HarnessCLI.sw
 fixture cli prints more lines than it checked | Sources/Antarium/Core/HarnessCLI.swift | s|checked.append(descriptor.id)||
 fixture cli returns success despite failures | Sources/Antarium/Core/HarnessCLI.swift | s|summary.failed.isEmpty ? 0 : 1|0|
 fixture cli fails a clean run | Sources/Antarium/Core/HarnessCLI.swift | s|summary.failed.isEmpty ? 0 : 1|1|
+quota cli counts descriptors with no quota | Sources/Antarium/Core/HarnessCLI.swift | s|for descriptor in descriptors where descriptor.quota != nil {|for descriptor in descriptors {|
+quota cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !report.passed { failed.append(report.id) }||
+installation cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|            if !passed { failed.append(descriptor.id) }||

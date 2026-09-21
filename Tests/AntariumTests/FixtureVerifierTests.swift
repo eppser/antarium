@@ -358,3 +358,94 @@ struct FixtureCLISummaryTests {
         #expect(summary.checked.count == 1)
     }
 }
+
+/// The other two command-line verifiers, which had the same aggregation and
+/// therefore the same gaps. The quota one had an extra: a descriptor that
+/// declared quota and produced no report at all was skipped by a `continue`,
+/// so a mapping that could not even be attempted counted as fine.
+@Suite("The quota and installation tallies", .serialized)
+struct RemainingCLISummaryTests {
+
+    private func bundled() throws -> [HarnessDescriptor] {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        return try urls.map { try HarnessDocument.decode(Data(contentsOf: $0)).descriptor }
+    }
+
+    private func quotaDescriptor(id: String) throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id, "process": [:],
+            "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": "https://example.invalid/u",
+                      "windows": ["list": "d", "usedPercent": "p"]]]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    @Test("A quota descriptor with no fixture is counted and failed, not skipped")
+    func missingQuotaFixtureFails() throws {
+        let summary = HarnessCLI.quotaSummary(
+            [try quotaDescriptor(id: "unproven-\(UUID().uuidString)")],
+            in: AppResources.bundle)
+        #expect(summary.checked.count == 1, "the descriptor was passed over")
+        #expect(summary.failed.count == 1, "an unproven mapping counted as fine")
+        #expect(summary.lines.first?.hasPrefix("✗") == true)
+    }
+
+    /// The filter lives inside the summary, so a descriptor with no quota
+    /// block is passed over rather than counted as a failure — and one that
+    /// *does* declare quota is always counted, whatever it yields.
+    @Test("Descriptors with no quota block are not counted at all")
+    func noQuotaIsNotCounted() throws {
+        let plain: [String: Any] = [
+            "formatVersion": 1, "id": "no-quota", "name": "None", "process": [:],
+            "source": ["kind": "none", "path": ""]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: plain)).descriptor
+        let summary = HarnessCLI.quotaSummary([descriptor], in: AppResources.bundle)
+        #expect(summary.checked.isEmpty)
+        #expect(summary.failed.isEmpty)
+    }
+
+    @Test("Every shipped quota descriptor passes")
+    func shippedQuotaPasses() throws {
+        let summary = HarnessCLI.quotaSummary(try bundled(), in: AppResources.bundle)
+        #expect(summary.failed.isEmpty, Comment(rawValue: summary.failed.joined(separator: ", ")))
+        #expect(summary.checked.count >= 7)
+    }
+
+    /// A descriptor claiming processes with no probes at all is a failure.
+    /// Counting zero probes as a clean run is the vacuous-pass shape again.
+    @Test("A descriptor with no probes fails rather than passing vacuously")
+    func noProbesFails() throws {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "probeless", "name": "Probeless",
+            "process": ["pathContains": ["/synthetic/"]],
+            "source": ["kind": "none", "path": ""]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        let summary = HarnessCLI.installationSummary([descriptor])
+        #expect(summary.failed == ["probeless"])
+    }
+
+    @Test("Every shipped descriptor that claims processes passes its probes")
+    func shippedProbesPass() throws {
+        let claiming = try bundled().filter {
+            !($0.processRule.pathContains ?? []).isEmpty
+                || !($0.processRule.names ?? []).isEmpty
+                || !($0.processRule.argv0Contains ?? []).isEmpty
+        }
+        let summary = HarnessCLI.installationSummary(claiming)
+        #expect(summary.failed.isEmpty, Comment(rawValue: summary.failed.joined(separator: ", ")))
+        #expect(summary.checked.count >= 10)
+    }
+
+    @Test("Both tallies print one line per descriptor checked")
+    func linesMatchChecked() throws {
+        let quota = HarnessCLI.quotaSummary(try bundled().filter { $0.quota != nil },
+                                            in: AppResources.bundle)
+        #expect(quota.lines.count == quota.checked.count)
+        let installs = HarnessCLI.installationSummary(try bundled())
+        #expect(installs.lines.count == installs.checked.count)
+    }
+}
