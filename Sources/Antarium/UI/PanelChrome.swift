@@ -112,17 +112,27 @@ enum PanelChrome {
     }
 
     /// Hangs a panel under a status item, clamped to the screen.
+    ///
+    /// The second placement routine in this app, and it agreed with the first
+    /// only by accident. Its own anchor branch could not do anything:
+    /// `min(max(a, E), E)` is `E` whatever `a` is, so the button's position
+    /// was computed, converted and thrown away, and the panel always sat at
+    /// the screen edge. Nothing was visibly wrong, which is why it survived —
+    /// the edge is where it belongs nearly always.
+    ///
+    /// What was missing is what the other routine had to be taught: neither
+    /// axis was clamped, so a panel taller than the screen ran off the bottom
+    /// and one wider than the screen ran off the left. One rule for both
+    /// panels now.
     static func place(_ panel: NSPanel, under anchor: NSStatusBarButton?, size: NSSize) {
         let screen = anchor?.window?.screen ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let margin: CGFloat = 8
-        var x = visible.maxX - size.width - margin
-        if let button = anchor, let window = button.window {
-            let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
-            x = min(max(frame.maxX - size.width, visible.maxX - size.width - margin),
-                    visible.maxX - size.width - margin)
+        let anchorFrame: CGRect? = anchor.flatMap { button in
+            button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) }
         }
-        panel.setFrame(NSRect(x: x, y: visible.maxY - size.height,
-                              width: size.width, height: size.height), display: true)
+        let origin = PanelPlacement.origin(
+            saved: nil, userMoved: false, pinned: false,
+            anchor: anchorFrame, visible: visible, size: size)
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 }

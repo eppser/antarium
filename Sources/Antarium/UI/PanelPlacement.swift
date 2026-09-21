@@ -1,13 +1,21 @@
 import CoreGraphics
 
-/// Where the dashboard panel sits, decided without a window in hand.
+/// Where a panel sits, decided without a window in hand.
 ///
-/// Separated from `DashboardPanel` because the rule it enforces last — that
-/// the panel stays on the screen — was enforced in one direction only, and
+/// Separated from the panels because the rule it enforces last — that the
+/// panel stays on the screen — was enforced in one direction only, and
 /// nothing could say so: the decision needed an `NSPanel`, an `NSScreen` and
-/// a status item button, so the only way to reach it was to have a dashboard
+/// a status item button, so the only way to reach it was to have a panel open
 /// on a particular Mac with a particular display attached.
-enum DashboardPlacement {
+///
+/// There were three copies of this, and they agreed only by accident. The
+/// dashboard's clamped its vertical position at the bottom alone. The
+/// settings panel's had an anchor branch that could not do anything, since
+/// `min(max(a, E), E)` is `E` whatever `a` is, and clamped neither axis at
+/// all. The third, for a settings panel the user had dragged, clamped both
+/// axes but inverted on a screen smaller than the panel. One rule now, and
+/// the awkward cases are written down once.
+enum PanelPlacement {
 
     static let margin: CGFloat = 8
 

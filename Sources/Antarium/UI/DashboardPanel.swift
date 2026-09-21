@@ -129,7 +129,7 @@ final class DashboardPanel: NSObject {
         let anchorFrame: CGRect? = anchor.flatMap { button in
             button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) }
         }
-        let origin = DashboardPlacement.origin(
+        let origin = PanelPlacement.origin(
             saved: Settings.dashboardOrigin, userMoved: userMoved,
             pinned: Settings.dashboardPinned, anchor: anchorFrame,
             visible: visible, size: size)

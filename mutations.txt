@@ -647,12 +647,12 @@ any length of hex is a colour | Sources/Antarium/UI/AgentStyle.swift | s|       
 a negative row walks the palette backwards | Sources/Antarium/UI/AgentStyle.swift | s|        let row = max(0, index)|        let row = index|
 every row is the first row | Sources/Antarium/UI/AgentStyle.swift | s|        let row = max(0, index)|        let row = 0|
 the blue channel is the red one | Sources/Antarium/UI/AgentStyle.swift | s|blue: CGFloat(v \& 0xFF) / 255, alpha: 1)|blue: CGFloat((v >> 16) \& 0xFF) / 255, alpha: 1)|
-the dashboard may sit above the screen | Sources/Antarium/UI/DashboardPlacement.swift | s|        origin.y = clamp(origin.y, low: visible.minY + margin, high: topY)|        origin.y = max(origin.y, visible.minY + margin)|
-the dashboard may sit below the screen | Sources/Antarium/UI/DashboardPlacement.swift | s|        origin.y = clamp(origin.y, low: visible.minY + margin, high: topY)|        origin.y = min(origin.y, topY)|
-a narrow screen pushes the dashboard off its left edge | Sources/Antarium/UI/DashboardPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
-a saved position is never respected | Sources/Antarium/UI/DashboardPlacement.swift | s|        if userMoved, let saved {|        if false, let saved = saved {|
-a saved position wins before it is moved | Sources/Antarium/UI/DashboardPlacement.swift | s|        if userMoved, let saved {|        if let saved {|
-a position that is not a number becomes a frame | Sources/Antarium/UI/DashboardPlacement.swift | s|        guard value.isFinite else { return low }||
+the dashboard may sit above the screen | Sources/Antarium/UI/PanelPlacement.swift | s|        origin.y = clamp(origin.y, low: visible.minY + margin, high: topY)|        origin.y = max(origin.y, visible.minY + margin)|
+the dashboard may sit below the screen | Sources/Antarium/UI/PanelPlacement.swift | s|        origin.y = clamp(origin.y, low: visible.minY + margin, high: topY)|        origin.y = min(origin.y, topY)|
+a narrow screen pushes the dashboard off its left edge | Sources/Antarium/UI/PanelPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
+a saved position is never respected | Sources/Antarium/UI/PanelPlacement.swift | s|        if userMoved, let saved {|        if false, let saved = saved {|
+a saved position wins before it is moved | Sources/Antarium/UI/PanelPlacement.swift | s|        if userMoved, let saved {|        if let saved {|
+a position that is not a number becomes a frame | Sources/Antarium/UI/PanelPlacement.swift | s|        guard value.isFinite else { return low }||
 a barely started window reads as untouched | Sources/Antarium/UI/Renderer.swift | s|        return max(1, min(n, Int((clamped \* Double(n)).rounded())))|        return min(n, Int((clamped * Double(n)).rounded()))|
 a figure that is not a number fills the bar | Sources/Antarium/UI/Renderer.swift | s|        guard fill.isFinite else { return 0 }||
 an empty window lights a beam anyway | Sources/Antarium/UI/Renderer.swift | s|        guard clamped > 0 else { return 0 }||
