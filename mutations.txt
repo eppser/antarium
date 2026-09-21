@@ -638,3 +638,7 @@ the menu bar colour follows the meter mode | Sources/Antarium/UI/Renderer.swift 
 the bar ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: g.hasMeter ? g.used : nil,|
 a balance draws a bar after all | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: (mode == .used ? g.used : g.remaining),|
 the figure ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),|                    ?? g.usedPercentText,|
+a declared mark is ignored | Sources/Antarium/UI/Glyphs.swift | s|        if let declared = descriptors.first(where: { \$0.id == agentID })?.resolvedMark {|        if let declared: String = nil {|
+any descriptor lends its mark | Sources/Antarium/UI/Glyphs.swift | s|descriptors.first(where: { \$0.id == agentID })?.resolvedMark|descriptors.first?.resolvedMark|
+the alias table is skipped | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return agentID|
+every agent wears its alias whether it has one or not | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return alias[agentID] ?? "claude-code"|

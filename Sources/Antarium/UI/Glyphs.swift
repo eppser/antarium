@@ -17,12 +17,23 @@ enum Glyphs {
     /// Harnesses that are the same product wearing a different hat, and so
     /// carry the same mark: Cursor's CLI and its editor, Codex's CLI and the
     /// desktop app inside ChatGPT.
-    private static let alias = ["cursor-cli": "cursor", "codex-desktop": "codex"]
+    static let alias = ["cursor-cli": "cursor", "codex-desktop": "codex"]
 
     /// A descriptor may name its mark, so a contributed harness can wear an
     /// existing icon without a code change.
-    private static func markName(_ agentID: String) -> String {
-        if let declared = HarnessDescriptor.all().first(where: { $0.id == agentID })?.resolvedMark {
+    ///
+    /// Three answers in order, and the order is the whole of it: a mark the
+    /// descriptor declares, then the alias table for the harnesses that are
+    /// one product wearing two hats, then the agent's own id. Getting it
+    /// wrong puts another agent's logo beside a row, which is a misstatement
+    /// rather than a cosmetic slip — the icon is how a glance tells two rows
+    /// apart.
+    ///
+    /// The catalogue is a parameter so the order can be checked without the
+    /// harness folder on this Mac deciding the answer.
+    static func markName(_ agentID: String,
+                         in descriptors: [HarnessDescriptor] = HarnessDescriptor.all()) -> String {
+        if let declared = descriptors.first(where: { $0.id == agentID })?.resolvedMark {
             return declared
         }
         return alias[agentID] ?? agentID
