@@ -19,9 +19,19 @@ bad()  { printf '   FAIL %s\n' "$1"; fails=$((fails + 1)); }
 BIN=.build/debug/Antarium
 APP=dist/Antarium.app/Contents/MacOS/Antarium
 
+# A suite that ran no tests exits zero, and `ok "$(grep …)"` would report that
+# as a blank pass. Every test step below reports the count it actually saw and
+# refuses a run that saw none — the same rule as the descriptor verifiers.
+ran() {   # ran <logfile> <label>
+    local n
+    n=$(grep -oE 'Test run with [0-9]+ tests' "$1" | tail -1 | grep -oE '[0-9]+')
+    if [ -n "$n" ] && [ "$n" -gt 0 ]; then ok "$n tests $2"; return 0; fi
+    bad "no tests ran $2 — see $1"; return 1
+}
+
 step "Tests"
 if ./test.sh >/tmp/verify-tests.log 2>&1; then
-    ok "$(grep -oE 'Test run with [0-9]+ tests' /tmp/verify-tests.log | tail -1)"
+    ran /tmp/verify-tests.log ""
 else
     bad "test suite — see /tmp/verify-tests.log"
 fi
@@ -32,7 +42,7 @@ step "Tests on a machine where Antarium has never run"
 # tmux tests sat red in CI while green on the machine that wrote them.
 bare=$(mktemp -d)
 if ANTARIUM_HOME="$bare" ./test.sh >/tmp/verify-bare.log 2>&1; then
-    ok "$(grep -oE 'Test run with [0-9]+ tests' /tmp/verify-bare.log | tail -1)"
+    ran /tmp/verify-bare.log "on a bare machine"
 else
     bad "test suite depends on local state — see /tmp/verify-bare.log"
     grep -E '^✘ Test "' /tmp/verify-bare.log | head -3
@@ -53,7 +63,7 @@ step "Tests in a timezone that is not UTC"
 # half-hour offset. Kolkata is +05:30 deliberately: a whole-hour zone would
 # miss an error that happens to be a multiple of an hour.
 if TZ=Asia/Kolkata ./test.sh >/tmp/verify-tz.log 2>&1; then
-    ok "$(grep -oE 'Test run with [0-9]+ tests' /tmp/verify-tz.log | tail -1) (TZ=Asia/Kolkata)"
+    ran /tmp/verify-tz.log "(TZ=Asia/Kolkata)"
 else
     bad "test suite depends on the local timezone — see /tmp/verify-tz.log"
     grep -E '^✘ Test "' /tmp/verify-tz.log | head -3

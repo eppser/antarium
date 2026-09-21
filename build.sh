@@ -91,7 +91,16 @@ fi
 # not the app.
 if [[ -d Resources/quota-fixtures ]]; then
     cp -R Resources/quota-fixtures "$APP/Contents/Resources/quota-fixtures"
-    echo "    bundled quota fixtures: $(find Resources/quota-fixtures -name '*.json' | wc -l | tr -d ' ')"
+    quota_count=$(find Resources/quota-fixtures -name '*.json' | wc -l | tr -d ' ')
+    echo "    bundled quota fixtures: $quota_count"
+    # Counting what was copied rather than trusting the copy: an empty source
+    # directory, or one the copy silently skipped, produces an app that
+    # verifies zero fixtures and still exits zero.
+    copied=$(find "$APP/Contents/Resources/quota-fixtures" -name '*.json' | wc -l | tr -d ' ')
+    if [ "$copied" != "$quota_count" ]; then
+        echo "    ERROR: $quota_count quota fixtures to bundle, $copied arrived" >&2
+        exit 1
+    fi
 fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
