@@ -26,6 +26,11 @@ enum PrivateFile {
             return "\(info.st_dev):\(info.st_ino):\(info.st_size):\(info.st_mode):\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec):\(info.st_ctimespec.tv_sec):\(info.st_ctimespec.tv_nsec)"
         }
         let initial = try stamp()
+        // The name is random, so `O_EXCL | O_NOFOLLOW` below defends against a
+        // predictable-name attack that cannot be staged here — and cannot be
+        // reached by a test either. The destination is protected separately
+        // and testably: `stamp()` refuses anything that is not a regular file
+        // and never follows a link to decide.
         let temporary = ".antarium-\(UUID()).tmp"
         let file = openat(directory,temporary,O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,executable ? 0o700 : 0o600)
         guard file >= 0 else { throw WriteError.failed }

@@ -246,3 +246,12 @@ directory listing loses entry kinds | Sources/Antarium/Core/BoundedDirectory.swi
 glob search returns unsorted | Sources/Antarium/Core/BoundedDirectory.swift | s|return found.sorted { \$0.path < \$1.path }|return Array(found)|
 sqlite query returns no rows | Sources/Antarium/Core/BoundedSQLite.swift | s|return Result(columns:columns,rows:rows)|return Result(columns:columns,rows:[])|
 shell captures no output | Sources/Antarium/Core/Shell.swift | s|return Result(stdout: string(capturedOut.data),|return Result(stdout: "",|
+private file written world readable | Sources/Antarium/Core/PrivateFile.swift | s|executable ? 0o700 : 0o600|executable ? 0o777 : 0o666|
+private file left at its temporary name | Sources/Antarium/Core/PrivateFile.swift | s|guard renameat(directory,temporary,directory,name) == 0 else { throw WriteError.failed }||
+usage http returns an empty object on success | Sources/Antarium/Core/UsageHTTP.swift | s|^        return obj$|        return [:]|
+usage http treats every status as success | Sources/Antarium/Core/UsageHTTP.swift | s|case 200...299: return|case 100...599: return|
+exact transcript match skipped | Sources/Antarium/Core/AgentScan.swift | s|if BoundedFile.isRegular(exact) { return exact }||
+resumed transcript matches any session | Sources/Antarium/Core/AgentScan.swift | s|record\["sessionId"\] as? String == sessionID { return candidate.url }|record["sessionId"] != nil { return candidate.url }|
+resumed search scans oldest first | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.modified > \$1.modified }|.sorted { $0.modified < $1.modified }|
+resumed search unbounded | Sources/Antarium/Core/AgentScan.swift | s|.prefix(8)||
+transcript search follows non-jsonl files | Sources/Antarium/Core/AgentScan.swift | s|\$0.isRegular \&\& \$0.url.pathExtension == "jsonl"|$0.isRegular|
