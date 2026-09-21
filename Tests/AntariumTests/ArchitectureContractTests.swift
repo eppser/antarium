@@ -1035,6 +1035,42 @@ struct DocumentedLimitTests {
         }
     }
 
+    /// The same rules applied to the tests. A locale-sensitive test passes on
+    /// the machine that wrote it and fails on another, which is worse than a
+    /// locale-sensitive source: it hides rather than misreports. One of these
+    /// checks was itself written with `formatted()` and failed here, on a Mac
+    /// whose region is Germany, against a document that was correct.
+    @Test("No test formats through the reader's locale")
+    func testsAreLocaleIndependent() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let tests = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("Tests/AntariumTests"),
+            includingPropertiesForKeys: nil).filter { $0.pathExtension == "swift" }
+        #expect(tests.count > 20, "no test sources were scanned")
+
+        // Comments are skipped: several of these files explain a rule by
+        // quoting the form it forbids.
+        let banned = [".formatted(", "NumberFormatter", "Calendar.current"]
+        for url in tests {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false)
+                .enumerated() {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), !trimmed.hasPrefix("///") else { continue }
+                // A form quoted in a string is this rule naming what it
+                // forbids, not a use of it. Skipping the whole file instead
+                // would have missed the `formatted()` that prompted this,
+                // which was written here.
+                for form in banned where trimmed.contains(form)
+                    && !trimmed.contains("\"\(form)") {
+                    Issue.record(Comment(rawValue: "\(url.lastPathComponent):\(index + 1) "
+                                         + "uses \(form), which follows whoever runs it"))
+                }
+            }
+        }
+    }
+
     /// `Text("\(x)")` takes a `LocalizedStringKey`, which groups digits for
     /// the reader — 10259 rendered as "10.259" under a German locale, which
     /// is the bug recorded above `Fmt` and was still live in three places.
