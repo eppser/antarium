@@ -57,3 +57,62 @@ struct HarnessReaderBoundaryTests {
         #expect(sample.records.count <= 10)
     }
 }
+
+/// Field mappings in the middle of their range. The reader's boundaries are
+/// covered above; these are the ordinary substitutions it performs, one of
+/// which had nothing holding it.
+@Suite("What the reader makes of the fields it is given", .serialized)
+struct HarnessFieldMappingTests {
+
+    private func session(_ record: String) throws -> HarnessEngine.Session {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mapping-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data((record + "\n").utf8).write(to: root.appendingPathComponent("trace.jsonl"))
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "mapping-fixture", "name": "Fixture", "process": [:],
+            "source": ["kind": "jsonl", "path": root.path, "glob": "*.jsonl"],
+            "map": ["cwd": "cwd", "model": "model", "title": "title"]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        return try #require(HarnessEngine.sessions(descriptor).first)
+    }
+
+    @Test("A model name is taken as it is written")
+    func modelIsRead() throws {
+        #expect(try session(#"{"cwd":"/p","model":"synthetic-opus-5"}"#).model == "synthetic-opus-5")
+    }
+
+    /// Some harnesses write a placeholder where the model goes before one is
+    /// chosen. Taking it literally puts `<none>` in the row, and sends it to
+    /// the pricing table, where the longest-prefix match would answer for
+    /// whatever happened to be closest.
+    @Test("A placeholder in angle brackets is not a model", arguments: [
+        "<none>", "<unknown>", "<default>",
+    ])
+    func placeholderModelsAreRefused(_ model: String) throws {
+        #expect(try session(#"{"cwd":"/p","model":"\#(model)"}"#).model == nil)
+    }
+
+    @Test("An empty model is absent rather than empty")
+    func emptyModel() throws {
+        #expect(try session(#"{"cwd":"/p","model":""}"#).model == nil)
+    }
+
+    /// A harness that keeps the whole opening prompt in `title` would
+    /// otherwise put a paragraph in a row that has one line for it.
+    @Test("A multi-line title becomes its first line")
+    func titleIsOneLine() throws {
+        let found = try session(#"{"cwd":"/p","title":"  first line  \nsecond line\nthird"}"#)
+        #expect(found.title == "first line")
+    }
+
+    @Test("A single-line title is unchanged")
+    func singleLineTitle() throws {
+        #expect(try session(#"{"cwd":"/p","title":"just this"}"#).title == "just this")
+    }
+}

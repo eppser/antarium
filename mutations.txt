@@ -255,3 +255,8 @@ resumed transcript matches any session | Sources/Antarium/Core/AgentScan.swift |
 resumed search scans oldest first | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.modified > \$1.modified }|.sorted { $0.modified < $1.modified }|
 resumed search unbounded | Sources/Antarium/Core/AgentScan.swift | s|.prefix(8)||
 transcript search follows non-jsonl files | Sources/Antarium/Core/AgentScan.swift | s|\$0.isRegular \&\& \$0.url.pathExtension == "jsonl"|$0.isRegular|
+harness reader drops the cwd | Sources/Antarium/Core/HarnessEngine.swift | s|session.cwd = value.hasPrefix("file://")|session.cwd = ""; _ = value.hasPrefix("file://")|
+harness reader keeps a file URL as the cwd | Sources/Antarium/Core/HarnessEngine.swift | s|? (URL(string: value)?.path ?? value)|? value|
+harness reader accepts a placeholder model | Sources/Antarium/Core/HarnessEngine.swift | s|!value.isEmpty, !value.hasPrefix("<") { session.model = value }|!value.isEmpty { session.model = value }|
+harness reader drops the timestamp | Sources/Antarium/Core/HarnessEngine.swift | s|if let path = map.timestamp, let when = date(record, path) {|if false, let path = map.timestamp, let when = date(record, path) {|
+harness reader shows the whole prompt as a title | Sources/Antarium/Core/HarnessEngine.swift | s|session.title = value.split(separator: "\\n").first|session.title = value; _ = value.split(separator: "\\n").first|
