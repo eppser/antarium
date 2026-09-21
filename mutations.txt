@@ -513,3 +513,12 @@ a budget longer than the ceiling is honoured | Sources/Antarium/Core/RemoteSweep
 a budget that is not a number runs for ever | Sources/Antarium/Core/RemoteSweep.swift | s|let span = duration.isFinite ? min(30,max(0,duration)) : 0|let span = min(30,max(0,duration))|
 a clock that goes backwards keeps the pass running | Sources/Antarium/Core/RemoteSweep.swift | s|\|\| now < began \|\| now - began >= span|\|\| now - began >= span|
 a cancelled pass keeps asking | Sources/Antarium/Core/RemoteSweep.swift | s|return cancellation() \|\||return false \|\||
+a long dead loop still reads as looping | Sources/Antarium/Core/LoopWatch.swift | s|return now.timeIntervalSince(wakeAt) < grace|return true|
+the loop grace is a day | Sources/Antarium/Core/LoopWatch.swift | s|static let grace: TimeInterval = 3600|static let grace: TimeInterval = 86_400|
+a stopped loop still reads as looping | Sources/Antarium/Core/LoopWatch.swift | s|guard !stopped, let wakeAt else { return false }|guard let wakeAt else { return false }|
+a declared goal is ignored | Sources/Antarium/Core/LoopWatch.swift | s|if declared != nil { return true }||
+a due loop is described with a countdown | Sources/Antarium/Core/LoopWatch.swift | s|guard seconds > 30 else { return "looping" }||
+a loop minutes away is rounded down to nothing | Sources/Antarium/Core/LoopWatch.swift | s|Int((seconds / 60).rounded())|Int(seconds / 60)|
+a dead loop is still described | Sources/Antarium/Core/LoopWatch.swift | s|guard isLooping(wakeAt: wakeAt, stopped: stopped, now: now), let wakeAt else { return nil }|guard let wakeAt else { return nil }|
+a loop hours away is described in minutes | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 { return "loops in \\(minutes)m" }|if true { return "loops in \\(minutes)m" }|
+the unit is chosen before the rounding | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 {|if seconds < 3600 {|

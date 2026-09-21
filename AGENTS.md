@@ -110,6 +110,12 @@ seed changes per process, so the same mutation is caught on one run and
 survives the next. Ordering fixtures want eight or ten entries, written out
 of order. A `SURVIVED` line that does not reproduce is this, not luck.
 
+A test declared `@Test func name()` with no display name reports its failure
+as `✘ Test name()`, unquoted. The runner used to look for `✘ Test "`, so
+every mutation whose only cover was such a test was announced as SURVIVED —
+fifteen of them here, covering the state machine and the loop watch. Prefer a
+display name; the runner no longer depends on it either way.
+
 `caught (the suite did not survive it)` means the mutation made the tests
 trap rather than fail — an index that went negative, a force-unwrap that
 stopped holding. That is a catch, and a loud one. The runner used to look

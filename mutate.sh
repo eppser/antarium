@@ -135,17 +135,19 @@ while IFS='|' read -r name file expression; do
             printf '  %-46s does not compile\n' "$name"
             broken=$((broken+1))
         elif run_tests "$BACKUP/out"; status=$?
-              [ "$status" -ne 0 ] || grep -q '^✘ Test "' "$BACKUP/out"; then
-            # Any nonzero exit is a catch, not only a reported failure. A
-            # mutation can make the suite trap — an index that goes negative,
-            # a force-unwrap that stops holding — and a trap prints a fatal
-            # error and no `✘ Test` line at all. Matching only on that line
-            # reported such a mutation as SURVIVED: the answer this runner
-            # must never give, and it was giving it for the loudest failure
-            # there is.
+              [ "$status" -ne 0 ] || grep -q '^✘ ' "$BACKUP/out"; then
+            # Any nonzero exit is a catch, not only a reported failure, and
+            # the failure line is matched on `✘ ` rather than on `✘ Test "`.
+            # Two things were invisible to the narrower pattern. A mutation
+            # can make the suite trap, and a trap prints a fatal error and no
+            # report at all. And a test declared `@Test func name()` with no
+            # display name prints `✘ Test name()` — unquoted — so every
+            # mutation whose only cover was one of those was announced as
+            # SURVIVED. There are fifteen such tests here, and they cover the
+            # state machine and the loop watch.
             if [ "$status" -eq 124 ]; then
                 printf '  %-46s caught (never finished)\n' "$name"
-            elif grep -q '^✘ Test "' "$BACKUP/out"; then
+            elif grep -q '^✘ ' "$BACKUP/out"; then
                 printf '  %-46s caught\n' "$name"
             else
                 printf '  %-46s caught (the suite did not survive it)\n' "$name"
