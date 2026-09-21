@@ -91,6 +91,14 @@ was written as a descriptor first and reverted, because a correct mapping
 behind a credential that expires is exactly what the note below says not to
 ship.
 
+Synthetic is the first descriptor-backed provider that is a proper meter
+with a reset: the subscription states a request ceiling, the requests
+spent against it and when it renews. The renewal is read from the
+response rather than inferred from a period length, which is the
+difference between a row that stays right after a plan change and one
+that is right until somebody changes plan. The figures are requests
+rather than tokens, because that is how the service bills.
+
 OpenRouter is charted as spend against purchases. Its credits endpoint
 reports two lifetime figures — everything ever added and everything ever
 spent — and no remaining balance, so the meter is the ratio of the two:

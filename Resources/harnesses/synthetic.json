@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "id": "synthetic",
+  "name": "Synthetic",
+  "note": "Quota only, and the first of these that is a proper meter with a reset: the subscription reports a request ceiling, the requests spent against it and when it renews, so the bar fills and empties rather than counting money down. The figures are requests rather than tokens \u2014 Synthetic bills per request \u2014 so a long conversation and a one-line question cost the same, which is the service's own accounting and not a simplification here. An account with no subscription reports a ceiling of nought and charts nothing, because nought of nothing is not nought per cent.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live account."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.synthetic.new/v2/quotas",
+    "credential": {
+      "kind": "env",
+      "name": "SYNTHETIC_API_KEY",
+      "path": "~/.antarium/keys/synthetic"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "single": "subscription",
+      "used": "subscription.requests",
+      "limit": "subscription.limit",
+      "resetsAt": "subscription.renewsAt",
+      "labels": {
+        "subscription": "Subscription"
+      },
+      "badges": {
+        "subscription": "SUB"
+      }
+    },
+    "setupHint": "Put your key in ~/.antarium/keys/synthetic",
+    "verified": false
+  }
+}

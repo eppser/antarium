@@ -455,3 +455,7 @@ the startup never secures the keys directory | Sources/Antarium/AppController.sw
 tightening locks the owner out | Sources/Antarium/Core/Config.swift | s|current \& ~0o077|current \& ~0o177|
 a note tells the user to paste a key into the descriptor | Resources/harnesses/deepseek.json | s|The key is read from DEEPSEEK_API_KEY|Paste the key straight into this file, or read it from DEEPSEEK_API_KEY|
 a note points at a key file nothing reads | Resources/harnesses/minimax.json | s|~/.antarium/keys/minimax otherwise|~/.antarium/keys/minimax-api otherwise|
+synthetic charts the ceiling as the spend | Resources/harnesses/synthetic.json | s|"used": "subscription.requests"|"used": "subscription.limit"|
+synthetic loses its renewal | Resources/harnesses/synthetic.json | s|"resetsAt": "subscription.renewsAt",||
+synthetic numbers claim to be verified | Resources/harnesses/synthetic.json | s|"verified": false|"verified": true|
+synthetic reads no key file | Resources/harnesses/synthetic.json | s|"path": "~/.antarium/keys/synthetic"|"path": "~/.antarium/keys/synthetic-api"|

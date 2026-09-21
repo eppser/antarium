@@ -811,3 +811,78 @@ struct MoonshotQuotaTests {
         #expect(kimi.quota == nil, "the CLI harness charts no quota")
     }
 }
+
+/// Synthetic is the first of these that is a proper meter with a reset.
+///
+/// The other credit providers count money down and have nothing to fill a bar
+/// against. This one reports a request ceiling, the requests spent against it
+/// and when it renews — so the row can say both how full it is and when that
+/// stops mattering, which is what every native provider's window does and no
+/// descriptor-backed one did.
+@Suite("Synthetic charts requests against a subscription ceiling")
+struct SyntheticQuotaTests {
+
+    private func descriptor() throws -> HarnessDescriptor {
+        let url = try #require(AppResources.bundle.url(
+            forResource: "synthetic", withExtension: "json", subdirectory: "harnesses"))
+        return try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+    }
+
+    private func snapshot(limit: Any, requests: Any,
+                          renews: String = "2026-10-21T14:36:14.288Z") throws -> Snapshot {
+        let provider = try #require(DescriptorProvider(try descriptor()))
+        return try provider.makeSnapshot(
+            ["subscription": ["limit": limit, "requests": requests, "renewsAt": renews]])
+    }
+
+    @Test("A fifth spent reads as a fifth, with the renewal attached")
+    func partlySpent() throws {
+        let gauge = try #require(try snapshot(limit: 100, requests: 20).gauges.first)
+        #expect(abs(gauge.used - 0.2) < 0.0001)
+        #expect(gauge.title == "Subscription")
+        #expect(gauge.hasMeter)
+        #expect(gauge.resetsAt != nil, "a window that renews must say when")
+    }
+
+    /// The renewal is read from the response rather than guessed from a
+    /// period length, which is the difference between a row that is right
+    /// after a plan change and one that is right until somebody changes plan.
+    @Test("The renewal is the one the service states")
+    func renewalComesFromTheResponse() throws {
+        let stated = try #require(UsageHTTP.parseDate("2027-03-04T05:06:07.000Z"))
+        let gauge = try #require(
+            try snapshot(limit: 10, requests: 1,
+                         renews: "2027-03-04T05:06:07.000Z").gauges.first)
+        #expect(gauge.resetsAt == stated)
+    }
+
+    /// An account with no subscription has a ceiling of nought. Nought of
+    /// nothing is not nought per cent, and an empty bar would say the user
+    /// had a plan with room left in it.
+    @Test("No subscription charts nothing rather than an empty bar")
+    func noSubscriptionChartsNothing() {
+        #expect(throws: (any Error).self) { _ = try snapshot(limit: 0, requests: 0) }
+    }
+
+    @Test("An exhausted subscription reads full rather than vanishing")
+    func exhaustedReadsFull() throws {
+        let gauge = try #require(try snapshot(limit: 135, requests: 135).gauges.first)
+        #expect(abs(gauge.used - 1.0) < 0.0001)
+    }
+
+    /// The key is an ordinary API key, so the variable is read when there is
+    /// one — unlike OpenRouter, where the conventional variable holds the
+    /// wrong kind of key and is deliberately ignored.
+    @Test("The key comes from the variable or the file")
+    func credentialReadsBoth() throws {
+        let credential = try #require(try descriptor().quota?.credential)
+        #expect(credential.kind == "env")
+        #expect(credential.name == "SYNTHETIC_API_KEY")
+        #expect(credential.path == "~/.antarium/keys/synthetic")
+    }
+
+    @Test("The numbers are declared unverified")
+    func unverified() throws {
+        #expect(try descriptor().quota?.verified != true)
+    }
+}
