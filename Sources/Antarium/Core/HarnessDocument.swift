@@ -143,6 +143,10 @@ enum HarnessDocument {
                 throw Error.semantic(
                     "quota.credential.requires must be a non-empty object of field to substring")
             }
+            // Refused here rather than in HarnessCheck: `--check` decodes
+            // first and gives up if that fails, so a copy of this rule over
+            // there could never fire. A check that cannot fail is worse than
+            // no check, because it reads as coverage.
             guard credential["kind"] as? String == "jsonFile" else {
                 throw Error.semantic(
                     "quota.credential.requires is only read for a jsonFile credential")

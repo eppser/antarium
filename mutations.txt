@@ -178,3 +178,7 @@ field path model reads the oldest value | Sources/Antarium/Core/FieldPath.swift 
 field path missing value becomes zero | Sources/Antarium/Core/FieldPath.swift | s|guard !found.isEmpty else { return nil }|if found.isEmpty { return 0 }|
 field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s|return suffix.isEmpty ? array : array.compactMap { lookup(\$0, suffix) }|return array|
 field path integer total wraps | Sources/Antarium/Core/FieldPath.swift | s|guard !sum.overflow else { return nil }||
+check accepts an unknown descriptor field | Sources/Antarium/Core/HarnessCheck.swift | s|for problem in schemaProblems(in: object) { fail(problem) }||
+check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|fail("quota.endpoint is not an https URL: \\(quota.endpoint)")||
+check accepts a credential missing its path | Sources/Antarium/Core/HarnessCheck.swift | s|fail("quota.credential of kind \\(credential.kind) needs \\(missing)")||
+check reports a problem on a clean descriptor | Sources/Antarium/Core/HarnessCheck.swift | s|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }; problems += 1|

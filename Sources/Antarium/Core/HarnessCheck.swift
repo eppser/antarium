@@ -247,10 +247,6 @@ enum HarnessCheck {
                          + "command, env, jsonFile, textFile")
                     missing = nil
                 }
-                if credential.requires?.isEmpty == false, credential.kind != "jsonFile" {
-                    fail("quota.credential.requires is only read for a jsonFile credential; "
-                         + "on a \(credential.kind) credential it silently does nothing")
-                }
                 if let missing {
                     fail("quota.credential of kind \(credential.kind) needs \(missing)")
                 }
