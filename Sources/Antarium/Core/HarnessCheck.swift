@@ -40,6 +40,20 @@ enum HarnessCheck {
         "id": [.jsonFiles, .command], "filter": [.jsonFiles, .command],
     ]
 
+    /// And the third object with a `kind`: a quota credential.
+    ///
+    /// `requires` is absent deliberately — the decoder already refuses it on
+    /// anything but a `jsonFile`, because a guard that silently does nothing
+    /// is worse than no guard. This table is for the fields that are merely
+    /// quiet. `path` belongs to three of the four kinds: an `env` credential
+    /// falls back to it, and a `command` one has nothing to read.
+    static let credentialFieldKinds: [String: Set<String>] = [
+        "name": ["env"],
+        "field": ["jsonFile"],
+        "command": ["command"], "args": ["command"],
+        "path": ["env", "textFile", "jsonFile"],
+    ]
+
     /// Every key the loader understands. The schema's authority lives here, so
     /// anything else in a file is a typo or a leftover.
     static let known: [String: Set<String>] = [
@@ -273,6 +287,19 @@ enum HarnessCheck {
                 let names = kinds.map(\.rawValue).sorted().joined(separator: " or ")
                 warn("selection.\(key) is only read for a \(names) selection, and this one "
                      + "is \(kind.rawValue) — it will be ignored")
+            }
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let credential = (object["quota"] as? [String: Any])?["credential"]
+               as? [String: Any],
+           let kind = descriptor.quota?.credential?.kind {
+            for key in credential.keys.sorted() {
+                guard let kinds = credentialFieldKinds[key], !kinds.contains(kind)
+                else { continue }
+                let names = kinds.sorted().joined(separator: " or ")
+                warn("quota.credential.\(key) is only read for a \(names) credential, "
+                     + "and this one is \(kind) — it will be ignored")
             }
         }
 

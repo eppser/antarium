@@ -1143,9 +1143,18 @@ struct ApplicabilityWiringTests {
             "Sources/Antarium/Core/HarnessCheck.swift"), encoding: .utf8)
     }
 
-    @Test("Both tables are read, and both produce a warning", arguments: [
-        ("sourceFieldKinds", "source."), ("selectionFieldKinds", "selection."),
-    ])
+    /// Derived rather than counted. The first version of the assertion below
+    /// said "exactly two", and adding the third table broke it for the reason
+    /// it exists to prevent — a rule that lists its subjects covers only the
+    /// ones that prompted it.
+    static let tables: [(table: String, prefix: String)] = [
+        ("sourceFieldKinds", "source."),
+        ("selectionFieldKinds", "selection."),
+        ("credentialFieldKinds", "quota.credential."),
+    ]
+
+    @Test("Every table is read, and every one produces a warning",
+          arguments: ApplicabilityWiringTests.tables)
     func tableIsConsulted(_ pair: (table: String, prefix: String)) throws {
         let text = try checker()
         let uses = text.components(separatedBy: pair.table).count - 1
@@ -1159,7 +1168,90 @@ struct ApplicabilityWiringTests {
     @Test("The warning says which kinds read the field")
     func warningNamesTheKinds() throws {
         let text = try checker()
-        #expect(text.components(separatedBy: "is only read for a \\(names)").count - 1 == 2,
-                "one of the two warnings does not name the kinds that read the field")
+        let naming = text.components(separatedBy: "is only read for a \\(names)").count - 1
+        #expect(naming == Self.tables.count, Comment(rawValue:
+            "\(naming) of \(Self.tables.count) warnings name the kinds that read the field"))
+    }
+
+    /// And the list above is not empty, because a parameterised test over one
+    /// would pass having checked nothing.
+    @Test("There are tables to check")
+    func tablesExist() {
+        #expect(Self.tables.count >= 3)
+    }
+}
+
+/// The third object with a `kind`: a quota credential.
+///
+/// One of its fields already had a hard rule — `requires` is refused at
+/// decode on anything but a `jsonFile`, because a guard that silently does
+/// nothing is worse than no guard. The other four had none, so an `env`
+/// credential could carry a `field`, a `command` and its `args` and be told
+/// nothing about any of them.
+@Suite("Credential fields that do not apply are reported")
+struct CredentialFieldApplicabilityTests {
+
+    @Test("Each field belongs to the kinds that read it", arguments: [
+        ("name", Set(["env"])),
+        ("field", Set(["jsonFile"])),
+        ("command", Set(["command"])),
+        ("args", Set(["command"])),
+    ])
+    func singleKindFields(_ pair: (field: String, kinds: Set<String>)) throws {
+        #expect(try #require(HarnessCheck.credentialFieldKinds[pair.field]) == pair.kinds)
+    }
+
+    /// The one that is shared, and by three of the four. An `env` credential
+    /// falls back to a file when the variable is unset — which is what makes
+    /// those providers work at all when the app is launched from Finder — so
+    /// warning about `path` there would be wrong.
+    @Test("A path belongs to every kind that reads a file, including env")
+    func pathIsSharedByThree() throws {
+        #expect(try #require(HarnessCheck.credentialFieldKinds["path"])
+                == ["env", "textFile", "jsonFile"])
+    }
+
+    /// `requires` is deliberately absent: the decoder refuses it outright, so
+    /// a warning here would be unreachable.
+    @Test("The field with a hard rule is not also warned about")
+    func requiresIsNotInTheTable() {
+        #expect(HarnessCheck.credentialFieldKinds["requires"] == nil)
+        #expect(HarnessCheck.credentialFieldKinds["kind"] == nil)
+    }
+
+    @Test("A credential declaring a field its kind ignores is refused at decode only for requires")
+    func requiresStillRefused() {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "c", "name": "C", "process": [:],
+            "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": "https://example.invalid/u",
+                      "credential": ["kind": "env", "name": "FOO",
+                                     "requires": ["a": "b"]],
+                      "windows": ["list": "data", "usedPercent": "pct"]]]
+        #expect(throws: (any Error).self) {
+            try HarnessDocument.decode(JSONSerialization.data(withJSONObject: object))
+        }
+    }
+
+    @Test("No shipped credential declares a field its kind ignores")
+    func shippedCredentialsAreClean() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        var checked = 0
+        for url in urls {
+            let data = try Data(contentsOf: url)
+            let descriptor = try HarnessDocument.decode(data).descriptor
+            guard let kind = descriptor.quota?.credential?.kind else { continue }
+            let object = try #require(
+                try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let credential = ((object["quota"] as? [String: Any])?["credential"]
+                              as? [String: Any]) ?? [:]
+            for (key, kinds) in HarnessCheck.credentialFieldKinds where credential[key] != nil {
+                #expect(kinds.contains(kind), Comment(rawValue:
+                    "\(descriptor.id) has a \(kind) credential declaring \(key)"))
+            }
+            checked += 1
+        }
+        #expect(checked >= 8, "only \(checked) credentials were checked")
     }
 }

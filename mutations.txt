@@ -608,3 +608,6 @@ the path field is reported as inapplicable | Sources/Antarium/Core/HarnessCheck.
 a selection glob applies to every kind | Sources/Antarium/Core/HarnessCheck.swift | s|"glob": \[.jsonFiles\], "records": \[.jsonFiles\], "encodedJSON": \[.jsonFiles\],|"glob": [.jsonFiles, .sqlite], "records": [.jsonFiles], "encodedJSON": [.jsonFiles],|
 a sqlite selection is said to read a record filter | Sources/Antarium/Core/HarnessCheck.swift | s|"id": \[.jsonFiles, .command\], "filter": \[.jsonFiles, .command\],|"id": [.jsonFiles, .command, .sqlite], "filter": [.jsonFiles, .command, .sqlite],|
 the source applicability table is never read | Sources/Antarium/Core/HarnessCheck.swift | s|guard let kinds = sourceFieldKinds\[key\],|guard let kinds = Optional(Set<HarnessDescriptor.Source.Kind>()),|
+an env credential is said not to read a file | Sources/Antarium/Core/HarnessCheck.swift | s|"path": \["env", "textFile", "jsonFile"\],|"path": ["textFile", "jsonFile"],|
+a credential name applies to every kind | Sources/Antarium/Core/HarnessCheck.swift | s|"name": \["env"\],|"name": ["env", "jsonFile", "textFile", "command"],|
+the credential table is never read | Sources/Antarium/Core/HarnessCheck.swift | s|guard let kinds = credentialFieldKinds\[key\], !kinds.contains(kind)|guard let kinds = Optional(Set<String>()), !kinds.contains(kind)|

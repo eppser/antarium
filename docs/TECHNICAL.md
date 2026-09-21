@@ -559,6 +559,14 @@ when selecting by `sqlite`; `command`, `args` and `root` when selecting by
 sqlite selection takes its ids straight out of a column and consults
 neither.
 
+A quota credential is the third object with a `kind` and gets the same
+treatment: `name` for `env`, `field` for `jsonFile`, `command` and `args` for
+`command`, and `path` for the three kinds that read a file — including `env`,
+which falls back to one when its variable is unset. `requires` is not in that
+table because the decoder already refuses it outright on anything but a
+`jsonFile`: a guard that silently does nothing is worse than no guard, and a
+warning where there is already a refusal would be unreachable.
+
 ### Quota transport
 
 A `balance` must declare a `currency` — a path into the response where the
