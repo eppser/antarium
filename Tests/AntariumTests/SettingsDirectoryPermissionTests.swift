@@ -137,3 +137,69 @@ struct SecureAtStartupContractTests {
         #expect(keys.lowerBound < seed.lowerBound)
     }
 }
+
+/// A harness file is not a place to keep a credential, and no shipped note
+/// may suggest it is.
+///
+/// Three of them said "paste the key straight into this file". Nothing reads
+/// a key pasted into a descriptor — there is no literal credential kind — so
+/// the instruction achieved exactly nothing except putting a secret in a file
+/// that ships in this repository, is seeded into every install, and whose
+/// edited copies stop receiving fixes.
+@Suite("No harness tells anyone to keep a key in a harness file")
+struct CredentialAdviceTests {
+
+    private var shipped: [HarnessDescriptor] {
+        get throws {
+            let urls = try #require(AppResources.bundle.urls(
+                forResourcesWithExtension: "json", subdirectory: "harnesses"))
+            return try urls.sorted { $0.path < $1.path }.map {
+                try HarnessDocument.decode(Data(contentsOf: $0)).descriptor
+            }
+        }
+    }
+
+    @Test("No note suggests putting a key in the descriptor")
+    func noNoteSuggestsPastingAKey() throws {
+        var checked = 0
+        for descriptor in try shipped {
+            let text = ((descriptor.note ?? "") + " "
+                        + (descriptor.quota?.setupHint ?? "")).lowercased()
+            guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
+            checked += 1
+            for phrase in ["paste the key", "paste your key",
+                           "key straight into this file", "key into this file"] {
+                #expect(!text.contains(phrase), Comment(rawValue:
+                    "\(descriptor.id) says \"\(phrase)\" — nothing reads a key kept there, "
+                    + "and an edited descriptor stops receiving fixes"))
+            }
+        }
+        #expect(checked >= 15, "only \(checked) descriptors carry text")
+    }
+
+    /// And the advice that is given names the file the credential actually
+    /// reads, which is the same rule the env-hint test applies one level out.
+    ///
+    /// Compared as a whole word rather than as a substring. The first version
+    /// used `note.contains(path)`, which a longer path sharing the prefix
+    /// satisfies — a note pointing at `keys/minimax-api` while the credential
+    /// reads `keys/minimax` passed, and the mutation that made exactly that
+    /// change survived.
+    @Test("A note naming a key file names the one the credential reads")
+    func noteNamesTheRightFile() throws {
+        var checked = 0
+        for descriptor in try shipped {
+            guard let note = descriptor.note, note.contains("~/.antarium/keys/"),
+                  let path = descriptor.quota?.credential?.path else { continue }
+            let named = note
+                .split(whereSeparator: { $0.isWhitespace })
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:()")) }
+            #expect(named.contains(path), Comment(rawValue:
+                "\(descriptor.id) points at a key file its credential does not read: "
+                + "the note names \(named.filter { $0.hasPrefix("~/.antarium/keys/") }) "
+                + "and the credential reads \(path)"))
+            checked += 1
+        }
+        #expect(checked >= 3, "only \(checked) notes name a key file")
+    }
+}

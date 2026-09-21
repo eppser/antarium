@@ -453,3 +453,5 @@ the settings directory is created open | Sources/Antarium/Core/Config.swift | s|
 an existing open settings directory is left open | Sources/Antarium/Core/Config.swift | s|guard current \& 0o077 != 0 else { return true }|guard current \& 0o077 == 0 else { return true }|
 the startup never secures the keys directory | Sources/Antarium/AppController.swift | s|        Config.secure(Config.keysDirectory)||
 tightening locks the owner out | Sources/Antarium/Core/Config.swift | s|current \& ~0o077|current \& ~0o177|
+a note tells the user to paste a key into the descriptor | Resources/harnesses/deepseek.json | s|The key is read from DEEPSEEK_API_KEY|Paste the key straight into this file, or read it from DEEPSEEK_API_KEY|
+a note points at a key file nothing reads | Resources/harnesses/minimax.json | s|~/.antarium/keys/minimax otherwise|~/.antarium/keys/minimax-api otherwise|
