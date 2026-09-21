@@ -8,7 +8,10 @@
 # that cannot fail looks exactly like a suite that passes.
 #
 # Writing one: mutate the expression that ENFORCES a rule, not the constant it
-# compares against. A constant wrapped in `min(…)`, `max(…)` or `??` is
+# compares against, and not the message it produces. A survivor whose change
+# touched only a string or a comment is annotated as such, because four
+# separate afternoons went on mutations that could not have behaved
+# differently and read exactly like missing tests. A constant wrapped in `min(…)`, `max(…)` or `??` is
 # frequently overridden a line later, so changing it alters no behaviour, the
 # tests pass, and the report says SURVIVED — which reads exactly like a
 # missing test. Three exploratory mutations went that way in one afternoon.
@@ -108,6 +111,18 @@ while IFS='|' read -r name file expression; do
         elif ./test.sh >"$BACKUP/out" 2>&1; grep -q '^✘ Test "' "$BACKUP/out"; then
             printf '  %-46s caught\n' "$name"
             caught=$((caught+1))
+        elif [ -x tools/strip-inert.py ] \
+             && python3 tools/strip-inert.py "$file" >"$BACKUP/now" 2>/dev/null \
+             && python3 tools/strip-inert.py "$BACKUP/current" >"$BACKUP/was" 2>/dev/null \
+             && cmp -s "$BACKUP/now" "$BACKUP/was"; then
+            # Still a survivor — it is never hidden. But the change was
+            # confined to a message or a comment, which usually means the
+            # mutation is inert rather than the tests are missing. Usually,
+            # not always: a mutation that puts private output into a
+            # diagnostic changes only a string and matters a great deal, so
+            # this annotates rather than reclassifies.
+            printf '  %-46s SURVIVED (message-only change — is the mutation inert?)\n' "$name"
+            survived=$((survived+1))
         else
             printf '  %-46s SURVIVED\n' "$name"
             survived=$((survived+1))
