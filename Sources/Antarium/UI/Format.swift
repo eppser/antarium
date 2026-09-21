@@ -33,9 +33,17 @@ enum Format {
     /// "just now", "3 min ago", "2 h ago".
     static func age(_ date: Date?, now: Date = Date()) -> String {
         guard let date else { return "never" }
+        // The clamp has no catalogue entry: every negative interval is
+        // already caught by the "just now" branch below, so removing it
+        // changes no answer. Kept because it states the intent, and because
+        // the branch below is a threshold somebody may move.
         let s = max(0, now.timeIntervalSince(date))
         if s < 45 { return "just now" }
-        if s < 3600 { return "\(Int(s / 60)) min ago" }
+        // `max(1, …)` for the same reason `shortCountdown` has it, which is
+        // the sibling that already did: between forty-five seconds and a
+        // minute the division truncates to nought, and a row reading "0 min
+        // ago" looks broken rather than recent.
+        if s < 3600 { return "\(max(1, Int(s / 60))) min ago" }
         if s < 86_400 { return "\(Int(s / 3600)) h ago" }
         return "\(Int(s / 86_400)) d ago"
     }

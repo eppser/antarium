@@ -597,3 +597,8 @@ a negative rate is charted | Sources/Antarium/Core/TranscriptStats.swift | s|.al
 money loses its cents | Sources/Antarium/Core/Pricing.swift | s|        if usd >= 0.01 { return String(format: "\$%.2f", usd) }||
 money picks its band before rounding | Sources/Antarium/Core/Pricing.swift | s|if ((usd \* 100).rounded() / 100) >= 10|if usd >= 10|
 money widens a band it has not reached | Sources/Antarium/Core/Pricing.swift | s|if ((usd \* 10).rounded() / 10) >= 100|if usd.rounded() >= 100|
+an age just under a minute reads as nought | Sources/Antarium/UI/Format.swift | s|"\\(max(1, Int(s / 60))) min ago"|"\\(Int(s / 60)) min ago"|
+a countdown just under a minute reads as nought | Sources/Antarium/UI/Format.swift | s|if s < 3600 { return "\\(max(1, Int(s / 60)))m" }|if s < 3600 { return "\\(Int(s / 60))m" }|
+an age rounds into a band it has not reached | Sources/Antarium/UI/Format.swift | s|if s < 3600 { return "\\(max(1, Int(s / 60))) min ago" }|if s < 3600 { return "\\(Int((s / 60).rounded())) min ago" }|
+an exact hour reads as an hour and no minutes | Sources/Antarium/UI/Format.swift | s|span = m > 0 ? "\\(h)h \\(m)m" : "\\(h)h"|span = "\\(h)h \\(m)m"|
+an exact day reads as a day and no hours | Sources/Antarium/UI/Format.swift | s|span = h > 0 ? "\\(d)d \\(h)h" : "\\(d)d"|span = "\\(d)d \\(h)h"|
