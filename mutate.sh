@@ -149,6 +149,13 @@ while IFS='|' read -r name file expression; do
                 printf '  %-46s caught (never finished)\n' "$name"
             elif grep -q '^✘ ' "$BACKUP/out"; then
                 printf '  %-46s caught\n' "$name"
+            elif grep -q 'error:' "$BACKUP/out"; then
+                # The sources still build — that is checked above — so an
+                # error here is the tests failing to. Removing a field the
+                # SDK publishes is caught that way: the round-trip that
+                # writes it stops compiling. A real catch, and not the same
+                # event as a trap.
+                printf '  %-46s caught (the tests no longer build)\n' "$name"
             else
                 printf '  %-46s caught (the suite did not survive it)\n' "$name"
             fi

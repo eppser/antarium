@@ -561,3 +561,6 @@ the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swif
 a harness with no fixture is called broken | Sources/Antarium/UI/HarnessRowPresentation.swift | s|if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {|if false {|
 the validator forgets the quota command | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "method", "body",|
 the validator forgets the quota method | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "command", "args",|
+the sdk cannot say a quota is posted | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var method: String?||
+the sdk cannot carry a posted body | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var body: \[String: String\]?||
+the sdk cannot filter a capability by suffix | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var fileSuffixes: \[String\]?||

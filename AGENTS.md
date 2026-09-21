@@ -124,6 +124,11 @@ every mutation whose only cover was such a test was announced as SURVIVED —
 fifteen of them here, covering the state machine and the loop watch. Prefer a
 display name; the runner no longer depends on it either way.
 
+`caught (the tests no longer build)` means the sources still compile and the
+tests do not — which is how removing a field the SDK publishes is caught: the
+round-trip that writes it stops compiling. A real catch, and a different
+event from a trap.
+
 `caught (the suite did not survive it)` means the mutation made the tests
 trap rather than fail — an index that went negative, a force-unwrap that
 stopped holding. That is a catch, and a loud one. The runner used to look

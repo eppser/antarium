@@ -1466,3 +1466,84 @@ struct StopSoundContractTests {
                 "the banners are no longer posted per row")
     }
 }
+
+/// The SDK can express every quota shape the runtime reads.
+///
+/// The round-trip above covers a session harness and does not touch quota at
+/// all, so three fields added to both sides over the last few days were never
+/// carried from one to the other by a test. That is the same alignment rule
+/// that let `--check` call a working field ignored, one surface along: a
+/// contributor writes a descriptor with the SDK, and anything it cannot say
+/// is a thing they cannot declare however well the runtime reads it.
+@Suite("The SDK can say what the runtime reads")
+struct SDKQuotaAlignmentTests {
+
+    private func config(_ build: (inout HarnessConfig) -> Void) throws -> HarnessDescriptor {
+        var config = HarnessConfig(
+            id: "sdk-quota", name: "SDK Quota", match: ["/sdk-quota"],
+            source: .init(kind: .none, path: ""),
+            map: .init(cwd: "cwd"))
+        build(&config)
+        return try HarnessDocument.decode(try config.encoded()).descriptor
+    }
+
+    private var windows: HarnessConfig.Quota.Windows {
+        .init(list: "data")
+    }
+
+    /// The endpoint form, which every shipped quota descriptor uses.
+    @Test("An endpoint quota survives the round trip")
+    func endpointQuota() throws {
+        let runtime = try config {
+            var quota = HarnessConfig.Quota(endpoint: "https://example.invalid/u",
+                                            windows: windows)
+            quota.windows.usedPercent = "pct"
+            $0.quota = quota
+        }
+        #expect(runtime.quota?.endpoint == "https://example.invalid/u")
+        #expect(runtime.quota?.resolvedMethod == .get)
+        #expect(runtime.quota?.command == nil)
+    }
+
+    /// The command form, for a service that has stopped answering over HTTP.
+    @Test("A command quota survives the round trip")
+    func commandQuota() throws {
+        let runtime = try config {
+            var quota = HarnessConfig.Quota(command: "agy", args: ["-p", "/usage"],
+                                            windows: windows)
+            quota.windows.usedPercent = "pct"
+            $0.quota = quota
+        }
+        #expect(runtime.quota?.command == "agy")
+        #expect(runtime.quota?.args == ["-p", "/usage"])
+        #expect(runtime.quota?.endpoint == nil)
+    }
+
+    /// The posted form, for a service whose usage call is not a GET.
+    @Test("A posted quota survives the round trip")
+    func postedQuota() throws {
+        let runtime = try config {
+            var quota = HarnessConfig.Quota(endpoint: "https://example.invalid/u",
+                                            windows: windows)
+            quota.windows.usedPercent = "pct"
+            quota.method = "POST"
+            quota.body = ["scope": "current"]
+            $0.quota = quota
+        }
+        #expect(runtime.quota?.resolvedMethod == .post)
+        #expect(runtime.quota?.body == ["scope": "current"])
+    }
+
+    /// And the capability suffix filter, added to both sides in the same week
+    /// and likewise never carried across by anything.
+    @Test("A suffix-filtered capability survives the round trip")
+    func suffixFilteredCapability() throws {
+        let runtime = try config {
+            var rule = HarnessConfig.CapabilityRule(probe: .content,
+                                                    project: [".github/instructions"])
+            rule.fileSuffixes = [".instructions.md"]
+            $0.capabilities = ["instruction": rule]
+        }
+        #expect(runtime.capabilityRules["instruction"]?.countedSuffixes == [".instructions.md"])
+    }
+}
