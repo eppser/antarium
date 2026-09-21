@@ -170,7 +170,7 @@ field path missing value becomes zero | Sources/Antarium/Core/FieldPath.swift | 
 field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s|return suffix.isEmpty ? array : array.compactMap { lookup(\$0, suffix) }|return array|
 field path integer total wraps | Sources/Antarium/Core/FieldPath.swift | s|guard !sum.overflow else { return nil }||
 check accepts an unknown descriptor field | Sources/Antarium/Core/HarnessCheck.swift | s|for problem in schemaProblems(in: object) { fail(problem) }||
-check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|                    fail("quota.endpoint is not an https URL: \\(raw)")||
+check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   true,|
 check accepts a credential missing its path | Sources/Antarium/Core/HarnessCheck.swift | s|fail("quota.credential of kind \\(credential.kind) needs \\(missing)")||
 check reports a problem on a clean descriptor | Sources/Antarium/Core/HarnessCheck.swift | s|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }; problems += 1|
 unreadable local source leaves stale rows looking live | Sources/Antarium/Core/AgentStore.swift | s|row.state = .unobserved; row.rssBytes = nil; row.localObservationIssue = issue|row.localObservationIssue = issue|
@@ -570,8 +570,8 @@ a bug report carries the machine's name | Sources/Antarium/Core/AppLinks.swift |
 a bug report loses what a maintainer needs | Sources/Antarium/Core/AppLinks.swift | s|Antarium \\(version) · macOS \\(system) · \\(architecture)||
 a sign-in script does not quote its command | Sources/Antarium/Core/SignIn.swift | s|"'" + s.replacingOccurrences(of: "'", with: "'\\\\''") + "'"|s|
 a sign-in launcher does not remove itself | Sources/Antarium/Core/SignIn.swift | s|+ "/bin/rm -f -- \\(quoted(url.path))\\n"||
-plaintext is allowed anywhere | Sources/Antarium/Core/UsageHTTP.swift | s|guard scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host)) else {|guard scheme == "https" \|\| scheme == "http" else {|
-plaintext to this machine is refused | Sources/Antarium/Core/UsageHTTP.swift | s|guard scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host)) else {|guard scheme == "https" else {|
+plaintext is allowed anywhere | Sources/Antarium/Core/UsageHTTP.swift | s|        return scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host))|        return scheme == "https" \|\| scheme == "http"|
+plaintext to this machine is refused | Sources/Antarium/Core/UsageHTTP.swift | s|        return scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host))|        return scheme == "https"|
 a lookalike loopback host is trusted | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name.contains("localhost") \|\| name.contains("::1") { return true }|
 the unspecified address is trusted as loopback | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name == "localhost" \|\| name == "::1" \|\| name == "0.0.0.0" { return true }|
 the scan budget never fails | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|if fastestMilliseconds <= budget { return .within }|return .within|
@@ -676,3 +676,4 @@ an account field is accepted on any credential | Sources/Antarium/Core/HarnessDo
 a placeholder with no field is accepted | Sources/Antarium/Core/HarnessDocument.swift | s|               accountField?.isEmpty != false {|               false {|
 a numeric account id is not an account id | Sources/Antarium/Providers/DescriptorProvider.swift | s|        if let number = FieldPath.lookup(object, field) as? NSNumber { return number.stringValue }||
 a credential file from another vendor is trusted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            else { return false }|            else { return true }|
+the validator insists on https again | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   endpoint.scheme == "https",|

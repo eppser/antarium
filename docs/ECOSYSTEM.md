@@ -135,6 +135,12 @@ every one of them, and the only way round it was a certificate in front of a
 local socket. Plaintext to this machine is accepted now, which is a thing our
 code decides rather than a schema somebody else has to publish.
 
+One more thing stood between that and a working descriptor, and it was
+ours: `--check` kept its own copy of the endpoint rule and insisted on
+https, so the self-hosted case the runtime accepts was reported as broken by
+the tool whose whole job is telling an author whether theirs works. Both
+read one predicate now.
+
 What still stops LiteLLM specifically is smaller and is the user's to fix:
 its endpoint is a host and port only they know, and `/key/info` wants the
 master key in the header and the key being asked about in the query. A

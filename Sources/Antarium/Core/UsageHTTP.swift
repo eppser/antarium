@@ -110,17 +110,31 @@ enum UsageHTTP {
             && parts.compactMap { Int($0) }.allSatisfy { $0 >= 0 && $0 <= 255 }
     }
 
+    /// Whether a URL may carry a credential.
+    ///
+    /// Plaintext to this machine never reaches a wire, and a self-hosted
+    /// proxy in front of an agent — LiteLLM and the rest — is http on a port
+    /// by default. Refusing those meant the only way to chart one was to put
+    /// a certificate in front of a loopback socket, which nobody does.
+    ///
+    /// Shared with `--check`, which had its own copy insisting on https. A
+    /// descriptor that works perfectly at runtime was therefore reported as
+    /// broken by the tool whose whole job is telling an author whether their
+    /// descriptor works — and it was the self-hosted case, the one the
+    /// documentation now tells people to write themselves. Two readings of
+    /// one rule, disagreeing in the direction that sends somebody to fix
+    /// something that is not wrong.
+    static func endpointMayCarryACredential(_ url: URL) -> Bool {
+        guard let host = url.host, !host.isEmpty else { return false }
+        let scheme = url.scheme?.lowercased()
+        return scheme == "https" || (scheme == "http" && Self.isLoopback(host))
+    }
+
     static func checkedURL(_ url: URL) throws -> URL {
         guard let host = url.host, !host.isEmpty else {
             throw ProviderError.badResponse("That usage endpoint names no host.")
         }
-        let scheme = url.scheme?.lowercased()
-        // Plaintext to this machine never reaches a wire, and a self-hosted
-        // proxy in front of an agent — LiteLLM and the rest — is http on a
-        // port by default. Refusing those meant the only way to chart one was
-        // to put a certificate in front of a loopback socket, which nobody
-        // does, so they could not be described at all.
-        guard scheme == "https" || (scheme == "http" && Self.isLoopback(host)) else {
+        guard Self.endpointMayCarryACredential(url) else {
             throw ProviderError.badResponse(
                 "A usage endpoint must be https, or http on this machine — "
                 + "\(url.scheme ?? "that scheme") to \(host) would send the "

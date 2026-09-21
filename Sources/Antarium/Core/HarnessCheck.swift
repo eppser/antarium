@@ -351,11 +351,16 @@ enum HarnessCheck {
                          + " — fine if the agent lives somewhere else")
                 }
             } else if let raw = quota.endpoint {
-                if let endpoint = URL(string: raw), endpoint.scheme == "https",
-                   let host = endpoint.host, !host.isEmpty {
+                // The same rule the request uses. This insisted on https and
+                // so failed every self-hosted descriptor — http on a loopback
+                // port — which the runtime accepts and the documentation now
+                // tells people to write.
+                if let endpoint = URL(string: raw),
+                   UsageHTTP.endpointMayCarryACredential(endpoint),
+                   let host = endpoint.host {
                     ok("quota endpoint \(host)")
                 } else {
-                    fail("quota.endpoint is not an https URL: \(raw)")
+                    fail("quota.endpoint must be https, or http to this machine: \(raw)")
                 }
             } else {
                 fail("quota declares neither an endpoint nor a command")

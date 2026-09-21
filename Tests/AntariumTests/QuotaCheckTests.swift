@@ -1466,3 +1466,70 @@ struct AccountScopedQuotaTests {
                 == "https://x.invalid/u?key=sk%2D1")
     }
 }
+
+/// `--check` and the request itself must agree about what an endpoint may be.
+///
+/// They did not. The request accepts http to this machine — a self-hosted
+/// proxy in front of an agent is http on a port, and refusing those meant
+/// they could not be described at all — while `--check` kept its own copy
+/// insisting on https. So a descriptor that works perfectly was reported as
+/// broken by the tool whose whole job is telling an author whether theirs
+/// works, in exactly the case the documentation tells people to write
+/// themselves.
+@Suite("The validator and the request agree on an endpoint")
+struct EndpointRuleAgreementTests {
+
+    /// Zero when `--check` found no problem, which is the answer an author
+    /// actually sees.
+    private func check(_ endpoint: String) throws -> Int32 {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "endpoint-rule", "name": "Endpoint Rule",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": endpoint,
+                      "credential": ["kind": "textFile", "path": "~/.antarium/keys/x"],
+                      "windows": ["single": "info", "usedPercent": "info.pct"]],
+        ]
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("endpoint-rule-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: object).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        return HarnessCheck.run(url.path)
+    }
+
+    /// Every one of these is asked of both readers, which is the only thing
+    /// that keeps them from drifting apart again.
+    @Test("Both accept the same endpoints and refuse the same ones",
+          arguments: [("https://api.example.invalid/u", true),
+                      ("http://127.0.0.1:4000/u", true),
+                      ("http://localhost:4000/u", true),
+                      ("http://[::1]:4000/u", true),
+                      ("http://api.example.invalid/u", false),
+                      ("ftp://api.example.invalid/u", false),
+                      ("https:///u", false)])
+    func bothAgree(endpoint: String, usable: Bool) throws {
+        let url = try #require(URL(string: endpoint))
+        #expect(UsageHTTP.endpointMayCarryACredential(url) == usable,
+                Comment(rawValue: "the request disagrees about \(endpoint)"))
+
+        let accepted = try check(endpoint) == 0
+        #expect(accepted == usable,
+                Comment(rawValue: "--check \(accepted ? "accepted" : "refused") \(endpoint), "
+                        + "the request \(usable ? "accepts" : "refuses") it"))
+    }
+
+    /// An endpoint carrying a placeholder still reads as an endpoint —
+    /// `--check` sees it before anything is substituted.
+    @Test("A placeholder in the endpoint does not make it unreadable")
+    func placeholdersAreFine() throws {
+        #expect(try check("http://127.0.0.1:4000/key/info?key={token}") == 0)
+    }
+
+    /// And `{account}` on a credential that has no field to fill it is
+    /// refused — by the decoder, so `--check` reports it rather than the
+    /// author finding out at the first fetch. This credential is a plain
+    /// text file, which holds a token and nothing else.
+    @Test("An account placeholder with nothing to fill it is reported")
+    func accountPlaceholderWithoutAField() throws {
+        #expect(try check("http://127.0.0.1:4000/v1/accounts/{account}/quotas") != 0)
+    }
+}
