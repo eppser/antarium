@@ -14,7 +14,7 @@ enum HarnessCheck {
 
     /// Every key the loader understands. The schema's authority lives here, so
     /// anything else in a file is a typo or a leftover.
-    private static let known: [String: Set<String>] = [
+    static let known: [String: Set<String>] = [
         "": ["$schema", "formatVersion", "id", "name", "process", "match", "matchProcessName", "source", "map", "quota",
              "capabilities", "selection", "focus", "contributes",
              "idleAfter", "staleAfter", "fallbackName", "mark", "note", "detached",
@@ -33,7 +33,8 @@ enum HarnessCheck {
                 "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
                 "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status", "pid", "sessionID",
                 "inputIncludesCacheRead"],
-        "quota": ["endpoint", "headers", "credential", "windows", "accountLabel",
+        "quota": ["endpoint", "method", "body", "command", "args",
+                  "headers", "credential", "windows", "accountLabel",
                   "setupHint", "signInCommand", "verified"],
         "focus": ["command", "args"],
         "quota.credential": ["kind", "path", "field", "name", "command", "args", "requires"],

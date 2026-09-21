@@ -559,3 +559,5 @@ a declared source label is overruled | Sources/Antarium/UI/HarnessRowPresentatio
 a failed quota mapping reads as verified | Sources/Antarium/UI/HarnessRowPresentation.swift | s|report.map { \$0.passed ? "Quota fixture verified"|report.map { (\$0.passed \|\| true) ? "Quota fixture verified"|
 the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swift | s|now - entry.at < ttl|false|
 a harness with no fixture is called broken | Sources/Antarium/UI/HarnessRowPresentation.swift | s|if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {|if false {|
+the validator forgets the quota command | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "method", "body",|
+the validator forgets the quota method | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "command", "args",|

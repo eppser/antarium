@@ -66,3 +66,66 @@ struct DocumentationAlignmentTests {
         #expect(kinds == ["env", "textFile", "jsonFile", "command"])
     }
 }
+
+/// The validator's idea of what a descriptor may contain, against the
+/// schema's.
+///
+/// `--check` reports any key it does not know as "not a field; it will be
+/// ignored". When a field is added to the runtime and the schema but not to
+/// that list, the tool tells the one person writing such a descriptor that
+/// their working field does nothing — which is worse than silence, and is
+/// what happened to `quota.command`, `args`, `method` and `body`.
+@Suite("The validator and the schema describe the same descriptor")
+struct ValidatorSchemaAlignmentTests {
+
+    /// Each validator key path against the schema definition that describes
+    /// the same object. Paths the schema models inline, or not at all, are
+    /// left out rather than asserted loosely.
+    private static let pairs: [(path: String, definition: String)] = [
+        ("quota", "quota"),
+        ("quota.windows", "windows"),
+        ("quota.credential", "credential"),
+        ("source", "source"),
+        ("map", "map"),
+        ("process", "process"),
+        ("selection", "selection"),
+        ("focus", "focus"),
+        ("presentation", "presentation"),
+        ("compatibility", "compatibility"),
+    ]
+
+    private func schemaProperties(_ definition: String) throws -> Set<String> {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("Resources/harness.schema.json"))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let defs = try #require(json["$defs"] as? [String: Any])
+        let object = try #require(defs[definition] as? [String: Any],
+                                  "the schema has no definition named \(definition)")
+        let properties = try #require(object["properties"] as? [String: Any])
+        return Set(properties.keys)
+    }
+
+    @Test("Every schema field is one the validator knows",
+          arguments: ValidatorSchemaAlignmentTests.pairs)
+    func schemaFieldsAreKnown(_ pair: (path: String, definition: String)) throws {
+        let known = try #require(HarnessCheck.known[pair.path],
+                                 "the validator has no key list for \(pair.path)")
+        let missing = try schemaProperties(pair.definition).subtracting(known)
+        #expect(missing.isEmpty, Comment(rawValue:
+            "\(pair.path) accepts \(missing.sorted()) in the schema, and --check would "
+            + "call each of them \"not a field; it will be ignored\""))
+    }
+
+    /// And the other direction, so the validator cannot quietly accept a key
+    /// nothing else describes.
+    @Test("Every field the validator knows is in the schema",
+          arguments: ValidatorSchemaAlignmentTests.pairs)
+    func knownFieldsAreInTheSchema(_ pair: (path: String, definition: String)) throws {
+        let known = try #require(HarnessCheck.known[pair.path])
+        let extra = known.subtracting(try schemaProperties(pair.definition))
+        #expect(extra.isEmpty, Comment(rawValue:
+            "\(pair.path) accepts \(extra.sorted()) and the schema does not describe them"))
+    }
+}
