@@ -1327,3 +1327,142 @@ struct EndpointTokenTests {
         #expect(url.host == "intended.invalid", "the token moved the request to \(url.host ?? "—")")
     }
 }
+
+/// Usage scoped under an account the URL has to name.
+///
+/// `GET /v1/accounts/{account_id}/quotas` is a common shape, and
+/// docs/ECOSYSTEM.md turned one down for it: a descriptor declares one
+/// endpoint, not a call to discover the identifier for the next. It recorded
+/// that the first half would recur — plenty of vendors scope usage this way
+/// — which is what makes it worth solving rather than noting.
+///
+/// The identifier is usually written beside the token, which is where the
+/// Codex provider reads its own from. That file the credential already opens
+/// is the answer for the common case; a discovery call is a bigger thing and
+/// still is not possible.
+@Suite("A quota scoped under an account", .serialized)
+struct AccountScopedQuotaTests {
+
+    private func write(_ object: [String: Any]) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("account-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: object).write(to: url)
+        return url
+    }
+
+    private func provider(credential: [String: Any],
+                          endpoint: String = "https://api.example.invalid/v1/accounts/{account}/quotas")
+        throws -> DescriptorProvider {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "scoped-\(UUID().uuidString)", "name": "Scoped",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": endpoint, "credential": credential,
+                      "windows": ["list": "data", "usedPercent": "pct"]],
+        ]
+        let d = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(d))
+    }
+
+    @Test("The account id is read from the file beside the token")
+    func accountIsRead() throws {
+        let file = try write(["token": "sk-abc", "account_id": "acct-42"])
+        defer { try? FileManager.default.removeItem(at: file) }
+        let p = try provider(credential: ["kind": "jsonFile", "path": file.path,
+                                          "field": "token", "accountField": "account_id"])
+        #expect(p.account() == "acct-42")
+    }
+
+    /// A numeric id is an ordinary id. Reading only strings would report a
+    /// file that names one plainly as naming none.
+    @Test("An account id written as a number is still an account id")
+    func numericAccount() throws {
+        let file = try write(["token": "sk-abc", "org": 90210])
+        defer { try? FileManager.default.removeItem(at: file) }
+        let p = try provider(credential: ["kind": "jsonFile", "path": file.path,
+                                          "field": "token", "accountField": "org"])
+        #expect(p.account() == "90210")
+    }
+
+    @Test("It lands in the path where the placeholder is")
+    func accountFillsTheURL() throws {
+        let url = try #require(DescriptorProvider.requestURL(
+            "https://api.example.invalid/v1/accounts/{account}/quotas",
+            token: "sk-abc", account: "acct-42"))
+        #expect(url.absoluteString == "https://api.example.invalid/v1/accounts/acct%2D42/quotas")
+    }
+
+    /// Encoded like the token, so an id carrying a separator stays one path
+    /// component rather than becoming another.
+    @Test("An account id cannot add path segments of its own")
+    func accountCannotTraverse() throws {
+        let url = try #require(DescriptorProvider.requestURL(
+            "https://intended.invalid/v1/accounts/{account}/quotas",
+            token: "t", account: "../../admin"))
+        #expect(url.host == "intended.invalid")
+        // Asserted on what goes on the wire. `url.path` hands back the
+        // decoded form, so it shows the dots whatever the encoding did; the
+        // request itself carries one escaped segment, which a server reads as
+        // a name rather than as a walk.
+        #expect(!url.absoluteString.contains("/../"),
+                "the id walked out of its segment: \(url.absoluteString)")
+        #expect(url.absoluteString.contains("%2E%2E%2F"),
+                "the id was not escaped: \(url.absoluteString)")
+    }
+
+    /// A header value is not percent-encoded, because encoding it there would
+    /// send the escape sequence rather than the value.
+    @Test("A header carries the account as written")
+    func headerIsNotEncoded() {
+        #expect(DescriptorProvider.filled("Account {account}", token: "t",
+                                          account: "acct 42", forURL: false)
+                == "Account acct 42")
+        // Only the substituted value is encoded, never the template around
+        // it: the template is the descriptor author's own text, and escaping
+        // their separators would send the escape sequence as the separator.
+        #expect(DescriptorProvider.filled("Account {account}", token: "t",
+                                          account: "acct 42", forURL: true)
+                == "Account acct%2042")
+    }
+
+    /// The two failures a descriptor author can make, both refused where it
+    /// is written rather than at the first fetch.
+    @Test("Asking for an account without a file to read it from is refused")
+    func accountFieldNeedsAJSONFile() {
+        #expect(throws: (any Error).self) {
+            try provider(credential: ["kind": "env", "name": "TOKEN",
+                                      "accountField": "account_id"])
+        }
+    }
+
+    @Test("Using the placeholder without declaring the field is refused")
+    func placeholderNeedsTheField() throws {
+        let file = try write(["token": "sk-abc"])
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(throws: (any Error).self) {
+            try provider(credential: ["kind": "jsonFile", "path": file.path, "field": "token"])
+        }
+    }
+
+    /// A credential that fails its `requires` guards is not this vendor's,
+    /// and neither is the account id sitting next to it.
+    @Test("An account id in a file that is not this vendor's is not read")
+    func requiresGuardsTheAccountToo() throws {
+        let file = try write(["token": "sk-abc", "account_id": "acct-42",
+                              "vendor": "somebody-else"])
+        defer { try? FileManager.default.removeItem(at: file) }
+        let p = try provider(credential: ["kind": "jsonFile", "path": file.path,
+                                          "field": "token", "accountField": "account_id",
+                                          "requires": ["vendor": "example"]])
+        #expect(p.account() == nil, "another vendor's account id was read")
+    }
+
+    /// An endpoint with no placeholder is untouched by any of this, or every
+    /// descriptor that ships today would be taking a different path.
+    @Test("A descriptor that names no account is unaffected")
+    func withoutAccount() {
+        #expect(DescriptorProvider.filled("https://x.invalid/u?key={token}", token: "sk-1",
+                                          account: nil, forURL: true)
+                == "https://x.invalid/u?key=sk%2D1")
+    }
+}

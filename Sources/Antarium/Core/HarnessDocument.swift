@@ -7,6 +7,10 @@ import AntariumHarnessSDK
 /// and cannot distinguish an old meaning from a future one. Every load passes
 /// through here so bundled and third-party documents receive identical
 /// migrations and future versions fail closed.
+private extension Optional where Wrapped == [String] {
+    var orEmpty: [String] { self ?? [] }
+}
+
 enum HarnessDocument {
     static let currentVersion = HarnessConfig.currentFormatVersion
 
@@ -171,6 +175,32 @@ enum HarnessDocument {
                 throw Error.semantic("quota declares neither an endpoint nor a command")
             default: break
             }
+            // An account id is read from the credential file beside the
+            // token, so asking for one on a credential that has no such file
+            // is a descriptor that can never work. Refused where it is
+            // written rather than at the first fetch, which is the same
+            // reasoning `requires` is checked under.
+            let credential = quota["credential"] as? [String: Any]
+            let accountField = (credential?["accountField"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if accountField?.isEmpty == false,
+               (credential?["kind"] as? String) != "jsonFile" {
+                throw Error.semantic(
+                    "quota.credential.accountField reads a second field out of a JSON file, "
+                    + "and this credential is \((credential?["kind"] as? String) ?? "not declared")")
+            }
+            // And the other way round: a placeholder nothing can fill leaves
+            // the request asking about an account literally called
+            // "{account}".
+            let usesAccount = [(quota["endpoint"] as? String) ?? ""]
+                + (quota["headers"] as? [String: String]).map { Array($0.values) } .orEmpty
+                + (quota["body"] as? [String: String]).map { Array($0.values) } .orEmpty
+            if usesAccount.contains(where: { $0.contains("{account}") }),
+               accountField?.isEmpty != false {
+                throw Error.semantic(
+                    "quota uses {account} but its credential declares no accountField")
+            }
+
             // A balance is money, and money with no stated currency is a
             // number whose meaning is unknown. The mapping used to answer
             // "USD" for an author who omitted it, which turns a CNY balance

@@ -601,6 +601,15 @@ can tell whether the total already counts those, so adding them makes a
 figure too large and ignoring them makes the declaration a lie. The row
 draws it under its own icon, never under the sent arrow.
 
+`quota.credential.accountField` reads a second value — an account or
+organisation id — out of the same `jsonFile`, and `{account}` is substituted
+wherever `{token}` is. It is for services that scope usage under an
+identifier the URL has to carry, `GET /v1/accounts/{account_id}/quotas` being
+the common shape. The id is subject to the same `requires` guards as the
+token, since a file that is not this vendor's does not hold this vendor's
+account either. Declaring it on any other credential kind is refused, as is
+using `{account}` without declaring it.
+
 `{token}` is substituted into the headers, into a POST `body`, and into the
 `endpoint` itself. The last is for services that take the credential as a
 query parameter rather than a header — a self-hosted proxy in front of an

@@ -152,15 +152,51 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             // A shared file can hold another vendor's token in the same field.
             // Failing closed here means an unrecognised setup is reported as
             // not signed in, rather than as this vendor and sent to it.
-            for (path, required) in credential.requires ?? [:] {
-                guard let found = FieldPath.lookup(object, path) as? String,
-                      found.lowercased().contains(required.lowercased())
-                else { return nil }
-            }
+            guard Self.belongsToThisVendor(object, credential) else { return nil }
             return FieldPath.lookup(object, field) as? String
         default:
             return nil
         }
+    }
+
+    /// Whether a credential file is this vendor's at all.
+    ///
+    /// One copy, because there are two readers of the same file and they must
+    /// not be able to disagree: a file that fails these guards is not this
+    /// vendor's, so neither its token nor the account id beside it may be
+    /// used. Written twice, the account reader could have kept reading from a
+    /// file the token reader had already rejected.
+    static func belongsToThisVendor(_ object: [String: Any],
+                                    _ credential: HarnessDescriptor.Quota.Credential) -> Bool {
+        for (path, required) in credential.requires ?? [:] {
+            guard let found = FieldPath.lookup(object, path) as? String,
+                  found.lowercased().contains(required.lowercased())
+            else { return false }
+        }
+        return true
+    }
+
+    /// The account or organisation the token belongs to, when the service
+    /// scopes its usage under one and the credential file names it.
+    ///
+    /// Read from the same file as the token and checked by the same
+    /// `requires` guards — a file that failed those is not this vendor's, and
+    /// its account id is not either.
+    func account() -> String? {
+        guard let credential = quota.credential, credential.kind == "jsonFile",
+              let field = credential.accountField,
+              let path = credential.path?.expandingTilde,
+              let data = try? BoundedFile.read(URL(fileURLWithPath: path),
+                                               maxBytes: Self.maxCredentialBytes),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        guard Self.belongsToThisVendor(object, credential) else { return nil }
+        // A number is a perfectly ordinary account id, and reading only
+        // strings would report "not signed in" for a file that says so
+        // plainly.
+        if let text = FieldPath.lookup(object, field) as? String, !text.isEmpty { return text }
+        if let number = FieldPath.lookup(object, field) as? NSNumber { return number.stringValue }
+        return nil
     }
 
     // MARK: - Fetch
@@ -195,17 +231,26 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         // Nothing logs a request URL — `UsageHTTP` records the status alone,
         // and `--check` prints the endpoint's host — so a credential placed
         // here does not reach the log the way one in a header does not.
+        let account = self.account()
         guard let endpoint = quota.endpoint,
-              let url = Self.requestURL(endpoint, token: token) else {
+              let url = Self.requestURL(endpoint, token: token, account: account) else {
             throw ProviderError.badResponse("\(displayName)'s endpoint is not a URL.")
         }
+        // A descriptor that asks for an account it cannot find must say so
+        // rather than ask about one named "{account}".
+        if endpoint.contains("{account}"), account == nil {
+            throw ProviderError.notConfigured(
+                "\(displayName) needs the account its credential names, and the file does not name one.")
+        }
         var headers = quota.headers ?? ["Authorization": "Bearer {token}"]
-        headers = headers.mapValues { $0.replacingOccurrences(of: "{token}", with: token) }
+        headers = headers.mapValues {
+            Self.filled($0, token: token, account: account, forURL: false)
+        }
 
         let json: [String: Any]
         if quota.resolvedMethod == .post {
             let body = (quota.body ?? [:]).mapValues {
-                $0.replacingOccurrences(of: "{token}", with: token)
+                Self.filled($0, token: token, account: account, forURL: false)
             }
             json = try await UsageHTTP.postJSON(url, body: body, headers: headers,
                                                 session: session)
@@ -219,10 +264,35 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     ///
     /// Callable so the substitution can be checked without a network: the
     /// only other way to see this URL is to watch a request leave.
-    static func requestURL(_ endpoint: String, token: String) -> URL? {
-        guard endpoint.contains("{token}") else { return URL(string: endpoint) }
-        let encoded = token.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? token
-        return URL(string: endpoint.replacingOccurrences(of: "{token}", with: encoded))
+    static func requestURL(_ endpoint: String, token: String,
+                           account: String? = nil) -> URL? {
+        URL(string: filled(endpoint, token: token, account: account, forURL: true))
+    }
+
+    /// The one substitution, so the placeholders cannot come to mean
+    /// different things in a URL and in a header.
+    ///
+    /// `forURL` is the only difference: a value going into a URL is
+    /// percent-encoded so punctuation in it stays a value rather than
+    /// becoming syntax, and a header value is not, because encoding it there
+    /// would send the escape sequence itself.
+    static func filled(_ template: String, token: String, account: String?,
+                       forURL: Bool) -> String {
+        func encode(_ value: String) -> String {
+            forURL ? (value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? value)
+                   : value
+        }
+        var out = template
+        if out.contains("{token}") {
+            out = out.replacingOccurrences(of: "{token}", with: encode(token))
+        }
+        // Left as written when there is no account to put in. A URL still
+        // carrying the placeholder is refused by the host check rather than
+        // silently asking about an account called "{account}".
+        if let account, out.contains("{account}") {
+            out = out.replacingOccurrences(of: "{account}", with: encode(account))
+        }
+        return out
     }
 
     /// Reads the figures from a command's stdout.

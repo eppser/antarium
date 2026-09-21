@@ -211,6 +211,22 @@ struct HarnessDescriptor: Codable {
             /// it elsewhere, because a guard that silently does nothing is
             /// worse than no guard.
             var requires: [String: String]?
+            /// A second value in the same file: the account or organisation
+            /// this token belongs to, for a service that scopes usage under
+            /// one.
+            ///
+            /// `GET /v1/accounts/{account_id}/quotas` is a common shape, and
+            /// until now a descriptor could not describe it at all — the
+            /// identifier is not in the URL and a descriptor declares one
+            /// endpoint, not a call to discover the next. Vendors that scope
+            /// this way generally write the id beside the token, which is
+            /// where the Codex provider reads its own from, so the file the
+            /// credential already opens is usually the answer.
+            ///
+            /// `jsonFile` only, for the same reason `requires` is: on the
+            /// other kinds there is no second field to read, and a setting
+            /// that silently does nothing is worse than none.
+            var accountField: String?
         }
         /// Where the windows live in the response, and what each field is called.
         struct Windows: Codable {

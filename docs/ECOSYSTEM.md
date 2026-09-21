@@ -158,6 +158,15 @@ recur: plenty of vendors scope usage under an account or organisation id, and
 until a descriptor can name where to find one, a published schema is not
 enough on its own.
 
+A descriptor can name one now, for the case that actually occurs: the id is
+written beside the token, which is where the Codex provider reads its own
+from, so `quota.credential.accountField` takes it out of the file the
+credential already opens and `{account}` goes wherever `{token}` does. A
+discovery call — asking one endpoint for the identifier of the next — is a
+different thing and still is not possible. Fireworks itself remains out for
+its other reason: the quotas are reserved GPU capacity rather than spend, so
+a serverless account has none to report.
+
 Not currently integrated, with the reason each would need native code — or,
 for the first, the reason it still cannot be written even though it no longer
 would. The

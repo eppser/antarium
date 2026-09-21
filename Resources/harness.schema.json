@@ -916,6 +916,10 @@
             "type": "string"
           },
           "description": "Field path -> required substring, checked in the same jsonFile before the token is used."
+        },
+        "accountField": {
+          "type": "string",
+          "description": "Field path to the account or organisation id in the same jsonFile, substituted as {account} into the endpoint, headers and body. jsonFile credentials only."
         }
       }
     },

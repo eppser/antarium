@@ -494,6 +494,10 @@ public struct HarnessConfig: Codable {
             public var name: String?
             public var command: String?
             public var args: [String]?
+            /// Field path to the account or organisation id in the same JSON
+            /// file, substituted as `{account}` into the endpoint, headers
+            /// and body. `jsonFile` credentials only.
+            public var accountField: String?
 
             public init(kind: String) {
                 self.kind = kind
