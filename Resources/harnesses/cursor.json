@@ -6,7 +6,7 @@
     "mark": "cursor",
     "fallbackName": "Cursor"
   },
-  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one. Project rules live in .cursor/rules and must carry the .mdc extension; Cursor's own documentation states that a plain .md file there is ignored because it has no frontmatter. The probe counts only .mdc, so a folder of ignored files does not report instructions the agent will never read.",
+  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one. Project rules live in .cursor/rules and must carry the .mdc extension; Cursor's own documentation states that a plain .md file there is ignored because it has no frontmatter. The probe counts only .mdc, so a folder of ignored files does not report instructions the agent will never read. Cursor's rules documentation also names AGENTS.md in the project root, so a project with no .cursor/rules folder still reports its instructions.",
   "process": {
     "pathContains": [
       "Cursor.app/Contents/MacOS/Cursor"
@@ -59,9 +59,10 @@
   "detached": true,
   "capabilities": {
     "instruction": {
-      "probe": "directory",
+      "probe": "content",
       "project": [
-        ".cursor/rules"
+        ".cursor/rules",
+        "AGENTS.md"
       ],
       "fileSuffixes": [
         ".mdc"

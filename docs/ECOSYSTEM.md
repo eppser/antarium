@@ -123,9 +123,8 @@ Cursor (`.cursor/rules/*.mdc`, filtered to `.mdc` because Cursor's docs say a
 plain `.md` there is ignored), Zed (`.rules`, `.cursorrules`, `CLAUDE.md`,
 `AGENTS.md`).
 
-Not described: `cursor-cli`, `hermes`, `kimi`, `openclaw` and `pi`.
-Five, not the fifteen that "every descriptor without
-capabilities" suggests — project context hangs off a row, and the other ten
+Not described: `hermes`, `kimi`, `openclaw` and `pi`. Four, not the
+fifteen that "every descriptor without capabilities" suggests — project context hangs off a row, and the other eleven
 make none. A quota-only harness like `copilot` or `zai` reads no session
 source, and a focus-only one like `herdr` or `orca` reports panes that are
 already somebody else's rows. A capability rule on either is configuration

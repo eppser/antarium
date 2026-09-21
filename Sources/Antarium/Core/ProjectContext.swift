@@ -211,10 +211,19 @@ struct ProjectContext {
 
         func probe(_ url: URL, rule: HarnessDescriptor.CapabilityRule)
             throws -> (url: URL, count: Int)? {
-            guard try metadata(url) != nil else { return nil }
+            guard let info = try metadata(url) else { return nil }
             switch rule.resolvedProbe {
             case .content:
-                return try hasContent(url, suffixes: rule.countedSuffixes) ? (url, 0) : nil
+                // A folder reached by a content rule is still counted. It
+                // costs nothing — the entries were read to decide whether it
+                // was empty — and without it a rule that names both a file
+                // and a folder, as Cursor's does, would report "rules" where
+                // the directory probe reports "4 rules".
+                if info.st_mode & S_IFMT == S_IFDIR {
+                    let entries = try entries(url, suffixes: rule.countedSuffixes)
+                    return entries.isEmpty ? nil : (url, entries.count)
+                }
+                return try hasContent(url) ? (url, 0) : nil
             case .jsonObject:
                 return try jsonObject(url, keys: rule.objectKeys) ? (url, 0) : nil
             case .toml:

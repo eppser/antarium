@@ -195,6 +195,47 @@ struct CapabilitySuffixFilterTests {
         return try #require(found.capabilities.first { $0.kind == .instruction }).scope
     }
 
+    private func count(_ root: URL, suffixes: [String]?, probe: String) throws -> Int {
+        var rule: [String: Any] = ["probe": probe, "project": [".cursor/rules"]]
+        if let suffixes { rule["fileSuffixes"] = suffixes }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "extfilter-fixture", "name": "Fixture",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "capabilities": ["instruction": rule]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        ProjectContext.invalidate()
+        let found = ProjectContext.scan(root.path, agentID: "extfilter-fixture",
+                                        descriptor: descriptor)
+        return try #require(found.capabilities.first { $0.kind == .instruction }).count
+    }
+
+    /// A folder reached by a content rule reports how many files are in it,
+    /// the same as a directory rule would. Cursor's one rule names a folder
+    /// and a file, and moving it to a content probe must not turn "4 rules"
+    /// into "rules".
+    @Test("A content probe counts a folder's entries, like a directory probe")
+    func contentProbeCounts() throws {
+        let root = try project(["a.mdc", "b.mdc", "c.mdc", "ignored.md"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try count(root, suffixes: [".mdc"], probe: "content") == 3)
+        #expect(try count(root, suffixes: [".mdc"], probe: "directory") == 3,
+                "the two probes disagree about the same folder")
+    }
+
+    /// A file has no entries to count, and reporting one would read as a
+    /// folder holding a single rule.
+    @Test("A content probe on a file reports no count")
+    func contentProbeOnFileHasNoCount() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("extfilter-\(UUID().uuidString)")
+        let dir = root.appendingPathComponent(".cursor")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("rule\n".utf8).write(to: dir.appendingPathComponent("rules"))
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try count(root, suffixes: nil, probe: "content") == 0)
+    }
+
     @Test("A folder holding only ignored files reports nothing")
     func onlyIgnoredFiles() throws {
         let root = try project(["readme.md", "notes.txt"])
@@ -275,13 +316,31 @@ struct ShippedCapabilityTests {
 
     /// Cursor's documentation states that a plain `.md` in `.cursor/rules` is
     /// ignored because it carries no frontmatter, so the probe counts `.mdc`
-    /// and nothing else.
-    @Test("Cursor reads .mdc rules from .cursor/rules")
+    /// and nothing else. The same page names `AGENTS.md` in the project root,
+    /// which is a file rather than a folder — one rule covers both, because a
+    /// content probe accepts either and applies the suffixes to the folder.
+    @Test("Cursor reads .mdc rules from .cursor/rules, and AGENTS.md")
     func cursorRules() throws {
         let rule = try #require(try descriptor("cursor").capabilityRules["instruction"])
-        #expect(rule.resolvedProbe == .directory)
-        #expect(rule.projectPaths == [".cursor/rules"])
+        #expect(rule.resolvedProbe == .content)
+        #expect(rule.projectPaths == [".cursor/rules", "AGENTS.md"],
+                "the folder Cursor documents first must be preferred")
         #expect(rule.countedSuffixes == [".mdc"], "an ignored file would count as instructions")
+    }
+
+    /// The CLI's own documentation says it supports the editor's rules system
+    /// and additionally reads AGENTS.md and CLAUDE.md at the project root.
+    /// The editor's page does not mention CLAUDE.md, so the editor harness
+    /// does not claim it — the difference is the evidence, not a tidier list.
+    @Test("Cursor CLI reads one file more than the editor does")
+    func cursorCLIRules() throws {
+        let rule = try #require(try descriptor("cursor-cli").capabilityRules["instruction"])
+        #expect(rule.resolvedProbe == .content)
+        #expect(rule.projectPaths == [".cursor/rules", "AGENTS.md", "CLAUDE.md"])
+        #expect(rule.countedSuffixes == [".mdc"])
+        let editor = try #require(try descriptor("cursor").capabilityRules["instruction"])
+        #expect(editor.projectPaths.contains("CLAUDE.md") == false,
+                "the editor claimed a file only the CLI documents")
     }
 
     /// opencode documents CLAUDE.md as a fallback used only when AGENTS.md

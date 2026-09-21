@@ -363,7 +363,7 @@ filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift
 zed instructions read from the wrong file | Resources/harnesses/zed.json | s|".rules",|".rulez",|
 cursor instructions unfiltered | Resources/harnesses/cursor.json | s|".mdc"|".md"|
 suffix filter compares the extension only | Sources/Antarium/Core/ProjectContext.swift | s|entry.url.lastPathComponent.hasSuffix(\$0)|\$0.hasSuffix(entry.url.pathExtension)|
-content probe ignores the suffix filter | Sources/Antarium/Core/ProjectContext.swift | s|hasContent(url, suffixes: rule.countedSuffixes)|hasContent(url)|
+content probe ignores the suffix filter | Sources/Antarium/Core/ProjectContext.swift | s|                    let entries = try entries(url, suffixes: rule.countedSuffixes)|                    let entries = try entries(url)|
 copilot prefers the shared agent file | Resources/harnesses/vscode.json | s|".github/copilot-instructions.md",|"AGENTS.md",|
 copilot scoped folder counts every file | Resources/harnesses/copilot-cli.json | s|".instructions.md"|".md"|
 remote pane walk gives up one level early | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxPaneDepth = 8|static let maxPaneDepth = 7|
@@ -372,9 +372,13 @@ grok refresh ignores the scheme | Sources/Antarium/Providers/GrokProvider.swift 
 descriptor json credential read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
 descriptor credential bound raised | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxCredentialBytes = 256 \* 1_024|static let maxCredentialBytes = 512 * 1_024|
 a focus-only harness declares project context | Resources/harnesses/herdr.json | s|"contributes": "focus"|"capabilities": {"instruction": {"project": ["AGENTS.md"]}}, "contributes": "focus"|
-a gap drops out of the ecosystem list | docs/ECOSYSTEM.md | s|`cursor-cli`|`cursor-cli-renamed`|
+a gap drops out of the ecosystem list | docs/ECOSYSTEM.md | s|`openclaw`|`openclaw-renamed`|
 gemini global context read as a project file | Resources/harnesses/gemini.json | s|"~/.gemini/GEMINI.md"|"GEMINI.md"|
 gemini skill folders in the wrong precedence | Resources/harnesses/gemini.json | s|"\.agents/skills"|".gemini/skills"|
 opencode prefers the claude fallback | Resources/harnesses/opencode.json | s|^        "AGENTS.md",$||
 opencode global rules read from the project | Resources/harnesses/opencode.json | s|"~/.config/opencode/AGENTS.md"|"AGENTS.md"|
 opencode skills miss the agents alias | Resources/harnesses/opencode.json | s|".agents/skills"|".opencode/skills"|
+content probe reports no folder count | Sources/Antarium/Core/ProjectContext.swift | s|return entries.isEmpty ? nil : (url, entries.count)|return entries.isEmpty ? nil : (url, 0)|
+cursor drops the documented agents file | Resources/harnesses/cursor.json | s|^        "AGENTS.md"$||
+cursor claims a file only the cli reads | Resources/harnesses/cursor.json | s|^        "AGENTS.md"$|        "AGENTS.md", "CLAUDE.md"|
+cursor cli loses its extra project file | Resources/harnesses/cursor-cli.json | s|^        "CLAUDE.md"$||
