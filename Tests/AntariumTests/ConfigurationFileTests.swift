@@ -294,3 +294,64 @@ struct DamagedConfigurationReportingContractTests {
                 "nothing checks that one bad descriptor costs one harness")
     }
 }
+
+/// A save that cannot be written, which is a different failure from a file
+/// that cannot be read.
+///
+/// A full disk, a directory somebody has made read-only, a volume unmounted
+/// mid-session. The existing file is preserved either way — writes go to a
+/// temporary file and are renamed over — and the message says which of the
+/// two happened, because "fix your settings file" is wrong advice when the
+/// settings file is fine and the disk is full.
+@Suite("A settings file that cannot be written", .serialized)
+struct UnwritableConfigurationTests {
+
+    @Test("A save into a directory that cannot be written is refused and reported")
+    func unwritableDirectoryIsReported() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unwritable-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700],
+                                                    ofItemAtPath: directory.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let url = directory.appendingPathComponent("config.json")
+        try Data(#"{"a":1}"#.utf8).write(to: url)
+
+        let config = ConfigurationFile(url: url)
+        #expect(config.int("a") == 1, "the file did not read back before being locked")
+        #expect(config.issue == nil)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o500],
+                                              ofItemAtPath: directory.path)
+        let saved = config.set("b", 2)
+        // Root ignores the permission bits, so this only asserts where the
+        // directory actually became unwritable.
+        guard !saved || getuid() == 0 else {
+            Issue.record("the directory did not become unwritable; nothing was tested")
+            return
+        }
+        guard !saved else { return }
+
+        let issue = try #require(config.issue, "a failed save reported nothing")
+        #expect(issue.contains("not saved"),
+                "the message does not say the save failed: \(issue)")
+        #expect(try String(contentsOf: url, encoding: .utf8).contains("\"a\""),
+                "a failed save damaged the file it could not replace")
+    }
+
+    /// And the two messages are different, because the remedies are: one asks
+    /// you to fix the file, the other tells you the file is fine.
+    @Test("An unreadable file and an unwritable one do not say the same thing")
+    func theTwoFailuresReadDifferently() throws {
+        let broken = FileManager.default.temporaryDirectory
+            .appendingPathComponent("broken-\(UUID()).json")
+        try Data("{ not json".utf8).write(to: broken)
+        defer { try? FileManager.default.removeItem(at: broken) }
+        let readFailure = try #require(ConfigurationFile(url: broken).issue)
+        #expect(readFailure.contains("could not be read"))
+        #expect(!readFailure.contains("not saved"),
+                "a file that cannot be read reports a save that never happened")
+    }
+}

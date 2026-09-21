@@ -133,6 +133,10 @@ final class ConfigurationFile: @unchecked Sendable {
                 }
             }
             guard fsync(fd) == 0, fingerprint() == stamp else { throw BoundaryError.changed }
+            // rename(2) replaces the destination atomically, so there is
+            // deliberately no unlink first: removing the old file would open a
+            // window where a crash leaves no settings at all. The difference is
+            // unobservable from a test, which is why no mutation records it.
             guard rename(temporary.path, url.path) == 0 else { throw BoundaryError.invalid }
             store = next; stamp = fingerprint(); readable = true; failure = nil
             didChange()
