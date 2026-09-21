@@ -284,6 +284,35 @@ struct ShippedCapabilityTests {
         #expect(rule.countedSuffixes == [".mdc"], "an ignored file would count as instructions")
     }
 
+    /// Gemini CLI's documentation names `~/.gemini/GEMINI.md` as the global
+    /// context file and `GEMINI.md` in the workspace as the project one, and
+    /// puts skills in `.agents/skills` or `.gemini/skills` with the `.agents`
+    /// alias taking precedence.
+    @Test("Gemini reads GEMINI.md and two skill folders")
+    func geminiContext() throws {
+        let rules = try descriptor("gemini").capabilityRules
+        let instruction = try #require(rules["instruction"])
+        #expect(instruction.resolvedProbe == .content)
+        #expect(instruction.projectPaths == ["GEMINI.md"])
+        #expect(instruction.inheritedPaths == ["~/.gemini/GEMINI.md"],
+                "the global context file is not the project one")
+
+        let skills = try #require(rules["skills"])
+        #expect(skills.resolvedProbe == .directory)
+        #expect(skills.projectPaths == [".agents/skills", ".gemini/skills"],
+                "the documented precedence is .agents before .gemini")
+        #expect(skills.inheritedPaths == ["~/.agents/skills", "~/.gemini/skills"])
+    }
+
+    /// A presence-only harness still puts a row on the dashboard — the
+    /// process is the evidence — so its project context is shown like any
+    /// other. This is the reason Gemini is worth a rule at all.
+    @Test("A presence-only harness is still one that makes rows")
+    func presenceHarnessMakesRows() throws {
+        #expect(try descriptor("gemini").contributesPresenceOnly)
+        #expect(try descriptor("gemini").contributesFocusOnly == false)
+    }
+
     /// GitHub documents one convention for every Copilot surface: a
     /// repository-wide file, a scoped folder, and the shared agent files. The
     /// `vscode` and `copilot-cli` harnesses are two of those surfaces and

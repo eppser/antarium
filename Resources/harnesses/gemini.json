@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "gemini",
   "name": "Gemini CLI",
-  "note": "Gemini CLI keeps no durable session record: ~/.gemini holds settings, a project list and a .project_root marker per directory, and nothing that describes a conversation. There is no transcript to read, so there are no tokens, no cost and no context figure \u2014 and a row that showed zeros would be claiming knowledge this harness does not have. It contributes presence only: the running process, the directory it is working in, and an explicit note that the rest is unknown. The process rule matches the executable name exactly: a path fragment of /bin/gemini also matches /bin/geminid, which the negative probe caught \u2014 the second time that check has found an over-broad matcher of mine.",
+  "note": "Gemini CLI keeps no durable session record: ~/.gemini holds settings, a project list and a .project_root marker per directory, and nothing that describes a conversation. There is no transcript to read, so there are no tokens, no cost and no context figure \u2014 and a row that showed zeros would be claiming knowledge this harness does not have. It contributes presence only: the running process, the directory it is working in, and an explicit note that the rest is unknown. The process rule matches the executable name exactly: a path fragment of /bin/gemini also matches /bin/geminid, which the negative probe caught \u2014 the second time that check has found an over-broad matcher of mine. Context files are GEMINI.md: the CLI's documentation names ~/.gemini/GEMINI.md as the global one and GEMINI.md in the workspace as the project one. Only the workspace file itself is probed \u2014 the CLI also walks parent directories and, just in time, the directories a tool touches, which is not something a probe at the session's working directory can see. Skills live in .agents/skills or .gemini/skills, with the .agents alias taking precedence, and in the same two folders under home. The default context file name can be changed in settings; a renamed one reads as absent rather than wrong.",
   "process": {
     "names": [
       "gemini"
@@ -57,5 +57,27 @@
   "contributes": "presence",
   "presentation": {
     "sourceLabel": "Process only"
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        "GEMINI.md"
+      ],
+      "inherited": [
+        "~/.gemini/GEMINI.md"
+      ]
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [
+        ".agents/skills",
+        ".gemini/skills"
+      ],
+      "inherited": [
+        "~/.agents/skills",
+        "~/.gemini/skills"
+      ]
+    }
   }
 }
