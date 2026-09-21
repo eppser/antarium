@@ -45,6 +45,7 @@ enum ProviderRegistry {
         GeminiProvider(),
         // Amp reports in text rather than JSON, which a descriptor cannot map.
         AmpProvider(),
+        KiroProvider(),
     ]
 
     /// Providers contributed as config. Built once and kept, so a provider's

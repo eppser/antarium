@@ -75,9 +75,11 @@ Command Code, Vercel AI Gateway, DeepSeek.
 
 Native, because a descriptor cannot express them: Claude Code (Keychain and
 OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store), Amp
-(the reply is text, not JSON, and it is scanned rather than matched — stdout is
-bounded but not trusted, and a backtracking pattern is a way to turn a long
-line into a hung menu bar), and Gemini — its access token lasts about an hour, and renewing it means running
+and Kiro (the reply is text, not JSON, and both are scanned rather than matched
+— stdout is bounded but not trusted, and a backtracking pattern is a way to
+turn a long line into a hung menu bar; Kiro reports what has been used where
+Amp reports what is left, which is worth knowing before reading either), and
+Gemini — its access token lasts about an hour, and renewing it means running
 the CLI and letting it rewrite `~/.gemini/oauth_creds.json`. The mapping alone
 was written as a descriptor first and reverted, because a correct mapping
 behind a credential that expires is exactly what the note below says not to
@@ -95,7 +97,7 @@ credential rather than the response.
 | Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
-| Kiro, Mistral | usage is the text output of a CLI, and a descriptor maps field paths. Native is the escape hatch — Amp took it — but each is its own parser |
+| Mistral | usage comes from Vibe session logs rather than any endpoint, so it is a session reader rather than a quota one |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
 | Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
 

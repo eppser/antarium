@@ -152,3 +152,11 @@ amp charts a zero cap | Sources/Antarium/Providers/AmpProvider.swift | s|if let 
 amp line count unbounded | Sources/Antarium/Providers/AmpProvider.swift | s|.prefix(maxLines)||
 amp label length unbounded | Sources/Antarium/Providers/AmpProvider.swift | s|guard !label.isEmpty, label.count <= 64 else { continue }|guard !label.isEmpty else { continue }|
 amp requires no remaining marker | Sources/Antarium/Providers/AmpProvider.swift | s|guard line.contains("remaining"), let colon|guard let colon|
+kiro meter inverted | Sources/Antarium/Providers/KiroProvider.swift | s|used: min(max(used / total, 0), 1)|used: min(max(1 - used / total, 0), 1)|
+kiro reset year never rolls over | Sources/Antarium/Providers/KiroProvider.swift | s|if candidate > now { return candidate }|return candidate; if candidate > now { return candidate }|
+kiro reset resolved in local time | Sources/Antarium/Providers/KiroProvider.swift | s|calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt|calendar.timeZone = TimeZone(identifier: "Asia/Kolkata") ?? .gmt|
+kiro accepts an impossible month | Sources/Antarium/Providers/KiroProvider.swift | s|month >= 1, month <= 12,|month >= 1,|
+kiro colour codes not stripped | Sources/Antarium/Providers/KiroProvider.swift | s|let clean = stripANSI(text)|let clean = text|
+kiro charts a zero cap | Sources/Antarium/Providers/KiroProvider.swift | s|separator: "/"), total > 0 {|separator: "/"), total >= 0 {|
+kiro line count unbounded | Sources/Antarium/Providers/KiroProvider.swift | s|.prefix(maxLines)||
+kiro emoji becomes part of the label | Sources/Antarium/Providers/KiroProvider.swift | s|.drop { !\$0.isLetter }||
