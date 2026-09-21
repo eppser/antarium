@@ -397,3 +397,6 @@ the gap marker is missing entirely | docs/ECOSYSTEM.md | s|<!-- capability-gap: 
 pi personal override yields to the committed file | Resources/harnesses/pi.json | s|^        "AGENTS.override.md",$||
 pi global instructions read from the project | Resources/harnesses/pi.json | s|"~/.pi/agent/AGENTS.md"|"AGENTS.md"|
 pi skills miss the shared project folder | Resources/harnesses/pi.json | s|^        ".agents/skills"$||
+an empty declared file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|
+claude-code project memory template unknown | Resources/harnesses/claude-code.json | s|{cwdSlug}|{projectSlug}|
+zed instruction path cannot be reached | Resources/harnesses/zed.json | s|"AGENTS.md"|"AGENTS.md/"|
