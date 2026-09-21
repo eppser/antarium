@@ -425,3 +425,8 @@ an optional leaks into the exit status | Sources/Antarium/Providers/DescriptorPr
 waking leaves the agent rows stale | Sources/Antarium/AppController.swift | s|        AgentStore.shared.wake()||
 waking keeps the old timer phase | Sources/Antarium/Core/AgentStore.swift | /func wake() {/,/^    }$/ s|reschedule()||
 waking forces the remote sweep | Sources/Antarium/Core/AgentStore.swift | /func wake() {/,/^    }$/ s|refresh()|refresh(force: true)|
+run records are never pruned | Sources/Antarium/Core/RunWrapper.swift | s|            prune(directory)||
+run record pruning is lexical | Sources/Antarium/Core/RunWrapper.swift | /static func doomed/,/^    }$/ s|return x == y ? a < b : x < y|return a < b|
+run record pruning drops the newest | Sources/Antarium/Core/RunWrapper.swift | s|return Array(ordered.dropLast(limit))|return Array(ordered.prefix(names.count - limit).reversed())|
+run record pruning removes what it did not write | Sources/Antarium/Core/RunWrapper.swift | s|.filter { \$0.hasSuffix(".json") }||
+the run record limit is raised without a decision | Sources/Antarium/Core/RunWrapper.swift | s|static let maxRecords = 500|static let maxRecords = 50_000|

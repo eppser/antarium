@@ -491,6 +491,14 @@ A budget is a ceiling rather than a default: `BoundedSQLite.query` takes
 `maxRows` and applies `min(2_000, …)`, so a caller can lower it and not raise
 it.
 
+The bounded-objects rule applies to folders the app writes, not only to ones
+it reads. `antarium run <agent>` records each invocation as a small JSON file
+under `~/.antarium/runs`, nothing reads them back, and so nothing noticed
+that the folder had no bound on how many it held — a few hundred bytes each
+is exactly why a bytes rule would not have caught it. The newest 500 are
+kept, ordered on the timestamp the filename begins with rather than on
+modification time, which a copy or a restore rewrites.
+
 A `quota` block reads from exactly one place: an `endpoint`, or a `command`
 whose stdout is the JSON the `windows` map describes. Both would leave which
 one wins to the order of an `if`, and neither is a quota block that does

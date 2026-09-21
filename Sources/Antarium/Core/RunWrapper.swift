@@ -188,6 +188,51 @@ enum RunWrapper {
         _ = ioctl(master, TIOCSWINSZ, &size)
     }
 
+    /// The most run records kept.
+    ///
+    /// One file per wrapped run, and nothing reads them back — they are there
+    /// to be looked at. That made the folder the one place in the app with no
+    /// bound on how many objects it holds, which is the rule
+    /// `docs/TECHNICAL.md` states as bounding objects rather than only bytes:
+    /// each record is a few hundred bytes, and a year of wrapping every
+    /// invocation is a directory nobody wants to open.
+    static let maxRecords = 500
+
+    /// Which records to drop, given the names present. Pure, so the rule can
+    /// be checked without a folder full of files.
+    ///
+    /// Ordered on the timestamp the name begins with rather than on
+    /// modification time, which a copy, a backup restore or a `touch`
+    /// rewrites. Parsed as a number rather than compared as text: the names
+    /// are epoch seconds, and a ten-digit one sorts before a nine-digit one
+    /// as text while being later in fact. Every name written since 2001 has
+    /// ten digits, so this cannot currently differ — which is exactly why it
+    /// would go unnoticed.
+    static func doomed(_ names: [String], keeping limit: Int = maxRecords) -> [String] {
+        // A fast path rather than a boundary: at exactly `limit`,
+        // `dropLast(limit)` is empty anyway, so this only saves the sort.
+        // There is no catalogue entry for it for that reason.
+        guard names.count > limit else { return [] }
+        let ordered = names.sorted { a, b in
+            let x = Int(a.prefix(while: \.isNumber)) ?? 0
+            let y = Int(b.prefix(while: \.isNumber)) ?? 0
+            // Ties broken on the whole name so the answer does not depend on
+            // the order the filesystem listed them in.
+            return x == y ? a < b : x < y
+        }
+        return Array(ordered.dropLast(limit))
+    }
+
+    /// Bounded itself: a folder that has already grown past any sane size is
+    /// not a reason to read all of it at once.
+    static func prune(_ folder: URL, keeping limit: Int = maxRecords) {
+        guard let entries = try? BoundedDirectory.entries(folder, limit: 4_096) else { return }
+        let names = entries.map(\.url.lastPathComponent).filter { $0.hasSuffix(".json") }
+        for name in doomed(names, keeping: limit) {
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+        }
+    }
+
     private static func save(_ record: Record) {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -195,6 +240,7 @@ enum RunWrapper {
             encoder.dateEncodingStrategy = .iso8601
             let name = "\(Int(record.startedAt.timeIntervalSince1970))-\(getpid()).json"
             try encoder.encode(record).write(to: directory.appendingPathComponent(name))
+            prune(directory)
         } catch {
             FileHandle.standardError.write(Data("antarium: couldn't record run — \(error)\n".utf8))
         }
