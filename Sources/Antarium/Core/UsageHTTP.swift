@@ -66,6 +66,19 @@ enum UsageHTTP {
         return try await jsonResponse(for: req, host: url.host ?? "the server", session: session)
     }
 
+    /// A form-encoded POST, which OAuth token endpoints require and JSON is
+    /// not accepted for. Same checked URL and same bounded body as the rest.
+    static func postForm(_ url: URL, body: String, headers: [String: String],
+                         session: URLSession) async throws -> [String: Any] {
+        let url = try checkedURL(url)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
+        req.httpBody = Data(body.utf8)
+        return try await jsonResponse(for: req, host: url.host ?? "the server", session: session)
+    }
+
     static func postJSON(_ url: URL, body: [String: Any] = [:],
                          headers: [String: String],
                          session: URLSession) async throws -> [String: Any] {

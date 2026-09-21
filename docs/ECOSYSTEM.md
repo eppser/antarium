@@ -78,8 +78,14 @@ OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store), Amp
 and Kiro (the reply is text, not JSON, and both are scanned rather than matched
 — stdout is bounded but not trusted, and a backtracking pattern is a way to
 turn a long line into a hung menu bar; Kiro reports what has been used where
-Amp reports what is left, which is worth knowing before reading either), and
-Gemini — its access token lasts about an hour, and renewing it means running
+Amp reports what is left, which is worth knowing before reading either), Gemini, and Grok
+(`~/.grok/auth.json` is keyed by `<issuer>::<client-id>`, so the entry is found
+by looking rather than by a path, and the refresh token is spent here because
+no CLI reissues it — against the issuer the credential itself names, checked
+to be an x.ai host first, since a bearer token must not be posted to whatever
+a file says. The refreshed token is held in memory and never written back:
+rewriting another application's credential file to save a round trip is a
+poor trade against racing its own writes) — its access token lasts about an hour, and renewing it means running
 the CLI and letting it rewrite `~/.gemini/oauth_creds.json`. The mapping alone
 was written as a descriptor first and reverted, because a correct mapping
 behind a credential that expires is exactly what the note below says not to
@@ -93,7 +99,6 @@ credential rather than the response.
 
 | Service | Why a descriptor cannot express it |
 | --- | --- |
-| Grok | `~/.grok/auth.json` is keyed by `<issuer>::<client-id>`, which no fixed field path addresses, and the token expires with no CLI that reissues it |
 | Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |

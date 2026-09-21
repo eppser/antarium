@@ -218,3 +218,11 @@ installation probes always pass | Sources/Antarium/Core/HarnessInstallationEvalu
 installation evaluator reports no failures | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|return Report(passed: passed, total: probes.count, failures: failures)|return Report(passed: probes.count, total: probes.count, failures: [])|
 a harness may ship with no positive probe | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if !probes.contains(where: \\.expected) {|if false {|
 a harness may ship with no negative probe | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if !probes.contains(where: { !\$0.expected }) {|if false {|
+grok prefers an unrefreshable credential | Sources/Antarium/Providers/GrokProvider.swift | s|return found.first { \$0.canRefresh } ?? found.first|return found.first|
+grok staleness margin removed | Sources/Antarium/Providers/GrokProvider.swift | s|return expiresAt.timeIntervalSince(now) <= margin|return expiresAt.timeIntervalSince(now) <= 0|
+grok products unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|.prefix(maxProducts)||
+grok product names unclamped | Sources/Antarium/Providers/GrokProvider.swift | s|text.count <= maxText ? text : String(text.prefix(maxText))|text|
+grok refresh posts to any host the file names | Sources/Antarium/Providers/GrokProvider.swift | s|url.scheme == "https", (url.host ?? "").hasSuffix("x.ai")|url.scheme != nil|
+grok credential file read unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|BoundedFile.read(file ?? credentialsFile, maxBytes: 256 \* 1_024)|Data(contentsOf: file ?? credentialsFile)|
+grok credential missing issuer still refreshable | Sources/Antarium/Providers/GrokProvider.swift | s|refreshToken != nil \&\& issuer != nil \&\& clientID != nil|refreshToken != nil|
+grok credits charted as headroom | Sources/Antarium/Providers/GrokProvider.swift | s|used: min(max(used / 100, 0), 1), resetsAt: resets,|used: min(max(1 - used / 100, 0), 1), resetsAt: resets,|

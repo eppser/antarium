@@ -46,6 +46,9 @@ enum ProviderRegistry {
         // Amp reports in text rather than JSON, which a descriptor cannot map.
         AmpProvider(),
         KiroProvider(),
+        // Grok's credential file is keyed by issuer and client, and its token
+        // expires with no CLI that reissues it. See GrokProvider.
+        GrokProvider(),
     ]
 
     /// Providers contributed as config. Built once and kept, so a provider's
