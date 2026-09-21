@@ -402,3 +402,4 @@ claude-code project memory template unknown | Resources/harnesses/claude-code.js
 zed instruction path cannot be reached | Resources/harnesses/zed.json | s|"AGENTS.md"|"AGENTS.md/"|
 enabled agents default to a fixed list again | Sources/Antarium/UI/Settings.swift | s|recorded.map(Set.init) ?? \[\]|recorded.map(Set.init) ?? ["claude-code", "codex", "cursor"]|
 an empty choice reads as no choice | Sources/Antarium/UI/Settings.swift | s|static func unconfigured(recorded: \[String\]?) -> Bool { recorded == nil }|static func unconfigured(recorded: [String]?) -> Bool { (recorded ?? []).isEmpty }|
+claude code reads its body outside the bounded path | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|        try await UsageHTTP.getJSON(|        _ = try await session.data(for: URLRequest(url: endpoint)); return try await UsageHTTP.getJSON(|

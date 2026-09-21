@@ -1137,3 +1137,88 @@ struct PublishOrderTests {
                 "the rows are filtered before the stop is noticed, so finishing is silent")
     }
 }
+
+/// Every credentialled request goes through `UsageHTTP`.
+///
+/// `UsageHTTP.makeSession` attaches a delegate that caps the body at 2 MiB
+/// and refuses a cross-host redirect, and `getJSON`/`postForm`/`postJSON`
+/// register the per-task entry that delegate collects into. A provider that
+/// builds its own `URLRequest` and calls `session.data(for:)` keeps the
+/// session and loses the rest: `didReceive data:` returns at its first guard
+/// because no entry exists, so the running-total cap enforces nothing, and a
+/// refused redirect records its reason where nobody reads it.
+///
+/// ClaudeCodeProvider did exactly that, and it looked right — same session,
+/// same `UsageHTTP.check`, same error mapping. Nothing but reading the two
+/// paths side by side distinguishes them, which is what this replaces.
+@Suite("Providers reach the network one way")
+struct ProviderHTTPContractTests {
+
+    private var sources: [(name: String, text: String)] {
+        get throws {
+            let root = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+            var out: [(String, String)] = []
+            for folder in ["Sources/Antarium/Providers", "Sources/Antarium/Core"] {
+                let files = try FileManager.default.contentsOfDirectory(
+                    at: root.appendingPathComponent(folder), includingPropertiesForKeys: nil)
+                    .filter { $0.pathExtension == "swift" }
+                for url in files {
+                    // The two files that implement the bounded path are the
+                    // ones allowed to use the primitives it is built from.
+                    let name = url.lastPathComponent
+                    guard name != "UsageHTTP.swift", name != "BoundedResponse.swift"
+                    else { continue }
+                    out.append((name, try String(contentsOf: url, encoding: .utf8)))
+                }
+            }
+            return out.sorted { $0.0 < $1.0 }
+        }
+    }
+
+    /// Lines that are prose rather than code. The comment on the fix quotes
+    /// the form it replaced, and a rule that cannot tell the two apart makes
+    /// explaining a mistake impossible.
+    private func isCode(_ line: Substring) -> Bool {
+        !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+    }
+
+    @Test("No provider builds its own session or reads a body outside UsageHTTP",
+          arguments: ["URLSession(", "URLSession.shared", ".data(for:", ".data(from:",
+                      ".bytes(for:", ".bytes(from:", "dataTask(with:"])
+    func noHandRolledTransport(_ forbidden: String) throws {
+        let files = try sources
+        #expect(files.count > 15, "only \(files.count) sources were scanned")
+        for file in files {
+            for (index, line) in file.text.split(separator: "\n", omittingEmptySubsequences: false)
+                .enumerated() where isCode(line) && line.contains(forbidden) {
+                Issue.record(Comment(rawValue:
+                    "\(file.name):\(index + 1) uses \(forbidden) — the bounded body "
+                    + "and the redirect refusal are in UsageHTTP, not in the session"))
+            }
+        }
+    }
+
+    /// The positive half. A provider that talks to the network has to get its
+    /// session from the one place that configures it, and there must be some
+    /// — a rule nothing satisfies passes for the wrong reason.
+    @Test("Every session a provider holds comes from UsageHTTP.makeSession")
+    func sessionsComeFromUsageHTTP() throws {
+        var holders: [String] = []
+        for file in try sources {
+            // Naming URLSession at all, outside the two files that implement
+            // the bounded path, is how a second transport would start.
+            let lines = file.text.split(separator: "\n", omittingEmptySubsequences: false)
+            for (index, line) in lines.enumerated()
+            where isCode(line) && line.contains("URLSession") {
+                Issue.record(Comment(rawValue:
+                    "\(file.name):\(index + 1) names URLSession outside UsageHTTP"))
+            }
+            if file.text.contains("UsageHTTP.makeSession") { holders.append(file.name) }
+        }
+        #expect(holders.count >= 5,
+                Comment(rawValue: "only \(holders.count) sources hold a configured session: "
+                        + holders.joined(separator: ", ")))
+    }
+}

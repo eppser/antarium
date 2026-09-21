@@ -55,26 +55,26 @@ final class ClaudeCodeProvider: UsageProvider, @unchecked Sendable {
         throw denialError ?? lastAuthError
     }
 
+    /// Goes through `UsageHTTP.getJSON` like every other provider, and used
+    /// not to.
+    ///
+    /// It built its own `URLRequest` and called `session.data(for:)`, which
+    /// looks equivalent and is not. The session's bounded delegate collects a
+    /// body into an entry `UsageHTTP` registers per task; `data(for:)`
+    /// registers none, so `didReceive data:` returned at its first guard and
+    /// the running-total cap enforced nothing. The declared-length half still
+    /// worked, which left exactly the case it cannot cover — a chunked reply
+    /// that declares no length — unbounded, on the one provider that talks to
+    /// Anthropic's own API.
+    ///
+    /// A refused cross-host redirect was the same shape: the refusal still
+    /// happened, but the reason was recorded into an entry nobody was reading,
+    /// so the caller saw whatever a cancelled redirect happens to look like
+    /// instead of being told a credential was nearly sent elsewhere.
     private func request(token: ClaudeToken) async throws -> [String: Any] {
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "GET"
-        req.setValue("Bearer \(token.accessToken)", forHTTPHeaderField: "Authorization")
-        req.cachePolicy = .reloadIgnoringLocalCacheData
-
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(for: req)
-        } catch let urlErr as URLError {
-            throw ProviderError.transport(UsageHTTP.describe(urlErr, host: "api.anthropic.com"))
-        } catch {
-            throw ProviderError.transport(error.localizedDescription)
-        }
-
-        try UsageHTTP.check(response, host: "api.anthropic.com")
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw ProviderError.badResponse("Usage response wasn't valid JSON.")
-        }
-        return obj
+        try await UsageHTTP.getJSON(
+            endpoint, headers: ["Authorization": "Bearer \(token.accessToken)"],
+            session: session)
     }
 
     // MARK: - Parsing
