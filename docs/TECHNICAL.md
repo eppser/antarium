@@ -552,6 +552,13 @@ read for `json` and `jsonl`; `query` and `columns` for `sqlite`; `args`,
 refusal: a leftover field does no harm beyond the silence, and refusing would
 break files people already have.
 
+`selection` has the same shape and the same check. `glob`, `records` and
+`encodedJSON` are read when selecting by `jsonFiles`; `query` and `column`
+when selecting by `sqlite`; `command`, `args` and `root` when selecting by
+`command`. `id` and `filter` belong to the two kinds that read records — a
+sqlite selection takes its ids straight out of a column and consults
+neither.
+
 ### Quota transport
 
 A `balance` must declare a `currency` — a path into the response where the

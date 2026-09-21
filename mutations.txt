@@ -605,3 +605,6 @@ an exact day reads as a day and no hours | Sources/Antarium/UI/Format.swift | s|
 a file-only source field applies everywhere | Sources/Antarium/Core/HarnessCheck.swift | s|"glob": \[.json, .jsonl\], "limit": \[.json, .jsonl\],|"glob": [.json, .jsonl, .sqlite], "limit": [.json, .jsonl, .sqlite],|
 a sqlite-only source field applies everywhere | Sources/Antarium/Core/HarnessCheck.swift | s|"query": \[.sqlite\], "columns": \[.sqlite\],|"query": [.sqlite, .jsonl], "columns": [.sqlite, .jsonl],|
 the path field is reported as inapplicable | Sources/Antarium/Core/HarnessCheck.swift | s|"manifest": \[.json, .jsonl\],|"manifest": [.json, .jsonl], "path": [.command],|
+a selection glob applies to every kind | Sources/Antarium/Core/HarnessCheck.swift | s|"glob": \[.jsonFiles\], "records": \[.jsonFiles\], "encodedJSON": \[.jsonFiles\],|"glob": [.jsonFiles, .sqlite], "records": [.jsonFiles], "encodedJSON": [.jsonFiles],|
+a sqlite selection is said to read a record filter | Sources/Antarium/Core/HarnessCheck.swift | s|"id": \[.jsonFiles, .command\], "filter": \[.jsonFiles, .command\],|"id": [.jsonFiles, .command, .sqlite], "filter": [.jsonFiles, .command, .sqlite],|
+the source applicability table is never read | Sources/Antarium/Core/HarnessCheck.swift | s|guard let kinds = sourceFieldKinds\[key\],|guard let kinds = Optional(Set<HarnessDescriptor.Source.Kind>()),|

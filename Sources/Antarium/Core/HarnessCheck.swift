@@ -28,6 +28,18 @@ enum HarnessCheck {
         "args": [.command], "refreshEvery": [.command], "root": [.command],
     ]
 
+    /// The same question for `selection`, which has its own `kind` and its own
+    /// three sets of fields. Read off the three functions in
+    /// `SessionSelection` rather than guessed: `id` and `filter` are shared
+    /// by the jsonFiles and command paths, and the sqlite path returns ids
+    /// straight out of a column without consulting either.
+    static let selectionFieldKinds: [String: Set<HarnessDescriptor.Selection.Kind>] = [
+        "glob": [.jsonFiles], "records": [.jsonFiles], "encodedJSON": [.jsonFiles],
+        "query": [.sqlite], "column": [.sqlite],
+        "command": [.command], "args": [.command], "root": [.command],
+        "id": [.jsonFiles, .command], "filter": [.jsonFiles, .command],
+    ]
+
     /// Every key the loader understands. The schema's authority lives here, so
     /// anything else in a file is a typo or a leftover.
     static let known: [String: Set<String>] = [
@@ -250,6 +262,17 @@ enum HarnessCheck {
                 let names = kinds.map(\.rawValue).sorted().joined(separator: " or ")
                 warn("source.\(key) is only read for a \(names) source, and this one is "
                      + "\(descriptor.source.kind.rawValue) — it will be ignored")
+            }
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let selection = object["selection"] as? [String: Any],
+           let kind = descriptor.sessionSelection?.kind {
+            for key in selection.keys.sorted() {
+                guard let kinds = selectionFieldKinds[key], !kinds.contains(kind) else { continue }
+                let names = kinds.map(\.rawValue).sorted().joined(separator: " or ")
+                warn("selection.\(key) is only read for a \(names) selection, and this one "
+                     + "is \(kind.rawValue) — it will be ignored")
             }
         }
 

@@ -1059,3 +1059,107 @@ struct SourceFieldApplicabilityTests {
         #expect(checked >= 20, "only \(checked) harnesses were checked")
     }
 }
+
+/// The same question for `selection`, which has its own kind and its own
+/// three sets of fields.
+///
+/// Read off the three functions in `SessionSelection` rather than guessed:
+/// the jsonFiles and command paths share the record filter, and the sqlite
+/// path returns ids straight out of a column without consulting it.
+@Suite("Selection fields that do not apply are reported")
+struct SelectionFieldApplicabilityTests {
+
+    @Test("Reading files is the only kind with a glob and records",
+          arguments: ["glob", "records", "encodedJSON"])
+    func fileOnly(_ field: String) throws {
+        #expect(try #require(HarnessCheck.selectionFieldKinds[field]) == [.jsonFiles])
+    }
+
+    @Test("Querying is the only kind with a query and a column",
+          arguments: ["query", "column"])
+    func sqliteOnly(_ field: String) throws {
+        #expect(try #require(HarnessCheck.selectionFieldKinds[field]) == [.sqlite])
+    }
+
+    @Test("Running something is the only kind with a command",
+          arguments: ["command", "args", "root"])
+    func commandOnly(_ field: String) throws {
+        #expect(try #require(HarnessCheck.selectionFieldKinds[field]) == [.command])
+    }
+
+    /// The two that are shared, and are shared by exactly two of the three.
+    /// A sqlite selection takes its ids from a column, so naming a field path
+    /// or a filter there does nothing — and claiming they were universal
+    /// would make this check say nothing about them at all.
+    @Test("The record filter belongs to the two kinds that read records",
+          arguments: ["id", "filter"])
+    func sharedByTwo(_ field: String) throws {
+        #expect(try #require(HarnessCheck.selectionFieldKinds[field])
+                == [.jsonFiles, .command])
+    }
+
+    @Test("Fields every kind reads are not in the table", arguments: ["kind", "path"])
+    func universalFieldsAreAbsent(_ field: String) {
+        #expect(HarnessCheck.selectionFieldKinds[field] == nil)
+    }
+
+    /// No shipped harness declares one its own kind ignores.
+    @Test("No shipped selection declares a field its kind ignores")
+    func shippedSelectionsAreClean() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        var checked = 0
+        for url in urls {
+            let data = try Data(contentsOf: url)
+            let descriptor = try HarnessDocument.decode(data).descriptor
+            guard let kind = descriptor.sessionSelection?.kind else { continue }
+            let object = try #require(
+                try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let selection = (object["selection"] as? [String: Any]) ?? [:]
+            for (key, kinds) in HarnessCheck.selectionFieldKinds where selection[key] != nil {
+                #expect(kinds.contains(kind), Comment(rawValue:
+                    "\(descriptor.id) selects by \(kind.rawValue) and declares \(key)"))
+            }
+            checked += 1
+        }
+        #expect(checked >= 1, "no shipped harness declares a selection")
+    }
+}
+
+/// The two applicability tables are consulted, not merely present.
+///
+/// Both are tested as data, which says the rule is right and nothing about
+/// whether `--check` applies it. Checked in the source because the checker
+/// prints its findings rather than returning them, and a mutation removing
+/// the loop either fails to compile or removes the only thing it does.
+@Suite("The applicability tables are used")
+struct ApplicabilityWiringTests {
+
+    private func checker() throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/HarnessCheck.swift"), encoding: .utf8)
+    }
+
+    @Test("Both tables are read, and both produce a warning", arguments: [
+        ("sourceFieldKinds", "source."), ("selectionFieldKinds", "selection."),
+    ])
+    func tableIsConsulted(_ pair: (table: String, prefix: String)) throws {
+        let text = try checker()
+        let uses = text.components(separatedBy: pair.table).count - 1
+        #expect(uses >= 2, "\(pair.table) is declared and never read")
+        #expect(text.contains("warn(\"\(pair.prefix)\\(key) is only read for"),
+                "\(pair.table) is read and says nothing")
+    }
+
+    /// And the warning names which kinds do read it, because "ignored" on its
+    /// own leaves the author to work out where the field belongs.
+    @Test("The warning says which kinds read the field")
+    func warningNamesTheKinds() throws {
+        let text = try checker()
+        #expect(text.components(separatedBy: "is only read for a \\(names)").count - 1 == 2,
+                "one of the two warnings does not name the kinds that read the field")
+    }
+}
