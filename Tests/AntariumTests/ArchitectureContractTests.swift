@@ -927,3 +927,43 @@ struct ProviderMappingCoverageTests {
         #expect(replayed >= 7, "expected every shipped quota descriptor; saw \(replayed)")
     }
 }
+
+/// A `DateFormatter` given an explicit `dateFormat` must be pinned to a fixed
+/// locale. Without it the hour field follows the reader's own preferences: a
+/// Mac with 24-Hour Time switched off renders `HH` as a twelve-hour clock
+/// with no am/pm.
+///
+/// A source rule rather than a test run under another locale, because
+/// `Locale.current` on macOS comes from user defaults and ignores the
+/// environment — there is no `TZ` equivalent to set. This catches the mistake
+/// where it is written instead.
+@Suite("Fixed date formats are pinned to a fixed locale")
+struct FixedDateFormatLocaleTests {
+
+    @Test("Every fixed dateFormat is accompanied by en_US_POSIX")
+    func fixedFormatsArePinned() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let sources = FileManager.default.enumerator(
+            at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+        #expect(sources.count > 10, "no sources were scanned, so this proved nothing")
+
+        var checked = 0
+        for url in sources {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            for (index, line) in lines.enumerated() where line.contains(".dateFormat = \"") {
+                checked += 1
+                // The locale is set in the same initialiser; a dozen lines
+                // either way covers every shape used here.
+                let from = max(0, index - 12), to = min(lines.count, index + 12)
+                let window = lines[from..<to].joined(separator: "\n")
+                #expect(window.contains("en_US_POSIX"),
+                        Comment(rawValue: "\(url.lastPathComponent):\(index + 1) sets a fixed "
+                                + "dateFormat without pinning the locale"))
+            }
+        }
+        #expect(checked >= 3, "expected the fixed-format formatters; saw \(checked)")
+    }
+}

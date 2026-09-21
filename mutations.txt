@@ -275,3 +275,5 @@ selection boolean filters stop matching | Sources/Antarium/Core/SessionSelection
 presence rows unsorted | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.pid < \$1.pid }|.sorted { _, _ in Bool.random() }|
 log timestamps follow the reader's clock preference | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")||
 log timestamps pinned to UTC rather than the machine | Sources/Antarium/Core/Log.swift | s|f.timeZone = timeZone|f.timeZone = TimeZone(identifier: "UTC")|
+a fixed date format ships unpinned | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")|f.timeZone = timeZone|
+sdk fixed date format ships unpinned | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|formatter.locale = Locale(identifier: "en_US_POSIX")||

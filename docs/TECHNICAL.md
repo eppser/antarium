@@ -428,7 +428,11 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
-A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`.
+A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`, and a
+test in `ArchitectureContractTests` reads the sources to enforce it. That is a
+source rule rather than a run under another locale because `Locale.current` on
+macOS comes from user defaults and ignores the environment — there is no `TZ`
+equivalent to set, so the mistake has to be caught where it is written.
 Without it the hour field follows the reader's own preferences, so a Mac with
 24-Hour Time switched off writes a twelve-hour clock with no am/pm and every
 log line is ambiguous between morning and afternoon. Formatters that render
