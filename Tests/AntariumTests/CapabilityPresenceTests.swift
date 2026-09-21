@@ -343,6 +343,30 @@ struct ShippedCapabilityTests {
                 "the editor claimed a file only the CLI documents")
     }
 
+    /// Hermes documents one project context file per session, first match
+    /// wins, and names the chain explicitly. The probe returns the first path
+    /// that matches, so the declared order *is* that chain — get it wrong and
+    /// the capability names a file Hermes ignored in favour of another.
+    @Test("Hermes declares its context chain in the documented order")
+    func hermesContextChain() throws {
+        let rules = try descriptor("hermes").capabilityRules
+        let instruction = try #require(rules["instruction"])
+        #expect(instruction.projectPaths == [
+            ".hermes.md", "HERMES.md", "AGENTS.override.md", "AGENTS.md",
+            "CLAUDE.md", ".cursorrules"])
+
+        // The documentation is explicit that SOUL.md is loaded from
+        // HERMES_HOME only and never from the working directory.
+        #expect(instruction.inheritedPaths == ["~/.hermes/SOUL.md"])
+        #expect(instruction.projectPaths.contains("SOUL.md") == false,
+                "the persona would be read out of the project")
+
+        #expect(try #require(rules["memory"]).inheritedPaths == ["~/.hermes/memories"])
+        #expect(try #require(rules["skills"]).inheritedPaths == ["~/.hermes/skills"])
+        #expect(try #require(rules["skills"]).projectPaths.isEmpty,
+                "skills are documented under the home directory only")
+    }
+
     /// OpenClaw's workspace is the session's working directory, so its
     /// bootstrap files are found where the probe already looks — no
     /// environment variable has to be read to locate them, which is unusual
