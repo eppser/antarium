@@ -272,3 +272,51 @@ struct RemoteCompletionTests {
         #expect(!AgentStore.shouldApplyRemote(enabled: true, hosts: []))
     }
 }
+
+/// Only active agents are shown. An agent whose process is gone is not one,
+/// and the row for it goes rather than lingering greyed out.
+@Suite("The dashboard shows what is running", .serialized)
+@MainActor
+struct ActiveRowsTests {
+
+    private func row(_ id: String, _ state: AgentRow.State) -> AgentRow {
+        AgentRow(id: id, agentID: "claude-code", name: id, cwd: "/p", state: state)
+    }
+
+    @Test("A finished agent is not shown")
+    func endedIsHidden() {
+        let rows = [row("working", .working), row("done", .ended), row("idle", .waiting)]
+        #expect(AgentStore.active(rows).map(\.id) == ["working", "idle"])
+    }
+
+    /// Everything else stays. "Active" means the process is there, not that
+    /// it is busy — an agent waiting on you is the one most worth seeing.
+    @Test("Every other state is still shown", arguments: [
+        AgentRow.State.working, .waiting, .shell, .looping, .unobserved,
+    ])
+    func othersAreShown(_ state: AgentRow.State) {
+        #expect(AgentStore.active([row("r", state)]).count == 1)
+    }
+
+    @Test("A cloud task is still shown")
+    func cloudIsShown() {
+        #expect(AgentStore.active([row("c", .cloud("synthetic"))]).count == 1)
+    }
+
+    /// The state is kept even though it is never displayed, because it is how
+    /// the store notices something finished. Filtering before that check
+    /// would leave a stop alert firing only for rows that vanished outright.
+    @Test("An agent that finished still counts as stopped")
+    func finishingStillAlerts() {
+        let was = row("a", .working)
+        let stopped = AgentStore.stopped(previous: [was.id: was], current: [row("a", .ended)])
+        #expect(stopped.map(\.id) == ["a"], "a finished agent no longer reports that it finished")
+        // And the row it reports is gone from what the dashboard shows.
+        #expect(AgentStore.active([row("a", .ended)]).isEmpty)
+    }
+
+    @Test("Nothing running is an empty list, not an error")
+    func allEnded() {
+        #expect(AgentStore.active([row("a", .ended), row("b", .ended)]).isEmpty)
+    }
+}

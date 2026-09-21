@@ -384,6 +384,8 @@ public struct HarnessConfig: Codable {
         public var inherited: [String]?
         public var index: String?
         public var keys: [String]?
+        /// Directory probe only: only entries with these extensions count.
+        public var fileExtensions: [String]?
 
         public init(probe: Probe, project: [String]? = nil,
                     inherited: [String]? = nil, index: String? = nil,

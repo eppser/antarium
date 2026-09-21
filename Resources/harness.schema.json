@@ -692,6 +692,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "fileExtensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Directory probe only: only entries with these extensions are counted."
         }
       }
     },

@@ -145,16 +145,31 @@ final class AgentStore: ObservableObject {
 
     /// Merge whatever each source last produced and publish it. Called by the
     /// local scan and, separately, whenever a remote refresh lands.
+    /// The rows worth showing: an agent whose process is gone is not one of
+    /// them.
+    ///
+    /// The state itself is kept rather than removed. It is how the store
+    /// notices that something finished, which is what a stop alert reports —
+    /// without it the app could not tell a session that ended from one that
+    /// was never there.
+    static func active(_ rows: [AgentRow]) -> [AgentRow] {
+        rows.filter { if case .ended = $0.state { return false } else { return true } }
+    }
+
     private func publish() {
         let harnessIssue = HarnessDescriptor.failures.isEmpty ? nil : "Harness configuration needs attention. Last valid definitions are used when available; see Settings."
         let issues = [localScanIssue,cloudScanIssue,harnessIssue].compactMap { $0 }
         scanIssue = issues.isEmpty ? nil : issues.joined(separator:" ")
         let fresh = AgentScan.merge(local: localRows,
                                     cloud: cloudRows + (Settings.includeRemoteTmux ? remoteRows() : []))
+        // Before the filter, deliberately. An agent that has just finished is
+        // what a stop alert is about, and `lastRows` is kept here too — filter
+        // first and the transition into `.ended` would never be seen, so the
+        // alert would fire only for rows that vanished outright.
         noticeStops(in: fresh)
         // Re-sort on arrival, not when the scan began. Changing the order
         // while one was in flight cannot be overwritten by stale settings.
-        let ordered = AgentScan.sorted(fresh, by: Settings.agentSort)
+        let ordered = AgentScan.sorted(Self.active(fresh), by: Settings.agentSort)
         rows = ordered
         onRowsChanged?(ordered)
     }

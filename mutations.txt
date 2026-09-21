@@ -362,3 +362,9 @@ backoff negative on a negative count | Sources/Antarium/AgentItem.swift | s|min(
 a documented cap drifts from the code | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 16|
 a documented remote cap drifts | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 64|
 a count is interpolated into a localized key | Sources/Antarium/UI/Dashboard.swift | s|Text(verbatim: "\\(store.rows.count)")|Text("\\(store.rows.count)")|
+capability filter ignored | Sources/Antarium/Core/ProjectContext.swift | s|return entries.filter { extensions.contains(\$0.url.pathExtension) }|return entries|
+capability filter applied when not asked for | Sources/Antarium/Core/ProjectContext.swift | s|guard !extensions.isEmpty else { return entries }||
+capability filter rejects a leading dot | Sources/Antarium/Core/HarnessDescriptor.swift | s|\$0.hasPrefix(".") ? String(\$0.dropFirst()) : \$0|$0|
+finished agents are shown again | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|rows|
+the active filter hides everything | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|[]|
+filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift | s|noticeStops(in: fresh)|noticeStops(in: Self.active(fresh))|

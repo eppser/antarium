@@ -491,6 +491,14 @@ A budget is a ceiling rather than a default: `BoundedSQLite.query` takes
 `maxRows` and applies `min(2_000, …)`, so a caller can lower it and not raise
 it.
 
+A `directory` capability probe may declare `fileExtensions`, and then only
+entries with those suffixes count. Some conventions are a folder where the
+agent reads one kind of file and ignores the rest — Cursor's documentation
+says a plain `.md` in `.cursor/rules` is ignored because it carries no
+frontmatter — and counting every entry would report a capability for a folder
+the agent never reads. The filter is opt-in: without it every entry counts,
+which is what the other conventions here want.
+
 `windows` says where the limits are and what they mean. At most 64 are read
 from one response, and text the response supplies — a window title, a
 currency code, a composite key — is clamped to 64 characters. The 2 MiB body

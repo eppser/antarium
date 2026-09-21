@@ -127,11 +127,15 @@ struct ProjectContext {
             }
             return info
         }
-        func entries(_ url:URL) throws -> [BoundedDirectory.Entry] {
+        func entries(_ url:URL, extensions:[String] = []) throws -> [BoundedDirectory.Entry] {
             guard remainingEntries > 0 else { throw ProbeError.budget }
             let entries = try BoundedDirectory.entries(url,limit:min(4_096,remainingEntries))
+            // The budget is spent on what was read, not on what survives the
+            // filter — a folder of a thousand ignored files costs the same to
+            // look at as a folder of a thousand counted ones.
             remainingEntries -= entries.count
-            return entries
+            guard !extensions.isEmpty else { return entries }
+            return entries.filter { extensions.contains($0.url.pathExtension) }
         }
         func data(_ url:URL) throws -> Data {
             guard remainingBytes > 0 else { throw ProbeError.budget }
@@ -207,7 +211,7 @@ struct ProjectContext {
             case .toml:
                 return try declaresTOML(url, keys: rule.objectKeys) ? (url, 0) : nil
             case .directory:
-                let entries = try entries(url)
+                let entries = try entries(url, extensions: rule.countedExtensions)
                 guard !entries.isEmpty else { return nil }
                 if let index = rule.index {
                     let indexURL = url.appendingPathComponent(index)

@@ -1111,3 +1111,29 @@ struct DocumentedLimitTests {
         #expect(HarnessEngine.maxCommandSessions == 256)
     }
 }
+
+/// Stop alerts depend on seeing an agent turn into `.ended`, and the
+/// dashboard no longer shows that state. The order in `publish` is therefore
+/// load-bearing: notice first, filter second. Swapping them leaves alerts
+/// firing only for rows that vanish outright — a session that finishes
+/// normally would stop being announced, and nothing else would look wrong.
+///
+/// A source rule because `publish` is private, drives AppKit, and the fault
+/// is an order of calls rather than a value any function returns.
+@Suite("Finished agents are noticed before they are hidden")
+struct PublishOrderTests {
+
+    @Test("noticeStops runs on the unfiltered rows")
+    func noticeBeforeFilter() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/AgentStore.swift"), encoding: .utf8)
+        let notice = try #require(source.range(of: "noticeStops(in: fresh)"),
+                                  "noticeStops no longer takes the unfiltered rows")
+        let filter = try #require(source.range(of: "Self.active(fresh)"),
+                                  "publish no longer filters to active rows")
+        #expect(notice.lowerBound < filter.lowerBound,
+                "the rows are filtered before the stop is noticed, so finishing is silent")
+    }
+}

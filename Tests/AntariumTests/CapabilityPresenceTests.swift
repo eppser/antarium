@@ -160,3 +160,78 @@ struct CapabilityPresenceTests {
         #expect(try scope(root, tomlRule, .mcp) == .project)
     }
 }
+
+/// Some conventions are a folder of files with one particular suffix, and the
+/// agent ignores the rest. Cursor reads `.cursor/rules/*.mdc` and says plainly
+/// that a `.md` there is ignored — so counting every entry would report
+/// instructions for a folder the agent pays no attention to.
+@Suite("A directory probe can count only the files that count", .serialized)
+struct CapabilityExtensionFilterTests {
+
+    private func project(_ files: [String]) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("extfilter-\(UUID().uuidString)")
+        let dir = root.appendingPathComponent(".cursor/rules")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for name in files {
+            try Data("rule\n".utf8).write(to: dir.appendingPathComponent(name))
+        }
+        return root
+    }
+
+    private func scope(_ root: URL, extensions: [String]?) throws -> Capability.Scope {
+        var rule: [String: Any] = ["probe": "directory", "project": [".cursor/rules"]]
+        if let extensions { rule["fileExtensions"] = extensions }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "extfilter-fixture", "name": "Fixture",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "capabilities": ["instruction": rule]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        ProjectContext.invalidate()
+        let found = ProjectContext.scan(root.path, agentID: "extfilter-fixture",
+                                        descriptor: descriptor)
+        return try #require(found.capabilities.first { $0.kind == .instruction }).scope
+    }
+
+    @Test("A folder holding only ignored files reports nothing")
+    func onlyIgnoredFiles() throws {
+        let root = try project(["readme.md", "notes.txt"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try scope(root, extensions: [".mdc"]) == .absent,
+                "instructions were reported for files the agent ignores")
+    }
+
+    @Test("A folder holding the right files reports them")
+    func countedFiles() throws {
+        let root = try project(["style.mdc", "readme.md"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try scope(root, extensions: [".mdc"]) == .project)
+    }
+
+    /// Without the filter every entry counts, which is what the other
+    /// conventions in this app want — the filter must be opt-in, not the
+    /// new default.
+    @Test("With no filter declared, every entry still counts")
+    func noFilterCountsEverything() throws {
+        let root = try project(["readme.md"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try scope(root, extensions: nil) == .project)
+    }
+
+    @Test("The leading dot is optional in the declaration")
+    func dotIsOptional() throws {
+        let root = try project(["style.mdc"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try scope(root, extensions: ["mdc"]) == .project)
+        #expect(try scope(root, extensions: [".mdc"]) == .project)
+    }
+
+    @Test("An empty folder reports nothing, filtered or not")
+    func emptyFolder() throws {
+        let root = try project([])
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try scope(root, extensions: [".mdc"]) == .absent)
+        #expect(try scope(root, extensions: nil) == .absent)
+    }
+}
