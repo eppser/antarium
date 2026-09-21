@@ -428,6 +428,14 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
+A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`.
+Without it the hour field follows the reader's own preferences, so a Mac with
+24-Hour Time switched off writes a twelve-hour clock with no am/pm and every
+log line is ambiguous between morning and afternoon. Formatters that render
+for a person — the row's clock, which uses `dateStyle` and `timeStyle` — are
+deliberately left localised, because that is the one place the reader's
+preference is the right answer.
+
 Anything iterated out of a `Set` or a `Dictionary` and then shown, written or
 compared is sorted first. Their order is stable within one process and not
 across runs, so an unsorted iteration looks correct in every test that was

@@ -97,10 +97,19 @@ enum Log {
         sink.append(line)
     }
 
-    private static let formatter: DateFormatter = {
+    /// A fixed format needs a fixed locale. Without `en_US_POSIX`, `HH` is
+    /// rendered according to the reader's own preferences — a Mac with
+    /// 24-Hour Time switched off produces a twelve-hour clock with no
+    /// am/pm, so every timestamp in the log is ambiguous between morning and
+    /// afternoon. The zone stays local, because a log is read beside the
+    /// clock on the wall.
+    static func makeStampFormatter(timeZone: TimeZone = .current) -> DateFormatter {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
         f.dateFormat = "HH:mm:ss.SSS"
         return f
-    }()
+    }
+    private static let formatter = makeStampFormatter()
     private static func stamp() -> String { formatter.string(from: Date()) }
 }

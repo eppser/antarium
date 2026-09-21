@@ -105,3 +105,42 @@ struct DiagnosticLogFileTests {
     }
 
 }
+
+/// Log timestamps. A fixed date format takes its hour rendering from the
+/// reader's preferences unless a locale is pinned, so a Mac with 24-Hour Time
+/// switched off writes a twelve-hour clock with no am/pm — and every line in
+/// the log becomes ambiguous between morning and afternoon.
+@Suite("Log timestamps do not depend on who is reading them")
+struct LogStampTests {
+
+    /// Values read off the formatter rather than worked out by hand — an
+    /// expectation reasoned into existence is how two earlier tests in this
+    /// suite asserted the wrong thing and still passed.
+    private let evening = Date(timeIntervalSince1970: 1_800_045_296.5)
+
+    @Test("An hour past noon is written on a twenty-four hour clock")
+    func eveningIsTwentyFour() {
+        let formatter = Log.makeStampFormatter(timeZone: TimeZone(identifier: "UTC")!)
+        #expect(formatter.string(from: evening) == "20:34:56.500")
+    }
+
+    @Test("A morning hour keeps its leading zero")
+    func morningIsPadded() {
+        let formatter = Log.makeStampFormatter(timeZone: TimeZone(identifier: "UTC")!)
+        let morning = Date(timeIntervalSince1970: 1_800_001_505.25)
+        #expect(formatter.string(from: morning) == "08:25:05.250")
+    }
+
+    /// The locale is what makes the two above hold whoever is reading.
+    @Test("The formatter is pinned to a fixed locale")
+    func localeIsPinned() {
+        #expect(Log.makeStampFormatter().locale.identifier == "en_US_POSIX")
+    }
+
+    /// And the zone is not pinned: a log is read beside the clock on the wall,
+    /// so it follows the machine rather than UTC.
+    @Test("The zone follows the machine")
+    func zoneIsLocal() {
+        #expect(Log.makeStampFormatter().timeZone == TimeZone.current)
+    }
+}
