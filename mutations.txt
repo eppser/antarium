@@ -585,3 +585,4 @@ verify.sh stops gating on idle cost | verify.sh | s|            \|\| bad "idle c
 the https-only claim comes back | docs/TECHNICAL.md | s|A usage endpoint must be https, or http to this machine.|A usage endpoint must be `https` with a host.|
 the get-only claim comes back | docs/TECHNICAL.md | s|An endpoint quota may declare `method: "POST"`|A descriptor makes one authenticated GET and|
 the walkthrough loses its verification step | docs/TECHNICAL.md | s|   `antarium --verify-harness-quota` for the mapping|   nothing for the mapping|
+status stops reporting how many harnesses loaded | Sources/Antarium/Diagnostics.swift | s|harnesses \\(descriptors.count) loaded from|harnesses loaded from|

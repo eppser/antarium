@@ -51,11 +51,21 @@ struct DiagnosticsSeedingTests {
 
         let harnesses = home.appendingPathComponent("harnesses")
         let files = (try? FileManager.default.contentsOfDirectory(atPath: harnesses.path)) ?? []
-        let descriptors = files.filter { $0.hasSuffix(".json") }
+        // Not the seed manifest, which is `.seed.json` and sits beside them.
+        // Counting it made this twenty-six where the app loads twenty-five —
+        // invisible while the assertion below only asked whether the list was
+        // empty.
+        let descriptors = files.filter { $0.hasSuffix(".json") && !$0.hasPrefix(".") }
         #expect(!descriptors.isEmpty,
                 "a fresh install saw no harnesses; --status wrote \(files.count) files")
         // And it reports them, rather than reporting an empty machine.
-        #expect(text.contains("harnesses"))
+        //
+        // The count, not the word. `harnesses` also appears in the path the
+        // line ends with — "harnesses 25 loaded from …/harnesses" — so
+        // asserting the word passed whether or not the count was reported at
+        // all, which is the whole of what this is checking.
+        #expect(text.contains("harnesses \(descriptors.count) loaded"),
+                "--status did not report the \(descriptors.count) harnesses it seeded")
         #expect(!text.contains("harnesses 0 loaded"))
     }
 }

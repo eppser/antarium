@@ -86,6 +86,16 @@ without anyone noticing.
 Every mutation is reverted, including on interrupt. It takes several minutes,
 so it is not part of `verify.sh`.
 
+A positive `contains` over a whole file or a command's whole output proves
+only that the string exists somewhere in it, which is rarely the claim. Three
+times this month one passed for the wrong reason: a host check satisfied by
+`evilx.ai`, a key path matched by a longer path sharing its prefix, and a
+documentation step still "present" because the same command appeared in
+another section. Scope the haystack to the region meant, or match something
+that cannot occur elsewhere — a count, a whole line, a delimited token. A
+*negative* `contains` over a whole file is the opposite: absence everywhere
+is usually exactly the claim, and the wide haystack is the point.
+
 A test that asserts inside a loop asserts nothing when the loop does not run,
 and a parameterised test over an empty list passes. Where the collection
 comes from the bundle, from the filesystem, or from a list somebody maintains
