@@ -27,6 +27,10 @@ struct ScanGeneration {
         isCurrent(generation) && !cancelled
     }
 
+    /// Counter wraparound has no catalogue entry: `latest` is private and
+    /// starts at zero, so no test can reach the value where `&+=` and `+=`
+    /// differ.
+    ///
     /// Counter wraparound is the one case where a stale generation could
     /// compare equal to a live one. `begin()` uses wrapping addition so it
     /// cannot trap, and at one scan every five seconds reaching Int.max takes

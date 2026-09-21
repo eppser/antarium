@@ -495,3 +495,8 @@ the banner surplus goes negative | Sources/Antarium/UI/AgentAlert.swift | s|max(
 the banner limit is raised without a decision | Sources/Antarium/UI/AgentAlert.swift | s|nonisolated static let maxVisible = 5|nonisolated static let maxVisible = 500|
 the newest banner is retired instead of the oldest | Sources/Antarium/UI/AgentAlert.swift | s|showing.suffix(surplus(showing: showing.count, limit: limit))|showing.prefix(surplus(showing: showing.count, limit: limit))|
 a sweep plays one sound per agent | Sources/Antarium/Core/AgentStore.swift | s|        for row in finished { AgentAlert.shared.post(row) }|        for row in finished { AgentAlert.shared.post(row); Sounds.play(.agentStopped) }|
+a superseded scan may still publish | Sources/Antarium/Core/ScanGeneration.swift | s|isCurrent(generation) \&\& !cancelled|isCurrent(generation)|
+a cancelled scan may still publish | Sources/Antarium/Core/ScanGeneration.swift | s|isCurrent(generation) \&\& !cancelled|!cancelled|
+a new scan generation repeats the last | Sources/Antarium/Core/ScanGeneration.swift | s|latest \&+= 1||
+a missing file is indistinguishable from an unreadable one | Sources/Antarium/Core/FileStamp.swift | s|return errno == ENOENT \|\| errno == ENOTDIR ? "" : "unavailable:\\(errno)"|return ""|
+a non-json file changes the directory signature | Sources/Antarium/Core/FileStamp.swift | s|.filter { \$0.pathExtension == "json" }||
