@@ -359,7 +359,7 @@ capability filter ignored | Sources/Antarium/Core/ProjectContext.swift | s|retur
 capability filter applied when not asked for | Sources/Antarium/Core/ProjectContext.swift | s|guard !suffixes.isEmpty else { return entries }||
 finished agents are shown again | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|rows|
 the active filter hides everything | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|[]|
-filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift | s|noticeStops(in: fresh)|noticeStops(in: Self.active(fresh))|
+filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift | s|noticeStops(in: fresh,|noticeStops(in: Self.active(fresh),|
 zed instructions read from the wrong file | Resources/harnesses/zed.json | s|".rules",|".rulez",|
 cursor instructions unfiltered | Resources/harnesses/cursor.json | s|".mdc"|".md"|
 suffix filter compares the extension only | Sources/Antarium/Core/ProjectContext.swift | s|entry.url.lastPathComponent.hasSuffix(\$0)|\$0.hasSuffix(entry.url.pathExtension)|
@@ -467,3 +467,9 @@ a posted body drops the token substitution | Sources/Antarium/Providers/Descript
 an unknown quota method reads as a get | Sources/Antarium/Core/HarnessDocument.swift | s|\["get", "post"\].contains(method.lowercased())|true|
 a body on a get is shipped and never sent | Sources/Antarium/Core/HarnessDocument.swift | s|                if method.lowercased() != "post", quota\["body"\] != nil {|                if false, quota["body"] != nil {|
 a quota method is compared without folding case | Sources/Antarium/Core/HarnessDescriptor.swift | s|Method(rawValue: (method ?? "get").lowercased()) ?? .get|Method(rawValue: method ?? "get") ?? .get|
+a stop across a long gap is announced as fresh | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|true|
+a late sweep stops reporting | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= interval|
+the stop gap has no floor | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= interval * 3|
+the stop gap ignores a long interval | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= 60|
+stops are never announced | Sources/Antarium/Core/AgentStore.swift | /func announcements/,/^    }$/ s|return stopped(previous: previous, current: current)|return []|
+the announcement ignores the gap | Sources/Antarium/Core/AgentStore.swift | s|guard stopsAreNews(gap: gap, interval: interval) else { return \[\] }||

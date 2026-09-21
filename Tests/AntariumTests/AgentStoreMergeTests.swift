@@ -320,3 +320,119 @@ struct ActiveRowsTests {
         #expect(AgentStore.active([row("a", .ended), row("b", .ended)]).isEmpty)
     }
 }
+
+/// A stop is inferred from two samples, not observed.
+///
+/// The agent was working in one sweep and is gone in the next. That inference
+/// is worth announcing only when the two samples are about as far apart as
+/// intended. A lid shut overnight would otherwise reopen on a burst of alerts
+/// and sounds for sessions that ended hours ago — news that was true once and
+/// is being delivered as though it just happened.
+@Suite("A stop is only news when it was actually watched")
+@MainActor
+struct StopAlertGapTests {
+
+    private let interval: TimeInterval = 10
+
+    @Test("An ordinary gap is news")
+    func ordinaryGapIsNews() {
+        #expect(AgentStore.stopsAreNews(gap: interval, interval: interval))
+        #expect(AgentStore.stopsAreNews(gap: 0, interval: interval))
+    }
+
+    /// A sweep that runs a little late is still a sweep. The bound is a
+    /// multiple rather than the interval itself, or a busy machine would stop
+    /// reporting the thing the app is for.
+    @Test("A late sweep is still news", arguments: [11.0, 29.0, 59.0])
+    func lateSweepIsStillNews(_ gap: TimeInterval) {
+        #expect(AgentStore.stopsAreNews(gap: gap, interval: interval))
+    }
+
+    /// At a ten-second interval the floor decides, not the multiple: three
+    /// times ten is thirty, and the floor of sixty is larger. The first
+    /// version of this test used thirty-one and contradicted the floor test
+    /// below — the boundary has to be read off the rule, not off the half of
+    /// it one happens to be thinking about.
+    @Test("A gap far longer than the interval is not news", arguments: [
+        61.0, 600.0, 8 * 3_600.0,
+    ])
+    func longGapIsNotNews(_ gap: TimeInterval) {
+        #expect(AgentStore.stopsAreNews(gap: gap, interval: interval) == false)
+    }
+
+    /// A floor, so a short configured interval does not turn an ordinary
+    /// hiccup into a gap. At the minimum interval of three seconds, three
+    /// times that is nine — less than one slow scan.
+    @Test("A short interval still allows a minute", arguments: [3.0, 5.0, 10.0])
+    func shortIntervalsGetAFloor(_ configured: TimeInterval) {
+        #expect(AgentStore.stopsAreNews(gap: 55, interval: configured),
+                "a minute-long hiccup at a \(configured)s interval was called a gap")
+        #expect(AgentStore.stopsAreNews(gap: 65, interval: configured) == false)
+    }
+
+    /// And a long configured interval is honoured rather than clamped to the
+    /// floor: someone who asked for ten-minute scans has not asked for their
+    /// alerts to stop.
+    @Test("A long interval is honoured above the floor")
+    func longIntervalsBeatTheFloor() {
+        #expect(AgentStore.stopsAreNews(gap: 25 * 60, interval: 600))
+        #expect(AgentStore.stopsAreNews(gap: 31 * 60, interval: 600) == false)
+    }
+
+    /// Suppressing the alert must not suppress the row. The display being
+    /// right was never in question; only whether an event is claimed.
+    @Test("The rows are published either way")
+    func rowsArePublishedRegardless() {
+        // `stopped` is the half that decides what finished, and it is
+        // unchanged by any of this — the gap decides whether to say so.
+        let was = AgentRow(id: "a", agentID: "x", name: "a", cwd: "/tmp", state: .working)
+        #expect(AgentStore.stopped(previous: ["a": was], current: []).map(\.id) == ["a"])
+    }
+}
+
+/// The two halves together: which rows finished, and whether this sweep was
+/// in a position to notice.
+///
+/// Separated from posting an alert so both are reachable without an alert
+/// centre or a sound. They were not: a mutation that silenced every alert
+/// survived a whole suite about which rows had stopped, because nothing
+/// joined the two questions.
+@Suite("What a sweep announces")
+@MainActor
+struct StopAnnouncementTests {
+
+    private var working: AgentRow {
+        AgentRow(id: "a", agentID: "x", name: "a", cwd: "/synthetic", state: .working)
+    }
+
+    @Test("A recent sweep announces what finished")
+    func recentSweepAnnounces() {
+        let announced = AgentStore.announcements(
+            previous: ["a": working], current: [], gap: 10, interval: 10)
+        #expect(announced.map(\.id) == ["a"])
+    }
+
+    @Test("A sweep after a long gap announces nothing")
+    func longGapAnnouncesNothing() {
+        let announced = AgentStore.announcements(
+            previous: ["a": working], current: [], gap: 8 * 3_600, interval: 10)
+        #expect(announced.isEmpty, "a session that ended overnight was announced as fresh")
+    }
+
+    /// The first publish of a launch has no previous sweep to compare with,
+    /// and an empty baseline already answers nothing — so a gap of zero needs
+    /// no special case, and a launch does not announce every agent that
+    /// happens not to be running.
+    @Test("The first sweep of a launch announces nothing")
+    func firstSweepAnnouncesNothing() {
+        #expect(AgentStore.announcements(previous: [:], current: [],
+                                         gap: 0, interval: 10).isEmpty)
+    }
+
+    /// And nothing finishing is nothing to say, however recent the sweep.
+    @Test("A sweep where nothing finished announces nothing")
+    func nothingFinishedAnnouncesNothing() {
+        #expect(AgentStore.announcements(previous: ["a": working], current: [working],
+                                         gap: 1, interval: 10).isEmpty)
+    }
+}

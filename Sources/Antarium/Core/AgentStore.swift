@@ -22,6 +22,9 @@ final class AgentStore: ObservableObject {
     private var lastRows: [String: AgentRow] = [:]
     private var lastCacheWrite = Date.distantPast
     private var timer: Timer?
+    /// When the rows were last published, so a gap far longer than the
+    /// interval can be told from an ordinary one.
+    private var lastPublish: Date?
     private var task: Task<Void, Never>?
     private var generations = ScanGeneration()
     private var cloudRows: [AgentRow] = []
@@ -55,7 +58,7 @@ final class AgentStore: ObservableObject {
     /// that they'd stopped.
     ///
     /// Pure, so the transition rule can be checked without a running app.
-    static func stopped(previous: [String: AgentRow], current: [AgentRow]) -> [AgentRow] {
+    nonisolated static func stopped(previous: [String: AgentRow], current: [AgentRow]) -> [AgentRow] {
         guard !previous.isEmpty else { return [] }
         let now = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return previous.values.compactMap { was in
@@ -87,8 +90,44 @@ final class AgentStore: ObservableObject {
         return (rows, affected ? issue : nil)
     }
 
-    private func noticeStops(in fresh: [AgentRow]) {
-        for row in Self.stopped(previous: lastRows, current: fresh) {
+    /// Whether a stop seen between two sweeps is news.
+    ///
+    /// A stop is not observed, it is inferred from two samples: the agent was
+    /// working in one and is gone in the next. That inference is only worth
+    /// announcing when the two samples are about as far apart as intended.
+    /// When the gap is far longer — the machine slept, the app was suspended,
+    /// a scan hung — whatever happened in between was not watched, and "your
+    /// agent just finished" is stale news delivered as fresh. A lid shut
+    /// overnight would otherwise reopen on a burst of alerts and sounds for
+    /// sessions that ended hours ago.
+    ///
+    /// The rows are still updated either way. The display being right is not
+    /// in question; only whether an event is claimed.
+    ///
+    /// A floor of a minute, so a short configured interval does not make an
+    /// ordinary hiccup look like a gap.
+    nonisolated static func stopsAreNews(gap: TimeInterval, interval: TimeInterval) -> Bool {
+        gap <= max(interval * 3, 60)
+    }
+
+    /// What a sweep should announce: the rows that finished, when finishing
+    /// is something this sweep was in a position to notice.
+    ///
+    /// One function decides and the caller only acts, so both halves of the
+    /// rule are reachable without an alert centre or a sound — the gap half
+    /// was not, and a mutation that silenced every alert survived a suite of
+    /// tests about which rows had stopped.
+    nonisolated static func announcements(previous: [String: AgentRow],
+                                          current: [AgentRow],
+                                          gap: TimeInterval,
+                                          interval: TimeInterval) -> [AgentRow] {
+        guard stopsAreNews(gap: gap, interval: interval) else { return [] }
+        return stopped(previous: previous, current: current)
+    }
+
+    private func noticeStops(in fresh: [AgentRow], gap: TimeInterval) {
+        for row in Self.announcements(previous: lastRows, current: fresh, gap: gap,
+                                      interval: Double(Settings.agentScanSeconds)) {
             AgentAlert.shared.post(row)
             Sounds.play(.agentStopped)
         }
@@ -166,7 +205,13 @@ final class AgentStore: ObservableObject {
         // what a stop alert is about, and `lastRows` is kept here too — filter
         // first and the transition into `.ended` would never be seen, so the
         // alert would fire only for rows that vanished outright.
-        noticeStops(in: fresh)
+        let now = Date()
+        // No previous publish means nothing to compare against, and `stopped`
+        // already answers nothing for an empty baseline — so a gap of zero is
+        // the honest reading rather than a special case.
+        let gap = lastPublish.map { now.timeIntervalSince($0) } ?? 0
+        noticeStops(in: fresh, gap: gap)
+        lastPublish = now
         // Re-sort on arrival, not when the scan began. Changing the order
         // while one was in flight cannot be overwritten by stale settings.
         let ordered = AgentScan.sorted(Self.active(fresh), by: Settings.agentSort)

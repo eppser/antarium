@@ -1129,7 +1129,7 @@ struct PublishOrderTests {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
             "Sources/Antarium/Core/AgentStore.swift"), encoding: .utf8)
-        let notice = try #require(source.range(of: "noticeStops(in: fresh)"),
+        let notice = try #require(source.range(of: "noticeStops(in: fresh,"),
                                   "noticeStops no longer takes the unfiltered rows")
         let filter = try #require(source.range(of: "Self.active(fresh)"),
                                   "publish no longer filters to active rows")
