@@ -891,6 +891,20 @@ struct ProviderMappingCoverageTests {
                     Comment(rawValue: "\(provider.id) has neither a quota fixture nor a test "
                             + "calling \(type).makeSnapshot, so nothing checks what it reports"))
         }
+
+        // Naming the function is not the same as testing it. Codex satisfied
+        // the line above because a privacy test called `makeSnapshot` in
+        // passing to get a snapshot to redact; three mutations of its mapping
+        // survived. A mutation in the catalogue is a stronger claim, because
+        // mutate.sh has confirmed each one actually fails a test.
+        let catalogue = try String(
+            contentsOf: root.appendingPathComponent("mutations.txt"), encoding: .utf8)
+        for provider in native where Self.noMapping[provider.id] == nil {
+            let file = "\(String(describing: Swift.type(of: provider))).swift"
+            #expect(catalogue.contains(file),
+                    Comment(rawValue: "no mutation in mutations.txt touches \(file), so nothing "
+                            + "has confirmed its tests can fail"))
+        }
     }
 
     /// The fixtures themselves must stay reachable from the test suite, not

@@ -165,3 +165,9 @@ claude extras listed best first | Sources/Antarium/Providers/ClaudeCodeProvider.
 claude binding week also listed as an extra | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|.filter { \$0 !== binding }||
 claude window with no reset borrows one | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|used: binding.percent / 100, resetsAt: binding.resetsAt,|used: binding.percent / 100, resetsAt: binding.resetsAt ?? sessionLimit.resetsAt,|
 claude percent used as a fraction | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|used: sessionLimit.percent / 100,|used: sessionLimit.percent,|
+cursor primary window is not the total | Sources/Antarium/Providers/CursorProvider.swift | s|let total = candidates.first { \$0.id == "total" }|let total: Gauge? = nil|
+cursor secondary windows listed best first | Sources/Antarium/Providers/CursorProvider.swift | s|.sorted { \$0.used > \$1.used }|.sorted { $0.used < $1.used }|
+cursor shows a window twice | Sources/Antarium/Providers/CursorProvider.swift | s|let extras = candidates.filter { !shown.contains(\$0.id) }|let extras = candidates|
+codex windows unsorted | Sources/Antarium/Providers/CodexProvider.swift | s|gauges.sort { (\$0.windowSeconds ?? .greatestFiniteMagnitude)|gauges.sort { (-(\$0.windowSeconds ?? 0))|
+codex empty response accepted | Sources/Antarium/Providers/CodexProvider.swift | s|guard !gauges.isEmpty else {|guard true else {|
+codex additional caps dropped | Sources/Antarium/Providers/CodexProvider.swift | s|let inner = extra\["rate_limit"\] as? \[String: Any\] ?? extra|let inner = extra|
