@@ -444,8 +444,11 @@ different as bytes. A project folder with an accent in its name loses its
 session the moment a comparison is made on `utf8` for speed, which has already
 happened once in this file for a different scan.
 
-A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`, and a
-test in `ArchitectureContractTests` reads the sources to enforce it. That is a
+A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`, and
+no calendar comes from `Calendar.current` — that carries the reader's
+calendar system and their zone, so a date built through it is a different
+instant for a different person. Tests in `ArchitectureContractTests` read the
+sources to enforce both. That is a
 source rule rather than a run under another locale because `Locale.current` on
 macOS comes from user defaults and ignores the environment — there is no `TZ`
 equivalent to set, so the mistake has to be caught where it is written.

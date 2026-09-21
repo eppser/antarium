@@ -328,3 +328,5 @@ a descriptor claims every process | Sources/Antarium/Core/HarnessDescriptor.swif
 cache eviction tie broken at random | Sources/Antarium/Core/CodexGoals.swift | s|: a.key < b.key|: Bool.random()|
 cache evicts the newest | Sources/Antarium/Core/CodexGoals.swift | s|a.value.checked < b.value.checked|a.value.checked > b.value.checked|
 cache evicts below its limit | Sources/Antarium/Core/CodexGoals.swift | s|guard cache.count >= limit else { return nil }||
+a calendar is taken from the reader | Sources/Antarium/Providers/KiroProvider.swift | s|var calendar = Calendar(identifier: .gregorian)|var calendar = Calendar.current|
+sdk date parsing uses the reader's calendar | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|formatter.calendar = Calendar(identifier: .iso8601)|formatter.calendar = Calendar.current|

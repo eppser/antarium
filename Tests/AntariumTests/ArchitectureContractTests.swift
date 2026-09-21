@@ -966,4 +966,31 @@ struct FixedDateFormatLocaleTests {
         }
         #expect(checked >= 3, "expected the fixed-format formatters; saw \(checked)")
     }
+
+    /// `Calendar.current` carries the reader's calendar *and* their zone, so a
+    /// date built through it is a different instant for a different person.
+    /// Every calendar here names an identifier; the one that resolves a reset
+    /// date also pins UTC, because the same report must give the same instant
+    /// wherever it is read.
+    ///
+    /// Added after the date-format rule missed this: that sweep looked only
+    /// for `DateFormatter`, and a sweep is only as good as its pattern list.
+    @Test("No calendar is taken from whoever is running the app")
+    func calendarsAreExplicit() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let sources = FileManager.default.enumerator(
+            at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+        #expect(sources.count > 10, "no sources were scanned, so this proved nothing")
+
+        var calendars = 0
+        for url in sources {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            #expect(!text.contains("Calendar.current"),
+                    Comment(rawValue: "\(url.lastPathComponent) takes the reader's calendar"))
+            calendars += text.components(separatedBy: "Calendar(identifier:").count - 1
+        }
+        #expect(calendars >= 3, "expected the explicit calendars; saw \(calendars)")
+    }
 }
