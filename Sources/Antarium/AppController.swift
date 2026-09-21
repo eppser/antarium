@@ -109,21 +109,44 @@ final class AppController: NSObject {
 
     /// Adds and removes items to match the enabled set, leaving untouched
     /// agents alone so their readings and menu bar positions survive.
+    /// What has to change for the items to match the enabled set.
+    ///
+    /// Pure, because disposing an item is not what stops it working: the
+    /// coordinator ticks everything in `items` once a minute, so an item
+    /// disposed and left in the list goes on fetching — contacting the
+    /// service and sending its credential — with no menu bar item to show
+    /// for it. Removing it from the list is the part that matters and the
+    /// part that had no test.
+    static func membership(current: [String], wanted: [String])
+        -> (remove: [String], add: [String]) {
+        let wantedSet = Set(wanted), currentSet = Set(current)
+        return (current.filter { !wantedSet.contains($0) },
+                wanted.filter { !currentSet.contains($0) })
+    }
+
+    /// Menu bar order follows the registry, so items keep the same
+    /// left-to-right positions between launches rather than the order the
+    /// user happened to switch them on in.
+    static func ordered(_ ids: [String], by registry: [String]) -> [String] {
+        ids.sorted { (registry.firstIndex(of: $0) ?? 0) < (registry.firstIndex(of: $1) ?? 0) }
+    }
+
     private func rebuildItems() {
         let wanted = ProviderRegistry.enabled
-        let wantedIDs = Set(wanted.map(\.id))
+        let change = Self.membership(current: items.map(\.provider.id),
+                                     wanted: wanted.map(\.id))
+        let removing = Set(change.remove)
 
-        for item in items where !wantedIDs.contains(item.provider.id) { item.dispose() }
-        items.removeAll { !wantedIDs.contains($0.provider.id) }
+        for item in items where removing.contains(item.provider.id) { item.dispose() }
+        items.removeAll { removing.contains($0.provider.id) }
 
-        for provider in wanted where !items.contains(where: { $0.provider.id == provider.id }) {
+        let adding = Set(change.add)
+        for provider in wanted where adding.contains(provider.id) {
             items.append(AgentItem(provider: provider, coordinator: self))
         }
-        // Keep registry order so the row reads consistently.
-        items.sort { a, b in
-            let order = ProviderRegistry.all.map(\.id)
-            return (order.firstIndex(of: a.provider.id) ?? 0) < (order.firstIndex(of: b.provider.id) ?? 0)
-        }
+        let order = Self.ordered(items.map(\.provider.id), by: ProviderRegistry.all.map(\.id))
+        items.sort { (order.firstIndex(of: $0.provider.id) ?? 0)
+                   < (order.firstIndex(of: $1.provider.id) ?? 0) }
     }
 
 

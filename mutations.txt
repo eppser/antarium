@@ -290,3 +290,7 @@ remote scanning continues after being switched off | Sources/Antarium/Core/Agent
 remote sweep skips instead of cancelling when off | Sources/Antarium/Core/AgentStore.swift | s|guard enabled, !hosts.isEmpty else { return .cancel }|guard enabled, !hosts.isEmpty else { return .skip }|
 remote results applied after being switched off | Sources/Antarium/Core/AgentStore.swift | s|enabled \&\& !hosts.isEmpty|true|
 remote results applied after the last host is removed | Sources/Antarium/Core/AgentStore.swift | s|enabled \&\& !hosts.isEmpty|enabled|
+a disabled provider keeps polling invisibly | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return ([],|
+a newly enabled provider is never added | Sources/Antarium/AppController.swift | s|wanted.filter { !currentSet.contains(\$0) })|[])|
+an unchanged provider is torn down and rebuilt | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return (current,|
+menu bar order is not the registry order | Sources/Antarium/AppController.swift | s|ids.sorted { (registry.firstIndex(of: \$0) ?? 0) < (registry.firstIndex(of: \$1) ?? 0) }|ids|

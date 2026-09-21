@@ -131,6 +131,11 @@ final class AgentItem: NSObject, NSMenuDelegate {
     }
 
     /// Removing the status item is what takes it out of the menu bar.
+    /// Two lines, only one of which a test can reach: the second needs a
+    /// status bar. The first is covered from the other side — `QuotaStore`
+    /// removal is tested directly, and `AppController.membership` decides
+    /// which providers get here — but the wiring between them is held by
+    /// reading rather than by a test, so a mutation of this line survives.
     func dispose() {
         QuotaStore.shared.remove(providerID: provider.id)
         NSStatusBar.system.removeStatusItem(statusItem)
