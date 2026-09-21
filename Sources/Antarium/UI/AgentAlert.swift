@@ -165,7 +165,7 @@ struct AlertCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(row.coreName) finished its task")
+                    Text(verbatim: "\(row.coreName) finished its task")
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     HStack(spacing: 6) {

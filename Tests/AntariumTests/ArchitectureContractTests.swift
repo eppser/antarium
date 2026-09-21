@@ -1035,6 +1035,37 @@ struct DocumentedLimitTests {
         }
     }
 
+    /// `Text("\(x)")` takes a `LocalizedStringKey`, which groups digits for
+    /// the reader — 10259 rendered as "10.259" under a German locale, which
+    /// is the bug recorded above `Fmt` and was still live in three places.
+    /// `Text(verbatim:)` takes a String and does not.
+    ///
+    /// The rule covers every interpolation rather than the numeric ones,
+    /// because which is which cannot be told from the source, and a rule that
+    /// needs judgement to apply is one nobody applies.
+    @Test("No SwiftUI Text interpolates into a localized key")
+    func textInterpolationsAreVerbatim() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let ui = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("Sources/Antarium/UI"),
+            includingPropertiesForKeys: nil).filter { $0.pathExtension == "swift" }
+        #expect(ui.count > 5, "no UI sources were scanned")
+        for url in ui {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false)
+                .enumerated() where line.contains("Text(\"\\(")
+                    // The comment above `Fmt` quotes the bad form to explain
+                    // it; a rule that cannot tell prose from code makes the
+                    // explanation unwritable.
+                    && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
+                let where_ = "\(url.lastPathComponent):\(index + 1)"
+                Issue.record(Comment(rawValue: where_ + " interpolates into a localized "
+                                     + "key; use Text(verbatim:)"))
+            }
+        }
+    }
+
     /// And the numbers the prose quotes are the ones the code enforces, not
     /// merely numbers that appear in both places.
     @Test("The constants behind those phrases are what the readers use")

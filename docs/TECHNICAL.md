@@ -444,6 +444,13 @@ different as bytes. A project folder with an accent in its name loses its
 session the moment a comparison is made on `utf8` for speed, which has already
 happened once in this file for a different scan.
 
+SwiftUI's `Text("\(x)")` takes a `LocalizedStringKey` and groups digits for
+the reader, which is how 10259 once reached the bar as "10.259". Every
+interpolation goes through `Text(verbatim:)` instead, enforced by a test —
+over all of them rather than the numeric ones, because which is which cannot
+be told from the source and a rule needing judgement is a rule nobody
+applies.
+
 A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`, and
 no calendar comes from `Calendar.current` — that carries the reader's
 calendar system and their zone, so a date built through it is a different

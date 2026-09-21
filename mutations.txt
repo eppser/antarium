@@ -361,3 +361,4 @@ backoff doubling uncapped | Sources/Antarium/AgentItem.swift | s|min(max(failure
 backoff negative on a negative count | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|min(failures, 4)|
 a documented cap drifts from the code | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 16|
 a documented remote cap drifts | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 64|
+a count is interpolated into a localized key | Sources/Antarium/UI/Dashboard.swift | s|Text(verbatim: "\\(store.rows.count)")|Text("\\(store.rows.count)")|

@@ -110,7 +110,7 @@ struct DashboardView: View {
             if !reduced {
                 Text("Antarium").font(.system(size: 13, weight: .semibold)).fixedSize()
             }
-            Text("\(store.rows.count)")
+            Text(verbatim: "\(store.rows.count)")
                 .font(.system(size: reduced ? 12 : 10, weight: .semibold))
                 .foregroundStyle(reduced ? .secondary : .tertiary)
                 .fixedSize()
@@ -578,7 +578,7 @@ private struct CapabilityDot: View {
                 .overlay(Image(systemName: capability.kind.symbol)
                     .font(.system(size: 8, weight: .medium)).foregroundStyle(stroke))
             if capability.count > 1 {
-                Text("\(min(capability.count, 99))")
+                Text(verbatim: "\(min(capability.count, 99))")
                     .font(.system(size: 6.5, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 1.8).padding(.vertical, 0.3)
                     .background(Capsule().fill(Color.accentColor))
@@ -700,7 +700,7 @@ private struct ContextBar: View {
                 Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
                 Capsule().fill(tint).frame(width: max(2, 34 * fraction), height: 4)
             }
-            Text("\(Int(fraction * 100))%")
+            Text(verbatim: "\(Int(fraction * 100))%")
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary).fixedSize()
         }

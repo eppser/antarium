@@ -781,7 +781,7 @@ private struct Stepper: View {
                 ForEach(Array(range), id: \.self) { n in
                     let selected = n == value
                     Button { onChange(n) } label: {
-                        Text("\(n)")
+                        Text(verbatim: "\(n)")
                             .font(.system(size: 10, weight: selected ? .semibold : .regular)
                                 .monospacedDigit())
                             .frame(width: 20, height: 18)
