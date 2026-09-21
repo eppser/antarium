@@ -144,6 +144,23 @@ enum HarnessCheck {
         return problems
     }
 
+    /// v0 keys left in a document that already declares v1.
+    ///
+    /// Migration folds each into its v1 section and drops it, so the line in
+    /// the file has no separate effect — but it is still there, reading as an
+    /// active setting. A genuine v0 document is not listed: there the key is
+    /// the only form there is, and migrating it is the point.
+    ///
+    /// Returned rather than printed so the rule can be tested without
+    /// capturing standard output, which is how the first version of its test
+    /// managed to pass whether or not the warning existed.
+    static func supersededKeys(in object: [String: Any]) -> [String] {
+        guard (object["formatVersion"] as? NSNumber)?.intValue
+                == HarnessDocument.currentVersion else { return [] }
+        return ["match", "matchProcessName", "mark", "fallbackName"]
+            .filter { object[$0] != nil }
+    }
+
     static func run(_ path: String) -> Int32 {
         var problems = 0, warnings = 0
         func fail(_ m: String) { print("  ✗ \(m)"); problems += 1 }
@@ -178,6 +195,17 @@ enum HarnessCheck {
 
         // 1. Keys the loader would otherwise silently ignore.
         for problem in schemaProblems(in: object) { fail(problem) }
+
+        // A v1 file still carrying a v0 key has been half-migrated by hand.
+        // Migration folds it into the v1 key and drops it, so it no longer
+        // does anything on its own — but it is still sitting in the file,
+        // where it reads as an active matcher. Say so, rather than leaving
+        // the author to wonder which half is in force.
+        for legacy in supersededKeys(in: object) {
+            warn("\(legacy) is a v0 key. Its value is merged into the v1 "
+                 + "section on load, so the line in this file has no separate "
+                 + "effect and can be removed.")
+        }
 
         // 2. Does it decode at all?
         let document: HarnessDocument.Decoded

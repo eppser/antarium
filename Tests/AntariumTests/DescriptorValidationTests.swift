@@ -245,3 +245,61 @@ struct HarnessDocumentVersionTests {
         #expect(decoded.migratedFrom != HarnessDocument.currentVersion)
     }
 }
+
+/// A v1 file still carrying a v0 key. Migration folds the old value into the
+/// new section and drops it, so the line in the file has no separate effect —
+/// but it is still there, reading as an active matcher, and until now
+/// `--check` said nothing about it.
+@Suite("Superseded keys are reported, not left to be guessed at")
+struct LegacyKeyWarningTests {
+
+    private func v1(_ extra: [String: Any] = [:]) -> [String: Any] {
+        var object: [String: Any] = [
+            "formatVersion": 1, "id": "legacy-fixture", "name": "Fixture",
+            "process": ["pathContains": ["/new/"]],
+            "source": ["kind": "none", "path": ""]]
+        for (k, v) in extra { object[k] = v }
+        return object
+    }
+
+    @Test("Each v0 key left in a v1 document is named", arguments: [
+        ("match", ["/old/"] as Any), ("matchProcessName", ["old"]),
+        ("mark", "old-glyph"), ("fallbackName", "Old Name"),
+    ])
+    func supersededKeysAreNamed(_ key: String, _ value: Any) {
+        #expect(HarnessCheck.supersededKeys(in: v1([key: value])) == [key])
+    }
+
+    @Test("Several at once are all named, in a fixed order")
+    func severalAtOnce() {
+        let found = HarnessCheck.supersededKeys(
+            in: v1(["match": ["/old/"], "mark": "g", "fallbackName": "N"]))
+        #expect(found == ["match", "mark", "fallbackName"])
+    }
+
+    /// A genuine v0 document is not nagged: there the key is the only form
+    /// there is, and migrating it is the point.
+    @Test("A v0 document is migrated rather than complained about")
+    func v0IsNotWarned() {
+        let v0: [String: Any] = ["id": "legacy-v0", "name": "Fixture",
+                                 "match": ["/old/"], "mark": "g",
+                                 "source": ["kind": "none", "path": ""]]
+        #expect(HarnessCheck.supersededKeys(in: v0).isEmpty)
+    }
+
+    @Test("A clean v1 document has nothing to say about it")
+    func cleanHasNothing() {
+        #expect(HarnessCheck.supersededKeys(in: v1()).isEmpty)
+    }
+
+    /// A warning, not a failure: the file still works, and rewriting somebody
+    /// else's configuration is not this tool's business.
+    @Test("A superseded key does not fail the check")
+    func warningDoesNotFail() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("legacy-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try JSONSerialization.data(withJSONObject: v1(["match": ["/old/"]])).write(to: file)
+        #expect(HarnessCheck.run(file.path) == 0)
+    }
+}

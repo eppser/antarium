@@ -344,3 +344,6 @@ migration leaves the old key behind | Sources/AntariumHarnessSDK/HarnessConfigMi
 migration invents an empty process block | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|if (process\["pathContains"\] as? \[String\])?.isEmpty != false {|if false {|
 migration loses the mark | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|presentation\["mark"\] = value||
 migration does not stamp the new version | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object\["formatVersion"\] = HarnessConfig.currentFormatVersion||
+a superseded key is not reported | Sources/Antarium/Core/HarnessCheck.swift | s|.filter { object\[\$0\] != nil }|.filter { _ in false }|
+a genuine v0 document is nagged | Sources/Antarium/Core/HarnessCheck.swift | s|guard (object\["formatVersion"\] as? NSNumber)?.intValue\n                == HarnessDocument.currentVersion else { return \[\] }||
+a superseded key fails the check | Sources/Antarium/Core/HarnessCheck.swift | s|for legacy in supersededKeys(in: object) {\n            warn(|for legacy in supersededKeys(in: object) {\n            fail(|
