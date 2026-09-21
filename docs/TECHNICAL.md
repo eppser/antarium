@@ -397,10 +397,13 @@ because a line of dashes otherwise reads as an agent that has done nothing.
 ### Descriptor-backed quota providers
 
 For agents without a built-in authentication flow, `quota` can describe a
-read-only JSON endpoint. A descriptor makes one authenticated GET and maps the
-reply onto gauges; anything that needs control flow — an OAuth refresh, request
-signing, a browser cookie, parsing a CLI's text output — belongs in Swift under
-`Sources/Antarium/Providers` instead.
+read-only JSON source: an endpoint fetched with a GET or a POST, or a command
+whose stdout is the payload. The reply is mapped onto gauges; anything that
+needs control flow — an OAuth refresh, request signing, a browser cookie,
+parsing a CLI's *text* output — belongs in Swift under
+`Sources/Antarium/Providers` instead. The shapes themselves are described
+under "Quota transport" below, which is the authority: this paragraph says
+what belongs here rather than how to write it.
 
 `credential` resolves the token, from `env`, `textFile`, `jsonFile` (with
 `field`), or a bounded `command`. `headers` may interpolate `{token}`;
@@ -417,11 +420,8 @@ those reads as a Z.ai sign-in and is sent to Z.ai's endpoint. Z.ai requires
 absent field fails closed, and the check is refused at decode on any other
 credential kind, where it would silently do nothing.
 
-A usage endpoint must be `https` with a host, checked before the request is
-built: every usage request carries a credential, and a descriptor saying
-`http` is not a reason to send a bearer token in the clear.
-
-Redirects are followed only within the same scheme and host. The headers live
+The scheme rule is under "Quota transport"; it is not repeated here, because
+it changed and this copy did not. Redirects are followed only within the same scheme and host. The headers live
 on the session's `httpAdditionalHeaders`, so `URLSession` carries the
 Authorization header onto whatever a redirect points at, and does not drop it
 when the host changes — a usage endpoint answering `302 Location: elsewhere`
@@ -517,6 +517,32 @@ all of them. The directory rather than the file, because the user writes the
 file with whatever umask they have — a directory nobody else may enter
 protects what is in it regardless. Only ever tightened, never loosened, and
 left untouched when it is already right, so a launch is not a change of mtime.
+
+### Adding a quota provider
+
+Five steps, none of which need the service installed or an account with it.
+
+1. Find the vendor's own statement of the endpoint and the response shape. A
+   field path taken from another monitoring tool's source is a guess about
+   somebody else's product that happens to work today; `docs/ECOSYSTEM.md`
+   lists the services turned down for exactly that reason.
+2. Write `Resources/harnesses/<id>.json` with `source.kind` of `none` and a
+   `quota` block. `verified` stays `false` until somebody has seen the
+   numbers against a live account, and the row says so.
+3. Write `Resources/quota-fixtures/<id>.json`: a `cases` array of recorded
+   payloads with the gauges each should produce. Include the shapes that must
+   *not* chart — an account with no plan, a reply missing the figures — with
+   `expectError`. Every value is invented; no real payload belongs in this
+   repository.
+4. `antarium --check Resources/harnesses/<id>.json` for the descriptor, and
+   `antarium --verify-harness-quota` for the mapping. The second runs the
+   fixture through the real provider code, which is what makes this testable
+   with nothing installed.
+5. Add the mapping's load-bearing parts to `mutations.txt` and run
+   `./mutate.sh` over just those lines. A fixture proves the mapping works
+   today; a mutation proves a test would notice when it stops.
+
+### Quota transport
 
 A `balance` must declare a `currency` — a path into the response where the
 service states one, or the code itself. The mapping used to answer "USD" for

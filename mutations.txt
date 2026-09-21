@@ -582,3 +582,6 @@ the benchmark ignores its own verdict | Sources/Antarium/Diagnostics.swift | s|e
 the budget gates on the last pass, not the fastest | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|passes.min() ?? .infinity|passes.last ?? .infinity|
 verify.sh stops gating on the benchmark | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "scan within budget" \|\| bad "scan is over its budget"||
 verify.sh stops gating on idle cost | verify.sh | s|            \|\| bad "idle cost is \$spent s per 30 s — the shape of a runaway loop"|            \|\| true|
+the https-only claim comes back | docs/TECHNICAL.md | s|A usage endpoint must be https, or http to this machine.|A usage endpoint must be `https` with a host.|
+the get-only claim comes back | docs/TECHNICAL.md | s|An endpoint quota may declare `method: "POST"`|A descriptor makes one authenticated GET and|
+the walkthrough loses its verification step | docs/TECHNICAL.md | s|   `antarium --verify-harness-quota` for the mapping|   nothing for the mapping|
