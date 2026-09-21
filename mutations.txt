@@ -307,3 +307,9 @@ a looping agent counted as idle | Sources/Antarium/UI/CountItem.swift | s|case .
 an unobservable agent counted as ended | Sources/Antarium/UI/CountItem.swift | s|case .cloud, .unobserved: unknown += 1|case .cloud: unknown += 1; case .unobserved: ended += 1|
 the total leaves out the unknown | Sources/Antarium/UI/CountItem.swift | s|var total: Int { working + waiting + ended + unknown }|var total: Int { working + waiting + ended }|
 a shell counted as waiting | Sources/Antarium/UI/CountItem.swift | s|case .working, .shell, .looping: working += 1|case .working, .looping: working += 1; case .shell: waiting += 1|
+the bar fills the wrong way round | Sources/Antarium/Core/UsageModel.swift | s|var remaining: Double { min(max(1 - used, 0), 1) }|var remaining: Double { min(max(used, 0), 1) }|
+severity judged off the wrong end | Sources/Antarium/Core/UsageModel.swift | s|hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity|hasMeter ? max(reportedSeverity, Severity.forRemaining(used)) : reportedSeverity|
+a balance colours itself off a phantom fill | Sources/Antarium/Core/UsageModel.swift | s|hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity|max(reportedSeverity, Severity.forRemaining(remaining))|
+a nearly spent window reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
+a nearly full window reads as complete | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||
+only the first two windows reach the bar | Sources/Antarium/UI/Renderer.swift | s|snapshot.gauges.prefix(2)|snapshot.gauges|

@@ -117,3 +117,77 @@ struct FormattingTests {
         #expect(ahead(86_400).hasPrefix("resets in 1d · "))
     }
 }
+
+/// The percentage beside a gauge, and how many gauges reach the bar at all.
+/// Three mutations of this survived: both ends of the rounding, and the cap
+/// on how many windows a provider may draw.
+@Suite("Percentages do not round away their meaning")
+@MainActor
+struct GaugePercentTests {
+
+    private func gauge(_ used: Double, amount: Gauge.Amount? = nil) -> Gauge {
+        Gauge(id: "w", badge: "W", title: "Window", used: used,
+              resetsAt: nil, reportedSeverity: .normal, amount: amount)
+    }
+
+    /// A window with a little used reads as a little, not as none. "0%"
+    /// beside a window that has been used says the opposite of the truth.
+    @Test("A fraction of a percent is not nothing")
+    func smallIsNotZero() {
+        #expect(Gauge.percentText(0.004) == "<1%")
+        #expect(Gauge.percentText(0.0001) == "<1%")
+        #expect(Gauge.percentText(0) == "0%", "nothing used is still nothing")
+    }
+
+    /// And a window nearly spent is not spent. "100%" beside a window with
+    /// headroom left says the agent has stopped when it has not.
+    @Test("A fraction short of the whole is not the whole")
+    func nearlyFullIsNotFull() {
+        #expect(Gauge.percentText(0.996) == ">99%")
+        #expect(Gauge.percentText(0.9999) == ">99%")
+        #expect(Gauge.percentText(1) == "100%", "actually spent reads as spent")
+    }
+
+    @Test("Ordinary percentages read as themselves")
+    func ordinaryPercentages() {
+        #expect(Gauge.percentText(0.5) == "50%")
+        #expect(Gauge.percentText(0.25) == "25%")
+    }
+
+    /// Headroom is the complement of what is used, and the bar fills against
+    /// it — reversing them turns a nearly-spent window into a nearly-empty
+    /// one, which is the same picture with the opposite meaning.
+    @Test("Headroom is what is left, not what is gone")
+    func remainingIsTheComplement() {
+        #expect(gauge(0.75).remaining == 0.25)
+        #expect(gauge(0).remaining == 1)
+        #expect(gauge(1).remaining == 0)
+    }
+
+    /// A balance has no denominator, so it has no meter and never colours
+    /// itself urgent off a figure it does not have.
+    @Test("A balance carries no meter and takes only the reported severity")
+    func balanceHasNoMeter() {
+        let balance = gauge(0, amount: Gauge.Amount(value: 5, currency: "USD"))
+        #expect(!balance.hasMeter)
+        #expect(balance.severity == .normal, "a balance coloured itself off a phantom fill")
+        #expect(gauge(0.99).hasMeter)
+    }
+
+    /// The menu bar has room for two. A provider reporting four windows must
+    /// not draw four bars across it.
+    @Test("At most two windows reach the menu bar")
+    func barIsCapped() {
+        let many = (0..<6).map {
+            Gauge(id: "w\($0)", badge: "W", title: "Window \($0)", used: 0.5,
+                  resetsAt: nil, reportedSeverity: .normal)
+        }
+        let snapshot = Snapshot(providerID: "p", gauges: many, extras: [],
+                                accountLabel: nil, fetchedAt: Date())
+        #expect(StatusRender.rows(for: snapshot).count == 2)
+        // And a provider with one window still draws one.
+        let single = Snapshot(providerID: "p", gauges: [gauge(0.5)], extras: [],
+                              accountLabel: nil, fetchedAt: Date())
+        #expect(StatusRender.rows(for: single).count == 1)
+    }
+}
