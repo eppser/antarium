@@ -531,3 +531,11 @@ a journal index may be negative | Sources/Antarium/Core/Journal.swift | s|index 
 a journal patch cannot reach a new element | Sources/Antarium/Core/Journal.swift | s|while array.count <= index { array.append(\[String: Any\]()) }||
 a journal patch of nothing clears the element | Sources/Antarium/Core/Journal.swift | s|array\[index\] = write(array\[index\], rest, value, append: append) ?? array\[index\]|array[index] = write(array[index], rest, value, append: append) as Any|
 a journal snapshot is ignored | Sources/Antarium/Core/Journal.swift | s|document = line\["v"\] as? \[String: Any\] ?? document|document = [:]|
+a second remote sweep starts while one runs | Sources/Antarium/Core/RemoteScanController.swift | s|guard task == nil else { return }||
+a superseded sweep publishes anyway | Sources/Antarium/Core/RemoteScanController.swift | s|guard let self, self.generations.isCurrent(generation) else { return }|guard let self else { return }|
+a superseded sweep clears its replacement | Sources/Antarium/Core/RemoteScanController.swift | s|            defer { self.task = nil; self.activeHosts = nil }||
+a changed fleet keeps scanning the old one | Sources/Antarium/Core/RemoteScanController.swift | s|if let activeHosts, activeHosts != hosts { cancel() }||
+an unchanged fleet is cancelled anyway | Sources/Antarium/Core/RemoteScanController.swift | s|if let activeHosts, activeHosts != hosts { cancel() }|cancel()|
+the next sweep index is not carried forward | Sources/Antarium/Core/RemoteScanController.swift | s|self.nextIndex = sweep.nextIndex||
+opencode reads closed tabs as open | Sources/Antarium/Core/OpenCodeTabs.swift | s|records: "tabs"|records: "tabs.closed"|
+both guards against a stale sweep are removed | Sources/Antarium/Core/RemoteScanController.swift | s|        _ = generations.begin()||; s|            guard !Task.isCancelled else { return }||

@@ -110,6 +110,14 @@ seed changes per process, so the same mutation is caught on one run and
 survives the next. Ordering fixtures want eight or ten entries, written out
 of order. A `SURVIVED` line that does not reproduce is this, not luck.
 
+Two guards that each suffice cannot be caught one at a time. `cancel()` in
+`RemoteScanController` both bumps the generation and cancels the task, and a
+completion has to pass both checks — so deleting either alone changes nothing
+observable and is not a gap. Where that shape appears, hold one entry that
+removes the pair, and say in the source why the redundancy is there. The
+alternative is two entries nothing can catch, which reads as missing coverage
+for a thing that is covered twice.
+
 A test declared `@Test func name()` with no display name reports its failure
 as `✘ Test name()`, unquoted. The runner used to look for `✘ Test "`, so
 every mutation whose only cover was such a test was announced as SURVIVED —

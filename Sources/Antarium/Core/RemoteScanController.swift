@@ -30,6 +30,15 @@ final class RemoteScanController {
     func reconcile(hosts:[String]) {
         if let activeHosts, activeHosts != hosts { cancel() }
     }
+    /// Two guards, either of which is enough.
+    ///
+    /// Bumping the generation makes an in-flight sweep stale; cancelling the
+    /// task makes it cancelled. A completion has to pass both, and `cancel()`
+    /// sets both, so removing either one alone changes nothing observable —
+    /// which is why the catalogue holds one entry removing the pair rather
+    /// than two that cannot be caught. The redundancy is deliberate: these
+    /// are the checks that stop a superseded sweep publishing rows over a
+    /// newer one, and that is not a thing to protect once.
     func cancel() {
         _ = generations.begin()
         task?.cancel(); task = nil; activeHosts = nil
