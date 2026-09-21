@@ -132,6 +132,33 @@ enum FieldPath {
         return Date(timeIntervalSince1970: seconds)
     }
 
+    /// The longest window this app will treat as a window.
+    ///
+    /// Ten years, which is far longer than any plan and far shorter than the
+    /// magnitudes a JSON number can carry. Plans have five-hour, daily,
+    /// weekly and monthly windows; nothing needs a decade.
+    static let maxWindowSeconds = 315_360_000.0
+
+    /// A reported window length, or nothing.
+    ///
+    /// The same job `epoch` does for dates, and for the same reason. A window
+    /// arrives as a JSON number, and a JSON number can be 1e30. Dividing that
+    /// into hours and converting the result to an `Int` — which is what
+    /// naming a window and drawing its badge both do — is a trap, not a wrong
+    /// answer: the menu bar disappears. Verified by running the conversion on
+    /// a parsed `1e30`, which exits on SIGTRAP.
+    ///
+    /// Rejected rather than saturated. A window of ten billion years is not a
+    /// window that was read successfully, and a badge reading "2800000000D"
+    /// would be a figure this app invented out of a value it did not
+    /// understand. Absent is the honest answer, and every caller already has
+    /// one for a window it cannot read.
+    static func seconds(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, value > 0, value <= maxWindowSeconds
+        else { return nil }
+        return value
+    }
+
     /// Entries of a nested array or object matching every pair given.
     static func count(_ record: [String: Any], path: String, match: [String: String]) -> Int {
         let entries: [[String: Any]]

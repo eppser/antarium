@@ -623,3 +623,9 @@ detection reports every harness as installed | Sources/Antarium/Core/AgentAutoEn
 the first run ignores what detection found | Sources/Antarium/Core/AgentAutoEnable.swift | s|            evidence: evidence(providers: providers, sessionsPresent: sessions),|            evidence: evidence(providers: providers, sessionsPresent: []),|
 the first run treats every agent as used here | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains($0.id))|                     hasSessions: true)|
 the first run drops the agents it was given | Sources/Antarium/Core/AgentAutoEnable.swift | s|            fallback: providers.map(\\.id))|            fallback: [])|
+an absurd request count crashes instead of being refused | Sources/Antarium/Providers/CursorProvider.swift | s|case let v as Double: return Int(exactly: v.rounded())|case let v as Double: return Int(v)|
+cursor buckets keep whatever order the dictionary gave | Sources/Antarium/Providers/CursorProvider.swift | s|gauges.sorted { (\$0.used, \$1.id) > (\$1.used, \$0.id) }|gauges.sorted { $0.used > $1.used }|
+an absurd window is accepted | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value > 0|
+a zero-length window is a window | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value >= 0, value <= maxWindowSeconds|
+codex reads its reset date unbounded | Sources/Antarium/Providers/CodexProvider.swift | s|            resets = FieldPath.epoch(at)|            resets = Date(timeIntervalSince1970: at)|
+the descriptor badge converts an unbounded window | Sources/Antarium/Providers/DescriptorProvider.swift | s|        guard let seconds = FieldPath.seconds(raw)|        guard let seconds = raw, seconds > 0|

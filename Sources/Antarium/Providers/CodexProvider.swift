@@ -165,11 +165,18 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
         guard let used = number(["used_percent", "utilization", "percent_used", "percent"])
         else { return nil }
 
-        let span = number(["limit_window_seconds", "window_seconds"])
+        // Every one of these is a JSON number off the network, and each is
+        // divided and converted to an `Int` further on — in `windowName`
+        // here, and in `Format` once the date reaches a row. `Int(1e30)`
+        // traps, so an unbounded value took the menu bar down rather than
+        // reporting a window it could not read. `FieldPath` bounds both
+        // kinds: a date to the year 9999, a window to ten years.
+        let span = FieldPath.seconds(number(["limit_window_seconds", "window_seconds"]))
         var resets: Date?
         if let at = number(["reset_at", "resets_at_epoch"]) {
-            resets = Date(timeIntervalSince1970: at)
-        } else if let after = number(["reset_after_seconds", "resets_in_seconds"]) {
+            resets = FieldPath.epoch(at)
+        } else if let after = FieldPath.seconds(number(["reset_after_seconds",
+                                                        "resets_in_seconds"])) {
             resets = Date().addingTimeInterval(after)
         } else if let iso = d["resets_at"] as? String {
             resets = UsageHTTP.parseDate(iso)

@@ -159,12 +159,29 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
             throw ProviderError.unsupported("Cursor reported no trustworthy usage window.")
         }
 
-        gauges.sort { $0.used > $1.used }
+        gauges = ordered(gauges)
         let primary = gauges[0]
         let extras = gauges.count > 1 ? Array(gauges.dropFirst()) : []
 
         return Snapshot(providerID: "cursor", gauges: [primary], extras: extras,
                         accountLabel: planName, fetchedAt: Date())
+    }
+
+    /// Fullest first, and ties broken on the bucket's name.
+    ///
+    /// The buckets come out of a dictionary, whose order differs between
+    /// processes, and Swift's sort is not stable — so two buckets at the same
+    /// percentage produced a different primary gauge on different launches,
+    /// for the same account and the same response. Same reasoning as the glob
+    /// search and first-run detection, both of which break their ties on a
+    /// name.
+    ///
+    /// Callable, because the ordering cannot be checked through the dictionary
+    /// that feeds it: within one process that dictionary yields the same order
+    /// every time, so a test driving it agrees with itself whether ties are
+    /// broken or not. An array is an input a test can actually choose.
+    static func ordered(_ gauges: [Gauge]) -> [Gauge] {
+        gauges.sorted { ($0.used, $1.id) > ($1.used, $0.id) }
     }
 
     private static func percentGauge(id: String, badge: String, title: String,
@@ -195,10 +212,17 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         }
     }
 
+    /// A request count from the response.
+    ///
+    /// `Int(someDouble)` traps on anything outside `Int`'s range and on NaN,
+    /// and every number here came off the network. `1e30` in
+    /// `maxRequestUsage` took the whole app down on SIGTRAP rather than
+    /// reporting a bad response. `exactly:` gives nothing instead, and a
+    /// bucket with no readable maximum is already skipped.
     private static func intValue(_ raw: Any?) -> Int? {
         switch raw {
         case let v as Int: return v
-        case let v as Double: return Int(v)
+        case let v as Double: return Int(exactly: v.rounded())
         default: return nil
         }
     }

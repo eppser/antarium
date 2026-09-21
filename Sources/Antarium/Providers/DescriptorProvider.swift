@@ -281,7 +281,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                       let limit = FieldPath.number(window, limitPath), limit > 0 {
                 percent = used / limit * 100
             } else { continue }
-            let span = map.windowSeconds.flatMap { FieldPath.number(window, $0) }
+            let span = FieldPath.seconds(map.windowSeconds.flatMap { FieldPath.number(window, $0) })
             let named = map.labels?[key]
             gauges.append(Gauge(
                 id: key,
@@ -438,8 +438,12 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
 
     /// "5H", "7D" — derived from the window the service reports rather than
     /// assumed, because plans differ in which windows they even have.
-    static func badge(seconds: Double?, fallback: String) -> String {
-        guard let seconds, seconds > 0 else { return String(fallback.prefix(3)).uppercased() }
+    static func badge(seconds raw: Double?, fallback: String) -> String {
+        // Bounded, because the next two lines divide it and convert the
+        // result to an `Int`, which traps rather than rounds on a response
+        // carrying 1e30.
+        guard let seconds = FieldPath.seconds(raw)
+        else { return String(fallback.prefix(3)).uppercased() }
         let hours = seconds / 3600
         if hours < 24 { return "\(Int(hours.rounded()))H" }
         return "\(Int((hours / 24).rounded()))D"
