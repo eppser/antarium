@@ -105,3 +105,63 @@ struct SDKMigrationTests {
         #expect(process["names"] == nil)
     }
 }
+
+/// A migration must not be a filter.
+///
+/// `migrateV0toV1` starts from the document it was given and moves the keys
+/// it knows, so anything it has never heard of survives by construction. That
+/// is the property worth holding rather than the implementation: a migration
+/// that rebuilt from a list of known keys would silently drop every field
+/// added after it was written, and a user's edited descriptor would come back
+/// from an upgrade quietly smaller.
+@Suite("Migration keeps what it does not recognise")
+struct MigrationPreservationTests {
+
+    private func migrate(_ object: [String: Any]) throws -> [String: Any] {
+        let data = try JSONSerialization.data(withJSONObject: object)
+        let result = try HarnessConfigMigration.migrate(data)
+        return try #require(
+            try JSONSerialization.jsonObject(with: result.data) as? [String: Any])
+    }
+
+    /// Fields added to the format after this migration was written. A v0 file
+    /// carrying one is unusual but entirely legal — somebody edits an old
+    /// descriptor to use a new feature — and losing it on upgrade would be
+    /// the worst kind of quiet.
+    @Test("A field newer than the migration survives it")
+    func newerFieldsSurvive() throws {
+        let migrated = try migrate([
+            "formatVersion": 0, "id": "old", "name": "Old",
+            "match": ["/old"],
+            "source": ["kind": "none", "path": ""],
+            "quota": ["command": "agy", "args": ["-p", "/usage"],
+                      "method": "GET",
+                      "windows": ["list": "data", "usedPercent": "pct"]],
+            "capabilities": ["instruction": ["probe": "content",
+                                             "project": [".github/instructions"],
+                                             "fileSuffixes": [".instructions.md"]]],
+        ])
+        let quota = try #require(migrated["quota"] as? [String: Any])
+        #expect(quota["command"] as? String == "agy")
+        #expect(quota["args"] as? [String] == ["-p", "/usage"])
+        #expect(quota["method"] as? String == "GET")
+        let rule = try #require((migrated["capabilities"] as? [String: Any])?["instruction"]
+                                as? [String: Any])
+        #expect(rule["fileSuffixes"] as? [String] == [".instructions.md"])
+    }
+
+    /// Including a key nothing in this project has ever defined, which is
+    /// what a descriptor from a future version looks like to an older build.
+    @Test("A key this version has never heard of survives")
+    func unknownKeysSurvive() throws {
+        let migrated = try migrate([
+            "formatVersion": 0, "id": "old", "name": "Old",
+            "match": ["/old"],
+            "source": ["kind": "none", "path": ""],
+            "somethingFromLater": ["nested": true],
+        ])
+        #expect((migrated["somethingFromLater"] as? [String: Any])?["nested"] as? Bool == true,
+                "an unrecognised field was dropped by the migration")
+    }
+
+}

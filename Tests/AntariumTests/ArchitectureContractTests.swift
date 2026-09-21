@@ -1547,3 +1547,31 @@ struct SDKQuotaAlignmentTests {
         #expect(runtime.capabilityRules["instruction"]?.countedSuffixes == [".instructions.md"])
     }
 }
+
+
+/// A migrated document is still one the runtime reads.
+///
+/// The SDK's own tests check that migration keeps what it does not
+/// recognise; they cannot check that what comes out still decodes, because
+/// that file deliberately imports only the SDK. This is the other half, in
+/// the place where both are in scope — preservation achieved by producing
+/// something unreadable would be no preservation at all.
+@Suite("A migrated descriptor still decodes")
+struct MigratedDocumentDecodesTests {
+
+    @Test("A v0 file carrying a field newer than the migration still loads")
+    func migratedDocumentStillDecodes() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "formatVersion": 0, "id": "old", "name": "Old",
+            "match": ["/old"], "matchProcessName": ["old"],
+            "source": ["kind": "none", "path": ""],
+            "quota": ["command": "agy",
+                      "windows": ["list": "data", "usedPercent": "pct"]],
+        ])
+        let migrated = try HarnessConfigMigration.migrate(data)
+        let descriptor = try HarnessDocument.decode(migrated.data).descriptor
+        #expect(descriptor.quota?.command == "agy")
+        #expect(descriptor.processRule.pathContains?.contains("/old") == true)
+        #expect(descriptor.processRule.names?.contains("old") == true)
+    }
+}

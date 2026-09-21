@@ -68,6 +68,15 @@ public enum HarnessConfigMigration {
         return (a + b).filter { seen.insert($0).inserted }
     }
 
+    /// Starts from the document it was given and moves the keys it knows,
+    /// so anything it has never heard of survives untouched.
+    ///
+    /// That is the property rather than the implementation. A migration that
+    /// rebuilt from a list of known keys would silently drop every field
+    /// added to the format after it was written, and somebody's edited
+    /// descriptor would come back from an upgrade quietly smaller — which is
+    /// a thing nobody notices until the feature they configured stops
+    /// working.
     private static func migrateV0toV1(_ input: [String: Any]) -> [String: Any] {
         var object = input
         var process = object["process"] as? [String: Any] ?? [:]
