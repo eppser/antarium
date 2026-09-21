@@ -20,8 +20,13 @@ struct StatusRender: Equatable {
     /// The numbers are real but no longer fresh.
     var stale: Bool = false
 
-    static func rows(for snapshot: Snapshot) -> [Row] {
-        let mode = Settings.meterMode
+    /// The mode is a parameter so the two readings of the same gauge can be
+    /// compared. The invariant below — that severity does not follow the
+    /// mode — is not checkable from a single reading, and reading the setting
+    /// inside made a test of it a test of whatever this Mac happens to be set
+    /// to.
+    static func rows(for snapshot: Snapshot,
+                     mode: MeterMode = Settings.meterMode) -> [Row] {
         return snapshot.gauges.prefix(2).map { g in
             Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,
                 percentText: g.amountText

@@ -634,3 +634,7 @@ the last agent can be switched off | Sources/Antarium/UI/Settings.swift | s|    
 every settings change is refused | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }|        return .refuse(AgentToggle.lastOne)|
 switching an agent on removes it instead | Sources/Antarium/UI/Settings.swift | s|        if on { next.insert(id) } else { next.remove(id) }|        if on { next.remove(id) } else { next.insert(id) }|
 the settings toggle decides for itself again | Sources/Antarium/UI/SettingsView.swift | s|        .disabled(refusal != nil)||
+the menu bar colour follows the meter mode | Sources/Antarium/UI/Renderer.swift | s|                severity: g.severity)|                severity: mode == .used ? g.severity : Severity.forRemaining(g.used))|
+the bar ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: g.hasMeter ? g.used : nil,|
+a balance draws a bar after all | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: (mode == .used ? g.used : g.remaining),|
+the figure ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),|                    ?? g.usedPercentText,|

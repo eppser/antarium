@@ -191,3 +191,74 @@ struct GaugePercentTests {
         #expect(StatusRender.rows(for: single).count == 1)
     }
 }
+
+/// What the menu bar draws, which had one test for balances and nothing for
+/// the rule the file states most plainly: the bar may fill or drain, and the
+/// colour means the same thing either way.
+@Suite("The menu bar says the same thing in both meter modes")
+@MainActor
+struct MeterModeTests {
+
+    private func snapshot(_ used: Double, severity: Severity = .normal) -> Snapshot {
+        Snapshot(providerID: "test",
+                 gauges: [Gauge(id: "w", badge: "5H", title: "Session", used: used,
+                                resetsAt: nil, reportedSeverity: severity)],
+                 extras: [], accountLabel: nil, fetchedAt: Date())
+    }
+
+    /// The bar is the one thing that does follow the mode.
+    @Test("The bar fills with what is used, or drains with what is left")
+    func fillFollowsTheMode() {
+        let s = snapshot(0.7)
+        #expect(StatusRender.rows(for: s, mode: .used).first?.fill == 0.7)
+        #expect(abs((StatusRender.rows(for: s, mode: .remaining).first?.fill ?? 0) - 0.3) < 0.0001)
+    }
+
+    @Test("The figure follows the mode with it")
+    func percentFollowsTheMode() {
+        let s = snapshot(0.7)
+        #expect(StatusRender.rows(for: s, mode: .used).first?.percentText == "70%")
+        #expect(StatusRender.rows(for: s, mode: .remaining).first?.percentText == "30%")
+    }
+
+    /// And the colour does not. Severity is headroom in both modes, so a
+    /// nearly-spent quota is red whether the bar is nearly full or nearly
+    /// empty. Tying the colour to the bar instead would paint a spent quota
+    /// green for half the users — the same reading, the opposite warning.
+    @Test("A nearly-spent quota is urgent in both modes",
+          arguments: [0.0, 0.3, 0.5, 0.86, 0.95, 1.0])
+    func severityIgnoresTheMode(used: Double) {
+        let s = snapshot(used)
+        let asUsed = StatusRender.rows(for: s, mode: .used).first
+        let asRemaining = StatusRender.rows(for: s, mode: .remaining).first
+        #expect(asUsed?.severity == asRemaining?.severity,
+                Comment(rawValue: "at \(used) consumed the colour changed with the mode"))
+    }
+
+    /// Reachable in both directions, or the test above holds for a function
+    /// that returns one colour for everything.
+    @Test("The colour still moves with the reading")
+    func severityIsNotConstant() {
+        let calm = StatusRender.rows(for: snapshot(0.1), mode: .used).first?.severity
+        let spent = StatusRender.rows(for: snapshot(0.99), mode: .used).first?.severity
+        #expect(calm != spent, "every reading is drawn the same colour")
+        #expect(spent == .critical)
+    }
+
+    /// A balance has no headroom to judge, so it takes the severity the
+    /// provider reported and no bar in either mode.
+    @Test("A balance draws no bar whichever way the meters are set")
+    func balanceHasNoBarInEitherMode() {
+        let s = Snapshot(providerID: "test",
+                         gauges: [Gauge(id: "b", badge: "BAL", title: "Credits", used: 0,
+                                        resetsAt: nil, reportedSeverity: .normal,
+                                        amount: Gauge.Amount(value: 12.5, currency: "USD"))],
+                         extras: [], accountLabel: nil, fetchedAt: Date())
+        for mode in MeterMode.allCases {
+            let row = StatusRender.rows(for: s, mode: mode).first
+            #expect(row?.fill == nil, Comment(rawValue: "\(mode) drew a bar for a balance"))
+            #expect(row?.percentText == "$12.50",
+                    Comment(rawValue: "\(mode) showed a percentage for a balance"))
+        }
+    }
+}
