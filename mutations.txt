@@ -382,3 +382,7 @@ content probe reports no folder count | Sources/Antarium/Core/ProjectContext.swi
 cursor drops the documented agents file | Resources/harnesses/cursor.json | s|^        "AGENTS.md"$||
 cursor claims a file only the cli reads | Resources/harnesses/cursor.json | s|^        "AGENTS.md"$|        "AGENTS.md", "CLAUDE.md"|
 cursor cli loses its extra project file | Resources/harnesses/cursor-cli.json | s|^        "CLAUDE.md"$||
+kimi instructions prefer the generic file | Resources/harnesses/kimi.json | s|^        ".kimi-code/AGENTS.md",$||
+kimi skills miss the shared folder | Resources/harnesses/kimi.json | s|^        ".agents/skills"$||
+kimi mcp key renamed | Resources/harnesses/kimi.json | s|"mcpServers"|"servers"|
+kimi global instructions read from the project | Resources/harnesses/kimi.json | s|"~/.kimi-code/AGENTS.md"|".kimi-code/AGENTS.md"|

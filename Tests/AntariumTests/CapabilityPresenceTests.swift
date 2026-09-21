@@ -343,6 +343,32 @@ struct ShippedCapabilityTests {
                 "the editor claimed a file only the CLI documents")
     }
 
+    /// Kimi Code documents a Kimi-specific location beside a generic one at
+    /// every scope. The specific one is declared first throughout, which is
+    /// the order its own documentation gives: Project before User, and the
+    /// Kimi directory before the shared `.agents` one.
+    @Test("Kimi prefers its own paths to the shared ones, at every scope")
+    func kimiPaths() throws {
+        let rules = try descriptor("kimi").capabilityRules
+
+        let instruction = try #require(rules["instruction"])
+        #expect(instruction.resolvedProbe == .content)
+        #expect(instruction.projectPaths == [".kimi-code/AGENTS.md", "AGENTS.md"])
+        #expect(instruction.inheritedPaths
+                == ["~/.kimi-code/AGENTS.md", "~/.agents/AGENTS.md"])
+
+        let skills = try #require(rules["skills"])
+        #expect(skills.resolvedProbe == .directory)
+        #expect(skills.projectPaths == [".kimi-code/skills", ".agents/skills"])
+        #expect(skills.inheritedPaths == ["~/.kimi-code/skills", "~/.agents/skills"])
+
+        let mcp = try #require(rules["mcp"])
+        #expect(mcp.resolvedProbe == .jsonObject)
+        #expect(mcp.projectPaths == [".kimi-code/mcp.json"])
+        #expect(mcp.objectKeys == ["mcpServers"],
+                "an empty servers object would report MCP as configured")
+    }
+
     /// opencode documents CLAUDE.md as a fallback used only when AGENTS.md
     /// is absent, and the same for the two global files. Declaring them in
     /// that order is what makes the capability report the file opencode

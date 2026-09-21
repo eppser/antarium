@@ -3,17 +3,49 @@
   "id": "kimi",
   "name": "Kimi",
   "process": {
-    "pathContains": ["kimi-code", "/.kimi"],
-    "names": ["kimi"],
-    "argv0Contains": ["/@moonshot-ai/kimi-code/"],
+    "pathContains": [
+      "kimi-code",
+      "/.kimi"
+    ],
+    "names": [
+      "kimi"
+    ],
+    "argv0Contains": [
+      "/@moonshot-ai/kimi-code/"
+    ],
     "installationProbes": [
-      { "method": "curl", "path": "/fixture/home/.kimi-code/bin/kimi", "name": "kimi", "argv0": "kimi", "expected": true, "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md", "verifiedAt": "2026-08-26" },
-      { "method": "npm", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@moonshot-ai/kimi-code/bin/kimi.js", "expected": true, "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md", "verifiedAt": "2026-08-26" },
-      { "method": "name-collision", "path": "/fixture/tools/kimiko", "name": "kimiko", "argv0": "kimiko", "expected": false, "evidence": "https://github.com/MoonshotAI/kimi-code", "verifiedAt": "2026-08-26" }
+      {
+        "method": "curl",
+        "path": "/fixture/home/.kimi-code/bin/kimi",
+        "name": "kimi",
+        "argv0": "kimi",
+        "expected": true,
+        "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "npm",
+        "path": "/usr/bin/node",
+        "name": "node",
+        "argv0": "/fixture/lib/node_modules/@moonshot-ai/kimi-code/bin/kimi.js",
+        "expected": true,
+        "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "name-collision",
+        "path": "/fixture/tools/kimiko",
+        "name": "kimiko",
+        "argv0": "kimiko",
+        "expected": false,
+        "evidence": "https://github.com/MoonshotAI/kimi-code",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
-    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/kimi.json"
   },
   "source": {
@@ -45,9 +77,48 @@
       "tokens"
     ],
     "contextWindow": "maxTokens",
-    "toolWhere": { "type": "tool.call" },
+    "toolWhere": {
+      "type": "tool.call"
+    },
     "turnWhere": {
       "type": "turn.ended"
     }
-  }
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        ".kimi-code/AGENTS.md",
+        "AGENTS.md"
+      ],
+      "inherited": [
+        "~/.kimi-code/AGENTS.md",
+        "~/.agents/AGENTS.md"
+      ]
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [
+        ".kimi-code/skills",
+        ".agents/skills"
+      ],
+      "inherited": [
+        "~/.kimi-code/skills",
+        "~/.agents/skills"
+      ]
+    },
+    "mcp": {
+      "probe": "jsonObject",
+      "project": [
+        ".kimi-code/mcp.json"
+      ],
+      "inherited": [
+        "~/.kimi-code/mcp.json"
+      ],
+      "keys": [
+        "mcpServers"
+      ]
+    }
+  },
+  "note": "Kimi Code documents a Kimi-specific location beside a generic one at every scope, and declares the specific one first: .kimi-code/AGENTS.md before AGENTS.md, .kimi-code/skills before .agents/skills, and the same pair under home. MCP servers are declared under mcpServers in .kimi-code/mcp.json or the copy under home. Not declared: KIMI_CODE_HOME relocates every path under ~/.kimi-code, which a descriptor cannot read, so a relocated data root reads as absent rather than wrong; and the project root is the nearest directory holding .git, searched upward, while the probe looks only at the session's working directory."
 }
