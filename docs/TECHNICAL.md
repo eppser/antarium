@@ -499,6 +499,15 @@ is exactly why a bytes rule would not have caught it. The newest 500 are
 kept, ordered on the timestamp the filename begins with rather than on
 modification time, which a copy or a restore rewrites.
 
+The settings directory is private to its owner, and tightened on launch if
+it is not. It was created at 0755, which was unremarkable while it held
+preferences; descriptors now name key files inside it, and on macOS every
+local account is in `staff`, so a home directory at 0750 is traversable by
+all of them. The directory rather than the file, because the user writes the
+file with whatever umask they have — a directory nobody else may enter
+protects what is in it regardless. Only ever tightened, never loosened, and
+left untouched when it is already right, so a launch is not a change of mtime.
+
 A `balance` must declare a `currency` — a path into the response where the
 service states one, or the code itself. The mapping used to answer "USD" for
 a descriptor that declared none, which turns a CNY balance into a dollar

@@ -449,3 +449,7 @@ a balance may omit its currency | Sources/Antarium/Core/HarnessDocument.swift | 
 an undeclared currency is assumed to be dollars | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard let declared = map.currency else { return "" }|guard let declared = map.currency else { return "USD" }|
 moonshot charts a half instead of the gated figure | Resources/harnesses/moonshot.json | s|"balance": "data.available_balance"|"balance": "data.cash_balance"|
 moonshot numbers claim to be verified | Resources/harnesses/moonshot.json | s|"verified": false|"verified": true|
+the settings directory is created open | Sources/Antarium/Core/Config.swift | s|attributes: \[.posixPermissions: 0o700\])|attributes: nil)|
+an existing open settings directory is left open | Sources/Antarium/Core/Config.swift | s|guard current \& 0o077 != 0 else { return true }|guard current \& 0o077 == 0 else { return true }|
+the startup never secures the keys directory | Sources/Antarium/AppController.swift | s|        Config.secure(Config.keysDirectory)||
+tightening locks the owner out | Sources/Antarium/Core/Config.swift | s|current \& ~0o077|current \& ~0o177|

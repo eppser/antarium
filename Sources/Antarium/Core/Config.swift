@@ -34,6 +34,48 @@ enum Config {
         }
         return mine
     }()
+
+    /// Where a descriptor's `textFile` or `env`-fallback key is kept.
+    ///
+    /// Its own directory so it can have its own permissions, and so a user
+    /// told to "put your key in ~/.antarium/keys/moonshot" is not also being
+    /// told to work out where that is safe.
+    static let keysDirectory = directory.appendingPathComponent("keys")
+
+    /// Creates a directory only its owner can enter.
+    ///
+    /// `~/.antarium` was 0755, and on macOS every local account is in
+    /// `staff`, so a home directory at 0750 is traversable by all of them —
+    /// an API key written there with a default umask would be readable by any
+    /// other user of the Mac. That was tolerable while the directory held
+    /// settings; it stopped being so when descriptors began naming key files
+    /// inside it.
+    ///
+    /// The directory rather than the file, because we do not write the file:
+    /// the user does, with whatever umask they have. A directory nobody else
+    /// may enter protects what is in it regardless.
+    @discardableResult
+    static func secure(_ url: URL) -> Bool {
+        let fm = FileManager.default
+        do {
+            if !fm.fileExists(atPath: url.path) {
+                try fm.createDirectory(at: url, withIntermediateDirectories: true,
+                                       attributes: [.posixPermissions: 0o700])
+                return true
+            }
+            let current = (try fm.attributesOfItem(atPath: url.path)[.posixPermissions]
+                as? NSNumber)?.intValue ?? 0
+            // Only tightened, never loosened, and only when it is actually
+            // open: a directory already private is left exactly as it is.
+            guard current & 0o077 != 0 else { return true }
+            try fm.setAttributes([.posixPermissions: current & ~0o077], ofItemAtPath: url.path)
+            return true
+        } catch {
+            NSLog("Antarium: could not secure \(url.lastPathComponent); "
+                  + "keys kept there may be readable by other users of this Mac")
+            return false
+        }
+    }
     static let url = directory.appendingPathComponent("config.json")
 
     private static let file = ConfigurationFile(url: url, didChange: { Log.invalidateLevel() })

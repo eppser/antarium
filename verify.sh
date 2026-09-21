@@ -149,6 +149,26 @@ done
 # already read a real config cannot get back to it — which is why the default
 # for `enabledAgents` went from empty to a fixed list of three and back with
 # no test objecting.
+# The settings directory holds API keys now, and on macOS every local account
+# is in `staff`. A home directory at 0750 is traversable by all of them, so a
+# key in a 0755 folder is readable by any other user of the Mac.
+step "A first run leaves its settings directory private"
+home=$(mktemp -d)
+chmod 755 "$home"
+ANTARIUM_HOME="$home" "$APP" >/dev/null 2>&1 & pid=$!
+sleep 6; kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+mode=$(stat -f "%OLp" "$home")
+[ "$((8#$mode & 8#077))" -eq 0 ] && ok "settings directory is 0$mode" \
+    || bad "settings directory is 0$mode — another user of this Mac can read it"
+if [ -d "$home/keys" ]; then
+    kmode=$(stat -f "%OLp" "$home/keys")
+    [ "$((8#$kmode & 8#077))" -eq 0 ] && ok "keys directory is 0$kmode" \
+        || bad "keys directory is 0$kmode"
+else
+    bad "no keys directory was created"
+fi
+rm -rf "$home"
+
 step "A machine that has never run it has chosen nothing"
 home=$(mktemp -d)
 out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents 2>&1)

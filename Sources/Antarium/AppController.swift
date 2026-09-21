@@ -15,6 +15,10 @@ final class AppController: NSObject {
 
     func start() {
         Config.migrateFromUserDefaults()
+        // Before anything is seeded into it: the settings directory holds
+        // credentials now, and every local account on a Mac is in `staff`.
+        Config.secure(Config.directory)
+        Config.secure(Config.keysDirectory)
         // Ship the harnesses into the folder people actually edit, and keep
         // untouched ones current. Runs before anything reads them.
         HarnessDescriptor.seed()
