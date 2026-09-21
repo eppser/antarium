@@ -611,3 +611,6 @@ the source applicability table is never read | Sources/Antarium/Core/HarnessChec
 an env credential is said not to read a file | Sources/Antarium/Core/HarnessCheck.swift | s|"path": \["env", "textFile", "jsonFile"\],|"path": ["textFile", "jsonFile"],|
 a credential name applies to every kind | Sources/Antarium/Core/HarnessCheck.swift | s|"name": \["env"\],|"name": ["env", "jsonFile", "textFile", "command"],|
 the credential table is never read | Sources/Antarium/Core/HarnessCheck.swift | s|guard let kinds = credentialFieldKinds\[key\], !kinds.contains(kind)|guard let kinds = Optional(Set<String>()), !kinds.contains(kind)|
+status never mentions an unreadable settings file | Sources/Antarium/Diagnostics.swift | s|                if let issue = Config.issue { print("    ! \\(issue)") }||
+a launch says nothing about an unreadable settings file | Sources/Antarium/AppController.swift | s|        if let issue = Config.issue { Log.warn("config", issue) }||
+verify.sh stops checking damaged files | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "it still starts" \|\| bad "a damaged file stopped it starting"||

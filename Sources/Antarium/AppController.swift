@@ -17,6 +17,10 @@ final class AppController: NSObject {
         Config.migrateFromUserDefaults()
         // Before anything is seeded into it: the settings directory holds
         // credentials now, and every local account on a Mac is in `staff`.
+        // The settings panel shows this too. Logged as well because a
+        // launch is when it starts mattering, and a log is what somebody
+        // reads afterwards to work out why nothing was being saved.
+        if let issue = Config.issue { Log.warn("config", issue) }
         Config.secure(Config.directory)
         Config.secure(Config.keysDirectory)
         // Ship the harnesses into the folder people actually edit, and keep

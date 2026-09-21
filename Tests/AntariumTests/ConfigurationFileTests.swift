@@ -198,3 +198,99 @@ struct SettingsDefaultTests {
                 Comment(rawValue: "the scan interval is unclamped: \(found)"))
     }
 }
+
+/// What happens when the settings file cannot be read.
+///
+/// Writes refuse to destroy a file they cannot parse, which is right — it may
+/// be somebody's settings with a typo in them. The consequence is that
+/// nothing can be saved until it is fixed, and that consequence has to be
+/// said out loud somewhere.
+@Suite("An unreadable settings file", .serialized)
+struct UnreadableConfigurationTests {
+
+    private func file(_ contents: String) throws -> (ConfigurationFile, URL) {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("config-\(UUID()).json")
+        try Data(contents.utf8).write(to: url)
+        return (ConfigurationFile(url: url), url)
+    }
+
+    @Test("A file that is not JSON reports why")
+    func brokenFileReportsWhy() throws {
+        let (config, url) = try file("{ not json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let issue = try #require(config.issue, "an unreadable file reported nothing")
+        #expect(issue.contains("could not be read"))
+    }
+
+    /// The refusal itself. Overwriting would discard settings nobody has
+    /// agreed to lose.
+    @Test("A write is refused rather than destroying the file")
+    func writeIsRefused() throws {
+        let (config, url) = try file("{ not json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(config.set("a", 1) == false)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "{ not json",
+                "an unreadable settings file was overwritten")
+    }
+
+    /// And once it is valid again, saving resumes — the refusal is about the
+    /// file's state, not a latch that stays set.
+    @Test("Repairing the file restores saving")
+    func repairRestoresSaving() throws {
+        let (config, url) = try file("{ not json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(config.set("a", 1) == false)
+
+        try Data("{}".utf8).write(to: url)
+        config.reload()
+        #expect(config.issue == nil, "a repaired file still reported a problem")
+        #expect(config.set("a", 1), "a repaired file still refused to save")
+        #expect(config.int("a") == 1)
+    }
+
+    @Test("An ordinary file reports no problem and saves")
+    func ordinaryFileWorks() throws {
+        let (config, url) = try file(#"{"a":1}"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(config.issue == nil)
+        #expect(config.set("b", 2))
+        #expect(config.int("b") == 2)
+    }
+}
+
+/// The two places that report a damaged settings file without being runnable
+/// from a test: a launch, which builds menu bar items and a run loop, and
+/// `verify.sh`, which is a shell script.
+@Suite("A damaged settings file is reported where it is noticed")
+struct DamagedConfigurationReportingContractTests {
+
+    private func source(_ path: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("A launch logs it, before it seeds anything")
+    func launchLogsIt() throws {
+        let text = try source("Sources/Antarium/AppController.swift")
+        let start = try #require(text.range(of: "func start() {"))
+        let body = String(text[start.lowerBound...].prefix(900))
+        let logged = try #require(body.range(of: "Log.warn(\"config\", issue)"),
+                                  "a launch says nothing about an unreadable settings file")
+        let seed = try #require(body.range(of: "HarnessDescriptor.seed()"))
+        #expect(logged.lowerBound < seed.lowerBound,
+                "it is mentioned after the work that depends on settings")
+    }
+
+    @Test("verify.sh checks that a damaged machine still starts")
+    func verifyChecksDamage() throws {
+        let text = try source("verify.sh")
+        #expect(text.contains("A machine whose files have been damaged"))
+        #expect(text.contains("a damaged file stopped it starting"),
+                "the damaged-machine step reports and gates on nothing")
+        #expect(text.contains("a bad descriptor cost more than itself"),
+                "nothing checks that one bad descriptor costs one harness")
+    }
+}

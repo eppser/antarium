@@ -79,6 +79,12 @@ enum Config {
     static let url = directory.appendingPathComponent("config.json")
 
     private static let file = ConfigurationFile(url: url, didChange: { Log.invalidateLevel() })
+    /// Why the settings file could not be read, when it could not be.
+    ///
+    /// Writes refuse to destroy a file they cannot parse — the right choice,
+    /// since the file may be somebody's settings with a typo in them. The
+    /// consequence is that nothing can be saved until it is fixed, so the
+    /// settings panel shows this and `--status` reports it.
     static var issue: String? { file.issue }
     static func reload() { file.reload(); Log.invalidateLevel() }
     static func string(_ key: String) -> String? { file.string(key) }

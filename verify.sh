@@ -169,6 +169,26 @@ else
 fi
 rm -rf "$home"
 
+# A settings file, a descriptor or a cache can be truncated by a full disk, a
+# crash mid-write, or somebody editing one by hand. None of that should stop
+# the app starting, and a corrupt descriptor should cost that one harness
+# rather than all of them.
+step "A machine whose files have been damaged"
+home=$(mktemp -d)
+ANTARIUM_HOME="$home" "$BIN" --status >/dev/null 2>&1
+before=$(ls "$home"/harnesses/*.json 2>/dev/null | wc -l | tr -d ' ')
+printf '{ not json' > "$home/config.json"
+printf 'GARBAGE' > "$home/harnesses/cursor.json"
+out=$(ANTARIUM_HOME="$home" "$BIN" --status 2>&1); status=$?
+[ "$status" -eq 0 ] && ok "it still starts" || bad "a damaged file stopped it starting"
+printf '%s' "$out" | grep -q "harnesses $((before - 1)) loaded" \
+    && ok "one bad descriptor cost one harness" \
+    || bad "a bad descriptor cost more than itself"
+printf '%s' "$out" | grep -q "Settings could not be read safely" \
+    && ok "the unreadable settings file is reported" \
+    || bad "an unreadable settings file was not mentioned"
+rm -rf "$home"
+
 step "A machine that has never run it has chosen nothing"
 home=$(mktemp -d)
 out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents 2>&1)

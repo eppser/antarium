@@ -274,6 +274,9 @@ enum Diagnostics {
             if CommandLine.arguments.contains("--status") {
                 print("Antarium \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
                 print("  config    \(Config.url.path)")
+                // The message already says what happened and what to do; the
+                // gap was that this command never showed it.
+                if let issue = Config.issue { print("    ! \(issue)") }
                 print("  log       \(Log.url.path)  level=\(Log.level.name)")
                 let descriptors = HarnessDescriptor.all()
                 print("  harnesses \(descriptors.count) loaded from \(HarnessDescriptor.directory.path)")

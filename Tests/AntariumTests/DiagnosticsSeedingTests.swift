@@ -69,3 +69,54 @@ struct DiagnosticsSeedingTests {
         #expect(!text.contains("harnesses 0 loaded"))
     }
 }
+
+/// What `--status` says about a settings file it cannot read.
+///
+/// The settings panel already shows it, which is where somebody changing a
+/// setting would be. `--status` is where somebody works out afterwards why
+/// nothing was saved, and it said nothing at all.
+@Suite("Reporting a damaged settings file", .serialized)
+struct DamagedConfigurationStatusTests {
+
+    private func run(_ arguments: [String], home: URL) throws -> String {
+        let executable = URL(fileURLWithPath: ".build/debug/Antarium")
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { return "" }
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        var environment = ProcessInfo.processInfo.environment
+        environment["ANTARIUM_HOME"] = home.path
+        process.environment = environment
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    @Test("A settings file that is not JSON is reported, and does not stop the rest")
+    func damagedConfigurationIsReported() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("damaged-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        // Seed first, so the harnesses exist and the only damage is the one
+        // being tested.
+        _ = try run(["--status"], home: home)
+        guard FileManager.default.fileExists(atPath: home.appendingPathComponent("harnesses").path)
+        else { return }
+        try Data("{ not json".utf8).write(to: home.appendingPathComponent("config.json"))
+
+        let text = try run(["--status"], home: home)
+        guard !text.isEmpty else { return }
+        #expect(text.contains("could not be read"),
+                "--status said nothing about a settings file it could not read")
+        // And the rest of the report still arrives: one damaged file is not a
+        // reason to stop describing the machine.
+        #expect(text.contains("harnesses "),
+                "a damaged settings file stopped the harness count being reported")
+    }
+}
