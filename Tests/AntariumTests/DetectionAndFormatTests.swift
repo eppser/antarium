@@ -184,15 +184,15 @@ struct AbsenceVocabularyTests {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
-        var out: [String] = []
-        for folder in ["Sources/Antarium", "Sources/Antarium/Core",
-                       "Sources/Antarium/UI", "Sources/Antarium/Providers"] {
-            let files = try FileManager.default.contentsOfDirectory(
-                at: root.appendingPathComponent(folder), includingPropertiesForKeys: nil)
-                .filter { $0.pathExtension == "swift" }
-            out += files.map { folder + "/" + $0.lastPathComponent }
-        }
-        return out.sorted()
+        // Recursive, so a folder added later is covered without anybody
+        // remembering to add it here.
+        let base = root.appendingPathComponent("Sources")
+        let files = FileManager.default.enumerator(
+            at: base, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+        return files
+            .map { $0.path.replacingOccurrences(of: root.path + "/", with: "") }
+            .sorted()
     }
 
     private func source(_ path: String) throws -> String {
@@ -218,6 +218,14 @@ struct AbsenceVocabularyTests {
     /// volta, mise or a custom prefix is in none of the places this app
     /// looks. A rule that lists its subjects only ever covers the instances
     /// that prompted it.
+    /// The count is asserted separately, because a parameterised test over an
+    /// empty list passes.
+    @Test("Every shipped source is scanned for the claim")
+    func scanCoversEverySource() throws {
+        let count = try Self.sources().count
+        #expect(count > 70, "only \(count) sources were scanned")
+    }
+
     @Test("No source claims an agent is not installed", arguments: try sources())
     func noSurfaceClaimsAbsence(_ path: String) throws {
         let text = try source(path)

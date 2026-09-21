@@ -86,6 +86,14 @@ without anyone noticing.
 Every mutation is reverted, including on interrupt. It takes several minutes,
 so it is not part of `verify.sh`.
 
+A rule that lists its subjects covers only the instances that prompted it.
+The test that stopped four surfaces claiming an agent was "not installed"
+named those four files, and two providers went on making the same claim from
+a failed PATH lookup — in the two places most exposed to it. A source rule
+should enumerate `Sources` recursively, and assert a file count above what
+the narrower scope would have contained, so that narrowing it back fails
+rather than passing either way.
+
 The commonest way to write a test that cannot fail is to derive what you
 expect from the thing you are testing. A test reading
 `chain(RemoteTmux.maxPaneDepth - 1)` passes for every value of

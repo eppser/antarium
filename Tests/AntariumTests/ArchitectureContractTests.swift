@@ -1159,19 +1159,23 @@ struct ProviderHTTPContractTests {
             let root = URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent()
                 .deletingLastPathComponent()
+            // Everything under Sources, recursively. This named two folders
+            // and so covered neither the four files beside them nor the
+            // eighteen in UI — a rule that lists its subjects covers only the
+            // instances that prompted it, which is how two providers kept
+            // claiming an agent was not installed after four surfaces
+            // stopped.
+            let files = FileManager.default.enumerator(
+                at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil)?
+                .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
             var out: [(String, String)] = []
-            for folder in ["Sources/Antarium/Providers", "Sources/Antarium/Core"] {
-                let files = try FileManager.default.contentsOfDirectory(
-                    at: root.appendingPathComponent(folder), includingPropertiesForKeys: nil)
-                    .filter { $0.pathExtension == "swift" }
-                for url in files {
-                    // The two files that implement the bounded path are the
-                    // ones allowed to use the primitives it is built from.
-                    let name = url.lastPathComponent
-                    guard name != "UsageHTTP.swift", name != "BoundedResponse.swift"
-                    else { continue }
-                    out.append((name, try String(contentsOf: url, encoding: .utf8)))
-                }
+            for url in files {
+                // The two files that implement the bounded path are the ones
+                // allowed to use the primitives it is built from.
+                let name = url.lastPathComponent
+                guard name != "UsageHTTP.swift", name != "BoundedResponse.swift"
+                else { continue }
+                out.append((name, try String(contentsOf: url, encoding: .utf8)))
             }
             return out.sorted { $0.0 < $1.0 }
         }
@@ -1189,7 +1193,10 @@ struct ProviderHTTPContractTests {
                       ".bytes(for:", ".bytes(from:", "dataTask(with:"])
     func noHandRolledTransport(_ forbidden: String) throws {
         let files = try sources
-        #expect(files.count > 15, "only \(files.count) sources were scanned")
+        // Above what the two folders this used to name contain, so the
+        // threshold fails if the scope is narrowed back rather than passing
+        // either way — which the first number written here would have.
+        #expect(files.count > 70, "only \(files.count) sources were scanned")
         for file in files {
             for (index, line) in file.text.split(separator: "\n", omittingEmptySubsequences: false)
                 .enumerated() where isCode(line) && line.contains(forbidden) {
