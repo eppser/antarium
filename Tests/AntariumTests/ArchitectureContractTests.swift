@@ -907,6 +907,37 @@ struct ProviderMappingCoverageTests {
         }
     }
 
+    /// A fixture that only records a good day proves the mapping can chart a
+    /// number, not that it refuses one it cannot read — and refusing is the
+    /// half that keeps an invented figure off the menu bar. Three shipped
+    /// fixtures had no refusal case at all, so for those providers "a
+    /// response this must not chart" was a claim with nothing behind it.
+    ///
+    /// Cheap to satisfy and impossible to satisfy accidentally: an empty
+    /// envelope is a synthetic response, not a recorded one, so this asks for
+    /// nothing a descriptor author has to obtain from a real account.
+    @Test("Every quota fixture records a response the mapping must refuse")
+    func fixturesCoverRefusal() throws {
+        let directory = root.appendingPathComponent("Resources/quota-fixtures")
+        let files = try FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+        #expect(files.count >= 10, "no fixtures were scanned, so this proved nothing")
+
+        for url in files {
+            let document = try #require(
+                JSONSerialization.jsonObject(with: try Data(contentsOf: url))
+                    as? [String: Any],
+                Comment(rawValue: "\(url.lastPathComponent) is not an object"))
+            let cases = document["cases"] as? [[String: Any]]
+                ?? [document].filter { $0["response"] != nil }
+            #expect(cases.contains { $0["expectError"] != nil },
+                    Comment(rawValue: "\(url.deletingPathExtension().lastPathComponent) "
+                            + "records only responses that map, so nothing checks that it "
+                            + "refuses one it cannot read"))
+        }
+    }
+
     /// The fixtures themselves must stay reachable from the test suite, not
     /// only from the command-line verifier — a fixture nobody replays is a
     /// recorded response and not a check.
