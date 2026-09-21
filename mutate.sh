@@ -87,6 +87,14 @@ trap 'restore' EXIT
 
 survived=0 caught=0 broken=0
 
+# Which tree this is about. A full run takes hours, and a report read after
+# the working tree has moved on says nothing about the working tree — every
+# entry added since is "could not be applied", and every entry a later test
+# now catches still reads SURVIVED. Both happened to a run this week, and the
+# report gave no way to tell.
+printf 'against %s (%s)\n' "$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" \
+    "$(git log -1 --format=%s 2>/dev/null | cut -c1-60 || echo '')"
+
 # A mutation can remove a loop bound, and then the suite never finishes. macOS
 # ships no `timeout`, so the run is backgrounded and killed. A hang is a caught
 # mutation: not finishing is a way of failing, and the alternative is a runner

@@ -141,6 +141,14 @@ every mutation whose only cover was such a test was announced as SURVIVED —
 fifteen of them here, covering the state machine and the loop watch. Prefer a
 display name; the runner no longer depends on it either way.
 
+A full run prints the commit it started from, and that line is the first
+thing to read in an old report. The run takes hours in a detached checkout
+made when it began, so a report read afterwards describes a tree that no
+longer exists: entries added since show as "could not be applied", and
+entries a later test now catches still show as SURVIVED. Re-run the survivors
+against the current tree before believing any of them — `grep SURVIVED` the
+log, match the names back to `mutations.txt`, and run that subset.
+
 `caught (the tests no longer build)` means the sources still compile and the
 tests do not — which is how removing a field the SDK publishes is caught: the
 round-trip that writes it stops compiling. A real catch, and a different
