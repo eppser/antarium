@@ -160,3 +160,8 @@ kiro colour codes not stripped | Sources/Antarium/Providers/KiroProvider.swift |
 kiro charts a zero cap | Sources/Antarium/Providers/KiroProvider.swift | s|separator: "/"), total > 0 {|separator: "/"), total >= 0 {|
 kiro line count unbounded | Sources/Antarium/Providers/KiroProvider.swift | s|.prefix(maxLines)||
 kiro emoji becomes part of the label | Sources/Antarium/Providers/KiroProvider.swift | s|.drop { !\$0.isLetter }||
+claude binding week is the first not the worst | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|weeklies.max(by: { \$0.percent < \$1.percent })|weeklies.first|
+claude extras listed best first | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|.sorted { \$0.percent > \$1.percent }|.sorted { $0.percent < $1.percent }|
+claude binding week also listed as an extra | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|.filter { \$0 !== binding }||
+claude window with no reset borrows one | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|used: binding.percent / 100, resetsAt: binding.resetsAt,|used: binding.percent / 100, resetsAt: binding.resetsAt ?? sessionLimit.resetsAt,|
+claude percent used as a fraction | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|used: sessionLimit.percent / 100,|used: sessionLimit.percent,|

@@ -833,3 +833,83 @@ struct ArchitectureContractTests {
         }
     }
 }
+
+/// Every provider on the bar reports numbers somebody will act on. A
+/// descriptor provider is held to that by `--verify-harness-quota`, which
+/// replays a recorded reply through the real mapping. A native one is held to
+/// it by nothing structural: the four that exist have mapping tests because
+/// whoever wrote them chose to, and the next one could ship with none and
+/// nothing would say so.
+///
+/// This is also the third ask made checkable — every provider must be
+/// exercisable without the agent installed, which is exactly what both halves
+/// below require.
+@Suite("Every provider's mapping is verifiable without installing it")
+struct ProviderMappingCoverageTests {
+
+    private var root: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    /// Provider ids that read nothing mappable — no endpoint, no command
+    /// output — and so have no mapping to verify. Each needs a reason.
+    private static let noMapping: [String: String] = [:]
+
+    @Test("A descriptor provider has a quota fixture; a native one has mapping tests")
+    func everyProviderIsCovered() throws {
+        let fixtures = (try? FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("Resources/quota-fixtures"),
+            includingPropertiesForKeys: nil)) ?? []
+        let fixtureIDs = Set(fixtures.map { $0.deletingPathExtension().lastPathComponent })
+
+        let testSources = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("Tests/AntariumTests"), includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined()
+
+        // Only the native ones here. `ProviderRegistry.all` also carries the
+        // descriptor providers, which are built from whatever harnesses this
+        // Mac has seeded — thirteen here, six on a machine that has never run
+        // the app — so counting them would make this a description of one
+        // developer's laptop. The descriptor side is covered by the fixture
+        // test below, which reads the bundle.
+        let native = ProviderRegistry.all.filter { !($0 is DescriptorProvider) }
+        #expect(native.count >= 6, "expected the native providers; saw \(native.count)")
+
+        for provider in native {
+            if let reason = Self.noMapping[provider.id] {
+                #expect(!reason.isEmpty)
+                continue
+            }
+            if fixtureIDs.contains(provider.id) { continue }
+            // Its mapping has to be reachable from a test without the agent
+            // present, which in practice means a static entry point.
+            let type = String(describing: Swift.type(of: provider))
+            #expect(testSources.contains("\(type).makeSnapshot"),
+                    Comment(rawValue: "\(provider.id) has neither a quota fixture nor a test "
+                            + "calling \(type).makeSnapshot, so nothing checks what it reports"))
+        }
+    }
+
+    /// The fixtures themselves must stay reachable from the test suite, not
+    /// only from the command-line verifier — a fixture nobody replays is a
+    /// recorded response and not a check.
+    @Test("Quota fixtures are replayed by the suite as well as by the verifier")
+    func fixturesAreReplayedInTests() throws {
+        let descriptors = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("Resources/harnesses"), includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+            .map { try HarnessDocument.decode(Data(contentsOf: $0)).descriptor }
+        var replayed = 0
+        for descriptor in descriptors where descriptor.quota != nil {
+            let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+            let found = try #require(report, Comment(rawValue:
+                "\(descriptor.id) declares a quota block with no fixture to replay"))
+            #expect(found.passed, Comment(rawValue: "\(descriptor.id): \(found.detail)"))
+            replayed += 1
+        }
+        #expect(replayed >= 7, "expected every shipped quota descriptor; saw \(replayed)")
+    }
+}
