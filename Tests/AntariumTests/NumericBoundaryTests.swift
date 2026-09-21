@@ -15,6 +15,30 @@ struct NumericBoundaryTests {
         #expect(FieldPath.number(["v": 0], "v") == 0)
         #expect(FieldPath.number(["v": "1.5"], "v") == 1.5)
     }
+    /// `numeric` already refuses a value that arrives non-finite, so the
+    /// finiteness check in `number` only earns its place on a total: finite
+    /// values that overflow to infinity when summed across an array path.
+    /// Nothing covered that, and removing the check left every test passing —
+    /// which matters because this guard is why the quota mapping does not
+    /// need its own NaN handling.
+    @Test("Finite values that overflow when summed are unavailable, not infinite")
+    func accumulatedOverflow() {
+        let record: [String: Any] = ["w": [["v": 1e308], ["v": 1e308]]]
+        #expect(FieldPath.number(record, "w[].v") == nil)
+        // Two that do not overflow still add up, so the guard is not simply
+        // refusing every array path.
+        #expect(FieldPath.number(["w": [["v": 1.5], ["v": 2.5]]], "w[].v") == 4)
+    }
+
+    /// The same shape one level down: the integer accumulator has its own
+    /// overflow check, and an array of large integers is how it is reached.
+    @Test("Integers that overflow when summed are unavailable, not wrapped")
+    func accumulatedIntegerOverflow() {
+        let record: [String: Any] = ["w": [["v": Int.max], ["v": 1]]]
+        #expect(FieldPath.int(record, "w[].v") == nil)
+        #expect(FieldPath.int(["w": [["v": 2], ["v": 3]]], "w[].v") == 5)
+    }
+
     @Test("Integer conversion is bounded and never traps on external data")
     func boundedIntegers() {
         #expect(FieldPath.int(["v": "nan"], "v") == nil)

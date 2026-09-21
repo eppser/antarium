@@ -171,3 +171,10 @@ cursor shows a window twice | Sources/Antarium/Providers/CursorProvider.swift | 
 codex windows unsorted | Sources/Antarium/Providers/CodexProvider.swift | s|gauges.sort { (\$0.windowSeconds ?? .greatestFiniteMagnitude)|gauges.sort { (-(\$0.windowSeconds ?? 0))|
 codex empty response accepted | Sources/Antarium/Providers/CodexProvider.swift | s|guard !gauges.isEmpty else {|guard true else {|
 codex additional caps dropped | Sources/Antarium/Providers/CodexProvider.swift | s|let inner = extra\["rate_limit"\] as? \[String: Any\] ?? extra|let inner = extra|
+field path booleans counted as numbers | Sources/Antarium/Core/FieldPath.swift | s|if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }|if false { return nil }|
+field path accepts a non-finite total | Sources/Antarium/Core/FieldPath.swift | s|guard total.isFinite else { return nil }||
+field path last-element selector reads the first | Sources/Antarium/Core/FieldPath.swift | s|let last = array.last else { return \[\] }|let last = array.first else { return [] }|
+field path model reads the oldest value | Sources/Antarium/Core/FieldPath.swift | s|each(record, path).compactMap { \$0 as? String }.last|each(record, path).compactMap { $0 as? String }.first|
+field path missing value becomes zero | Sources/Antarium/Core/FieldPath.swift | s|guard !found.isEmpty else { return nil }|if found.isEmpty { return 0 }|
+field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s|return suffix.isEmpty ? array : array.compactMap { lookup(\$0, suffix) }|return array|
+field path integer total wraps | Sources/Antarium/Core/FieldPath.swift | s|guard !sum.overflow else { return nil }||
