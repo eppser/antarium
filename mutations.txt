@@ -489,3 +489,9 @@ a quiet transcript still reads as working | Sources/Antarium/Core/AgentState.swi
 a time that is not a number is charted | Sources/Antarium/Core/AgentState.swift | s|guard age.isFinite, age >= 0, evidence.idleAfter.isFinite, evidence.idleAfter >= 0 else {|guard true else {|
 a shell sits below the wants-you threshold | Sources/Antarium/Core/AgentScan.swift | s|            case .shell:   return 3|            case .shell:   return 2|
 a looping agent is announced as stopped | Sources/Antarium/Core/AgentScan.swift | s|            case .looping: return 4|            case .looping: return 1|
+banners are unbounded again | Sources/Antarium/UI/AgentAlert.swift | s|max(0, showing + 1 - limit)|0|
+the banner limit is off by one | Sources/Antarium/UI/AgentAlert.swift | s|max(0, showing + 1 - limit)|max(0, showing - limit)|
+the banner surplus goes negative | Sources/Antarium/UI/AgentAlert.swift | s|max(0, showing + 1 - limit)|showing + 1 - limit|
+the banner limit is raised without a decision | Sources/Antarium/UI/AgentAlert.swift | s|nonisolated static let maxVisible = 5|nonisolated static let maxVisible = 500|
+the newest banner is retired instead of the oldest | Sources/Antarium/UI/AgentAlert.swift | s|showing.suffix(surplus(showing: showing.count, limit: limit))|showing.prefix(surplus(showing: showing.count, limit: limit))|
+a sweep plays one sound per agent | Sources/Antarium/Core/AgentStore.swift | s|        for row in finished { AgentAlert.shared.post(row) }|        for row in finished { AgentAlert.shared.post(row); Sounds.play(.agentStopped) }|

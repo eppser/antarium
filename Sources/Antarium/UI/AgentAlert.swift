@@ -17,8 +17,36 @@ final class AgentAlert: NSObject {
     private let width: CGFloat = 330
     private let spacing: CGFloat = 8
 
+    /// How many banners may be on screen at once.
+    ///
+    /// Nothing bounded this. A sweep that finds a fleet of agents finished
+    /// posts one panel each, and `restack` walks them down from the menu bar
+    /// — past five they are off the bottom of an ordinary screen, still
+    /// alive, still holding a SwiftUI tree, for twelve seconds. The rule is
+    /// the one docs/TECHNICAL.md states as bounding objects rather than only
+    /// bytes, and a borderless panel is very much an object.
+    nonisolated static let maxVisible = 5
+
+    /// How many of the oldest banners to retire so a new one fits. Pure, so
+    /// the rule can be checked without a screen.
+    nonisolated static func surplus(showing: Int, limit: Int = maxVisible) -> Int {
+        max(0, showing + 1 - limit)
+    }
+
+    /// Which banners to retire. Generic so which *end* of the list goes can
+    /// be checked without an AppKit panel: `post` inserts the newest at the
+    /// front, so the ones to drop are at the back, and taking them from the
+    /// front instead would retire the arrival the user is meant to see.
+    nonisolated static func retiring<T>(_ showing: [T],
+                                        limit: Int = maxVisible) -> ArraySlice<T> {
+        showing.suffix(surplus(showing: showing.count, limit: limit))
+    }
+
     func post(_ row: AgentRow) {
         guard Settings.notifyOnIdle else { return }
+
+        // Oldest first, so the newest arrival is the one that stays.
+        for panel in Self.retiring(panels) { dismiss(panel) }
 
         let panel = makePanel(row)
 

@@ -1430,3 +1430,39 @@ struct WakeRefreshContractTests {
                 "waking forces a remote sweep past its own throttle")
     }
 }
+
+/// One sound for a sweep, not one per row.
+///
+/// The sound means "something finished". A fleet finishing together played
+/// one copy per agent, over each other — which says nothing twenty times, and
+/// is the audible half of the same problem the banner limit fixes.
+@Suite("A sweep makes one sound")
+struct StopSoundContractTests {
+
+    @Test("The stop sound is played once per sweep, outside the loop")
+    func soundIsOutsideTheLoop() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/AgentStore.swift"), encoding: .utf8)
+        let notice = try #require(text.range(of: "private func noticeStops("))
+        let body = String(text[notice.lowerBound...].prefix(900))
+
+        // Line by line, not by position. Comparing the offsets of the first
+        // occurrence of each passed when the sound was put *inside* the loop
+        // line — it still came after the words "for row in finished", and the
+        // mutation that did exactly that survived.
+        let lines = body.split(separator: "\n", omittingEmptySubsequences: false)
+        let playing = lines.filter { $0.contains("Sounds.play(.agentStopped)") }
+        #expect(playing.count == 1,
+                "the stop sound is played from \(playing.count) places in one sweep")
+        let line = try #require(playing.first)
+        #expect(!line.contains("for row in"),
+                "the sound is inside the loop again, one per agent")
+        #expect(line.contains("if !finished.isEmpty"),
+                "a sweep where nothing finished still makes a sound")
+        #expect(lines.contains { $0.contains("for row in finished") },
+                "the banners are no longer posted per row")
+    }
+}

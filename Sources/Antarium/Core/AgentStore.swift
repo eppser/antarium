@@ -126,11 +126,13 @@ final class AgentStore: ObservableObject {
     }
 
     private func noticeStops(in fresh: [AgentRow], gap: TimeInterval) {
-        for row in Self.announcements(previous: lastRows, current: fresh, gap: gap,
-                                      interval: Double(Settings.agentScanSeconds)) {
-            AgentAlert.shared.post(row)
-            Sounds.play(.agentStopped)
-        }
+        let finished = Self.announcements(previous: lastRows, current: fresh, gap: gap,
+                                          interval: Double(Settings.agentScanSeconds))
+        for row in finished { AgentAlert.shared.post(row) }
+        // One sound for the sweep, not one per row. The sound means
+        // "something finished"; a fleet finishing together played twenty
+        // copies of it over each other, which says nothing twenty times.
+        if !finished.isEmpty { Sounds.play(.agentStopped) }
         lastRows = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
