@@ -159,6 +159,13 @@ swift build --scratch-path /tmp/antarium-strict \
 ./build.sh
 ```
 
+`verify.sh` measures two different costs and they are not substitutes. The
+scan benchmark times one pass; the idle step runs the built app for a minute
+and measures what it spends in the second half of that. The failure this
+project was rebuilt around was a frequent scan rather than a slow one — 44%
+of a core sustained — and no single-pass timing can see it. A healthy build
+spends well under a second in that window and sits at about 80 MB.
+
 For harness changes, also run the built executable with
 `--verify-harness-fixtures`, `--verify-harness-installations`, and `--check`
 against the changed descriptor when the corresponding upstream application is

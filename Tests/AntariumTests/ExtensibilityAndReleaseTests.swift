@@ -651,3 +651,45 @@ struct BenchmarkVerdictContractTests {
                 "the benchmark step reports timings and gates on nothing")
     }
 }
+
+/// The cost of sitting there, which is a different question from the cost of
+/// one scan.
+///
+/// The failure this project was rebuilt around was not a slow scan but a
+/// frequent one: 408 minutes of CPU over fifteen hours, which is 44% of a
+/// core sustained, from a loop running far more often than it should. The
+/// scan benchmark times a single pass and cannot see that. A verify step
+/// measures what the app costs while idle, and this holds that the step
+/// reaches a verdict rather than printing a number.
+@Suite("Idle cost is measured and gated")
+struct IdleCostContractTests {
+
+    private func verifyScript() throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent("verify.sh"),
+                          encoding: .utf8)
+    }
+
+    @Test("verify.sh measures sustained cost and fails on it")
+    func idleCostIsGated() throws {
+        let text = try verifyScript()
+        #expect(text.contains("Sustained cost while idle"),
+                "nothing measures what the app costs while it sits there")
+        #expect(text.contains("the shape of a runaway loop"),
+                "the idle measurement reports a number and gates on nothing")
+        #expect(text.contains("resident size"),
+                "nothing watches memory, which was the other half of the failure")
+    }
+
+    /// The first thirty seconds are cold caches and first-run detection,
+    /// which are legitimately busy. Measuring them would set a budget around
+    /// startup rather than around steady state.
+    @Test("The measurement is of the second half, not the first")
+    func measuresSteadyState() throws {
+        let text = try verifyScript()
+        #expect(text.contains("second thirty"),
+                "the idle budget includes startup, which is not steady state")
+    }
+}

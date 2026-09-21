@@ -209,6 +209,48 @@ else
     bad "no built app at $APP"
 fi
 
+# The benchmark below times one scan. The failure this project was rebuilt
+# around was not a slow scan but a frequent one — 408 minutes of CPU over
+# fifteen hours, which is 44% of a core sustained, from a loop running far
+# more often than it should. No single-scan timing can see that, so this
+# measures what the app actually costs while it sits there.
+#
+# The second half only: the first thirty seconds are cold caches and first-run
+# detection, which are legitimately busy and say nothing about steady state.
+step "Sustained cost while idle"
+if [ -x "$APP" ]; then
+    home=$(mktemp -d)
+    ANTARIUM_HOME="$home" "$APP" >/dev/null 2>&1 & soak=$!
+    sleep 30
+    first=$(ps -o time= -p "$soak" 2>/dev/null | tr -d ' ')
+    sleep 30
+    second=$(ps -o time= -p "$soak" 2>/dev/null | tr -d ' ')
+    rss=$(ps -o rss= -p "$soak" 2>/dev/null | tr -d ' ')
+    kill "$soak" 2>/dev/null; wait "$soak" 2>/dev/null
+    rm -rf "$home"
+    if [ -z "$first" ] || [ -z "$second" ]; then
+        bad "the app did not stay running for a minute"
+    else
+        spent=$(python3 -c "
+def secs(t):
+    m, s = t.split(':') if ':' in t else ('0', t)
+    return int(m) * 60 + float(s)
+print('%.2f' % (secs('$second') - secs('$first')))")
+        mb=$(( ${rss:-0} / 1024 ))
+        printf '   %s s of CPU in the second thirty, %s MB resident\n' "$spent" "$mb"
+        # Generous: a healthy build spends well under a second here. The
+        # ceiling is set to catch the shape of the original failure, not a
+        # busy laptop.
+        python3 -c "import sys; sys.exit(0 if float('$spent') <= 6 else 1)" \
+            && ok "idle cost within budget" \
+            || bad "idle cost is $spent s per 30 s — the shape of a runaway loop"
+        [ "$mb" -le 400 ] && ok "resident size ${mb} MB" \
+            || bad "resident size ${mb} MB"
+    fi
+else
+    bad "no built app at $APP"
+fi
+
 step "Scan benchmark"
 home=$(mktemp -d); mkdir -p "$home/harnesses"; cp Resources/harnesses/*.json "$home/harnesses/"
 ANTARIUM_HOME="$home" "$BIN" --bench >/dev/null 2>&1
