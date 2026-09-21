@@ -155,7 +155,14 @@ enum HarnessCLI {
             print("\(chosen.contains(item.id) ? "●" : "○") \(item.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \(why)")
         }
         if apply {
-            if let written = AgentAutoEnable.applyIfNeeded(providers: providers) {
+            // The same scan it just explained, not a second one. Reading the
+            // disk again here meant the reasoning printed above and the
+            // choice written below came from two separate looks at the
+            // machine, which can disagree — an agent started between them is
+            // listed as absent and enabled anyway, and the output is then a
+            // report of a decision nobody made.
+            if let written = AgentAutoEnable.applyIfNeeded(providers: providers,
+                                                           sessions: sessions) {
                 print("wrote      enabledAgents = \(written.sorted().joined(separator: ", "))")
             } else {
                 print("wrote      nothing — a recorded choice is the user's to change")

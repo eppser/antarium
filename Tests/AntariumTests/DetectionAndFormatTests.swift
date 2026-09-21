@@ -43,6 +43,56 @@ struct AgentDetectionTests {
         #expect(findings.first { $0.id == "here" }?.detail.contains("present") == true)
     }
 
+    /// The link between "what is installed here" and "what the bar opens
+    /// to". Detection has its own tests and the first-run policy has its own
+    /// tests, and nothing joined them: replacing the whole of
+    /// `sessionsPresent` with an empty set failed nothing, because every
+    /// provider this developer's Mac enables happens to be signed in as well,
+    /// so the sessions half of the evidence never decided anything here.
+    ///
+    /// Driven from synthetic descriptors pointing at temporary directories,
+    /// so it says the same thing on a Mac with no agent installed on it at
+    /// all.
+    @Test("An agent known only by its sessions still earns a place in the bar")
+    func detectionFeedsTheFirstRun() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("first-run-\(UUID().uuidString)")
+        let used = root.appendingPathComponent("used")
+        try FileManager.default.createDirectory(at: used, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        func descriptor(_ id: String, path: String) throws -> HarnessDescriptor {
+            try HarnessDocument.decode(JSONSerialization.data(withJSONObject: [
+                "formatVersion": 1, "id": id, "name": id, "process": [:],
+                "source": ["kind": "jsonl", "path": path, "glob": "*.jsonl"],
+            ])).descriptor
+        }
+        let catalogue = [
+            try descriptor("used-here", path: used.path),
+            try descriptor("never-used", path: root.appendingPathComponent("gone").path),
+        ]
+
+        let sessions = AgentAutoEnable.sessionsPresent(catalogue)
+        #expect(sessions == ["used-here"],
+                "detection reported \(sessions.sorted()) for a machine with one store")
+
+        // And the evidence that reaches the first-run decision carries it.
+        // Neither provider is signed in, so sessions are the only thing that
+        // can distinguish them — which is the case the live Mac cannot test.
+        let evidence = AgentAutoEnable.evidence(
+            providers: [], sessionsPresent: sessions)
+        #expect(evidence.isEmpty, "no providers were given, so there is no evidence to have")
+
+        let chosen = AgentAutoEnable.resolve([
+            AgentAutoEnable.Evidence(id: "used-here", signedIn: false,
+                                     hasSessions: sessions.contains("used-here")),
+            AgentAutoEnable.Evidence(id: "never-used", signedIn: false,
+                                     hasSessions: sessions.contains("never-used")),
+        ], fallback: ["fallback"])
+        #expect(chosen == ["used-here"],
+                "the bar opened to \(chosen.sorted()) on a machine with one agent used on it")
+    }
+
     @Test("A harness with no session store is not offered as found")
     func quotaOnlyHarnessesAreNotSessionFindings() throws {
         // Copilot declares no session store: it exists for the menu bar gauge.

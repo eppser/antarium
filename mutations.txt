@@ -618,3 +618,5 @@ benchmark measures without draining its backlog | Sources/Antarium/Core/HarnessP
 benchmark warm-up never stops | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        backlogged > 0 \&\& passesRun < limit|        true|
 a backlogged run over budget fails instead of concluding nothing | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .over|
 a run over budget is waved through | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .inconclusive|
+detection is not consulted at all | Sources/Antarium/Core/AgentAutoEnable.swift | s|        Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|        []|
+detection reports every harness as installed | Sources/Antarium/Core/AgentAutoEnable.swift | s|Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|Set(Onboarding.harnesses(descriptors).map(\\.id))|

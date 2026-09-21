@@ -85,8 +85,16 @@ enum AgentAutoEnable {
     }
 
     /// Agents with a session store on disk, whatever their quota situation.
-    static func sessionsPresent() -> Set<String> {
-        Set(Onboarding.harnesses().filter(\.found).map(\.id))
+    ///
+    /// The catalogue is a parameter so this can be asked about a machine that
+    /// is not this one. Without it the only way to check that detection feeds
+    /// the first run was to install an agent and look, and replacing the
+    /// whole of this with an empty set failed no test: every provider the
+    /// developer's Mac enables is also signed in, so the sessions half of the
+    /// evidence never decided anything here.
+    static func sessionsPresent(_ descriptors: [HarnessDescriptor]
+                                    = HarnessDescriptor.all()) -> Set<String> {
+        Set(Onboarding.harnesses(descriptors).filter(\.found).map(\.id))
     }
 
     /// The whole first-run decision as one pure function, so "a recorded
@@ -119,9 +127,10 @@ enum AgentAutoEnable {
         return (chosen, Set(evidence.map(\.id)))
     }
 
-    static func applyIfNeeded(providers: [UsageProvider]) -> Set<String>? {
+    static func applyIfNeeded(providers: [UsageProvider],
+                              sessions: Set<String> = sessionsPresent()) -> Set<String>? {
         guard !providers.isEmpty else { return nil }
-        let found = evidence(providers: providers, sessionsPresent: sessionsPresent())
+        let found = evidence(providers: providers, sessionsPresent: sessions)
         guard let record = firstRunRecord(recorded: Settings.recordedAgents,
                                           evidence: found,
                                           fallback: providers.map(\.id)) else { return nil }

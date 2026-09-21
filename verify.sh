@@ -201,6 +201,17 @@ fi
 out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents --apply 2>&1)
 printf '%s' "$out" | grep -q "^wrote      enabledAgents = " \
     && ok "first run recorded its choice" || bad "first run wrote nothing"
+# What it showed is what it wrote. These used to come from two separate reads
+# of the disk — the ● marks from one scan, the recorded choice from another —
+# so a machine that changed between them produced a report of a decision
+# nobody made.
+shown=$(printf '%s' "$out" | sed -n 's/^● \([^ ]*\).*/\1/p' | sort | tr '\n' ',' | sed 's/,$//')
+wrote=$(printf '%s' "$out" | sed -n 's/^wrote      enabledAgents = //p' | tr -d ' ' | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')
+if [ "$shown" = "$wrote" ]; then
+    ok "it wrote the choice it explained"
+else
+    bad "explained [$shown] and wrote [$wrote]"
+fi
 # A second run leaves it alone: this is the whole of "the user's choice wins".
 out=$(ANTARIUM_HOME="$home" "$BIN" --detect-agents --apply 2>&1)
 printf '%s' "$out" | grep -q "wrote      nothing" \
