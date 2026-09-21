@@ -590,6 +590,59 @@ struct ScanBudgetTests {
         #expect(HarnessPerformanceBudget.steadyState([340]) == 340)
     }
 
+    /// The half of the gate that survives a backlog. A pass still absorbing
+    /// history does the steady-state scan plus a read budget per transcript,
+    /// so finishing under the budget anyway says something about steady
+    /// state — and that is the case nearly every run is in.
+    @Test("A backlogged run that comes in under budget is still a pass")
+    func backloggedButFastIsGated() {
+        #expect(HarnessPerformanceBudget.verdict(fastestMilliseconds: 340,
+                                                 backlogged: 3) == .within)
+    }
+
+    /// And the half that does not. An over-budget run that was catching up
+    /// may be perfectly fast once it has, so failing on it would fail for a
+    /// reason nobody could act on.
+    @Test("A backlogged run that is over budget concludes nothing")
+    func backloggedAndSlowIsInconclusive() {
+        #expect(HarnessPerformanceBudget.verdict(fastestMilliseconds: 99_000,
+                                                 backlogged: 1) == .inconclusive)
+    }
+
+    @Test("A drained run that is over budget fails")
+    func drainedAndSlowIsOver() {
+        #expect(HarnessPerformanceBudget.verdict(fastestMilliseconds: 99_000,
+                                                 backlogged: 0) == .over)
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(fastestMilliseconds: 99_000,
+                                                          backlogged: 0) == false)
+    }
+
+    /// Draining before measuring is what makes the gate reachable. Without
+    /// it, `scanIsAcceptable` waves through any machine carrying a backlog —
+    /// which is most of them — so a scan ten times slower than its budget
+    /// passed silently.
+    @Test("A backlog is drained before the clock starts")
+    func warmupDrainsBacklog() {
+        #expect(HarnessPerformanceBudget.needsWarmup(backlogged: 3, passesRun: 0))
+        #expect(HarnessPerformanceBudget.needsWarmup(backlogged: 1, passesRun: 4))
+    }
+
+    @Test("A run with nothing catching up spends no passes warming up")
+    func noBacklogNoWarmup() {
+        #expect(!HarnessPerformanceBudget.needsWarmup(backlogged: 0, passesRun: 0))
+    }
+
+    /// A transcript appended to as fast as it is read never drains. The bound
+    /// is written out rather than derived from `maxWarmupPasses`, because a
+    /// test that says "the limit is the limit" holds for every limit and so
+    /// asserts nothing about this one.
+    @Test("Warming up gives up after five passes rather than never finishing")
+    func warmupIsBounded() {
+        #expect(HarnessPerformanceBudget.maxWarmupPasses == 5)
+        #expect(!HarnessPerformanceBudget.needsWarmup(backlogged: 99, passesRun: 5),
+                "the drain loop would run for ever on a transcript being written to")
+    }
+
     @Test("A run with no passes is not a fast run")
     func noPassesIsNotFast() {
         #expect(HarnessPerformanceBudget.scanIsAcceptable(
@@ -630,10 +683,12 @@ struct BenchmarkVerdictContractTests {
         // guessed: 2,000 characters stopped short of the exit and the test
         // failed for the wrong reason.
         let body = String(text[bench.lowerBound...].prefix(4_000))
-        #expect(body.contains("HarnessPerformanceBudget.scanIsAcceptable"),
+        #expect(body.contains("HarnessPerformanceBudget.verdict"),
                 "the benchmark reaches no verdict")
-        #expect(body.contains("exit(acceptable ? 0 : 1)"),
+        #expect(body.contains("exit(verdict == .over ? 1 : 0)"),
                 "the benchmark reaches a verdict and exits zero regardless")
+        #expect(body.contains("HarnessPerformanceBudget.needsWarmup"),
+                "the benchmark measures before absorbing its backlog")
         #expect(body.contains("HarnessPerformanceBudget.steadyState"),
                 "the benchmark picks its own pass to judge")
     }

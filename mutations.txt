@@ -574,10 +574,9 @@ plaintext is allowed anywhere | Sources/Antarium/Core/UsageHTTP.swift | s|guard 
 plaintext to this machine is refused | Sources/Antarium/Core/UsageHTTP.swift | s|guard scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host)) else {|guard scheme == "https" else {|
 a lookalike loopback host is trusted | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name.contains("localhost") \|\| name.contains("::1") { return true }|
 the unspecified address is trusted as loopback | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name == "localhost" \|\| name == "::1" \|\| name == "0.0.0.0" { return true }|
-the scan budget never fails | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|return fastestMilliseconds <= budget|return true|
-the scan budget fails a catch-up run | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|guard backlogged == 0 else { return true }||
+the scan budget never fails | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|if fastestMilliseconds <= budget { return .within }|return .within|
 the scan budget is a tenth of a second | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|static let scanMilliseconds = 5_000.0|static let scanMilliseconds = 100.0|
-the benchmark ignores its own verdict | Sources/Antarium/Diagnostics.swift | s|exit(acceptable ? 0 : 1)|exit(0)|
+the benchmark ignores its own verdict | Sources/Antarium/Diagnostics.swift | s|exit(verdict == .over ? 1 : 0)|exit(0)|
 the budget gates on the last pass, not the fastest | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|passes.min() ?? .infinity|passes.last ?? .infinity|
 verify.sh stops gating on the benchmark | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "scan within budget" \|\| bad "scan is over its budget"||
 verify.sh stops gating on idle cost | verify.sh | s|            \|\| bad "idle cost is \$spent s per 30 s — the shape of a runaway loop"|            \|\| true|
@@ -615,3 +614,7 @@ status never mentions an unreadable settings file | Sources/Antarium/Diagnostics
 a launch says nothing about an unreadable settings file | Sources/Antarium/AppController.swift | s|        if let issue = Config.issue { Log.warn("config", issue) }||
 verify.sh stops checking damaged files | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "it still starts" \|\| bad "a damaged file stopped it starting"||
 a failed save is not reported | Sources/Antarium/Core/ConfigurationFile.swift | s|            failure = "Settings were not saved. The configuration may have changed or be unwritable. Your existing file has been preserved; choose Reload and try again."||
+benchmark measures without draining its backlog | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        backlogged > 0 \&\& passesRun < limit|        false|
+benchmark warm-up never stops | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        backlogged > 0 \&\& passesRun < limit|        true|
+a backlogged run over budget fails instead of concluding nothing | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .over|
+a run over budget is waved through | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .inconclusive|

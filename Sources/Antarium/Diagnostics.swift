@@ -354,6 +354,22 @@ enum Diagnostics {
                 // was nothing of the kind.
                 let harnesses = HarnessDescriptor.all()
                 print("\(harnesses.count) harness(es) from \(HarnessDescriptor.directory.path)")
+                // Absorb transcript history before the clock starts. The
+                // budget is a statement about steady state, and a machine
+                // still catching up is not in it — but skipping the gate
+                // whenever that is true left it unreachable on most Macs.
+                // Draining first makes the measured passes the ones the
+                // budget is about.
+                var warmups = 0
+                while HarnessPerformanceBudget.needsWarmup(
+                          backlogged: TranscriptStats.backloggedCount(),
+                          passesRun: warmups) {
+                    _ = scanOrExit()
+                    warmups += 1
+                }
+                if warmups > 0 {
+                    print("\(warmups) warm-up pass(es) absorbed transcript history")
+                }
                 var passes: [Double] = []
                 for pass in 1...3 {
                     let t0 = ProcessInfo.processInfo.systemUptime
@@ -377,16 +393,23 @@ enum Diagnostics {
                 // is about steady state. Reported either way, so a run that
                 // was not gated says so rather than looking like one that
                 // passed.
-                let acceptable = HarnessPerformanceBudget.scanIsAcceptable(
+                let verdict = HarnessPerformanceBudget.verdict(
                     fastestMilliseconds: fastest, backlogged: behind)
-                if behind > 0 {
-                    print("not gated: these passes are catch-up throughput")
-                } else {
-                    print(String(format: "fastest %.1f ms against a budget of %.0f ms — %@",
-                                 fastest, HarnessPerformanceBudget.scanMilliseconds,
-                                 acceptable ? "within it" : "OVER"))
-                }
-                exit(acceptable ? 0 : 1)
+                print(String(format: "fastest %.1f ms against a budget of %.0f ms — %@",
+                             fastest, HarnessPerformanceBudget.scanMilliseconds,
+                             {
+                                 switch verdict {
+                                 case .within: return "within it"
+                                 case .over: return "OVER"
+                                 case .inconclusive:
+                                     // Over budget, but these passes were
+                                     // doing more than a steady-state scan
+                                     // does. Not a failure anybody could act
+                                     // on, and not a pass either.
+                                     return "over it, but not gated: still catching up"
+                                 }
+                             }() as String))
+                exit(verdict == .over ? 1 : 0)
             }
             var rows = scanOrExit()
             if CommandLine.arguments.contains("--cloud") {

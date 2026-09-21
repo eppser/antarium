@@ -26,10 +26,57 @@ enum HarnessPerformanceBudget {
     static func scanIsAcceptable(fastestMilliseconds: Double,
                                  backlogged: Int,
                                  budget: Double = scanMilliseconds) -> Bool {
-        guard backlogged == 0 else { return true }
+        verdict(fastestMilliseconds: fastestMilliseconds,
+                backlogged: backlogged, budget: budget) != .over
+    }
+
+    /// What a benchmark run established, which is not always pass or fail.
+    enum Verdict: Equatable { case within, over, inconclusive }
+
+    /// The three answers a run can give.
+    ///
+    /// Skipping the whole gate whenever a backlog existed threw away the half
+    /// of it that is still sound. A pass that was absorbing transcript
+    /// history did strictly more work than a steady-state pass does — the
+    /// same scan, plus up to a read budget per transcript — so finishing
+    /// under the budget anyway is evidence about steady state as well, and
+    /// that is the case nearly every run is in. Only the other direction
+    /// cannot be concluded: an over-budget run that was still catching up
+    /// might be perfectly fast once it has.
+    ///
+    /// Those three transcripts on this machine are each larger than every
+    /// warm-up pass put together, so "drain, then measure" alone left the
+    /// gate unreachable here however many passes it was given.
+    static func verdict(fastestMilliseconds: Double, backlogged: Int,
+                        budget: Double = scanMilliseconds) -> Verdict {
         // No `isFinite` guard: a NaN or an infinity already compares false
         // against the budget, so one would be a line nothing could catch.
-        return fastestMilliseconds <= budget
+        if fastestMilliseconds <= budget { return .within }
+        return backlogged == 0 ? .over : .inconclusive
+    }
+
+    /// How many passes may be spent absorbing transcript history before the
+    /// measured ones.
+    ///
+    /// Each pass reads a bounded chunk of every transcript, so a backlog
+    /// drains over a few of them rather than in one. Bounded because a
+    /// transcript being appended to as fast as it is read never drains, and a
+    /// benchmark that never finishes is worse than one that says it could not
+    /// measure.
+    static let maxWarmupPasses = 5
+
+    /// Whether another warm-up pass is worth running before the clock starts.
+    ///
+    /// Without this the gate was unreachable on any machine carrying a
+    /// backlog: `scanIsAcceptable` returns true whenever one exists, so a scan
+    /// ten times slower than its budget was reported underneath "All checks
+    /// passed" — the failure this budget was written to catch, surviving in
+    /// the one state most developer Macs are actually in.
+    ///
+    /// Pure, so the drain policy is testable without running a benchmark.
+    static func needsWarmup(backlogged: Int, passesRun: Int,
+                            limit: Int = maxWarmupPasses) -> Bool {
+        backlogged > 0 && passesRun < limit
     }
 
     /// Which of a run's passes the budget is about.
