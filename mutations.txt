@@ -330,3 +330,10 @@ cache evicts the newest | Sources/Antarium/Core/CodexGoals.swift | s|a.value.che
 cache evicts below its limit | Sources/Antarium/Core/CodexGoals.swift | s|guard cache.count >= limit else { return nil }||
 a calendar is taken from the reader | Sources/Antarium/Providers/KiroProvider.swift | s|var calendar = Calendar(identifier: .gregorian)|var calendar = Calendar.current|
 sdk date parsing uses the reader's calendar | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|formatter.calendar = Calendar(identifier: .iso8601)|formatter.calendar = Calendar.current|
+sdk accepts an unsupported format version | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|guard formatVersion == Self.currentFormatVersion else { throw ValidationError.unsupportedFormatVersion(formatVersion) }||
+sdk accepts an empty id | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.emptyID|return|
+sdk accepts an empty name | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.emptyName|return|
+sdk accepts an incomplete sqlite source | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.incompleteSQLiteSource|return|
+sdk accepts a command source with no command | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.missingCommand|return|
+sdk accepts multi-session without an identity | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|if !hasIdentity { throw ValidationError.multiSessionNeedsID }||
+sdk accepts open-file binding on a sqlite source | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.openSourceFileBindingNeedsFileSource|return|

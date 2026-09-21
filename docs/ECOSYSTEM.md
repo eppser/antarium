@@ -102,7 +102,7 @@ credential rather than the response.
 | Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
-| Mistral | usage comes from Vibe session logs rather than any endpoint, so it is a session reader rather than a quota one |
+| Mistral | Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`, which the `json` source kind could glob — so this is a session reader, not a quota one. What stops it is the shape rather than the access: the file exposes `stats.session_total_llm_tokens`, a combined figure, and this app splits sent from received on purpose. Mapping a total into either half would report a number that is wrong in a way nobody could see. Worth revisiting if a real `meta.json` turns out to carry the split, a working directory, or both |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
 | Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
 
