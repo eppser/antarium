@@ -266,3 +266,95 @@ struct InstallationEvaluatorTests {
                                     probe("/elsewhere/tool", expected: false)])
     }
 }
+
+/// The command-line verifier's aggregation, which is the last link in the
+/// release gate. `verify.sh` counts the ticks but decides on the exit code,
+/// so a verifier that prints every failure and still returns zero would pass
+/// it — and four mutations of this survived before it was testable.
+@Suite("The fixture verifier's tally", .serialized)
+struct FixtureCLISummaryTests {
+
+    private func descriptor(id: String, sourceKind: String,
+                            fixture: String?) throws -> HarnessDescriptor {
+        var compatibility: [String: Any] = ["level": "declared", "note": "synthetic"]
+        if let fixture { compatibility["fixture"] = fixture }
+        var source: [String: Any] = ["kind": sourceKind, "path": ""]
+        if sourceKind == "jsonl" { source["glob"] = "*.jsonl" }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id, "process": [:],
+            "source": source, "compatibility": compatibility]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    /// A descriptor with no session source has no fixture to replay, and must
+    /// not be counted as one that passed.
+    @Test("Descriptors with no session source are skipped, not passed")
+    func noSourceIsSkipped() throws {
+        let summary = HarnessCLI.fixtureSummary(
+            [try descriptor(id: "quota-only", sourceKind: "none", fixture: nil)],
+            in: AppResources.bundle)
+        #expect(summary.checked.isEmpty)
+        #expect(summary.failed.isEmpty)
+        #expect(summary.lines.isEmpty)
+    }
+
+    /// A descriptor that declares a fixture which is not there fails, and is
+    /// named — a tally that reports the count without the id leaves whoever
+    /// reads the release log to go looking.
+    @Test("A descriptor whose fixture is missing fails and is named")
+    func missingFixtureFails() throws {
+        let summary = HarnessCLI.fixtureSummary(
+            [try descriptor(id: "broken", sourceKind: "jsonl",
+                            fixture: "harness-fixtures/absent.json")],
+            in: AppResources.bundle)
+        #expect(summary.checked == ["broken"])
+        #expect(summary.failed == ["broken"])
+        #expect(summary.lines.first?.hasPrefix("✗") == true)
+    }
+
+    /// And the shipped ones pass, so the failure above is not simply what
+    /// this function always says.
+    @Test("Every shipped descriptor with a session source passes")
+    func shippedDescriptorsPass() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        let descriptors = try urls.map {
+            try HarnessDocument.decode(Data(contentsOf: $0)).descriptor
+        }
+        let summary = HarnessCLI.fixtureSummary(descriptors, in: AppResources.bundle)
+        #expect(summary.failed.isEmpty, Comment(rawValue: summary.failed.joined(separator: ", ")))
+        #expect(summary.checked.count >= 10, "too few were checked to prove anything")
+        #expect(summary.lines.allSatisfy { $0.hasPrefix("✓") })
+    }
+
+    /// The line the release gate actually decides on. It cannot be reached
+    /// while every shipped fixture passes, which is exactly why it needs
+    /// stating separately: a verifier that prints every failure and returns
+    /// zero would go out green.
+    @Test("A failure means a nonzero exit, and nothing else does")
+    func exitCodeFollowsFailures() {
+        let clean = HarnessCLI.FixtureSummary(lines: ["✓ a: ok"], checked: ["a"], failed: [])
+        #expect(HarnessCLI.exitCode(for: clean) == 0)
+
+        let broken = HarnessCLI.FixtureSummary(lines: ["✗ a: no"], checked: ["a"], failed: ["a"])
+        #expect(HarnessCLI.exitCode(for: broken) != 0)
+
+        // Nothing checked is not a failure here — verify.sh refuses a run
+        // that verified nothing, which is where that rule belongs.
+        let empty = HarnessCLI.FixtureSummary(lines: [], checked: [], failed: [])
+        #expect(HarnessCLI.exitCode(for: empty) == 0)
+    }
+
+    /// One line per descriptor checked, so the log and the tally cannot
+    /// disagree about how much was looked at.
+    @Test("There is exactly one line per descriptor checked")
+    func lineCountMatchesCheckedCount() throws {
+        let mixed = [try descriptor(id: "quota-only", sourceKind: "none", fixture: nil),
+                     try descriptor(id: "broken", sourceKind: "jsonl",
+                                    fixture: "harness-fixtures/absent.json")]
+        let summary = HarnessCLI.fixtureSummary(mixed, in: AppResources.bundle)
+        #expect(summary.lines.count == summary.checked.count)
+        #expect(summary.checked.count == 1)
+    }
+}

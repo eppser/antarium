@@ -50,16 +50,46 @@ enum HarnessCLI {
                     try? HarnessDocument.decode($0).descriptor
                 }
             }
-        var failures = 0
+        let summary = fixtureSummary(descriptors, in: AppResources.bundle)
+        for line in summary.lines { print(line) }
+        return exitCode(for: summary)
+    }
+
+    /// The release gate counts the ticks but decides on this. It cannot be
+    /// reached from a test while every shipped fixture passes, so it is a
+    /// function of the summary rather than a line inside the command.
+    static func exitCode(for summary: FixtureSummary) -> Int32 {
+        summary.failed.isEmpty ? 0 : 1
+    }
+
+    /// One line per descriptor and the ids that failed.
+    ///
+    /// Returned rather than printed so the aggregation can be tested: the
+    /// release gate counts the ticks but decides on the exit code, so a
+    /// verifier that reports every failure and still returns zero would pass
+    /// it. Four mutations of this aggregation survived before it was a
+    /// function.
+    struct FixtureSummary {
+        let lines: [String]
+        let checked: [String]
+        let failed: [String]
+    }
+
+    static func fixtureSummary(_ descriptors: [HarnessDescriptor],
+                               in bundle: Bundle) -> FixtureSummary {
+        var lines: [String] = [], checked: [String] = [], failed: [String] = []
         for descriptor in descriptors {
+            // A descriptor with no session source has no fixture to replay;
+            // its quota mapping is checked by the other verifier.
             guard descriptor.source.kind != .none else { continue }
-            let report = HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle)
+            let report = HarnessCompatibility.verifyFixture(descriptor, in: bundle)
             let passed = report.status == .fixtureVerified
-            print("\(passed ? "✓" : "✗") \(descriptor.id): \(report.detail)"
+            checked.append(descriptor.id)
+            if !passed { failed.append(descriptor.id) }
+            lines.append("\(passed ? "✓" : "✗") \(descriptor.id): \(report.detail)"
                 + (report.verifiedAt.map { " (\($0))" } ?? ""))
-            if !passed { failures += 1 }
         }
-        return failures == 0 ? 0 : 1
+        return FixtureSummary(lines: lines, checked: checked, failed: failed)
     }
 
     /// Replays a recorded response shape through every descriptor's `quota`
