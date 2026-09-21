@@ -532,6 +532,15 @@ shell profile is invisible to it, and three shipped providers could not work
 in the ordinary installation. The variable still wins when both are present,
 so a key rotated in a shell is not overridden by a stale file.
 
+A usage endpoint must be https, or http to this machine. Every usage request
+carries a credential, and plaintext to somewhere else would put it on a wire;
+plaintext to loopback never reaches one. Refusing it outright meant a
+self-hosted proxy in front of an agent — LiteLLM and its kind, which are http
+on a port by default — could not be described at all unless somebody put a
+certificate in front of a loopback socket, which nobody does. `0.0.0.0` is
+not accepted: it is a bind address meaning every interface rather than a
+destination meaning here, and anyone who meant loopback can write it.
+
 An endpoint quota may declare `method: "POST"` and a flat `body`, with
 `{token}` substituted the way it is in `headers`. Not every usage API is a
 GET — Codebuff posts to its usage path, and Kimi's server endpoint is a POST

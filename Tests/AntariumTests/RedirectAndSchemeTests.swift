@@ -136,3 +136,87 @@ struct RedirectAndSchemeTests {
         #expect(checked > 1, "no endpoints were checked, so this proved nothing")
     }
 }
+
+/// Plaintext is refused, except to this machine.
+///
+/// A usage request carries a credential, so the endpoint has to be one a
+/// credential may be sent to — and `http` to somewhere else is not. `http` to
+/// this machine is different in kind: the bytes never reach a wire. Refusing
+/// it meant a self-hosted proxy in front of an agent, which is http on a port
+/// by default, could not be described at all unless somebody put a
+/// certificate in front of a loopback socket, which nobody does.
+@Suite("Plaintext usage endpoints")
+struct LoopbackSchemeTests {
+
+    private func accepts(_ string: String) -> Bool {
+        guard let url = URL(string: string) else { return false }
+        return (try? UsageHTTP.checkedURL(url)) != nil
+    }
+
+    @Test("Plaintext to another machine is still refused", arguments: [
+        "http://usage.invalid/usage",
+        "http://192.168.1.10:4000/key/info",
+        "http://example.com/usage",
+        "http://127.0.0.1.example.com/usage",
+        "http://notlocalhost/usage",
+        "http://localhost.example.com/usage",
+    ])
+    func plaintextElsewhereIsRefused(_ endpoint: String) {
+        #expect(!accepts(endpoint), "\(endpoint) would send a credential in the clear")
+    }
+
+    @Test("Plaintext to this machine is allowed", arguments: [
+        "http://localhost:4000/key/info",
+        "http://127.0.0.1:4000/key/info",
+        "http://127.1.2.3:8080/usage",
+        "http://[::1]:4000/key/info",
+        "http://LOCALHOST:4000/key/info",
+    ])
+    func plaintextHereIsAllowed(_ endpoint: String) {
+        #expect(accepts(endpoint), "\(endpoint) never leaves the machine")
+    }
+
+    /// `0.0.0.0` is a bind address meaning "every interface", not a
+    /// destination meaning "here". Self-hosted proxies print it in their own
+    /// quick-start output, so this will be met — and the refusal says which
+    /// address to write instead.
+    @Test("Plaintext to the unspecified address is refused")
+    func unspecifiedAddressIsRefused() {
+        #expect(!accepts("http://0.0.0.0:4000/key/info"))
+    }
+
+    @Test("The refusal says what would go wrong")
+    func refusalExplains() {
+        do {
+            _ = try UsageHTTP.checkedURL(URL(string: "http://example.com/usage")!)
+            Issue.record("plaintext to another host was accepted")
+        } catch let error as ProviderError {
+            guard case .badResponse(let message) = error else {
+                Issue.record("unexpected error \(error)"); return
+            }
+            #expect(message.contains("example.com"))
+            #expect(message.contains("in the clear"))
+        } catch {
+            Issue.record("unexpected error \(error)")
+        }
+    }
+
+    @Test("https is unaffected, wherever it points", arguments: [
+        "https://usage.invalid/usage", "https://localhost:4000/key/info",
+    ])
+    func httpsIsUnaffected(_ endpoint: String) {
+        #expect(accepts(endpoint))
+    }
+
+    @Test("A scheme that is neither is refused", arguments: [
+        "file:///etc/hosts", "ftp://localhost/usage", "ws://localhost/usage",
+    ])
+    func otherSchemesRefused(_ endpoint: String) {
+        #expect(!accepts(endpoint))
+    }
+
+    @Test("An endpoint naming no host is refused")
+    func noHostRefused() {
+        #expect(!accepts("https:///nohost"))
+    }
+}

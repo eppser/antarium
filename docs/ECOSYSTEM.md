@@ -127,6 +127,20 @@ only that the guess is self-consistent. One real payload each is the whole
 of what is missing, and it is worth more than any amount of reading around
 it.
 
+A whole class was blocked by our own scheme check rather than by anything a
+vendor does. A self-hosted proxy in front of an agent — LiteLLM, and the
+several like it — documents its spend endpoint properly and serves it over
+http on a port, because it is listening on loopback. Requiring https refused
+every one of them, and the only way round it was a certificate in front of a
+local socket. Plaintext to this machine is accepted now, which is a thing our
+code decides rather than a schema somebody else has to publish.
+
+What still stops LiteLLM specifically is smaller and is the user's to fix:
+its endpoint is a host and port only they know, and `/key/info` wants the
+master key in the header and the key being asked about in the query. A
+shipped descriptor cannot carry a working default for either, so this is a
+thing to document for somebody writing their own rather than to ship.
+
 Fireworks is the exception that failed differently: it publishes a complete
 schema for `GET /v1/accounts/{account_id}/quotas`, and still does not fit.
 The path carries an account id this app has no way to learn — a descriptor

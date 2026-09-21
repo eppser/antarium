@@ -87,14 +87,44 @@ enum UsageHTTP {
     /// provider: descriptors are trusted local configuration, but "trusted"
     /// should not extend to sending a bearer token over plaintext because a
     /// descriptor said `http`.
+    /// Whether a host is this machine, so plaintext to it never reaches a
+    /// wire.
+    ///
+    /// The loopback literals and `localhost`. Not `0.0.0.0`, which is a bind
+    /// address meaning "every interface" rather than a destination meaning
+    /// "here" — it usually resolves to this machine and is not promised to,
+    /// and anyone who meant loopback can write it. Self-hosted proxies print
+    /// `0.0.0.0` in their own quick-start output, so this will be met, and
+    /// the refusal says which address to use instead.
+    static func isLoopback(_ host: String) -> Bool {
+        let name = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if name == "localhost" || name == "::1" { return true }
+        // 127.0.0.0/8, all of which is loopback. Requiring four parts is
+        // strictness rather than a boundary — `127.1` is a legal shorthand
+        // for 127.0.0.1 and is refused here, and a numeric host with more
+        // parts than four resolves nowhere — so there is no catalogue entry
+        // for it: relaxing it admits nothing a credential could reach.
+        let parts = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts[0] == "127" else { return false }
+        return parts.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
+            && parts.compactMap { Int($0) }.allSatisfy { $0 >= 0 && $0 <= 255 }
+    }
+
     static func checkedURL(_ url: URL) throws -> URL {
-        guard url.scheme?.lowercased() == "https" else {
-            throw ProviderError.badResponse(
-                "A usage endpoint must be https — \(url.scheme ?? "that scheme") "
-                + "would send the credential in the clear.")
-        }
         guard let host = url.host, !host.isEmpty else {
             throw ProviderError.badResponse("That usage endpoint names no host.")
+        }
+        let scheme = url.scheme?.lowercased()
+        // Plaintext to this machine never reaches a wire, and a self-hosted
+        // proxy in front of an agent — LiteLLM and the rest — is http on a
+        // port by default. Refusing those meant the only way to chart one was
+        // to put a certificate in front of a loopback socket, which nobody
+        // does, so they could not be described at all.
+        guard scheme == "https" || (scheme == "http" && Self.isLoopback(host)) else {
+            throw ProviderError.badResponse(
+                "A usage endpoint must be https, or http on this machine — "
+                + "\(url.scheme ?? "that scheme") to \(host) would send the "
+                + "credential in the clear.")
         }
         return url
     }
