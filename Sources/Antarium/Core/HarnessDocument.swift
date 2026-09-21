@@ -75,6 +75,12 @@ enum HarnessDocument {
         return value
     }
 
+    /// Only ever called after `canonicalObject` has accepted the document, so
+    /// the refusals below cannot be reached by anything that decodes — a
+    /// non-numeric or negative version has already been thrown out. They stay
+    /// because this function's answer is reported to the user as "migrated
+    /// from", and returning a plausible 0 for an unreadable value would be a
+    /// figure invented rather than read.
     private static func version(in object: [String: Any]) -> Int {
         guard let value = object["formatVersion"] else { return 0 }
         // NSNumber may also represent a boolean, which is not a version.

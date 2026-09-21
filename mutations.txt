@@ -230,3 +230,7 @@ process table truncation accepted as complete | Sources/Antarium/Core/Processes.
 process count bound removed | Sources/Antarium/Core/Processes.swift | s|guard required < maximum else { throw ObservationError.capacityExceeded }||
 process retry loop unbounded | Sources/Antarium/Core/Processes.swift | s|for _ in 0..<3 {|while true {|
 open file paths unbounded | Sources/Antarium/Core/Processes.swift | s|let capacity = min((Int(requiredBytes) / itemSize) + 16, limit)|let capacity = (Int(requiredBytes) / itemSize) + 16|
+a future format version is migrated anyway | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|guard original <= HarnessConfig.currentFormatVersion else {|guard true else {|
+migration reports the wrong origin | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
+migration reports nothing was migrated | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
+loading rewrites the user's file | Sources/Antarium/Core/HarnessDocument.swift | s|guard let value = object\["formatVersion"\] else { return 0 }|guard let value = object["formatVersion"] else { return currentVersion }|

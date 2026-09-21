@@ -188,3 +188,60 @@ struct HarnessCheckReportingTests {
         #expect(try check(["nothing": "useful"]) != 0)
     }
 }
+
+/// Which documents load at all. A descriptor is a file the user can edit and
+/// that ships with upgrades, so the version gate decides what happens when
+/// the two disagree.
+@Suite("Harness document versions")
+struct HarnessDocumentVersionTests {
+
+    private func document(_ version: Any?) -> Data {
+        var object: [String: Any] = [
+            "id": "version-fixture", "name": "Fixture", "process": [:],
+            "source": ["kind": "none", "path": ""]]
+        if let version { object["formatVersion"] = version }
+        return try! JSONSerialization.data(withJSONObject: object)
+    }
+
+    @Test("The current format loads")
+    func currentLoads() throws {
+        let decoded = try HarnessDocument.decode(document(HarnessDocument.currentVersion))
+        #expect(decoded.migratedFrom == nil, "nothing was migrated, so nothing should say so")
+    }
+
+    /// A file written by a newer Antarium must not be half-read. Guessing at
+    /// fields this build does not know about is how a descriptor silently
+    /// loses the setting the newer version added.
+    @Test("A format newer than this build is refused")
+    func futureIsRefused() {
+        #expect(throws: (any Swift.Error).self) {
+            _ = try HarnessDocument.decode(document(HarnessDocument.currentVersion + 1))
+        }
+        #expect(throws: (any Swift.Error).self) {
+            _ = try HarnessDocument.decode(document(999))
+        }
+    }
+
+    @Test("A version that is not a version is refused", arguments: [
+        -1, Int.min,
+    ])
+    func invalidIsRefused(_ version: Int) {
+        #expect(throws: (any Swift.Error).self) { _ = try HarnessDocument.decode(document(version)) }
+    }
+
+    @Test("A version that is not a number at all is refused", arguments: [
+        "1" as Any, true, 1.5, [1],
+    ])
+    func nonNumericVersionIsRefused(_ version: Any) {
+        #expect(throws: (any Swift.Error).self) { _ = try HarnessDocument.decode(document(version)) }
+    }
+
+    /// An older document is migrated in memory and says so, because the row
+    /// offers to rewrite it and cannot offer that for a file already current.
+    @Test("An older format is migrated and reports where it came from")
+    func olderIsMigrated() throws {
+        let decoded = try HarnessDocument.decode(document(nil))   // no version: the v0 shape
+        #expect(decoded.migratedFrom != nil)
+        #expect(decoded.migratedFrom != HarnessDocument.currentVersion)
+    }
+}
