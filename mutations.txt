@@ -294,3 +294,7 @@ a disabled provider keeps polling invisibly | Sources/Antarium/AppController.swi
 a newly enabled provider is never added | Sources/Antarium/AppController.swift | s|wanted.filter { !currentSet.contains(\$0) })|[])|
 an unchanged provider is torn down and rebuilt | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return (current,|
 menu bar order is not the registry order | Sources/Antarium/AppController.swift | s|ids.sorted { (registry.firstIndex(of: \$0) ?? 0) < (registry.firstIndex(of: \$1) ?? 0) }|ids|
+remote scanning defaults to on | Sources/Antarium/UI/Settings.swift | s|get { Config.bool("includeRemoteTmux") ?? false }|get { Config.bool("includeRemoteTmux") ?? true }|
+alerts default to on | Sources/Antarium/UI/Settings.swift | s|get { Config.bool("notifyOnIdle") ?? false }|get { Config.bool("notifyOnIdle") ?? true }|
+sounds default to on | Sources/Antarium/UI/Sounds.swift | s|Config.bool(event.settingsKey) ?? false|Config.bool(event.settingsKey) ?? true|
+scan interval unclamped | Sources/Antarium/UI/Settings.swift | s|get { min(max(Config.int("agentScanSeconds") ?? 10, 3), 600) }|get { Config.int("agentScanSeconds") ?? 10 }|

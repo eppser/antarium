@@ -428,6 +428,15 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
+Anything a fresh install would do outward — connect to another machine, make
+a noise, show an alert — defaults to off, and a test reads
+`Settings.swift` to enforce it rather than reading the accessors at runtime.
+`Config` binds to the real settings directory the first time it is touched,
+so a runtime check reports whoever is running it: the first version of that
+test asserted alerts were off and failed, because on the machine it ran on
+they are on. Reading cloud tasks is the one deliberate exception, because it
+costs a request that was going to be made anyway.
+
 Paths are compared as Strings, never as bytes. macOS hands back a decomposed
 filename — `e` followed by a combining acute — while a path an agent writes
 into its transcript is usually composed, and the two are equal as Strings and
