@@ -337,3 +337,10 @@ sdk accepts an incomplete sqlite source | Sources/AntariumHarnessSDK/HarnessConf
 sdk accepts a command source with no command | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.missingCommand|return|
 sdk accepts multi-session without an identity | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|if !hasIdentity { throw ValidationError.multiSessionNeedsID }||
 sdk accepts open-file binding on a sqlite source | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.openSourceFileBindingNeedsFileSource|return|
+migration loses the process match | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|process\["pathContains"\] = merged(process\["pathContains"\],|process["pathContains"] = merged(nil,|
+migration prefers the superseded value | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|return (a + b).filter { seen.insert(\$0).inserted }|return (b + a).filter { seen.insert($0).inserted }|
+migration duplicates a shared fragment | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|return (a + b).filter { seen.insert(\$0).inserted }|return a + b|
+migration leaves the old key behind | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object.removeValue(forKey: "match")|object["match"]|
+migration invents an empty process block | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|if (process\["pathContains"\] as? \[String\])?.isEmpty != false {|if false {|
+migration loses the mark | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|presentation\["mark"\] = value||
+migration does not stamp the new version | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object\["formatVersion"\] = HarnessConfig.currentFormatVersion||

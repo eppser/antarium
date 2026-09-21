@@ -60,15 +60,31 @@ public enum HarnessConfigMigration {
         return number.intValue
     }
 
+    /// The new value first, then anything the old key added, without
+    /// duplicates and in a stable order.
+    private static func merged(_ current: Any?, _ legacy: Any?) -> [String] {
+        let a = current as? [String] ?? [], b = legacy as? [String] ?? []
+        var seen = Set<String>()
+        return (a + b).filter { seen.insert($0).inserted }
+    }
+
     private static func migrateV0toV1(_ input: [String: Any]) -> [String: Any] {
         var object = input
         var process = object["process"] as? [String: Any] ?? [:]
-        if process["pathContains"] == nil, let value = object.removeValue(forKey: "match") {
-            process["pathContains"] = value
+        // A file carrying both forms has been half-migrated by hand. The old
+        // key is merged rather than dropped or preferred, and then removed:
+        // `processRule` unions the two at runtime anyway, so leaving it would
+        // mean a matcher the file no longer shows is still claiming
+        // processes. Better that the union is visible and editable.
+        process["pathContains"] = merged(process["pathContains"],
+                                         object.removeValue(forKey: "match"))
+        process["names"] = merged(process["names"],
+                                  object.removeValue(forKey: "matchProcessName"))
+        if (process["pathContains"] as? [String])?.isEmpty != false {
+            process.removeValue(forKey: "pathContains")
         }
-        if process["names"] == nil,
-           let value = object.removeValue(forKey: "matchProcessName") {
-            process["names"] = value
+        if (process["names"] as? [String])?.isEmpty != false {
+            process.removeValue(forKey: "names")
         }
         object["process"] = process
 
