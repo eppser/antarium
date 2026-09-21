@@ -539,3 +539,11 @@ an unchanged fleet is cancelled anyway | Sources/Antarium/Core/RemoteScanControl
 the next sweep index is not carried forward | Sources/Antarium/Core/RemoteScanController.swift | s|self.nextIndex = sweep.nextIndex||
 opencode reads closed tabs as open | Sources/Antarium/Core/OpenCodeTabs.swift | s|records: "tabs"|records: "tabs.closed"|
 both guards against a stale sweep are removed | Sources/Antarium/Core/RemoteScanController.swift | s|        _ = generations.begin()||; s|            guard !Task.isCancelled else { return }||
+a log line keeps its control characters | Sources/Antarium/Core/DiagnosticLogFile.swift | s|CharacterSet.controlCharacters.contains(scalar) ? " " : String(scalar)|String(scalar)|
+a log line is unbounded | Sources/Antarium/Core/DiagnosticLogFile.swift | s|guard used + bytes.count <= cap else { break }||
+the log directory is created open | Sources/Antarium/Core/DiagnosticLogFile.swift | s|attributes:\[.posixPermissions:0o700\]|attributes:nil|
+the log directory follows a symlink | Sources/Antarium/Core/DiagnosticLogFile.swift | s|O_RDONLY \| O_DIRECTORY \| O_NOFOLLOW \| O_CLOEXEC \| O_NONBLOCK|O_RDONLY \| O_DIRECTORY \| O_CLOEXEC \| O_NONBLOCK|
+the log file follows a symlink | Sources/Antarium/Core/DiagnosticLogFile.swift | s|O_WRONLY \| O_CREAT \| O_APPEND \| O_NOFOLLOW \| O_CLOEXEC \| O_NONBLOCK|O_WRONLY \| O_CREAT \| O_APPEND \| O_CLOEXEC \| O_NONBLOCK|
+the log is written to a hard link | Sources/Antarium/Core/DiagnosticLogFile.swift | s|info.st_mode \& S_IFMT == S_IFREG, info.st_nlink == 1,|info.st_mode \& S_IFMT == S_IFREG,|
+the log permissions are not reasserted | Sources/Antarium/Core/DiagnosticLogFile.swift | s|guard fchmod(fd,0o600) == 0 else { return fail("permissions") }||
+the log never rotates | Sources/Antarium/Core/DiagnosticLogFile.swift | s|if info.st_size > maximumBytes - data.count {|if false {|

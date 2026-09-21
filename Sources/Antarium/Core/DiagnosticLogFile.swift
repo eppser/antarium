@@ -3,6 +3,22 @@ import Foundation
 
 /// Best-effort private logging: failure drops a message, never raises an
 /// Objective-C file exception or recursively removes anything during rotation.
+///
+/// Six of the guards below have no catalogue entry, and the reason differs.
+/// Five cannot be reached by a test running as one ordinary user: the `flock`
+/// needs a second writer contending, the two `st_uid` checks need a file
+/// owned by somebody else, the dev/ino recheck needs the path swapped between
+/// the open and the stat, and the `EINTR` retry needs a signal delivered
+/// mid-write. They stay because the thing they prevent is worse than the
+/// thing they cost.
+///
+/// The sixth is different: `canRotate` cannot be reached at all. A line is
+/// capped at `min(8_192, maximumBytes) - 1` bytes, so one write is at most
+/// `maximumBytes` including its newline, and the file it rotates into is
+/// empty — `0 > maximumBytes - data.count` is false for every legal size.
+/// The flag is a guard against a future where those two numbers stop being
+/// tied together, which is a reasonable thing to guard and an impossible
+/// thing to catch.
 final class DiagnosticLogFile:@unchecked Sendable {
     struct Tail { let lines:[String]; let truncated:Bool }
     enum Failure:Error { case invalidCount, unavailable }
