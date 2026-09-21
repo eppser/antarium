@@ -73,9 +73,11 @@ Shipping as descriptors, each with a recorded response shape under
 `Resources/quota-fixtures`: GitHub Copilot, Z.ai GLM, MiniMax, OpenCode Zen,
 Command Code, Vercel AI Gateway, DeepSeek.
 
-Native, because their authentication is control flow: Claude Code (Keychain and
-OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store), and
-Gemini — its access token lasts about an hour, and renewing it means running
+Native, because a descriptor cannot express them: Claude Code (Keychain and
+OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store), Amp
+(the reply is text, not JSON, and it is scanned rather than matched — stdout is
+bounded but not trusted, and a backtracking pattern is a way to turn a long
+line into a hung menu bar), and Gemini — its access token lasts about an hour, and renewing it means running
 the CLI and letting it rewrite `~/.gemini/oauth_creds.json`. The mapping alone
 was written as a descriptor first and reverted, because a correct mapping
 behind a credential that expires is exactly what the note below says not to
@@ -93,7 +95,7 @@ credential rather than the response.
 | Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
-| Kiro, Mistral, AmpCode | usage is the text output of a CLI, parsed with regular expressions |
+| Kiro, Mistral | usage is the text output of a CLI, and a descriptor maps field paths. Native is the escape hatch — Amp took it — but each is its own parser |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
 | Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
 

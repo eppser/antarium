@@ -43,6 +43,8 @@ enum ProviderRegistry {
         // writing the result back, which is control flow rather than a field
         // path. See GeminiProvider.
         GeminiProvider(),
+        // Amp reports in text rather than JSON, which a descriptor cannot map.
+        AmpProvider(),
     ]
 
     /// Providers contributed as config. Built once and kept, so a provider's

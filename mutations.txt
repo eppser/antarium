@@ -145,3 +145,10 @@ gemini bucket text unclamped | Sources/Antarium/Providers/GeminiProvider.swift |
 gemini credential file read unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|BoundedFile.read(url, maxBytes: 256 \* 1_024)|Data(contentsOf: url)|
 gemini charts an unreadable bucket at zero | Sources/Antarium/Providers/GeminiProvider.swift | s|fraction.isFinite else { continue }|fraction.isFinite || true else { continue }|
 gemini charts a bucket with no fraction | Sources/Antarium/Providers/GeminiProvider.swift | s|guard !id.isEmpty else { continue }||
+amp meter inverted | Sources/Antarium/Providers/AmpProvider.swift | s|used: min(max(1 - amount / total, 0), 1),|used: min(max(amount / total, 0), 1),|
+amp reads a later price in the line | Sources/Antarium/Providers/AmpProvider.swift | s|guard let start = text.firstIndex(of: "\$") else { return nil }|guard let start = text.lastIndex(of: "$") else { return nil }|
+amp accepts a non-finite figure | Sources/Antarium/Providers/AmpProvider.swift | s|let value = Double(text\[start..<index\]), value.isFinite|let value = Double(text[start..<index])|
+amp charts a zero cap | Sources/Antarium/Providers/AmpProvider.swift | s|if let total, total > 0 {|if let total, total >= 0 {|
+amp line count unbounded | Sources/Antarium/Providers/AmpProvider.swift | s|.prefix(maxLines)||
+amp label length unbounded | Sources/Antarium/Providers/AmpProvider.swift | s|guard !label.isEmpty, label.count <= 64 else { continue }|guard !label.isEmpty else { continue }|
+amp requires no remaining marker | Sources/Antarium/Providers/AmpProvider.swift | s|guard line.contains("remaining"), let colon|guard let colon|
