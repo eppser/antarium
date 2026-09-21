@@ -25,12 +25,28 @@ enum CodexGoals {
             }
         }
     }
-    private struct Cached {
+    struct Cached {
         let fingerprint:String
         let checked:TimeInterval
         let result:Result<[String:Goal],ReadError>
     }
     nonisolated(unsafe) private static var cache:[String:Cached] = [:]
+
+    /// Which entry to drop when the cache is full.
+    ///
+    /// The least recently checked, not whichever the dictionary happens to
+    /// yield first. An arbitrary victim is not merely non-reproducible — it
+    /// can evict the entry that is about to be read again, and then do it
+    /// once more next time, so a machine with enough state files never keeps
+    /// the ones it uses.
+    static func victim(in cache: [String: Cached], limit: Int) -> String? {
+        guard cache.count >= limit else { return nil }
+        return cache.min { a, b in
+            a.value.checked != b.value.checked ? a.value.checked < b.value.checked
+                                               : a.key < b.key
+        }?.key
+    }
+
     private static let lock = NSLock()
 
     static func all(at path:String) throws -> [String:Goal] {
@@ -68,7 +84,7 @@ enum CodexGoals {
         catch let error as ReadError { result = .failure(error) }
         catch { result = .failure(.invalidInventory) }
         lock.lock()
-        if cache[url.path] == nil, cache.count >= 32, let victim = cache.keys.first { cache.removeValue(forKey:victim) }
+        if cache[url.path] == nil, let victim = Self.victim(in:cache,limit:32) { cache.removeValue(forKey:victim) }
         cache[url.path] = Cached(fingerprint:fingerprint,checked:now,result:result)
         lock.unlock()
         return try result.get()

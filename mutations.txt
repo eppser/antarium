@@ -325,3 +325,6 @@ a process matches on a path fragment it does not contain | Sources/Antarium/Core
 argv0 matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|return (rule.argv0Contains ?? \[\]).contains { process.argv0.contains(\$0) }|return false|
 process name matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|if processNames.contains(process.name) \|\| processNames.contains(argv0Base) { return true }||
 a descriptor claims every process | Sources/Antarium/Core/HarnessDescriptor.swift | s|func claims(_ process: Processes.Info) -> Bool {|func claims(_ process: Processes.Info) -> Bool { if true { return true };|
+cache eviction tie broken at random | Sources/Antarium/Core/CodexGoals.swift | s|: a.key < b.key|: Bool.random()|
+cache evicts the newest | Sources/Antarium/Core/CodexGoals.swift | s|a.value.checked < b.value.checked|a.value.checked > b.value.checked|
+cache evicts below its limit | Sources/Antarium/Core/CodexGoals.swift | s|guard cache.count >= limit else { return nil }||

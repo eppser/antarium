@@ -427,3 +427,49 @@ struct ScanGenerationTests {
         #expect(!fresh.mayPublish(0, cancelled: true))
     }
 }
+
+/// Which cached read to drop when the cache is full. Picking whichever the
+/// dictionary yields first is not merely non-reproducible: it can evict the
+/// entry about to be read again, and then do it once more next time, so a
+/// machine with enough state files never keeps the ones it actually uses.
+@Suite("Cache eviction drops the oldest, not an arbitrary entry")
+struct CodexGoalsEvictionTests {
+
+    private func cache(_ entries: [(String, TimeInterval)]) -> [String: CodexGoals.Cached] {
+        var out: [String: CodexGoals.Cached] = [:]
+        for (key, checked) in entries {
+            out[key] = CodexGoals.Cached(fingerprint: key, checked: checked,
+                                         result: .success([:]))
+        }
+        return out
+    }
+
+    @Test("Below the limit, nothing is evicted")
+    func belowLimitKeepsEverything() {
+        #expect(CodexGoals.victim(in: cache([("a", 1), ("b", 2)]), limit: 8) == nil)
+        #expect(CodexGoals.victim(in: [:], limit: 1) == nil)
+    }
+
+    @Test("At the limit, the least recently checked goes")
+    func oldestIsEvicted() {
+        let full = cache([("newest", 300), ("oldest", 100), ("middle", 200)])
+        #expect(CodexGoals.victim(in: full, limit: 3) == "oldest")
+    }
+
+    /// Two entries checked at the same instant still give one answer, so a
+    /// full cache does not evict a different entry each time it is asked.
+    @Test("A tie is broken deterministically")
+    func tiesAreStable() {
+        let tied = cache([("beta", 100), ("alpha", 100), ("gamma", 100)])
+        let first = CodexGoals.victim(in: tied, limit: 3)
+        #expect(first == "alpha")
+        for _ in 0..<5 { #expect(CodexGoals.victim(in: tied, limit: 3) == first) }
+    }
+
+    @Test("A cache past its limit still evicts exactly one")
+    func overLimit() {
+        let over = cache((0..<40).map { ("k\($0)", TimeInterval(40 - $0)) })
+        #expect(CodexGoals.victim(in: over, limit: 32) == "k39",
+                "the oldest is the one checked longest ago")
+    }
+}

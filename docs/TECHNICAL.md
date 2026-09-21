@@ -456,8 +456,10 @@ for a person — the row's clock, which uses `dateStyle` and `timeStyle` — are
 deliberately left localised, because that is the one place the reader's
 preference is the right answer.
 
-Anything iterated out of a `Set` or a `Dictionary` and then shown, written or
-compared is sorted first. Their order is stable within one process and not
+Anything iterated out of a `Set` or a `Dictionary` and then shown, written,
+compared *or chosen from* is sorted first — the sixth instance found was a
+cache evicting `keys.first`, which is not merely unreproducible but can drop
+the entry about to be read again, repeatedly. Their order is stable within one process and not
 across runs, so an unsorted iteration looks correct in every test that was
 ever written for it and differs on somebody else's machine. Three of those
 were found in one sweep — the glob search that finds session files, the rows
