@@ -565,3 +565,10 @@ the sdk cannot say a quota is posted | Sources/AntariumHarnessSDK/HarnessConfig.
 the sdk cannot carry a posted body | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var body: \[String: String\]?||
 the sdk cannot filter a capability by suffix | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var fileSuffixes: \[String\]?||
 migration rebuilds from a known key list | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|var object = input|var object = input.filter { ["formatVersion","id","name","process","source","presentation"].contains($0.key) }|
+the sdk decoder drops presentation | Sources/AntariumHarnessSDK/HarnessConfigDecoding.swift | s|presentation = try values.decodeIfPresent(Presentation.self, forKey: .presentation)|presentation = nil|
+the sdk decoder drops quota | Sources/AntariumHarnessSDK/HarnessConfigDecoding.swift | s|quota = try values.decodeIfPresent(Quota.self, forKey: .quota)|quota = nil|
+the sdk decoder loses the schema default | Sources/AntariumHarnessSDK/HarnessConfigDecoding.swift | s|?? "../harness.schema.json"|?? ""|
+a bug report carries the machine's name | Sources/Antarium/Core/AppLinks.swift | s|Antarium \\(version) · macOS \\(system) · \\(architecture)|Antarium \\(version) · macOS \\(system) · \\(architecture) · \\(ProcessInfo.processInfo.hostName)|
+a bug report loses what a maintainer needs | Sources/Antarium/Core/AppLinks.swift | s|Antarium \\(version) · macOS \\(system) · \\(architecture)||
+a sign-in script does not quote its command | Sources/Antarium/Core/SignIn.swift | s|"'" + s.replacingOccurrences(of: "'", with: "'\\\\''") + "'"|s|
+a sign-in launcher does not remove itself | Sources/Antarium/Core/SignIn.swift | s|+ "/bin/rm -f -- \\(quoted(url.path))\\n"||

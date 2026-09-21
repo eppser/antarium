@@ -165,3 +165,91 @@ struct MigrationPreservationTests {
     }
 
 }
+
+/// The SDK's decoder is written out by hand, one line per field.
+///
+/// It has to be: `$schema` is optional metadata and a Swift default is not a
+/// Codable decoding default, so the synthesised initialiser would reject
+/// valid authoring documents. The cost of writing it out is that a field
+/// added to the type and not to the decoder comes back nil in silence — the
+/// same alignment failure as the validator's key list, one file along, and
+/// invisible in exactly the same way.
+///
+/// Re-encoding catches every such omission at once: a field the decoder skips
+/// is a field the second encoding does not carry.
+@Suite("Every field the SDK writes, the SDK reads back")
+struct SDKDecoderCompletenessTests {
+
+    private func populated() -> HarnessConfig {
+        var config = HarnessConfig(
+            id: "round", name: "Round",
+            process: .init(pathContains: ["/round"], names: ["round"],
+                           argv0Contains: ["/round/"]),
+            source: .init(kind: .jsonl, path: "~/.round", glob: "*.jsonl"),
+            map: .init(cwd: "cwd", model: "model", sessionID: "id"))
+        config.detached = true
+        config.multiSession = true
+        var selection = HarnessConfig.Selection(path: "~/.round/state", glob: "*.json",
+                                                records: "tabs", id: "id")
+        selection.encodedJSON = true
+        config.selection = selection
+        var quota = HarnessConfig.Quota(endpoint: "https://example.invalid/u",
+                                        windows: .init(list: "data"))
+        quota.windows.usedPercent = "pct"
+        quota.method = "POST"
+        quota.body = ["scope": "current"]
+        quota.setupHint = "Put your key somewhere"
+        quota.verified = false
+        config.quota = quota
+        var rule = HarnessConfig.CapabilityRule(probe: .content, project: ["AGENTS.md"])
+        rule.fileSuffixes = [".md"]
+        config.capabilities = ["instruction": rule]
+        config.idleAfter = 45
+        config.staleAfter = 900
+        config.note = "a note"
+        config.enabled = true
+        config.presentation = HarnessConfig.Presentation(
+            mark: "round", fallbackName: "Round", sourceLabel: "Its own words")
+        config.compatibility = HarnessConfig.Compatibility(level: .declared)
+        return config
+    }
+
+    /// Encode, decode, encode again. Anything the decoder skipped is missing
+    /// from the second document, whatever the first one said.
+    @Test("A fully populated configuration survives a decode")
+    func everyFieldSurvivesADecode() throws {
+        let first = try populated().encoded()
+        let decoded = try JSONDecoder().decode(HarnessConfig.self, from: first)
+        let second = try decoded.encoded()
+
+        let before = try #require(JSONSerialization.jsonObject(with: first) as? [String: Any])
+        let after = try #require(JSONSerialization.jsonObject(with: second) as? [String: Any])
+        let lost = Set(before.keys).subtracting(after.keys)
+        #expect(lost.isEmpty, Comment(rawValue:
+            "the decoder drops \(lost.sorted()) — they are written and never read back"))
+    }
+
+    /// And the values, not merely the keys: a field decoded into the wrong
+    /// place would keep the key and change the document.
+    @Test("The re-encoded document matches the original byte for byte")
+    func reEncodingIsIdentical() throws {
+        let first = try populated().encoded()
+        let decoded = try JSONDecoder().decode(HarnessConfig.self, from: first)
+        #expect(try decoded.encoded() == first,
+                "a field came back somewhere other than where it was written")
+    }
+
+    /// The reason the decoder is hand-written in the first place.
+    @Test("A document with no $schema still decodes")
+    func schemaIsOptional() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "formatVersion": 1, "id": "no-schema", "name": "No Schema",
+            "process": ["pathContains": ["/x"]],
+            "source": ["kind": "none", "path": ""],
+        ])
+        let decoded = try JSONDecoder().decode(HarnessConfig.self, from: data)
+        #expect(decoded.id == "no-schema")
+        #expect(decoded.schema == "../harness.schema.json",
+                "the default that a synthesised decoder would not apply")
+    }
+}
