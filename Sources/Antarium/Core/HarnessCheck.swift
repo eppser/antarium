@@ -434,6 +434,27 @@ enum HarnessCheck {
         //    against records the source actually produces.
         let (records, origin) = HarnessEngine.sampleRecords(descriptor)
         print("  · source: \(origin)")
+
+        // A session fixture declared by this descriptor, replayed from
+        // wherever it actually is. Somebody's own harness keeps it beside the
+        // file; looking only in the app meant a descriptor could claim
+        // `fixtureVerified` with its fixture sitting right there and be
+        // checked against nothing at all.
+        if let declared = descriptor.compatibility?.fixture, !declared.isEmpty {
+            let report = HarnessCompatibility.verifyFixture(
+                descriptor, in: AppResources.bundle,
+                beside: url.deletingLastPathComponent())
+            switch report.status {
+            case .fixtureVerified:
+                ok("session fixture \(declared): \(report.detail)")
+            case .incompatible:
+                fail("session fixture \(declared): \(report.detail)")
+            default:
+                note("session fixture \(declared): \(report.detail)")
+            }
+        } else if descriptor.compatibility?.level == .fixtureVerified {
+            fail("compatibility.level is fixtureVerified but no fixture is declared")
+        }
         if descriptor.source.kind != .none && records.isEmpty {
             warn("no records to check field paths against")
         }

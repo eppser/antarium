@@ -541,7 +541,8 @@ Five steps, none of which need the service installed or an account with it.
 
    Outside this repository — a harness of your own in `~/.antarium/harnesses`
    — put the fixture beside the descriptor as `<id>.quota-fixture.json` and
-   `--check` replays it there. `--verify-harness-quota` reads the shipped
+   `--check` replays it there. A session harness works the same way: declare
+   `compatibility.fixture` and put that file beside the descriptor. `--verify-harness-quota` reads the shipped
    descriptors only, and said nothing about a file it had not looked at, so
    its list of passes read as though it covered yours.
 5. Add the mapping's load-bearing parts to `mutations.txt` and run

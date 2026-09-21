@@ -544,3 +544,121 @@ struct FixtureBesideDescriptorTests {
         #expect(HarnessCheck.run(d.path) == 0)
     }
 }
+
+/// The same path for a session harness, which is most of them.
+///
+/// A descriptor of somebody's own can declare `compatibility.fixture`, and
+/// the fixture was looked for in the app and nowhere else — so a file
+/// claiming `fixtureVerified`, with its fixture sitting right beside it, was
+/// checked against nothing and `--check` said not a word about either.
+@Suite("A session fixture beside a descriptor", .serialized)
+struct SessionFixtureBesideDescriptorTests {
+
+    private func root() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("session-beside-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func descriptor(_ root: URL, fixture: String?) throws -> URL {
+        var compatibility: [String: Any] = ["level": "fixtureVerified",
+                                            "verifiedAt": "2026-09-22"]
+        if let fixture { compatibility["fixture"] = fixture }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "mine", "name": "Mine",
+            "process": ["names": ["mine"]],
+            "source": ["kind": "jsonl", "path": "~/.mine/sessions", "glob": "*.jsonl"],
+            "map": ["cwd": "cwd", "inputTokens": "usage.in", "outputTokens": "usage.out"],
+            "compatibility": compatibility,
+        ]
+        let url = root.appendingPathComponent("mine.json")
+        try JSONSerialization.data(withJSONObject: object).write(to: url)
+        return url
+    }
+
+    private func fixture(_ root: URL, input: Int) throws {
+        let record = #"{"cwd":"/synthetic/p","usage":{"in":\#(input),"out":5}}"# + "\n"
+        try JSONSerialization.data(withJSONObject: [
+            "files": ["a.jsonl": record],
+            "expected": ["sessions": 1, "cwd": "/synthetic/p",
+                         "inputTokens": 10, "outputTokens": 5,
+                         "cacheRead": 0, "cacheWrite": 0, "toolCalls": 0,
+                         "turns": 0, "subAgents": 0, "costUSD": 0],
+        ]).write(to: root.appendingPathComponent("mine.fixture.json"))
+    }
+
+    @Test("A fixture beside the descriptor is replayed and can pass")
+    func besideFixturePasses() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try descriptor(root, fixture: "mine.fixture.json")
+        try fixture(root, input: 10)
+        #expect(HarnessCheck.run(d.path) == 0)
+    }
+
+    /// The positive control matters more here than usual: a verifier that
+    /// cannot find the fixture and one that finds it and agrees both look
+    /// like success from outside.
+    @Test("A fixture whose numbers are wrong is a problem, with the field named")
+    func besideFixtureCanFail() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try descriptor(root, fixture: "mine.fixture.json")
+        try fixture(root, input: 999)
+        #expect(HarnessCheck.run(d.path) != 0)
+
+        let decoded = try HarnessDocument.decode(try Data(contentsOf: d)).descriptor
+        let report = HarnessCompatibility.verifyFixture(
+            decoded, in: AppResources.bundle, beside: root)
+        #expect(report.detail.contains("inputTokens"),
+                Comment(rawValue: "the difference was not named: \(report.detail)"))
+    }
+
+    /// Claiming the level without declaring a fixture is the shape that
+    /// looked verified and was not.
+    @Test("Claiming fixtureVerified with no fixture declared is a problem")
+    func claimWithoutFixture() throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try descriptor(root, fixture: nil)
+        #expect(HarnessCheck.run(d.path) != 0)
+    }
+
+    /// The fixture is a file beside the descriptor, not a way to read one
+    /// from anywhere on the disk.
+    ///
+    /// Note what actually enforces that: the resolver takes only the last
+    /// component of the declared path, so none of these reach outside the
+    /// folder however they are spelled. The explicit guard beside it is
+    /// redundant and says so — mutating it away changes no answer, which is
+    /// why there is no catalogue entry for it. This test holds the property
+    /// rather than the line.
+    @Test("A fixture path that climbs out of the folder is not resolved",
+          arguments: ["../elsewhere.json", "/etc/passwd", "a/../../b.json"])
+    func fixturePathCannotClimb(path: String) throws {
+        let root = try root()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let d = try descriptor(root, fixture: path)
+        try fixture(root, input: 10)
+        #expect(HarnessCheck.run(d.path) != 0, "a fixture outside the folder was read")
+    }
+
+    /// Every field of the snapshot is compared, including one nobody thought
+    /// to list: the differences come from the encoded form, so a field added
+    /// later cannot quietly stop being checked.
+    @Test("Differences are named field by field")
+    func differencesAreNamed() {
+        var a = HarnessCompatibility.Snapshot(
+            sessions: 1, inputTokens: 10, outputTokens: 5, cacheRead: 0, cacheWrite: 0,
+            contextTokens: nil, toolCalls: 0, turns: 0, subAgents: 0, costUSD: 0)
+        var b = a
+        #expect(HarnessCompatibility.Snapshot.differences(expected: a, actual: b).isEmpty)
+        b.turns = 3
+        a.cwd = "/one"
+        let found = HarnessCompatibility.Snapshot.differences(expected: a, actual: b)
+        #expect(found.contains { $0.hasPrefix("turns") })
+        #expect(found.contains { $0.hasPrefix("cwd") })
+        #expect(found.count == 2, Comment(rawValue: "\(found)"))
+    }
+}

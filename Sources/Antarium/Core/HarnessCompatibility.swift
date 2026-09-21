@@ -13,6 +13,29 @@ enum HarnessCompatibility {
     }
 
     struct Snapshot: Codable, Equatable {
+        /// Every field that differs, named, so an author is told what to fix
+        /// rather than handed two structures to compare by eye.
+        ///
+        /// Driven from the encoded form rather than a written-out list of
+        /// properties: a field added to this struct and forgotten here would
+        /// be a difference that reports itself as no difference at all.
+        static func differences(expected: Snapshot, actual: Snapshot) -> [String] {
+            func fields(_ value: Snapshot) -> [String: Any] {
+                (try? JSONEncoder().encode(value))
+                    .flatMap { try? JSONSerialization.jsonObject(with: $0) }
+                    as? [String: Any] ?? [:]
+            }
+            let left = fields(expected), right = fields(actual)
+            return Set(left.keys).union(right.keys).sorted().compactMap { key in
+                let want = left[key], got = right[key]
+                func text(_ value: Any?) -> String {
+                    guard let value, !(value is NSNull) else { return "absent" }
+                    return String(describing: value)
+                }
+                return text(want) == text(got) ? nil : "\(key) \(text(got)) ≠ \(text(want))"
+            }
+        }
+
         var sessions: Int
         var sessionID: String?
         /// What a click would use to raise this session. Absent for a harness
@@ -70,20 +93,29 @@ enum HarnessCompatibility {
         let expected: Snapshot
     }
 
-    static func verifyFixture(_ descriptor: HarnessDescriptor, in bundle: Bundle) -> Report {
+    /// `beside` is the folder the descriptor itself was read from, for a
+    /// harness that is not in the app. A fixture declared by somebody's own
+    /// descriptor lives next to it; looking only in the bundle meant the
+    /// declaration could not be honoured or questioned, so a file claiming
+    /// `fixtureVerified` with its fixture sitting right there was checked
+    /// against nothing.
+    static func verifyFixture(_ descriptor: HarnessDescriptor, in bundle: Bundle,
+                              beside: URL? = nil) -> Report {
         let fixtureStamp = descriptor.compatibility?.fixture
-            .flatMap { resource($0, in: bundle) }
+            .flatMap { resource($0, in: bundle, beside: beside) }
             .map(FileStamp.of) ?? ""
         let encoded = (try? JSONEncoder().encode(descriptor)).map { Data($0).base64EncodedString() }
             ?? descriptor.id
-        let key = "\(encoded)|\(fixtureStamp)"
+        // The folder is part of the key: the same descriptor read from two
+        // places can resolve to two different fixtures.
+        let key = "\(encoded)|\(fixtureStamp)|\(beside?.path ?? "")"
         cacheLock.lock()
         if let report = cachedReports[key] {
             cacheLock.unlock()
             return report
         }
         cacheLock.unlock()
-        let report = verifyFixtureUncached(descriptor, in: bundle)
+        let report = verifyFixtureUncached(descriptor, in: bundle, beside: beside)
         cacheLock.lock()
         cachedReports[key] = report
         cacheLock.unlock()
@@ -91,7 +123,8 @@ enum HarnessCompatibility {
     }
 
     private static func verifyFixtureUncached(_ descriptor: HarnessDescriptor,
-                                              in bundle: Bundle) -> Report {
+                                              in bundle: Bundle,
+                                              beside: URL? = nil) -> Report {
         guard let declaration = descriptor.compatibility else {
             return Report(status: .experimental, detail: "no compatibility evidence declared",
                           verifiedAt: nil, expected: nil, actual: nil)
@@ -101,7 +134,7 @@ enum HarnessCompatibility {
                           detail: "no executable fixture declared",
                           verifiedAt: declaration.verifiedAt, expected: nil, actual: nil)
         }
-        guard let fixtureURL = resource(fixturePath, in: bundle),
+        guard let fixtureURL = resource(fixturePath, in: bundle, beside: beside),
               let data = try? Data(contentsOf: fixtureURL),
               let fixture = try? JSONDecoder().decode(Fixture.self, from: data) else {
             return Report(status: .incompatible, detail: "fixture missing or unreadable: \(fixturePath)",
@@ -161,8 +194,16 @@ enum HarnessCompatibility {
             HarnessEngine.resetCaches(includingParsedFiles: true)
             let actual = Snapshot.capture(HarnessEngine.sessions(configured))
             let passed = actual == fixture.expected
+            // Which fields differ, not merely that some do. "fixture values
+            // differ" sends an author to compare two structures by eye; the
+            // quota verifier beside this one has always named them, and the
+            // information was already here in `expected` and `actual`.
+            let detail = passed ? "fixture passed"
+                : "fixture values differ: "
+                    + Snapshot.differences(expected: fixture.expected, actual: actual)
+                        .joined(separator: "; ")
             return Report(status: passed ? .fixtureVerified : .incompatible,
-                          detail: passed ? "fixture passed" : "fixture values differ",
+                          detail: detail,
                           verifiedAt: declaration.verifiedAt,
                           expected: fixture.expected, actual: actual)
         } catch {
@@ -195,13 +236,34 @@ enum HarnessCompatibility {
         }
     }
 
-    private static func resource(_ path: String, in bundle: Bundle) -> URL? {
+    /// The bundle first, then the folder the descriptor came from.
+    ///
+    /// The bundle first so a shipped descriptor cannot be made to read a
+    /// fixture from somewhere else by putting a file beside it, and the
+    /// folder second so a harness that is not in the app can declare one at
+    /// all. The name is taken as a name: a path that climbs out of that
+    /// folder is not resolved, because a fixture is a file the author put
+    /// next to their descriptor and nothing else.
+    private static func resource(_ path: String, in bundle: Bundle,
+                                 beside: URL? = nil) -> URL? {
         let value = path as NSString
         let directory = value.deletingLastPathComponent
         let name = value.lastPathComponent as NSString
-        return bundle.url(forResource: name.deletingPathExtension,
-                          withExtension: name.pathExtension,
-                          subdirectory: directory.isEmpty ? nil : directory)
+        if let found = bundle.url(forResource: name.deletingPathExtension,
+                                  withExtension: name.pathExtension,
+                                  subdirectory: directory.isEmpty ? nil : directory) {
+            return found
+        }
+        // Neither of these can change an answer, and both are written out
+        // anyway. The name above is already only the last component, so a
+        // declared path cannot climb out of the folder however it is spelled
+        // — and a candidate that does not exist fails to read a line later
+        // and is reported as missing either way. They state the rule where
+        // somebody changing `name` would have to read it, and have no
+        // catalogue entries, because a mutation of either survives.
+        guard let beside, !path.contains(".."), !path.hasPrefix("/") else { return nil }
+        let candidate = beside.appendingPathComponent(name as String)
+        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
     }
 
     private enum FixtureError: Swift.Error, LocalizedError {
