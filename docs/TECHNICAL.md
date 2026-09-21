@@ -499,6 +499,13 @@ is exactly why a bytes rule would not have caught it. The newest 500 are
 kept, ordered on the timestamp the filename begins with rather than on
 modification time, which a copy or a restore rewrites.
 
+An `env` credential reads its variable first and the file at its `path`
+second. The fallback is not decoration: an app started from Finder inherits
+the launchd session environment rather than a shell's, so a key exported in a
+shell profile is invisible to it, and three shipped providers could not work
+in the ordinary installation. The variable still wins when both are present,
+so a key rotated in a shell is not overridden by a stale file.
+
 A `quota` block reads from exactly one place: an `endpoint`, or a `command`
 whose stdout is the JSON the `windows` map describes. Both would leave which
 one wins to the order of an `if`, and neither is a quota block that does

@@ -16,7 +16,8 @@
     "endpoint": "https://api.deepseek.com/user/balance",
     "credential": {
       "kind": "env",
-      "name": "DEEPSEEK_API_KEY"
+      "name": "DEEPSEEK_API_KEY",
+      "path": "~/.antarium/keys/deepseek"
     },
     "headers": {
       "Authorization": "Bearer {token}",
@@ -31,7 +32,7 @@
       "balance": "total_balance",
       "currency": "currency"
     },
-    "setupHint": "Add your API key to deepseek.json.",
+    "setupHint": "Put your key in ~/.antarium/keys/deepseek",
     "verified": false
   }
 }

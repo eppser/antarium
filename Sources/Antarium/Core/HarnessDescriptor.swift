@@ -182,7 +182,12 @@ struct HarnessDescriptor: Codable {
         struct Credential: Codable {
             /// `jsonFile` — read `field` out of a JSON file.
             /// `textFile` — the whole file is the token.
-            /// `env`      — an environment variable named by `name`.
+            /// `env`      — an environment variable named by `name`, and
+            ///              then the file at `path` when that is unset. The
+            ///              fallback is not optional decoration: an app
+            ///              launched from Finder inherits the launchd session
+            ///              environment rather than a shell's, so a variable
+            ///              exported in a shell profile is invisible to it.
             /// `command`  — run `command` with `args`; its output is the token.
             ///              A menu bar app launched from Finder inherits no
             ///              shell environment, so `gh auth token` reaches a

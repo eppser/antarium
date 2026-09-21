@@ -16,7 +16,8 @@
     "endpoint": "https://api.minimax.io/v1/api/openplatform/coding_plan/remains",
     "credential": {
       "kind": "env",
-      "name": "MINIMAX_API_KEY"
+      "name": "MINIMAX_API_KEY",
+      "path": "~/.antarium/keys/minimax"
     },
     "headers": {
       "Authorization": "Bearer {token}",
@@ -44,7 +45,7 @@
         "MiniMax-M1": "M1"
       }
     },
-    "setupHint": "Add your API key to minimax.json.",
+    "setupHint": "Put your key in ~/.antarium/keys/minimax",
     "verified": false
   }
 }

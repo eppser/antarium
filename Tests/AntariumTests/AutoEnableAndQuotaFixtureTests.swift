@@ -487,8 +487,12 @@ func envCredentialHintsMentionTheLimitation() throws {
         examined += 1
         let hint = try #require(quota.setupHint, "\(descriptor.id) has no setup hint")
         // The route has to be one that works however Antarium was launched.
-        // Naming the harness file qualifies; naming only the variable does not.
-        let offersAnAlternative = hint.contains(".json") || hint.contains("textFile")
+        // A key file under the settings directory qualifies, and is the one
+        // the descriptor itself reads: an `env` credential falls back to its
+        // `path`. Naming the harness file qualifies too — editing it to a
+        // file credential is still a route. Naming only the variable does not.
+        let offersAnAlternative = hint.contains("~/.antarium/keys/")
+            || hint.contains(".json") || hint.contains("textFile")
             || hint.contains("jsonFile") || hint.contains("terminal")
         #expect(offersAnAlternative,
                 "\(descriptor.id): an env-only credential must offer a route that works for an app launched from Finder — hint was: \(hint)")
@@ -496,6 +500,16 @@ func envCredentialHintsMentionTheLimitation() throws {
         // the name beside it. A hint that truncates mid-word helps nobody.
         #expect(hint.count <= 48,
                 "\(descriptor.id): hint is \(hint.count) characters and will truncate — \(hint)")
+        // And the route the hint names has to be one the descriptor can
+        // actually read. A hint pointing at a key file while the credential
+        // reads only a variable is advice that does nothing — which is the
+        // shape this whole test exists to prevent, one level further in.
+        if hint.contains("~/.antarium/keys/") {
+            let path = try #require(quota.credential?.path,
+                                    "\(descriptor.id): the hint names a key file the credential never reads")
+            #expect(hint.contains(path),
+                    "\(descriptor.id): the hint names \(hint) and the credential reads \(path)")
+        }
     }
     // Without this the test passes on an empty set, which is how it would read
     // if every env credential were renamed or removed: green, and checking

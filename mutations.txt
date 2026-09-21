@@ -436,3 +436,8 @@ an absent agent is claimed to be absent | Sources/Antarium/Core/Onboarding.swift
 the three detection states are unordered | Sources/Antarium/Core/Onboarding.swift | s|func rank(_ f: Finding) -> Int { f.found ? 0 : (f.installedUnused ? 1 : 2) }|func rank(_ f: Finding) -> Int { f.found ? 0 : 1 }|
 the absence phrase claims absence | Sources/Antarium/Core/Onboarding.swift | s|static let absent = "no trace on this Mac"|static let absent = "not installed on this Mac"|
 the settings list spells absence itself | Sources/Antarium/UI/SettingsView.swift | s|Text(Onboarding.absent.prefix(1).uppercased() + Onboarding.absent.dropFirst())|Text("Not found on this Mac")|
+an env credential has no file fallback | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|guard let path = credential.path?.expandingTilde,|guard let path = String?.none,|
+an env key file is preferred to the variable | Sources/Antarium/Providers/DescriptorProvider.swift | s|               let value = ProcessInfo.processInfo.environment\[name\], !value.isEmpty {|               let value = ProcessInfo.processInfo.environment[name], value.isEmpty {|
+an env key file keeps its trailing newline | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)|let trimmed = raw|
+an env key file is read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
+an env hint names a file nothing reads | Resources/harnesses/deepseek.json | s|^      "path": "~/.antarium/keys/deepseek"$|      "unusedPath": "~/.antarium/keys/deepseek"|

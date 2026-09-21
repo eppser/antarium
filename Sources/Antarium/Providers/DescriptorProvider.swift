@@ -85,7 +85,26 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         guard let credential = quota.credential else { return "" }   // endpoint needs none
         switch credential.kind {
         case "env":
-            return credential.name.flatMap { ProcessInfo.processInfo.environment[$0] }
+            // The variable first, then the file, because a terminal launch
+            // has the variable and a Finder launch does not.
+            //
+            // A menu bar app started from Finder inherits the launchd session
+            // environment, not a shell's — the same fact the copilot harness
+            // already relies on to read `gh auth token` instead of a variable.
+            // So `env` on its own meant three shipped providers could not
+            // work in the ordinary installation, and said "not signed in"
+            // for ever while their setup hint described an action that was
+            // not possible.
+            if let name = credential.name,
+               let value = ProcessInfo.processInfo.environment[name], !value.isEmpty {
+                return value
+            }
+            guard let path = credential.path?.expandingTilde,
+                  let data = try? BoundedFile.read(URL(fileURLWithPath: path),
+                                                   maxBytes: Self.maxCredentialBytes),
+                  let raw = String(data: data, encoding: .utf8) else { return nil }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
         case "command":
             guard let command = credential.command else { return nil }
             // Resolved the same way whether it is a bare name or a path:

@@ -16,7 +16,8 @@
     "endpoint": "https://ai-gateway.vercel.sh/v1/credits",
     "credential": {
       "kind": "env",
-      "name": "AI_GATEWAY_API_KEY"
+      "name": "AI_GATEWAY_API_KEY",
+      "path": "~/.antarium/keys/vercel-gateway"
     },
     "headers": {
       "Authorization": "Bearer {token}",
@@ -34,7 +35,7 @@
         "credits": "BAL"
       }
     },
-    "setupHint": "Add your API key to vercel-gateway.json.",
+    "setupHint": "Put your key in ~/.antarium/keys/vercel-gateway",
     "verified": false
   }
 }

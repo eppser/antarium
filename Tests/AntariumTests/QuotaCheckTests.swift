@@ -544,3 +544,103 @@ struct CommandQuotaOutputTests {
         #expect(abs((snapshot.gauges.first?.used ?? 0) - 0.30) < 0.0001)
     }
 }
+
+/// An environment variable is not a credential a menu bar app can rely on.
+///
+/// An app started from Finder inherits the launchd session environment, not a
+/// shell's — the same fact the copilot harness already relies on when it
+/// reads `gh auth token` instead of a variable. Three shipped providers read
+/// only a variable, so in the ordinary installation they said "not signed in"
+/// for ever, and nothing could tell that from an account that really was
+/// signed out.
+@Suite("An env credential falls back to a file", .serialized)
+struct EnvCredentialFallbackTests {
+
+    private func provider(name: String?, path: String?) throws -> DescriptorProvider {
+        var credential: [String: Any] = ["kind": "env"]
+        if let name { credential["name"] = name }
+        if let path { credential["path"] = path }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "env-\(UUID().uuidString)", "name": "Env",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": "https://example.invalid/u", "credential": credential,
+                      "windows": ["list": "data", "usedPercent": "pct"]]]
+        let d = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(d))
+    }
+
+    private func keyFile(_ contents: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("key-\(UUID().uuidString)")
+        try Data(contents.utf8).write(to: url)
+        return url
+    }
+
+    @Test("The file is read when the variable is unset")
+    func fileIsReadWhenVariableIsAbsent() throws {
+        ConfiguredProbe.invalidate()
+        let file = try keyFile("synthetic-key\n")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let p = try provider(name: "ANTARIUM_NO_SUCH_VARIABLE", path: file.path)
+        #expect(p.isConfigured, "a key file next to an unset variable read as signed out")
+    }
+
+    /// Trailing newlines are what a `printf ... > file` leaves behind, and a
+    /// bearer token with one on the end is rejected by the service rather
+    /// than by us, which is a much worse place to find out.
+    @Test("Whitespace around the key is not part of the key")
+    func keyIsTrimmed() throws {
+        ConfiguredProbe.invalidate()
+        let file = try keyFile("  synthetic-key\n\n")
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(try provider(name: "ANTARIUM_NO_SUCH_VARIABLE", path: file.path).isConfigured)
+    }
+
+    @Test("An empty key file is not a credential")
+    func emptyFileIsNotAKey() throws {
+        ConfiguredProbe.invalidate()
+        let file = try keyFile("   \n")
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(try provider(name: "ANTARIUM_NO_SUCH_VARIABLE", path: file.path)
+                    .isConfigured == false)
+    }
+
+    @Test("No variable and no file is still not signed in")
+    func neitherIsNotConfigured() throws {
+        ConfiguredProbe.invalidate()
+        #expect(try provider(name: "ANTARIUM_NO_SUCH_VARIABLE",
+                             path: "/nonexistent/antarium/key").isConfigured == false)
+        ConfiguredProbe.invalidate()
+        #expect(try provider(name: "ANTARIUM_NO_SUCH_VARIABLE", path: nil)
+                    .isConfigured == false)
+    }
+
+    /// The file is a fallback, not a replacement: a terminal launch that has
+    /// the variable must keep using it, or a user who rotates a key in their
+    /// shell would go on being charted against a stale one in a file.
+    @Test("The variable wins when both are present")
+    func variableWinsOverFile() throws {
+        ConfiguredProbe.invalidate()
+        let file = try keyFile("from-the-file")
+        defer { try? FileManager.default.removeItem(at: file) }
+        // PATH is set in every process, so it stands in for "a variable that
+        // is there" without this test setting one.
+        let p = try provider(name: "PATH", path: file.path)
+        #expect(p.isConfigured)
+        #expect(p.token() == ProcessInfo.processInfo.environment["PATH"],
+                "the file was preferred to a variable that was set")
+    }
+
+    /// Bounded like every other credential read, because another program
+    /// wrote the file.
+    @Test("An oversized key file is not read")
+    func oversizedKeyFileIsRefused() throws {
+        ConfiguredProbe.invalidate()
+        let file = try keyFile(String(repeating: "k",
+                                      count: DescriptorProvider.maxCredentialBytes + 1))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(try provider(name: "ANTARIUM_NO_SUCH_VARIABLE", path: file.path)
+                    .isConfigured == false)
+    }
+}
