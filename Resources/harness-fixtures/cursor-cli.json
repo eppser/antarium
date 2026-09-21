@@ -3,8 +3,16 @@
     "project/session/meta.json": "{\"cwd\":\"/fixture/cursor-cli\",\"title\":\"CLI task\",\"updatedAtMs\":1787652000000}"
   },
   "expected": {
-    "sessions": 1, "cwd": "/fixture/cursor-cli", "title": "CLI task",
-    "inputTokens": 0, "outputTokens": 0, "cacheRead": 0, "cacheWrite": 0,
-    "contextTokens": 0, "toolCalls": 0, "turns": 0, "subAgents": 0, "costUSD": 0
+    "sessions": 1,
+    "cwd": "/fixture/cursor-cli",
+    "title": "CLI task",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0
   }
 }

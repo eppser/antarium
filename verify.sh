@@ -135,6 +135,27 @@ for h in Resources/harnesses/*.json; do
 done
 [ $dirty -eq 0 ] && ok "$(ls Resources/harnesses/*.json | wc -l | tr -d ' ') harnesses"
 
+# A harness that maps no context at all must not be reported as having an
+# empty one. --check is the tool a descriptor author uses to find out whether
+# their mapping works, and "context=0" told them it does when nothing was
+# read. A harness that *does* map one and measures zero is a different thing
+# and keeps its zero, so only the harnesses declaring no mapping are checked.
+invented=0 checked=0
+for h in Resources/harnesses/*.json; do
+    python3 -c "
+import json,sys
+m = json.load(open('$h')).get('map') or {}
+sys.exit(0 if m.get('contextTokens') else 1)" && continue
+    checked=$((checked+1))
+    if "$BIN" --check "$h" 2>&1 | grep -q "context=0 "; then
+        bad "--check $(basename "$h") reports a context it never mapped"
+        invented=1
+    fi
+done
+[ $checked -gt 0 ] || bad "no harness without a context mapping — the check proved nothing"
+[ $invented -eq 0 ] && [ $checked -gt 0 ] \
+    && ok "$checked harness(es) mapping no context report none"
+
 step "Command line on a machine that has never run it"
 for flag in --agents --status --detect-agents; do
     home=$(mktemp -d)

@@ -38,8 +38,11 @@ struct FixtureVerifierTests {
     private let record = #"{"cwd":"/synthetic","input":10,"output":5}"# + "\n"
 
     private func expected(inputTokens: Int) -> [String: Any] {
+        // No `contextTokens`: this descriptor maps none, and declaring zero
+        // would be the fixture asserting a figure nothing read — which is
+        // what eight shipped fixtures were doing.
         ["sessions": 1, "cwd": "/synthetic", "inputTokens": inputTokens,
-         "outputTokens": 5, "cacheRead": 0, "cacheWrite": 0, "contextTokens": 0,
+         "outputTokens": 5, "cacheRead": 0, "cacheWrite": 0,
          "toolCalls": 0, "turns": 0, "subAgents": 0, "costUSD": 0]
     }
 

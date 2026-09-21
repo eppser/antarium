@@ -660,3 +660,4 @@ the bar reads backwards | Sources/Antarium/UI/Renderer.swift | s|        return 
 the dashboard order is not total | Sources/Antarium/Core/AgentScan.swift | s|        return a.id < b.id|        return false|
 the clamp stops preferring the low end | Sources/Antarium/UI/PanelPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
 sorting by spend leaves ties to chance | Sources/Antarium/Core/AgentScan.swift | s|                if a != b { return a > b }|                return a > b; if false {}|
+an unmeasured context reads as empty | Sources/Antarium/Core/HarnessEngine.swift | s|        var contextTokens: Int? { measuredContext }|        var contextTokens: Int? { measuredContext ?? 0 }|

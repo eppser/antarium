@@ -28,7 +28,7 @@ enum HarnessCompatibility {
         var outputTokens: Int
         var cacheRead: Int
         var cacheWrite: Int
-        var contextTokens: Int
+        var contextTokens: Int?
         var contextWindow: Int?
         var toolCalls: Int
         var turns: Int
@@ -47,7 +47,7 @@ enum HarnessCompatibility {
                             outputTokens: first?.outputTokens ?? 0,
                             cacheRead: first?.cacheRead ?? 0,
                             cacheWrite: first?.cacheWrite ?? 0,
-                            contextTokens: first?.contextTokens ?? 0,
+                            contextTokens: first?.contextTokens ?? nil,
                             contextWindow: first?.contextWindow,
                             toolCalls: first?.toolCalls ?? 0,
                             turns: first?.turns ?? 0,

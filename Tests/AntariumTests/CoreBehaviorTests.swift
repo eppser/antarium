@@ -132,7 +132,10 @@ struct CoreBehaviorTests {
 
         var context = HarnessEngine.Session()
         context.inputTokens = 5_000
-        XCTAssertEqual(context.contextTokens, 0, "Lifetime traffic is not context occupancy")
+        // Blank, not zero. Lifetime traffic is not context occupancy, and a
+        // figure nobody measured is not an empty context — the row, `--check`
+        // and the fixtures all have a way of saying "not read".
+        XCTAssertEqual(context.contextTokens, nil, "Lifetime traffic is not context occupancy")
         context.measuredContext = 4_200
         XCTAssertEqual(context.contextTokens, 4_200)
     }

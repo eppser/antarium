@@ -101,7 +101,15 @@ enum HarnessEngine {
         /// heading that means *occupancy* — hermes read 305k and opencode 18k
         /// that way. The totals are already shown as the volume trace; a
         /// context figure nobody measured is better left blank.
-        var contextTokens: Int { measuredContext ?? 0 }
+        ///
+        /// Blank, and not zero. This said `?? 0` while its own comment said
+        /// otherwise, and the two readers of it both printed the zero: a
+        /// descriptor author running `--check` against a harness that
+        /// measures no context saw "context=0", which says the session is
+        /// empty rather than that nothing was read. That is the wrong answer
+        /// to give in the one tool whose whole job is telling somebody
+        /// whether their mapping works.
+        var contextTokens: Int? { measuredContext }
         /// Some APIs report input tokens with the cached part already included
         /// — Codex does. Adding the cache write on top then counts the cached
         /// portion twice, and "sent" read 206x what was actually uploaded.

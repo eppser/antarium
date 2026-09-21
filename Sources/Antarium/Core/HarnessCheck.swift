@@ -458,7 +458,8 @@ enum HarnessCheck {
         let sessions = HarnessEngine.sessions(descriptor)
         if let newest = sessions.first {
             print("\n  Would show: project=\(newest.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "—") "
-                + "model=\(newest.model ?? "—") context=\(newest.contextTokens)"
+                + "model=\(newest.model ?? "—") "
+                + "context=\(newest.contextTokens.map(String.init) ?? "—")"
                 + " tools=\(newest.toolCalls) turns=\(newest.turns) "
                 + "cost=\(newest.costUSD > 0 ? Pricing.money(newest.costUSD) : "—")")
         } else if descriptor.source.kind != .none {

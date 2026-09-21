@@ -13,7 +13,6 @@
     "outputTokens": 0,
     "cacheRead": 0,
     "cacheWrite": 0,
-    "contextTokens": 0,
     "contextWindow": null,
     "toolCalls": 0,
     "turns": 0,

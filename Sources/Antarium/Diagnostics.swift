@@ -431,7 +431,8 @@ enum Diagnostics {
                 if let newest = found.first {
                     print("\n\(d.id): \(found.count) sessions  newest "
                         + "cwd=\(newest.cwd ?? "—") model=\(newest.model ?? "—") "
-                        + "ctx=\(newest.contextTokens / 1000)k/\(newest.contextWindow.map { "\($0 / 1000)k" } ?? "—") "
+                        + "ctx=\(newest.contextTokens.map { "\($0 / 1000)k" } ?? "—")"
+                        + "/\(newest.contextWindow.map { "\($0 / 1000)k" } ?? "—") "
                         + "tools=\(newest.toolCalls) turns=\(newest.turns) subs=\(newest.subAgents) "
                         + "cost=\(Pricing.money(newest.costUSD)) "
                         + "last=\(newest.lastActivity.map { Format.age($0) } ?? "—")")
