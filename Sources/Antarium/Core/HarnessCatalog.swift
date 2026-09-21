@@ -99,6 +99,11 @@ final class HarnessCatalog: @unchecked Sendable {
                 }
             }
             byFile = next
+            // The descriptor sort is load-bearing: `resolved` is built by
+            // iterating a dictionary, and this order becomes the registry's,
+            // which becomes the menu bar's left-to-right. The issue
+            // deduplication beside it is not — the `issues` accessor folds and
+            // sorts again, so no mutation of that half can be caught.
             current = Snapshot(descriptors:resolved.sorted { $0.id < $1.id },issues:Array(Set(problems)).sorted())
             fingerprint = inventory.stamp; loaded = now
         } catch {

@@ -318,3 +318,10 @@ harness grouping ignores the agent | Sources/Antarium/Core/AgentScan.swift | s|i
 recency tie-break runs backwards | Sources/Antarium/Core/AgentScan.swift | s|return (\$0.lastActivity ?? .distantPast) > (\$1.lastActivity ?? .distantPast)|return ($0.lastActivity ?? .distantPast) < ($1.lastActivity ?? .distantPast)|
 unknown host sorts first | Sources/Antarium/Core/AgentScan.swift | s|let a = \$0.hostApp ?? "\\u{10FFFF}", b = \$1.hostApp ?? "\\u{10FFFF}"|let a = $0.hostApp ?? "", b = $1.hostApp ?? ""|
 an unpriced row ties with a measured zero | Sources/Antarium/Core/AgentScan.swift | s|rows.sorted { (\$0.costUSD ?? -1) > (\$1.costUSD ?? -1) }|rows.sorted { ($0.costUSD ?? 0) > ($1.costUSD ?? 0) }|
+duplicate ids silently override each other | Sources/Antarium/Core/HarnessCatalog.swift | s|if descriptors.count == 1 { resolved.append(descriptors\[0\]) }|if true { resolved.append(descriptors[0]) }|
+a duplicate id is not reported | Sources/Antarium/Core/HarnessCatalog.swift | s|problems.append("Multiple harness files declare the same ID. The last unambiguous configuration is retained when available.")||
+the catalog is returned unsorted | Sources/Antarium/Core/HarnessCatalog.swift | s|resolved.sorted { \$0.id < \$1.id }|resolved|
+a process matches on a path fragment it does not contain | Sources/Antarium/Core/HarnessDescriptor.swift | s|if (rule.pathContains ?? \[\]).contains(where: { process.path.contains(\$0) }) { return true }||
+argv0 matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|return (rule.argv0Contains ?? \[\]).contains { process.argv0.contains(\$0) }|return false|
+process name matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|if processNames.contains(process.name) \|\| processNames.contains(argv0Base) { return true }||
+a descriptor claims every process | Sources/Antarium/Core/HarnessDescriptor.swift | s|func claims(_ process: Processes.Info) -> Bool {|func claims(_ process: Processes.Info) -> Bool { if true { return true };|
