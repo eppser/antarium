@@ -436,3 +436,94 @@ struct StopAnnouncementTests {
                                          gap: 1, interval: 10).isEmpty)
     }
 }
+
+/// A quota reading that has stopped being refreshed.
+///
+/// The store keeps the last good snapshot when a fetch fails, deliberately,
+/// so the bar does not blink out every time a network hiccups. The cost is a
+/// figure that goes on looking current. The menu already said "Updated ten
+/// minutes ago"; the dashboard drew the same number with nothing at all, so
+/// the two surfaces disagreed about whether what was on screen was now.
+@Suite("A quota reading says how old it is once it stops being now")
+@MainActor
+struct QuotaStalenessTests {
+
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    @Test("A fresh reading is not stale")
+    func freshIsNotStale() {
+        #expect(QuotaStore.isStale(now.addingTimeInterval(-30), now: now) == false)
+        #expect(QuotaStore.isStale(now, now: now) == false)
+    }
+
+    /// The bar refreshes every minute, so several missed refreshes is the
+    /// point at which the figure is no longer a reading of now.
+    @Test("A reading older than the window is stale", arguments: [301.0, 3_600.0, 86_400.0])
+    func oldIsStale(_ age: TimeInterval) {
+        #expect(QuotaStore.isStale(now.addingTimeInterval(-age), now: now))
+    }
+
+    @Test("A few missed refreshes are not yet stale", arguments: [61.0, 120.0, 299.0])
+    func aFewMissesAreFine(_ age: TimeInterval) {
+        #expect(QuotaStore.isStale(now.addingTimeInterval(-age), now: now) == false)
+    }
+
+    /// No reading at all is not a fresh reading. Treating an absent date as
+    /// current is how a bar with nothing behind it would look live.
+    @Test("No reading is stale rather than fresh")
+    func absentIsStale() {
+        #expect(QuotaStore.isStale(nil, now: now))
+    }
+
+    /// A clock that has gone backwards — a correction, a timezone change
+    /// applied badly — must not make an old reading look newer than now.
+    @Test("A reading from the future is not stale")
+    func futureIsNotStale() {
+        #expect(QuotaStore.isStale(now.addingTimeInterval(3_600), now: now) == false)
+    }
+}
+
+/// What the dashboard's quota bar claims.
+@Suite("The quota bar's tooltip")
+@MainActor
+struct QuotaBarHelpTests {
+
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+    private let meter = Gauge(id: "session", badge: "5H", title: "Session", used: 0.42)
+    private var balance: Gauge {
+        Gauge(id: "credits", badge: "BAL", title: "Credits", used: 0,
+              amount: .init(value: 12.5, currency: "USD"))
+    }
+
+    @Test("A fresh meter says what it is and nothing about when")
+    func freshMeterSaysNoAge() {
+        let text = AccountQuotaBar.help(gauge: meter, plan: "max",
+                                        fetchedAt: now.addingTimeInterval(-30), now: now)
+        #expect(text.contains("Session"))
+        #expect(text.contains("max"))
+        #expect(!text.contains("as of"), "a current reading announced its age")
+    }
+
+    @Test("A stale meter says when it was taken")
+    func staleMeterSaysAge() {
+        let text = AccountQuotaBar.help(gauge: meter, plan: "max",
+                                        fetchedAt: now.addingTimeInterval(-3_600), now: now)
+        #expect(text.contains("as of"), "an hour-old figure was presented as current")
+    }
+
+    /// A balance says what is left rather than what is used, and that
+    /// difference survives the age being appended.
+    @Test("A stale balance keeps saying what is left")
+    func staleBalanceKeepsItsShape() {
+        let text = AccountQuotaBar.help(gauge: balance, plan: nil,
+                                        fetchedAt: now.addingTimeInterval(-3_600), now: now)
+        #expect(text.contains("left"))
+        #expect(text.contains("as of"))
+    }
+
+    @Test("A bar with no reading behind it says so")
+    func absentReadingSaysAge() {
+        #expect(AccountQuotaBar.help(gauge: meter, plan: "max",
+                                     fetchedAt: nil, now: now).contains("as of"))
+    }
+}

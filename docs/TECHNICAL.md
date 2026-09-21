@@ -499,6 +499,16 @@ is exactly why a bytes rule would not have caught it. The newest 500 are
 kept, ordered on the timestamp the filename begins with rather than on
 modification time, which a copy or a restore rewrites.
 
+A reading that has stopped being refreshed says so. `QuotaStore` keeps the
+last good snapshot when a fetch fails — deliberately, so a bar does not blink
+out every time a network hiccups — and the cost of that is a figure which
+goes on looking current. The menu already reported "Updated ten minutes ago";
+the dashboard drew the same number with nothing at all, so the two surfaces
+disagreed about whether what was on screen was now. Past five minutes, which
+is several missed refreshes, the bar dims and its tooltip says when the
+reading was taken. Dimmed rather than hidden: the figure is still the best
+there is, and why it is old is already reported where failures belong.
+
 The settings directory is private to its owner, and tightened on launch if
 it is not. It was created at 0755, which was unremarkable while it held
 preferences; descriptors now name key files inside it, and on macOS every

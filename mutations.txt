@@ -473,3 +473,9 @@ the stop gap has no floor | Sources/Antarium/Core/AgentStore.swift | s|gap <= ma
 the stop gap ignores a long interval | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= 60|
 stops are never announced | Sources/Antarium/Core/AgentStore.swift | /func announcements/,/^    }$/ s|return stopped(previous: previous, current: current)|return []|
 the announcement ignores the gap | Sources/Antarium/Core/AgentStore.swift | s|guard stopsAreNews(gap: gap, interval: interval) else { return \[\] }||
+a stale quota reading claims to be current | Sources/Antarium/Core/QuotaStore.swift | s|return now.timeIntervalSince(fetchedAt) > after|return false|
+a missing quota reading reads as fresh | Sources/Antarium/Core/QuotaStore.swift | s|guard let fetchedAt else { return true }|guard let fetchedAt else { return false }|
+a clock that went backwards makes a reading stale | Sources/Antarium/Core/QuotaStore.swift | s|return now.timeIntervalSince(fetchedAt) > after|return abs(now.timeIntervalSince(fetchedAt)) > after|
+the quota bar never mentions its age | Sources/Antarium/UI/Dashboard.swift | s|return figure + " — as of " + Format.age(fetchedAt)|return figure|
+the quota bar always mentions its age | Sources/Antarium/UI/Dashboard.swift | s|guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }||
+the quota staleness window is a day | Sources/Antarium/Core/QuotaStore.swift | s|nonisolated static let staleAfter: TimeInterval = 5 \* 60|nonisolated static let staleAfter: TimeInterval = 86_400|

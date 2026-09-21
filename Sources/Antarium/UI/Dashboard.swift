@@ -341,7 +341,8 @@ private struct AgentRowView: View {
                                window: row.contextWindow)
                 } else if let gauge = quotaStore.primaryGauge(for: row.agentID) {
                     AccountQuotaBar(gauge: gauge,
-                                    plan: quotaStore.snapshot(for: row.agentID)?.accountLabel)
+                                    plan: quotaStore.snapshot(for: row.agentID)?.accountLabel,
+                                    fetchedAt: quotaStore.fetchedAt(for: row.agentID))
                 } else {
                     Color.clear.frame(width: 61, height: 1)
                 }
@@ -693,6 +694,15 @@ private struct CostLabel: View {
 private struct ContextBar: View {
     let fraction: Double
     let tokens: Int?, window: Int?
+    /// Pure, so what the bar claims can be checked without drawing it.
+    static func help(gauge: Gauge, plan: String?, fetchedAt: Date?,
+                     now: Date = Date()) -> String {
+        let figure = gauge.amountText.map { "\(gauge.title): \($0) left" }
+            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage"
+        guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }
+        return figure + " — as of " + Format.age(fetchedAt)
+    }
+
     private var tint: Color { fraction > 0.85 ? .red : (fraction > 0.6 ? .orange : .green) }
     var body: some View {
         HStack(spacing: 3.5) {
@@ -710,9 +720,28 @@ private struct ContextBar: View {
 
 /// Account included-usage from a quota provider when the session has no
 /// per-transcript context figure to draw.
-private struct AccountQuotaBar: View {
+/// Internal rather than private so `help` can be checked: what this bar
+/// claims about a figure is the part worth testing, and it cannot be read off
+/// a rendered view.
+struct AccountQuotaBar: View {
     let gauge: Gauge
     let plan: String?
+    /// When the reading was taken. The store keeps the last good snapshot
+    /// when a refresh fails, so this bar can outlive the figure behind it by
+    /// hours — the menu says "Updated ten minutes ago" and this drew the same
+    /// number with nothing at all.
+    let fetchedAt: Date?
+
+    private var isStale: Bool { QuotaStore.isStale(fetchedAt) }
+
+    /// Pure, so what the bar claims can be checked without drawing it.
+    static func help(gauge: Gauge, plan: String?, fetchedAt: Date?,
+                     now: Date = Date()) -> String {
+        let figure = gauge.amountText.map { "\(gauge.title): \($0) left" }
+            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage"
+        guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }
+        return figure + " — as of " + Format.age(fetchedAt)
+    }
 
     private var tint: Color {
         switch gauge.severity {
@@ -736,8 +765,12 @@ private struct AccountQuotaBar: View {
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary).fixedSize()
         }
-        .help(gauge.amountText.map { "\(gauge.title): \($0) left" }
-            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage")
+        // Dimmed rather than hidden or marked with a warning: the figure is
+        // still the best there is, and the reason it is old — a refresh that
+        // keeps failing — is already reported where failures belong. This
+        // only stops it claiming to be current.
+        .opacity(isStale ? 0.45 : 1)
+        .help(Self.help(gauge: gauge, plan: plan, fetchedAt: fetchedAt))
     }
 }
 
