@@ -161,16 +161,56 @@ final class AgentStore: ObservableObject {
 
     /// Starts a remote pass if one is due and none is running. Deliberately
     /// not awaited: the point is that it cannot delay the local rows.
+    /// Whether to reach out to the fleet, and what to do if not.
+    ///
+    /// Pure, because three of these four rules are about not connecting: a
+    /// sweep opens an SSH session to every configured machine, and the one
+    /// that matters most is that switching the feature off stops it. Nothing
+    /// tested any of them.
+    enum RemoteSweep: Equatable {
+        /// Stop, and drop anything in flight.
+        case cancel
+        /// Not yet — too soon, or one is already running.
+        case skip
+        case run
+    }
+
+    static func remoteSweep(enabled: Bool, hosts: [String], running: Bool,
+                            force: Bool, sinceLastAttempt: TimeInterval,
+                            minimumInterval: TimeInterval = 30) -> RemoteSweep {
+        guard enabled, !hosts.isEmpty else { return .cancel }
+        guard !running else { return .skip }
+        guard force || sinceLastAttempt >= minimumInterval else { return .skip }
+        return .run
+    }
+
+    /// Whether results that have just arrived may still be shown. Separate
+    /// from `remoteSweep` because it is asked at a different moment — after
+    /// the connections have already happened — and the answer can have
+    /// changed in between.
+    static func shouldApplyRemote(enabled: Bool, hosts: [String]) -> Bool {
+        enabled && !hosts.isEmpty
+    }
+
     private func refreshRemoteIfDue(force: Bool) {
-        guard Settings.includeRemoteTmux else { remoteScan.cancel(); return }
         let hosts = Settings.remoteTmuxHosts
-        guard !hosts.isEmpty else { remoteScan.cancel(); return }
-        remoteScan.reconcile(hosts:hosts)
-        guard !remoteScan.isRunning else { return }
-        guard force || Date().timeIntervalSince(lastRemoteAttempt) >= 30 else { return }
+        switch Self.remoteSweep(enabled: Settings.includeRemoteTmux, hosts: hosts,
+                                running: remoteScan.isRunning, force: force,
+                                sinceLastAttempt: Date().timeIntervalSince(lastRemoteAttempt)) {
+        case .cancel: remoteScan.cancel(); return
+        case .skip:   remoteScan.reconcile(hosts: hosts); return
+        case .run:    remoteScan.reconcile(hosts: hosts)
+        }
         lastRemoteAttempt = Date()
         remoteScan.start(hosts:hosts) { [weak self] results in
-            guard let self, Settings.includeRemoteTmux else { return }
+            // The same question as `remoteSweep` asked before starting, asked
+            // again now: a sweep takes seconds, and the setting can be turned
+            // off while it is in flight. Results arriving after that belong to
+            // a feature the user has switched off.
+            guard let self,
+                  Self.shouldApplyRemote(enabled: Settings.includeRemoteTmux,
+                                         hosts: Settings.remoteTmuxHosts)
+            else { return }
             let merged = Self.applyRemote(results:results,to:self.remoteRowsByHost,
                 issues:self.remoteIssues,configured:Settings.remoteTmuxHosts)
             self.remoteRowsByHost = merged.rows

@@ -284,3 +284,9 @@ observer count goes negative and stays there | Sources/Antarium/Core/AgentStore.
 scan interval ignores whether anything is visible | Sources/Antarium/Core/AgentStore.swift | s|visible > 0 ? min(Double(configured), 5) : Double(configured)|Double(configured)|
 scan interval always fast | Sources/Antarium/Core/AgentStore.swift | s|visible > 0 ? min(Double(configured), 5) : Double(configured)|5|
 watched interval raised to the cap | Sources/Antarium/Core/AgentStore.swift | s|visible > 0 ? min(Double(configured), 5) : Double(configured)|visible > 0 ? 5 : Double(configured)|
+remote sweep runs on every local scan | Sources/Antarium/Core/AgentStore.swift | s|guard force \|\| sinceLastAttempt >= minimumInterval else { return .skip }||
+remote sweeps overlap each other | Sources/Antarium/Core/AgentStore.swift | s|guard !running else { return .skip }||
+remote scanning continues after being switched off | Sources/Antarium/Core/AgentStore.swift | s|guard enabled, !hosts.isEmpty else { return .cancel }|guard !hosts.isEmpty else { return .cancel }|
+remote sweep skips instead of cancelling when off | Sources/Antarium/Core/AgentStore.swift | s|guard enabled, !hosts.isEmpty else { return .cancel }|guard enabled, !hosts.isEmpty else { return .skip }|
+remote results applied after being switched off | Sources/Antarium/Core/AgentStore.swift | s|enabled \&\& !hosts.isEmpty|true|
+remote results applied after the last host is removed | Sources/Antarium/Core/AgentStore.swift | s|enabled \&\& !hosts.isEmpty|enabled|

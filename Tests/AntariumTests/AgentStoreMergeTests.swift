@@ -182,3 +182,93 @@ struct ScanIntervalTests {
                                         configured: 30) == 5)
     }
 }
+
+/// When the app reaches out to other machines. A sweep opens an SSH session
+/// to every configured host, so three of these four rules are about *not*
+/// connecting — and the one that matters most is that switching the feature
+/// off stops it. All four mutations of this survived before these existed.
+@Suite("Remote sweeps happen when they are meant to", .serialized)
+@MainActor
+struct RemoteSweepGatingTests {
+
+    private let hosts = ["alpha", "beta"]
+
+    /// The rule a user relies on when they untick the box. Continuing to
+    /// connect to someone's machines after they switched it off is not a
+    /// performance problem.
+    @Test("Switched off means stop, not merely stop starting new ones")
+    func disabledCancels() {
+        #expect(AgentStore.remoteSweep(enabled: false, hosts: hosts, running: false,
+                                       force: true, sinceLastAttempt: 9_999) == .cancel)
+        #expect(AgentStore.remoteSweep(enabled: false, hosts: hosts, running: true,
+                                       force: true, sinceLastAttempt: 9_999) == .cancel,
+                "a sweep already in flight must be dropped too")
+    }
+
+    @Test("No configured hosts is the same as switched off")
+    func noHostsCancels() {
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: [], running: false,
+                                       force: true, sinceLastAttempt: 9_999) == .cancel)
+    }
+
+    /// Without this the sweep runs on every local scan — every five seconds
+    /// while the dashboard is open — instead of every thirty, which is six
+    /// times the SSH traffic to somebody else's machines.
+    @Test("A sweep too soon after the last one is skipped")
+    func tooSoonIsSkipped() {
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: hosts, running: false,
+                                       force: false, sinceLastAttempt: 5) == .skip)
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: hosts, running: false,
+                                       force: false, sinceLastAttempt: 29.9) == .skip)
+    }
+
+    @Test("A sweep at or past the interval runs")
+    func dueRuns() {
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: hosts, running: false,
+                                       force: false, sinceLastAttempt: 30) == .run)
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: hosts, running: false,
+                                       force: false, sinceLastAttempt: 3_600) == .run)
+    }
+
+    /// Asking explicitly — opening the dashboard — skips the wait, because
+    /// the interval exists to stop background polling rather than to make
+    /// somebody wait for something they just asked for.
+    @Test("An explicit refresh does not wait for the interval")
+    func forceRunsImmediately() {
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: hosts, running: false,
+                                       force: true, sinceLastAttempt: 0) == .run)
+    }
+
+    /// Even when asked explicitly: a second sweep while one is in flight
+    /// doubles the connections to every host and races its own results.
+    @Test("One sweep at a time, however it was asked for")
+    func runningBlocksAnother() {
+        #expect(AgentStore.remoteSweep(enabled: true, hosts: hosts, running: true,
+                                       force: true, sinceLastAttempt: 9_999) == .skip)
+    }
+}
+
+/// A sweep takes seconds. What happens when the setting changes while one is
+/// in flight is a separate question from whether to start one, asked after
+/// the connections have already been made.
+@Suite("Results arriving after the feature was switched off are discarded")
+@MainActor
+struct RemoteCompletionTests {
+
+    @Test("Results are shown while the feature is on and hosts are configured")
+    func ordinaryCompletion() {
+        #expect(AgentStore.shouldApplyRemote(enabled: true, hosts: ["alpha"]))
+    }
+
+    @Test("Results are discarded when the feature was switched off mid-sweep")
+    func switchedOffMidSweep() {
+        #expect(!AgentStore.shouldApplyRemote(enabled: false, hosts: ["alpha"]))
+    }
+
+    /// And when the last host was removed while the sweep was running, there
+    /// is nothing those rows belong to.
+    @Test("Results are discarded when the last host was removed mid-sweep")
+    func hostsRemovedMidSweep() {
+        #expect(!AgentStore.shouldApplyRemote(enabled: true, hosts: []))
+    }
+}
