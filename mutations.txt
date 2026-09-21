@@ -313,3 +313,8 @@ a balance colours itself off a phantom fill | Sources/Antarium/Core/UsageModel.s
 a nearly spent window reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
 a nearly full window reads as complete | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||
 only the first two windows reach the bar | Sources/Antarium/UI/Renderer.swift | s|snapshot.gauges.prefix(2)|snapshot.gauges|
+name sort ignores case | Sources/Antarium/Core/AgentScan.swift | s|a.localizedCaseInsensitiveCompare(b) == .orderedAscending|a < b|
+harness grouping ignores the agent | Sources/Antarium/Core/AgentScan.swift | s|if \$0.agentID != \$1.agentID { return \$0.agentID < \$1.agentID }||
+recency tie-break runs backwards | Sources/Antarium/Core/AgentScan.swift | s|return (\$0.lastActivity ?? .distantPast) > (\$1.lastActivity ?? .distantPast)|return ($0.lastActivity ?? .distantPast) < ($1.lastActivity ?? .distantPast)|
+unknown host sorts first | Sources/Antarium/Core/AgentScan.swift | s|let a = \$0.hostApp ?? "\\u{10FFFF}", b = \$1.hostApp ?? "\\u{10FFFF}"|let a = $0.hostApp ?? "", b = $1.hostApp ?? ""|
+an unpriced row ties with a measured zero | Sources/Antarium/Core/AgentScan.swift | s|rows.sorted { (\$0.costUSD ?? -1) > (\$1.costUSD ?? -1) }|rows.sorted { ($0.costUSD ?? 0) > ($1.costUSD ?? 0) }|
