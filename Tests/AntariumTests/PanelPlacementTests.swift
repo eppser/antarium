@@ -206,3 +206,48 @@ struct PanelPlacementContractTests {
                 Comment(rawValue: "\(file) no longer uses the shared placement"))
     }
 }
+
+/// The clamp itself, which is where every one of these went wrong.
+///
+/// Three panel placements and the banner stack all narrow a position to a
+/// range whose bounds are computed from a screen and a window. When the
+/// window is larger than the space, those bounds cross — and a plain
+/// `min(max(…))` then returns the high one, which is the wrong side.
+@Suite("Clamping to a range whose ends can cross")
+struct CrossingClampTests {
+
+    @Test("An ordinary value inside the range is unchanged")
+    func inside() {
+        #expect(PanelPlacement.clamp(50, low: 0, high: 100) == 50)
+    }
+
+    @Test("A value outside is brought to the nearer end")
+    func outside() {
+        #expect(PanelPlacement.clamp(-10, low: 0, high: 100) == 0)
+        #expect(PanelPlacement.clamp(999, low: 0, high: 100) == 100)
+    }
+
+    @Test("The ends themselves are inside the range")
+    func endsAreInclusive() {
+        #expect(PanelPlacement.clamp(0, low: 0, high: 100) == 0)
+        #expect(PanelPlacement.clamp(100, low: 0, high: 100) == 100)
+    }
+
+    /// The case the plain form gets backwards. A window wider than the space
+    /// puts the high bound below the low one, and the honest answer is the
+    /// low one — the left margin — not the high one, which is off the edge.
+    @Test("When the ends cross, the low one wins")
+    func crossedEnds() {
+        #expect(PanelPlacement.clamp(50, low: 8, high: -172) == 8)
+        #expect(PanelPlacement.clamp(-999, low: 8, high: -172) == 8)
+        // And the plain form, for contrast, would give the wrong side.
+        let plain: CGFloat = min(max(CGFloat(50), CGFloat(8)), CGFloat(-172))
+        #expect(plain == CGFloat(-172), "the plain clamp stopped inverting")
+    }
+
+    @Test("A value that is not a number lands at the low end, not in a frame")
+    func notANumber() {
+        #expect(PanelPlacement.clamp(.nan, low: 8, high: 100) == 8)
+        #expect(PanelPlacement.clamp(.infinity, low: 8, high: 100) == 8)
+    }
+}

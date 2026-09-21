@@ -67,7 +67,12 @@ enum PanelPlacement {
     /// panel the high bound falls below the low one, and clamping to it would
     /// push the panel off the left edge rather than leaving it at the
     /// margin.
-    private static func clamp(_ value: CGFloat, low: CGFloat, high: CGFloat) -> CGFloat {
+    ///
+    /// Shared rather than private because the banner stack clamps the same
+    /// way and had the same inversion. Its own rule differs — a banner
+    /// follows its button leftward where a panel pins to the edge — so the
+    /// two are not one placement, but they cross their bounds identically.
+    static func clamp(_ value: CGFloat, low: CGFloat, high: CGFloat) -> CGFloat {
         guard value.isFinite else { return low }
         return high <= low ? low : min(max(value, low), high)
     }

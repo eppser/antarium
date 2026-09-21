@@ -305,9 +305,9 @@ a nearly full window reads as complete | Sources/Antarium/Core/UsageModel.swift 
 only the first two windows reach the bar | Sources/Antarium/UI/Renderer.swift | s|snapshot.gauges.prefix(2)|snapshot.gauges|
 name sort ignores case | Sources/Antarium/Core/AgentScan.swift | s|a.localizedCaseInsensitiveCompare(b) == .orderedAscending|a < b|
 harness grouping ignores the agent | Sources/Antarium/Core/AgentScan.swift | s|if \$0.agentID != \$1.agentID { return \$0.agentID < \$1.agentID }||
-recency tie-break runs backwards | Sources/Antarium/Core/AgentScan.swift | s|return (\$0.lastActivity ?? .distantPast) > (\$1.lastActivity ?? .distantPast)|return ($0.lastActivity ?? .distantPast) < ($1.lastActivity ?? .distantPast)|
+recency tie-break runs backwards | Sources/Antarium/Core/AgentScan.swift | s|        if left != right { return left > right }|        if left != right { return left < right }|
 unknown host sorts first | Sources/Antarium/Core/AgentScan.swift | s|let a = \$0.hostApp ?? "\\u{10FFFF}", b = \$1.hostApp ?? "\\u{10FFFF}"|let a = $0.hostApp ?? "", b = $1.hostApp ?? ""|
-an unpriced row ties with a measured zero | Sources/Antarium/Core/AgentScan.swift | s|rows.sorted { (\$0.costUSD ?? -1) > (\$1.costUSD ?? -1) }|rows.sorted { ($0.costUSD ?? 0) > ($1.costUSD ?? 0) }|
+an unpriced row ties with a measured zero | Sources/Antarium/Core/AgentScan.swift | s|                let a = $0.costUSD ?? -1, b = $1.costUSD ?? -1|                let a = $0.costUSD ?? 0, b = $1.costUSD ?? 0|
 duplicate ids silently override each other | Sources/Antarium/Core/HarnessCatalog.swift | s|if descriptors.count == 1 { resolved.append(descriptors\[0\]) }|if true { resolved.append(descriptors[0]) }|
 a duplicate id is not reported | Sources/Antarium/Core/HarnessCatalog.swift | s|problems.append("Multiple harness files declare the same ID. The last unambiguous configuration is retained when available.")||
 the catalog is returned unsorted | Sources/Antarium/Core/HarnessCatalog.swift | s|resolved.sorted { \$0.id < \$1.id }|resolved|
@@ -657,3 +657,6 @@ a barely started window reads as untouched | Sources/Antarium/UI/Renderer.swift 
 a figure that is not a number fills the bar | Sources/Antarium/UI/Renderer.swift | s|        guard fill.isFinite else { return 0 }||
 an empty window lights a beam anyway | Sources/Antarium/UI/Renderer.swift | s|        guard clamped > 0 else { return 0 }||
 the bar reads backwards | Sources/Antarium/UI/Renderer.swift | s|        return max(1, min(n, Int((clamped \* Double(n)).rounded())))|        return max(1, min(n, n - Int((clamped * Double(n)).rounded())))|
+the dashboard order is not total | Sources/Antarium/Core/AgentScan.swift | s|        return a.id < b.id|        return false|
+the clamp stops preferring the low end | Sources/Antarium/UI/PanelPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
+sorting by spend leaves ties to chance | Sources/Antarium/Core/AgentScan.swift | s|                if a != b { return a > b }|                return a > b; if false {}|

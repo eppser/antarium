@@ -126,3 +126,79 @@ struct ResumedTranscriptTests {
         #expect(AgentScan.transcriptURL(cwd: cwd, sessionID: "shared", root: root.path) == nil)
     }
 }
+
+/// The order the dashboard puts its rows in.
+///
+/// Swift's sort is not stable, so an order that stops at its first key lets
+/// equal rows swap on every scan — the list reshuffles under the pointer
+/// while nothing about the machine has changed. Four of the five orders
+/// already fell through to status and recency for this reason; the fifth did
+/// not, and that is the one most machines are in a position to notice.
+@Suite("Every dashboard order is stable between scans")
+struct AgentSortStabilityTests {
+
+    private func row(_ id: String, name: String = "project", agent: String = "claude-code",
+                     host: String? = nil, cost: Double? = nil,
+                     state: AgentRow.State = .waiting,
+                     activity: Date? = nil) -> AgentRow {
+        AgentRow(id: id, agentID: agent, name: name, cwd: "/synthetic/\(name)",
+                 state: state, lastActivity: activity, costUSD: cost, hostApp: host)
+    }
+
+    /// Rows that tie on everything the order looks at. Shuffled repeatedly
+    /// because the failure is an order that depends on the input's order, and
+    /// one arrangement agreeing with itself proves nothing.
+    private func isStable(_ rows: [AgentRow], _ order: AgentSort) -> Bool {
+        let wanted = AgentScan.sorted(rows, by: order).map(\.id)
+        for _ in 0..<25 where AgentScan.sorted(rows.shuffled(), by: order).map(\.id) != wanted {
+            return false
+        }
+        return true
+    }
+
+    /// The one that was wrong. Only some harnesses report a cost, so a
+    /// machine where most rows carry none — which is most machines — put
+    /// every costless row at the same value with nothing to separate them.
+    @Test("Sorting by spend does not reshuffle rows that report no cost")
+    func spendWithoutCosts() {
+        let rows = (1...6).map { row("row-\($0)", name: "p\($0)") }
+        #expect(isStable(rows, .spend),
+                "rows with no cost came back in a different order")
+    }
+
+    @Test("Sorting by spend still puts the biggest spender first")
+    func spendStillOrders() {
+        let rows = [row("a", cost: 1.5), row("b", cost: 12), row("c", cost: nil), row("d", cost: 0)]
+        #expect(AgentScan.sorted(rows, by: .spend).map(\.id) == ["b", "a", "d", "c"],
+                "a reported zero and no report at all were treated as the same thing")
+    }
+
+    /// Every order, against rows that tie as hard as they can.
+    @Test("Rows that tie on everything visible still come back in one order",
+          arguments: AgentSort.allCases)
+    func everyOrderIsTotal(order: AgentSort) {
+        let same = Date(timeIntervalSince1970: 1_700_000_000)
+        let rows = (1...6).map {
+            row("row-\($0)", name: "same", agent: "claude-code", host: "tmux",
+                cost: nil, state: .waiting, activity: same)
+        }
+        #expect(isStable(rows, order),
+                Comment(rawValue: "\(order) reordered rows that differ only by id"))
+    }
+
+    /// And the orders still order, or the tie-break above would be satisfied
+    /// by ignoring the key entirely.
+    @Test("Each order still sorts by the thing it names")
+    func ordersStillOrder() {
+        let older = Date(timeIntervalSince1970: 1_700_000_000)
+        let newer = Date(timeIntervalSince1970: 1_700_009_999)
+        #expect(AgentScan.sorted([row("b", name: "zeta"), row("a", name: "alpha")],
+                                 by: .name).map(\.id) == ["a", "b"])
+        #expect(AgentScan.sorted([row("b", agent: "zai"), row("a", agent: "codex")],
+                                 by: .harness).map(\.id) == ["a", "b"])
+        #expect(AgentScan.sorted([row("b", host: "Warp"), row("a", host: "Ghostty")],
+                                 by: .host).map(\.id) == ["a", "b"])
+        #expect(AgentScan.sorted([row("b", activity: older), row("a", activity: newer)],
+                                 by: .activity).map(\.id) == ["a", "b"])
+    }
+}

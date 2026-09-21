@@ -303,6 +303,25 @@ enum AgentScan {
         return out
     }
 
+    /// What every order falls through to once its own key has run out.
+    ///
+    /// Swift's sort is not stable, so an order that stops at its first key
+    /// lets equal rows swap on every scan — the list reshuffles under the
+    /// pointer while nothing has changed. Four of the five orders already
+    /// fell through to status and recency for this reason; `.spend` did not,
+    /// and a machine where most rows carry no cost — which is most machines,
+    /// since only some harnesses report one — put every costless row at the
+    /// same value and reordered them each time.
+    ///
+    /// Ends at the id, which is the only field two rows cannot share. The
+    /// same project open twice matches on everything a person can see.
+    private static func settles(_ a: AgentRow, _ b: AgentRow) -> Bool {
+        if a.state.rank != b.state.rank { return a.state.rank < b.state.rank }
+        let left = a.lastActivity ?? .distantPast, right = b.lastActivity ?? .distantPast
+        if left != right { return left > right }
+        return a.id < b.id
+    }
+
     static func sorted(_ rows: [AgentRow], by order: AgentSort = Settings.agentSort) -> [AgentRow] {
         switch order {
         case .name:
@@ -314,15 +333,13 @@ enum AgentScan {
             return rows.sorted {
                 let a = $0.coreName, b = $1.coreName
                 if a != b { return a.localizedCaseInsensitiveCompare(b) == .orderedAscending }
-                if $0.state.rank != $1.state.rank { return $0.state.rank < $1.state.rank }
-                return ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast)
+                return settles($0, $1)
             }
         case .harness:
             // Group by agent, then by the status order within each group.
             return rows.sorted {
                 if $0.agentID != $1.agentID { return $0.agentID < $1.agentID }
-                if $0.state.rank != $1.state.rank { return $0.state.rank < $1.state.rank }
-                return ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast)
+                return settles($0, $1)
             }
         case .host:
             // Group by the app they run in — tmux together, Warp together —
@@ -331,11 +348,17 @@ enum AgentScan {
             return rows.sorted {
                 let a = $0.hostApp ?? "\u{10FFFF}", b = $1.hostApp ?? "\u{10FFFF}"
                 if a != b { return a.localizedCaseInsensitiveCompare(b) == .orderedAscending }
-                if $0.state.rank != $1.state.rank { return $0.state.rank < $1.state.rank }
-                return ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast)
+                return settles($0, $1)
             }
         case .spend:
-            return rows.sorted { ($0.costUSD ?? -1) > ($1.costUSD ?? -1) }
+            // Rows with no cost at all are not "zero spend" — the harness
+            // simply does not report one — so they keep sorting below a real
+            // zero and settle among themselves rather than swapping.
+            return rows.sorted {
+                let a = $0.costUSD ?? -1, b = $1.costUSD ?? -1
+                if a != b { return a > b }
+                return settles($0, $1)
+            }
         case .activity:
             // An agent that is working right now *is* the most recent action,
             // whatever its transcript says. Several harnesses only write when a
@@ -344,7 +367,7 @@ enum AgentScan {
             // ones, and one with no timestamp at all dead last.
             return rows.sorted {
                 if $0.state.isBusy != $1.state.isBusy { return $0.state.isBusy }
-                return ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast)
+                return settles($0, $1)
             }
         }
     }

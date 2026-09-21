@@ -142,8 +142,15 @@ final class AgentAlert: NSObject {
             if let button = anchor, let window = button.window {
                 // Right-align to the status item, but never past the screen edge.
                 let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
-                x = min(max(frame.maxX - size.width, visible.minX + 12),
-                        visible.maxX - size.width - 12)
+                // Crossing-safe: on a screen narrower than the banner the
+                // high bound falls below the low one, and a plain
+                // min(max(…)) clamps to it — off the left edge. Not
+                // reachable on any Mac display at this banner's width, and
+                // shared with the panel rule because the shape is the one
+                // that has already been wrong twice.
+                x = PanelPlacement.clamp(frame.maxX - size.width,
+                                         low: visible.minX + 12,
+                                         high: visible.maxX - size.width - 12)
             }
             panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height),
                            display: true)
