@@ -213,8 +213,12 @@ step "Scan benchmark"
 home=$(mktemp -d); mkdir -p "$home/harnesses"; cp Resources/harnesses/*.json "$home/harnesses/"
 ANTARIUM_HOME="$home" "$BIN" --bench >/dev/null 2>&1
 # --bench reports the harness count it measured and whether transcripts are
-# still being absorbed, so there is nothing to recompute here.
-ANTARIUM_HOME="$home" "$BIN" --bench 2>&1 | sed 's/^/   /'
+# still being absorbed, so there is nothing to recompute here. It exits
+# non-zero when the fastest pass is over budget, which this step used only to
+# print — a scan ten times slower was reported underneath "All checks passed".
+bench=$(ANTARIUM_HOME="$home" "$BIN" --bench 2>&1); status=$?
+printf '%s\n' "$bench" | sed 's/^/   /'
+[ "$status" -eq 0 ] && ok "scan within budget" || bad "scan is over its budget"
 rm -rf "$home"
 
 printf '\n'

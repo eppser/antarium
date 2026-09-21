@@ -351,12 +351,15 @@ enum Diagnostics {
                 // was nothing of the kind.
                 let harnesses = HarnessDescriptor.all()
                 print("\(harnesses.count) harness(es) from \(HarnessDescriptor.directory.path)")
+                var passes: [Double] = []
                 for pass in 1...3 {
                     let t0 = ProcessInfo.processInfo.systemUptime
                     let n = scanOrExit().count
                     let ms = (ProcessInfo.processInfo.systemUptime - t0) * 1000
+                    passes.append(ms)
                     print(String(format: "pass %d: %6.1f ms  (%d sessions)", pass, ms, n))
                 }
+                let fastest = HarnessPerformanceBudget.steadyState(passes)
                 // Transcript history still being absorbed makes these numbers
                 // catch-up throughput rather than steady state, which is worth
                 // saying here rather than only in the documentation.
@@ -367,7 +370,20 @@ enum Diagnostics {
                 }
                 TranscriptStats.saveCache()
                 HarnessEngine.saveCache()
-                exit(0)
+                // The fastest pass, because the first is cold and the budget
+                // is about steady state. Reported either way, so a run that
+                // was not gated says so rather than looking like one that
+                // passed.
+                let acceptable = HarnessPerformanceBudget.scanIsAcceptable(
+                    fastestMilliseconds: fastest, backlogged: behind)
+                if behind > 0 {
+                    print("not gated: these passes are catch-up throughput")
+                } else {
+                    print(String(format: "fastest %.1f ms against a budget of %.0f ms — %@",
+                                 fastest, HarnessPerformanceBudget.scanMilliseconds,
+                                 acceptable ? "within it" : "OVER"))
+                }
+                exit(acceptable ? 0 : 1)
             }
             var rows = scanOrExit()
             if CommandLine.arguments.contains("--cloud") {

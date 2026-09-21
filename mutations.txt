@@ -575,3 +575,9 @@ plaintext is allowed anywhere | Sources/Antarium/Core/UsageHTTP.swift | s|guard 
 plaintext to this machine is refused | Sources/Antarium/Core/UsageHTTP.swift | s|guard scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host)) else {|guard scheme == "https" else {|
 a lookalike loopback host is trusted | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name.contains("localhost") \|\| name.contains("::1") { return true }|
 the unspecified address is trusted as loopback | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name == "localhost" \|\| name == "::1" \|\| name == "0.0.0.0" { return true }|
+the scan budget never fails | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|return fastestMilliseconds <= budget|return true|
+the scan budget fails a catch-up run | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|guard backlogged == 0 else { return true }||
+the scan budget is a tenth of a second | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|static let scanMilliseconds = 5_000.0|static let scanMilliseconds = 100.0|
+the benchmark ignores its own verdict | Sources/Antarium/Diagnostics.swift | s|exit(acceptable ? 0 : 1)|exit(0)|
+the budget gates on the last pass, not the fastest | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|passes.min() ?? .infinity|passes.last ?? .infinity|
+verify.sh stops gating on the benchmark | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "scan within budget" \|\| bad "scan is over its budget"||

@@ -524,3 +524,123 @@ struct UIAndReleaseContractTests {
         #expect(script.contains("SHA256"))
     }
 }
+
+/// Whether a benchmark run is one to gate on.
+///
+/// `verify.sh` printed three timings and checked none of them, so a scan that
+/// became ten times slower appeared underneath "All checks passed". This app
+/// was rebuilt because a scan was costing 54% of a core sustained; that shape
+/// of failure is exactly what a guardrail is for.
+@Suite("The scan budget")
+struct ScanBudgetTests {
+
+    @Test("A fast scan is within budget")
+    func fastIsAcceptable() {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: 350, backlogged: 0))
+    }
+
+    /// The boundary is inclusive: a run landing exactly on the budget has not
+    /// exceeded it.
+    @Test("A scan exactly at the budget passes, one past it does not")
+    func boundaryIsInclusive() {
+        let budget = HarnessPerformanceBudget.scanMilliseconds
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: budget, backlogged: 0))
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: budget + 1, backlogged: 0) == false)
+    }
+
+    /// A machine still absorbing transcript history is measuring catch-up
+    /// throughput, which is legitimately slower and depends on whatever the
+    /// developer has been running. Failing on that would fail for a reason
+    /// nobody can act on.
+    @Test("A backlogged run is not gated", arguments: [1, 5, 400])
+    func backloggedIsNotGated(_ behind: Int) {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: 60_000, backlogged: behind),
+                "a catch-up run was failed for being slow")
+    }
+
+    /// A timing that is not a number is not a passing timing. There is no
+    /// guard for this and no catalogue entry: NaN and infinity already
+    /// compare false against the budget, so a guard would be a line nothing
+    /// could catch. The behaviour is still worth pinning.
+    @Test("A timing that is not a number fails", arguments: [
+        Double.nan, .infinity,
+    ])
+    func nonFiniteFails(_ value: Double) {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: value, backlogged: 0) == false)
+    }
+
+    /// The budget is about steady state, and the first pass is cold — it
+    /// builds the caches the others read. Gating on the last pass instead
+    /// would gate on whatever the machine was doing during it.
+    @Test("The budget is measured against the fastest pass")
+    func steadyStateIsTheFastest() {
+        #expect(HarnessPerformanceBudget.steadyState([900, 340, 410]) == 340)
+        #expect(HarnessPerformanceBudget.steadyState([340]) == 340)
+    }
+
+    @Test("A run with no passes is not a fast run")
+    func noPassesIsNotFast() {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: HarnessPerformanceBudget.steadyState([]),
+            backlogged: 0) == false)
+    }
+
+    /// Generous on purpose. A budget near what a healthy machine shows would
+    /// fail on a busy laptop and be switched off, which is worse than a
+    /// budget that only catches catastrophe.
+    @Test("The budget is far above a healthy scan")
+    func budgetIsGenerous() {
+        #expect(HarnessPerformanceBudget.scanMilliseconds >= 5_000)
+    }
+}
+
+/// The benchmark acts on its own verdict.
+///
+/// Checked in the source because `--bench` runs three full scans and exits,
+/// which the suite does not do. The budget rule above says what acceptable
+/// means; this says the command does something about it, which is the half
+/// that was missing for the life of the step — verify.sh printed three
+/// timings and checked none of them.
+@Suite("The benchmark exits on its verdict")
+struct BenchmarkVerdictContractTests {
+
+    @Test("--bench exits non-zero when the scan is over budget")
+    func benchExitsOnVerdict() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Diagnostics.swift"), encoding: .utf8)
+        let bench = try #require(text.range(of: #"contains("--bench")"#),
+                                 "the benchmark command was renamed")
+        // The block is long — three timed scans, a cache save and the
+        // verdict — so the window has to reach past it. Measured rather than
+        // guessed: 2,000 characters stopped short of the exit and the test
+        // failed for the wrong reason.
+        let body = String(text[bench.lowerBound...].prefix(4_000))
+        #expect(body.contains("HarnessPerformanceBudget.scanIsAcceptable"),
+                "the benchmark reaches no verdict")
+        #expect(body.contains("exit(acceptable ? 0 : 1)"),
+                "the benchmark reaches a verdict and exits zero regardless")
+        #expect(body.contains("HarnessPerformanceBudget.steadyState"),
+                "the benchmark picks its own pass to judge")
+    }
+
+    /// And verify.sh acts on the exit status rather than only printing it,
+    /// which is what it did before.
+    @Test("verify.sh checks the benchmark's status")
+    func verifyChecksTheStatus() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent("verify.sh"),
+                              encoding: .utf8)
+        #expect(text.contains("scan is over its budget"),
+                "the benchmark step reports timings and gates on nothing")
+    }
+}
