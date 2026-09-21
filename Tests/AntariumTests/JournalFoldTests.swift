@@ -134,3 +134,67 @@ struct JournalFoldTests {
         #expect(folded["title"] as? String == "late")
     }
 }
+
+/// Lines whose operation the fold does not understand.
+///
+/// VS Code writes these files and is free to change them. What matters is
+/// what happens to a line this cannot read: applying it as something else
+/// puts figures into the folded document that were never in the file, and
+/// the reader has no way to tell afterwards.
+@Suite("A journal line nothing understands is skipped")
+struct JournalUnknownKindTests {
+
+    private let snapshot: [String: Any] = ["kind": 0, "v": ["title": "Real", "tokens": 10]]
+
+    private func title(_ folded: [String: Any]) -> String? { folded["title"] as? String }
+
+    /// The format omits `kind` on the first line, so absent still means
+    /// snapshot — the case the old default existed for.
+    @Test("A line with no kind at all is still a snapshot")
+    func absentKindIsASnapshot() {
+        let folded = Journal.fold([["v": ["title": "Real"]]])
+        #expect(title(folded) == "Real")
+    }
+
+    /// A kind that is not a number was read as zero, which is the most
+    /// destructive reading available: it replaced everything folded so far
+    /// with the patch's own payload.
+    @Test("A kind that is not a number does not replace the document",
+          arguments: [["kind": "1", "v": ["title": "Wrong"]] as [String: Any],
+                      ["kind": true, "v": ["title": "Wrong"]],
+                      ["kind": 1.5, "v": ["title": "Wrong"]],
+                      ["kind": NSNull(), "v": ["title": "Wrong"]]])
+    func malformedKindIsSkipped(line: [String: Any]) {
+        let folded = Journal.fold([snapshot, line])
+        #expect(title(folded) == "Real",
+                Comment(rawValue: "\(line["kind"] ?? "nil") overwrote the document"))
+    }
+
+    /// A kind VS Code adds later must not be applied as one this happens to
+    /// know. It used to fall through to the `set` path and write the value.
+    @Test("A kind this version does not know is skipped, not guessed at",
+          arguments: [3, 4, 99, -1])
+    func unknownKindIsSkipped(kind: Int) {
+        let folded = Journal.fold([snapshot,
+                                   ["kind": kind, "k": ["title"], "v": "Wrong"]])
+        #expect(title(folded) == "Real",
+                Comment(rawValue: "kind \(kind) was applied as something else"))
+    }
+
+    /// And the three it does know still work, or the guard above would be a
+    /// way of ignoring the whole file.
+    @Test("The kinds it knows are still applied")
+    func knownKindsStillApply() {
+        let set = Journal.fold([snapshot, ["kind": 1, "k": ["title"], "v": "Patched"]])
+        #expect(title(set) == "Patched")
+
+        let appended = Journal.fold([
+            ["kind": 0, "v": ["items": ["a"]]],
+            ["kind": 2, "k": ["items"], "v": ["b", "c"]],
+        ])
+        #expect((appended["items"] as? [Any])?.count == 3)
+
+        let replaced = Journal.fold([snapshot, ["kind": 0, "v": ["title": "Second"]]])
+        #expect(title(replaced) == "Second")
+    }
+}

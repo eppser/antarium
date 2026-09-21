@@ -14,7 +14,24 @@ enum Journal {
     static func fold(_ lines: [[String: Any]]) -> [String: Any] {
         var document: [String: Any] = [:]
         for line in lines {
-            let kind = line["kind"] as? Int ?? 0
+            // Absent means a snapshot: the format omits `kind` for the first
+            // line. Present and unreadable is a different thing, and so is a
+            // kind this does not know — VS Code is free to add one. Both used
+            // to be guessed at: a non-integer kind fell to 0 and replaced the
+            // whole document with a patch's payload, and an unknown number
+            // fell through to the `set` path and wrote it somewhere. Applying
+            // an operation nothing understood is how a folded document ends
+            // up carrying figures that were never in the file.
+            //
+            // Skipped instead. The fields the patch would have set are then
+            // simply absent, which every reader downstream already has an
+            // answer for.
+            let kind: Int
+            if line["kind"] == nil { kind = 0 }
+            else if let declared = line["kind"] as? Int, (0...2).contains(declared) {
+                kind = declared
+            } else { continue }
+
             if kind == 0 {
                 document = line["v"] as? [String: Any] ?? document
                 continue

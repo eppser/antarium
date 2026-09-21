@@ -661,3 +661,6 @@ the dashboard order is not total | Sources/Antarium/Core/AgentScan.swift | s|   
 the clamp stops preferring the low end | Sources/Antarium/UI/PanelPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
 sorting by spend leaves ties to chance | Sources/Antarium/Core/AgentScan.swift | s|                if a != b { return a > b }|                return a > b; if false {}|
 an unmeasured context reads as empty | Sources/Antarium/Core/HarnessEngine.swift | s|        var contextTokens: Int? { measuredContext }|        var contextTokens: Int? { measuredContext ?? 0 }|
+a malformed journal kind replaces the document | Sources/Antarium/Core/Journal.swift | s|            } else { continue }|            } else { kind = 0 }|
+an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...2).contains(declared) {|            else if let declared = line["kind"] as? Int {|
+a journal line with no kind is skipped | Sources/Antarium/Core/Journal.swift | s|            if line\["kind"\] == nil { kind = 0 }|            if false { kind = 0 }|
