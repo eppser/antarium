@@ -642,3 +642,8 @@ a declared mark is ignored | Sources/Antarium/UI/Glyphs.swift | s|        if let
 any descriptor lends its mark | Sources/Antarium/UI/Glyphs.swift | s|descriptors.first(where: { \$0.id == agentID })?.resolvedMark|descriptors.first?.resolvedMark|
 the alias table is skipped | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return agentID|
 every agent wears its alias whether it has one or not | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return alias[agentID] ?? "claude-code"|
+a signed hex is read as a colour | Sources/Antarium/UI/AgentStyle.swift | s|        guard s.count == 6, s.allSatisfy(\\.isHexDigit),|        guard s.count == 6,|
+any length of hex is a colour | Sources/Antarium/UI/AgentStyle.swift | s|        guard s.count == 6, s.allSatisfy(\\.isHexDigit),|        guard s.allSatisfy(\\.isHexDigit),|
+a negative row walks the palette backwards | Sources/Antarium/UI/AgentStyle.swift | s|        let row = max(0, index)|        let row = index|
+every row is the first row | Sources/Antarium/UI/AgentStyle.swift | s|        let row = max(0, index)|        let row = 0|
+the blue channel is the red one | Sources/Antarium/UI/AgentStyle.swift | s|blue: CGFloat(v \& 0xFF) / 255, alpha: 1)|blue: CGFloat((v >> 16) \& 0xFF) / 255, alpha: 1)|
