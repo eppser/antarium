@@ -255,12 +255,26 @@ final class AgentItem: NSObject, NSMenuDelegate {
     /// rollover — minutes or hours away — is unaffected.
     static let minimumPollInterval: TimeInterval = 60
 
+    /// How long to wait after a failed reading.
+    ///
+    /// Doubling from a minute, and never longer than the interval the user
+    /// asked for — a provider that is failing must not end up checked less
+    /// often than one that is working, or a service coming back stays
+    /// unnoticed. The doubling is capped before the multiplication so a long
+    /// outage cannot overflow it into something absurd.
+    ///
+    /// The first retry is sooner than the normal interval on purpose: most
+    /// failures are a dropped connection, and waiting ten minutes to find
+    /// that out is worse than asking again in two.
+    static func backoff(failures: Int, interval: TimeInterval) -> TimeInterval {
+        min(interval, pow(2, Double(min(max(failures, 0), 4))) * 60)
+    }
+
     private func scheduleNext(success: Bool, snapshot: Snapshot? = nil) {
         let interval = TimeInterval(Settings.refreshMinutes * 60)
         guard success else {
-            // Back off, but never past the normal interval.
             nextFetch = Date().addingTimeInterval(
-                min(interval, pow(2, Double(min(consecutiveFailures, 4))) * 60))
+                Self.backoff(failures: consecutiveFailures, interval: interval))
             return
         }
         nextFetch = Self.nextPoll(after: Date(), interval: interval,

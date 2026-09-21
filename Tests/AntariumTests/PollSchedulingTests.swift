@@ -106,3 +106,53 @@ struct PollSchedulingTests {
         #expect(crossed.rolledOver, "reset moved later and headroom jumped back up")
     }
 }
+
+/// How often a failing provider is asked again. Too eager and the app
+/// hammers a service that is already refusing it; too patient and a service
+/// that has come back stays unnoticed until the user goes looking.
+@Suite("Backing off from a failure")
+@MainActor
+struct FailureBackoffTests {
+
+    private let interval: TimeInterval = 10 * 60
+
+    /// A first failure is usually a dropped connection. Waiting the full
+    /// interval to discover otherwise is worse than asking again shortly.
+    @Test("The first retry comes sooner than the normal interval")
+    func firstRetryIsProm() {
+        #expect(AgentItem.backoff(failures: 1, interval: interval) == 120)
+        #expect(AgentItem.backoff(failures: 1, interval: interval) < interval)
+    }
+
+    @Test("Each further failure waits longer than the last")
+    func backoffGrows() {
+        let waits = (1...4).map { AgentItem.backoff(failures: $0, interval: 3_600) }
+        #expect(waits == [120, 240, 480, 960])
+        #expect(waits == waits.sorted(), "the wait must not shrink as failures mount")
+    }
+
+    /// A failing provider must not end up checked *less* often than a
+    /// working one, or a service that recovers is never noticed.
+    @Test("The wait never exceeds the interval the user asked for")
+    func neverSlowerThanConfigured() {
+        for failures in 0...50 {
+            #expect(AgentItem.backoff(failures: failures, interval: interval) <= interval)
+        }
+        #expect(AgentItem.backoff(failures: 99, interval: 60) == 60)
+    }
+
+    /// The doubling is capped before it is applied, so a long outage cannot
+    /// turn into an overflow or an absurd wait.
+    @Test("A very long outage does not overflow the wait")
+    func longOutageIsBounded() {
+        let wait = AgentItem.backoff(failures: Int.max, interval: 86_400)
+        #expect(wait.isFinite)
+        #expect(wait == 960, "the doubling is capped at four failures")
+    }
+
+    @Test("A count of zero or below is still a real wait")
+    func nonPositiveFailures() {
+        #expect(AgentItem.backoff(failures: 0, interval: interval) == 60)
+        #expect(AgentItem.backoff(failures: -3, interval: interval) == 60)
+    }
+}

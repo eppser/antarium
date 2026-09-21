@@ -355,3 +355,7 @@ quota cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !re
 installation cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|            if !passed { failed.append(descriptor.id) }||
 a genuine v0 document is nagged | Sources/Antarium/Core/HarnessCheck.swift | s|(object\["formatVersion"\] as? NSNumber)?.intValue|(object["formatVersion"] as? NSNumber)?.intValue ?? HarnessDocument.currentVersion|
 a superseded key fails the check | Sources/Antarium/Core/HarnessCheck.swift | s|            warn("\\(legacy) is a v0 key.|            fail("\\(legacy) is a v0 key.|
+backoff exceeds the configured interval | Sources/Antarium/AgentItem.swift | s|min(interval, pow(2, Double(min(max(failures, 0), 4))) \* 60)|pow(2, Double(min(max(failures, 0), 4))) * 60|
+backoff never grows | Sources/Antarium/AgentItem.swift | s|pow(2, Double(min(max(failures, 0), 4))) \* 60|60|
+backoff doubling uncapped | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|max(failures, 0)|
+backoff negative on a negative count | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|min(failures, 4)|
