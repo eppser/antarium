@@ -500,3 +500,16 @@ a cancelled scan may still publish | Sources/Antarium/Core/ScanGeneration.swift 
 a new scan generation repeats the last | Sources/Antarium/Core/ScanGeneration.swift | s|latest \&+= 1||
 a missing file is indistinguishable from an unreadable one | Sources/Antarium/Core/FileStamp.swift | s|return errno == ENOENT \|\| errno == ENOTDIR ? "" : "unavailable:\\(errno)"|return ""|
 a non-json file changes the directory signature | Sources/Antarium/Core/FileStamp.swift | s|.filter { \$0.pathExtension == "json" }||
+a blank host is asked | Sources/Antarium/Core/RemoteSweep.swift | s|.filter { !\$0.isEmpty \&\& seen.insert(\$0).inserted }|.filter { seen.insert($0).inserted }|
+a repeated host is asked twice | Sources/Antarium/Core/RemoteSweep.swift | s|.filter { !\$0.isEmpty \&\& seen.insert(\$0).inserted }|.filter { !$0.isEmpty }|
+a host name keeps its surrounding spaces | Sources/Antarium/Core/RemoteSweep.swift | s|.map { \$0.trimmingCharacters(in:.whitespaces) }||
+an unusable destination is attempted | Sources/Antarium/Core/RemoteSweep.swift | s|guard isSafeHost(host) else {|guard true else {|
+the fleet limit is ignored | Sources/Antarium/Core/RemoteSweep.swift | s|let count = min(fleetLimit,unique.count)|let count = unique.count|
+the sweep always starts at the beginning | Sources/Antarium/Core/RemoteSweep.swift | s|let start = count == 0 ? 0 : max(0,startIndex) % count|let start = 0|
+a negative start index is used as given | Sources/Antarium/Core/RemoteSweep.swift | s|max(0,startIndex) % count|startIndex % count|
+the next sweep starts where this one did | Sources/Antarium/Core/RemoteSweep.swift | s|Sweep(results:results,nextIndex:count == 0 ? 0 : (start + taken) % count)|Sweep(results:results,nextIndex:start)|
+the time budget is ignored | Sources/Antarium/Core/RemoteSweep.swift | s|now - began >= span|false|
+a budget longer than the ceiling is honoured | Sources/Antarium/Core/RemoteSweep.swift | s|let span = duration.isFinite ? min(30,max(0,duration)) : 0|let span = duration.isFinite ? max(0,duration) : 0|
+a budget that is not a number runs for ever | Sources/Antarium/Core/RemoteSweep.swift | s|let span = duration.isFinite ? min(30,max(0,duration)) : 0|let span = min(30,max(0,duration))|
+a clock that goes backwards keeps the pass running | Sources/Antarium/Core/RemoteSweep.swift | s|\|\| now < began \|\| now - began >= span|\|\| now - began >= span|
+a cancelled pass keeps asking | Sources/Antarium/Core/RemoteSweep.swift | s|return cancellation() \|\||return false \|\||

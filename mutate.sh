@@ -135,12 +135,21 @@ while IFS='|' read -r name file expression; do
             printf '  %-46s does not compile\n' "$name"
             broken=$((broken+1))
         elif run_tests "$BACKUP/out"; status=$?
-              [ "$status" -eq 124 ] || grep -q '^✘ Test "' "$BACKUP/out"; then
-            # A mutation that never finishes has failed: not returning is a way
-            # of being wrong, and a bound removed from a loop is exactly that.
-            [ "$status" -eq 124 ] \
-                && printf '  %-46s caught (never finished)\n' "$name" \
-                || printf '  %-46s caught\n' "$name"
+              [ "$status" -ne 0 ] || grep -q '^✘ Test "' "$BACKUP/out"; then
+            # Any nonzero exit is a catch, not only a reported failure. A
+            # mutation can make the suite trap — an index that goes negative,
+            # a force-unwrap that stops holding — and a trap prints a fatal
+            # error and no `✘ Test` line at all. Matching only on that line
+            # reported such a mutation as SURVIVED: the answer this runner
+            # must never give, and it was giving it for the loudest failure
+            # there is.
+            if [ "$status" -eq 124 ]; then
+                printf '  %-46s caught (never finished)\n' "$name"
+            elif grep -q '^✘ Test "' "$BACKUP/out"; then
+                printf '  %-46s caught\n' "$name"
+            else
+                printf '  %-46s caught (the suite did not survive it)\n' "$name"
+            fi
             caught=$((caught+1))
         elif [ -x tools/strip-inert.py ] \
              && python3 tools/strip-inert.py "$file" >"$BACKUP/now" 2>/dev/null \

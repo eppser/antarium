@@ -110,6 +110,14 @@ seed changes per process, so the same mutation is caught on one run and
 survives the next. Ordering fixtures want eight or ten entries, written out
 of order. A `SURVIVED` line that does not reproduce is this, not luck.
 
+`caught (the suite did not survive it)` means the mutation made the tests
+trap rather than fail — an index that went negative, a force-unwrap that
+stopped holding. That is a catch, and a loud one. The runner used to look
+only for a reported `✘ Test` line, so a trap printed a fatal error, produced
+no such line, and was announced as SURVIVED: the answer it must never give,
+given for the loudest failure there is. If you are reading an old report, a
+survivor that looks impossible may have been this.
+
 A mutation reported as `caught (never finished)` was caught by a test that
 hung rather than one that failed. That is a real catch and the harness treats
 it as one, but it is a slow one: prefer a test that fails outright on the same
