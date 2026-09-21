@@ -627,7 +627,15 @@ enum AgentScan {
                 rows += commandRows(descriptor, processes: processes)
                 continue
             }
-            let matches = processes.values.filter { descriptor.claims($0) }
+            // By pid, as `presenceRows` does two functions below. A dictionary
+            // yields its values in an order that is stable within a process
+            // and not across runs, so without this a harness claiming several
+            // processes produces rows that shuffle between scans — and the
+            // final sort cannot fix it, because rows tied on its key keep
+            // whatever order they arrived in.
+            let matches = processes.values
+                .filter { descriptor.claims($0) }
+                .sorted { $0.pid < $1.pid }
             guard !matches.isEmpty else { continue }
 
             for process in matches {

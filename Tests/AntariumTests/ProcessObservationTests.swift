@@ -151,3 +151,59 @@ struct ProcessBudgetTests {
         #expect(Processes.openFilePaths(of: getpid(), limit: -1).isEmpty)
     }
 }
+
+/// Row order from a harness claiming several processes. A dictionary yields
+/// its values in an order stable within a process and not across runs, so an
+/// unsorted iteration looks right in every test and differs elsewhere. This
+/// is the third place that shape turned up — the glob search and the remote
+/// parse were the others.
+@Suite("Rows from one harness come back in a stable order", .serialized)
+struct LocalRowOrderTests {
+
+    private func descriptor() throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "order-fixture", "name": "Fixture",
+            "process": ["pathContains": ["/synthetic/agent"]],
+            "source": ["kind": "none", "path": ""],
+            "contributes": "presence"]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    private func processes(_ pids: [Int32]) -> [Int32: Processes.Info] {
+        var table: [Int32: Processes.Info] = [:]
+        for pid in pids {
+            table[pid] = Processes.Info(pid: pid, ppid: 1,
+                                        path: "/synthetic/agent/bin/tool",
+                                        name: "tool", argv0: "tool", rss: 1_024)
+        }
+        return table
+    }
+
+    @Test("Several claimed processes yield rows in pid order")
+    func pidOrder() throws {
+        let table = processes([400, 100, 300, 200])
+        let rows = AgentScan.presenceRows(try descriptor(), processes: table)
+        #expect(rows.count == 4)
+        #expect(rows.map(\.pid) == [100, 200, 300, 400])
+    }
+
+    @Test("The same input twice gives the same order")
+    func repeatable() throws {
+        let table = processes([900, 100, 500, 300, 700, 200])
+        let descriptor = try descriptor()
+        let first = AgentScan.presenceRows(descriptor, processes: table)
+        let again = AgentScan.presenceRows(descriptor, processes: table)
+        #expect(first.map(\.id) == again.map(\.id))
+        #expect(first.map(\.pid) == [100, 200, 300, 500, 700, 900])
+    }
+
+    @Test("A process no descriptor claims contributes no row")
+    func unclaimed() throws {
+        var table = processes([100])
+        table[200] = Processes.Info(pid: 200, ppid: 1, path: "/usr/bin/vim",
+                                    name: "vim", argv0: "vim", rss: nil)
+        let rows = AgentScan.presenceRows(try descriptor(), processes: table)
+        #expect(rows.map(\.pid) == [100])
+    }
+}

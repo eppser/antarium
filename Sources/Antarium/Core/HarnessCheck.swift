@@ -200,7 +200,11 @@ enum HarnessCheck {
             fail("Local process discovery failed; running matches are unknown.")
             return 1
         }
-        let claimed = processes.values.filter { descriptor.claims($0) }
+        // Sorted so two runs of --check on the same machine print the same
+        // report; a diagnostic that reorders itself is hard to diff.
+        let claimed = processes.values
+            .filter { descriptor.claims($0) }
+            .sorted { $0.pid < $1.pid }
         if descriptor.match.isEmpty && descriptor.processNames.isEmpty {
             if descriptor.source.kind != .none {
                 warn("no process patterns — this file will never claim a process")

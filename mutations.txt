@@ -272,3 +272,4 @@ remote rows built in whatever order | Sources/Antarium/Core/RemoteTmux.swift | s
 remote pane walk stops at the process itself | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<8 {|for _ in 0..<1 {|
 selection filter ignored | Sources/Antarium/Core/SessionSelection.swift | s|guard accepted else { continue }||
 selection boolean filters stop matching | Sources/Antarium/Core/SessionSelection.swift | s|text = CFGetTypeID(value) == CFBooleanGetTypeID() ? (value.boolValue ? "true" : "false") : value.stringValue|text = value.stringValue|
+presence rows unsorted | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.pid < \$1.pid }|.sorted { _, _ in Bool.random() }|

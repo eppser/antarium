@@ -428,6 +428,15 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
+Anything iterated out of a `Set` or a `Dictionary` and then shown, written or
+compared is sorted first. Their order is stable within one process and not
+across runs, so an unsorted iteration looks correct in every test that was
+ever written for it and differs on somebody else's machine. Three of those
+were found in one sweep — the glob search that finds session files, the rows
+parsed from a remote host, and the rows a harness claiming several processes
+produces — and a final sort does not rescue them, because rows tied on its
+key keep whatever order they arrived in.
+
 Every reader that turns input from outside this process into objects bounds
 the objects, not only the bytes. The two are different budgets and the second
 does not imply the first: four megabytes of small JSON records is tens of
