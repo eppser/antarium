@@ -284,6 +284,28 @@ struct ShippedCapabilityTests {
         #expect(rule.countedSuffixes == [".mdc"], "an ignored file would count as instructions")
     }
 
+    /// opencode documents CLAUDE.md as a fallback used only when AGENTS.md
+    /// is absent, and the same for the two global files. Declaring them in
+    /// that order is what makes the capability report the file opencode
+    /// actually read rather than whichever the probe met first.
+    @Test("opencode reads AGENTS.md before its Claude Code fallbacks")
+    func opencodeRules() throws {
+        let rules = try descriptor("opencode").capabilityRules
+        let instruction = try #require(rules["instruction"])
+        #expect(instruction.resolvedProbe == .content)
+        #expect(instruction.projectPaths == ["AGENTS.md", "CLAUDE.md"],
+                "the fallback would be preferred over the documented file")
+        #expect(instruction.inheritedPaths
+                == ["~/.config/opencode/AGENTS.md", "~/.claude/CLAUDE.md"])
+
+        let skills = try #require(rules["skills"])
+        #expect(skills.resolvedProbe == .directory)
+        #expect(skills.projectPaths
+                == [".opencode/skills", ".claude/skills", ".agents/skills"])
+        #expect(skills.inheritedPaths
+                == ["~/.config/opencode/skills", "~/.claude/skills", "~/.agents/skills"])
+    }
+
     /// Gemini CLI's documentation names `~/.gemini/GEMINI.md` as the global
     /// context file and `GEMINI.md` in the workspace as the project one, and
     /// puts skills in `.agents/skills` or `.gemini/skills` with the `.agents`

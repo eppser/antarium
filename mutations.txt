@@ -372,6 +372,9 @@ grok refresh ignores the scheme | Sources/Antarium/Providers/GrokProvider.swift 
 descriptor json credential read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
 descriptor credential bound raised | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxCredentialBytes = 256 \* 1_024|static let maxCredentialBytes = 512 * 1_024|
 a focus-only harness declares project context | Resources/harnesses/herdr.json | s|"contributes": "focus"|"capabilities": {"instruction": {"project": ["AGENTS.md"]}}, "contributes": "focus"|
-a gap drops out of the ecosystem list | docs/ECOSYSTEM.md | s|`opencode`|`opencode-renamed`|
+a gap drops out of the ecosystem list | docs/ECOSYSTEM.md | s|`cursor-cli`|`cursor-cli-renamed`|
 gemini global context read as a project file | Resources/harnesses/gemini.json | s|"~/.gemini/GEMINI.md"|"GEMINI.md"|
 gemini skill folders in the wrong precedence | Resources/harnesses/gemini.json | s|"\.agents/skills"|".gemini/skills"|
+opencode prefers the claude fallback | Resources/harnesses/opencode.json | s|^        "AGENTS.md",$||
+opencode global rules read from the project | Resources/harnesses/opencode.json | s|"~/.config/opencode/AGENTS.md"|"AGENTS.md"|
+opencode skills miss the agents alias | Resources/harnesses/opencode.json | s|".agents/skills"|".opencode/skills"|

@@ -82,7 +82,7 @@
     ]
   },
   "detached": true,
-  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id. Zen quota comes from opencode.ai's own usage endpoint, which reports the account rather than this machine. The rolling window's length is not stated in the response, so its badge says ROLL rather than claiming a duration. The key is read from opencode's auth store; an XDG_DATA_HOME override is not followed \u2014 set quota.credential.path in ~/.antarium/harnesses/opencode.json if you use one.",
+  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id. Zen quota comes from opencode.ai's own usage endpoint, which reports the account rather than this machine. The rolling window's length is not stated in the response, so its badge says ROLL rather than claiming a duration. The key is read from opencode's auth store; an XDG_DATA_HOME override is not followed \u2014 set quota.credential.path in ~/.antarium/harnesses/opencode.json if you use one. Rules are AGENTS.md, with CLAUDE.md read only when there is no AGENTS.md, and the global pair is ~/.config/opencode/AGENTS.md then ~/.claude/CLAUDE.md \u2014 the declared order is the documented precedence, so the file shown is the one opencode actually used. Skills are read from three project folders and the same three under home. Not declared: the walk up to the git worktree, and the instructions list in opencode.json, which can name arbitrary globs and remote URLs; a probe at the session's working directory can see neither, and showing nothing is better than showing the wrong file. The Claude-compatible paths can be switched off with OPENCODE_DISABLE_CLAUDE_CODE, in which case they read as present when opencode is ignoring them.",
   "multiSession": true,
   "selection": {
     "kind": "jsonFiles",
@@ -132,5 +132,31 @@
     "setupHint": "Run `opencode auth login` and pick OpenCode Zen.",
     "signInCommand": "opencode auth login",
     "verified": false
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "inherited": [
+        "~/.config/opencode/AGENTS.md",
+        "~/.claude/CLAUDE.md"
+      ]
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [
+        ".opencode/skills",
+        ".claude/skills",
+        ".agents/skills"
+      ],
+      "inherited": [
+        "~/.config/opencode/skills",
+        "~/.claude/skills",
+        "~/.agents/skills"
+      ]
+    }
   }
 }
