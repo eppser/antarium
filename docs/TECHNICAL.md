@@ -499,6 +499,13 @@ is exactly why a bytes rule would not have caught it. The newest 500 are
 kept, ordered on the timestamp the filename begins with rather than on
 modification time, which a copy or a restore rewrites.
 
+A `balance` must declare a `currency` — a path into the response where the
+service states one, or the code itself. The mapping used to answer "USD" for
+a descriptor that declared none, which turns a CNY balance into a dollar
+figure wrong by an exchange rate. Neither shipped descriptor relied on that
+default; it was a trap set for whoever wrote the next one, and the decoder
+refuses it now rather than guessing.
+
 An `env` credential reads its variable first and the file at its `path`
 second. The fallback is not decoration: an app started from Finder inherits
 the launchd session environment rather than a shell's, so a key exported in a

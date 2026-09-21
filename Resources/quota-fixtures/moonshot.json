@@ -1,0 +1,91 @@
+{
+  "note": "Synthetic. Shape follows Moonshot's documented balance payload \u2014 code, data.{available_balance,voucher_balance,cash_balance}, scode, status. Every value is invented.",
+  "verifiedAt": "2026-09-21",
+  "cases": [
+    {
+      "name": "a funded account",
+      "response": {
+        "code": 0,
+        "scode": "0x0",
+        "status": true,
+        "data": {
+          "available_balance": 49.58894,
+          "voucher_balance": 46.58893,
+          "cash_balance": 3.00001
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "balance",
+            "badge": "BAL",
+            "title": "Moonshot balance",
+            "usedPercent": 0,
+            "amount": 49.58894,
+            "currency": "USD"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an exhausted account is nought, not absent",
+      "response": {
+        "code": 0,
+        "scode": "0x0",
+        "status": true,
+        "data": {
+          "available_balance": 0.0,
+          "voucher_balance": 0.0,
+          "cash_balance": 0.0
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "balance",
+            "badge": "BAL",
+            "title": "Moonshot balance",
+            "usedPercent": 0,
+            "amount": 0.0,
+            "currency": "USD"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the cash and voucher halves are not charted separately",
+      "response": {
+        "code": 0,
+        "scode": "0x0",
+        "status": true,
+        "data": {
+          "available_balance": 10.0,
+          "voucher_balance": 7.0,
+          "cash_balance": 3.0
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "balance",
+            "badge": "BAL",
+            "title": "Moonshot balance",
+            "usedPercent": 0,
+            "amount": 10.0,
+            "currency": "USD"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a reply with no balance reports nothing",
+      "response": {
+        "code": 0,
+        "scode": "0x0",
+        "status": true,
+        "data": {}
+      },
+      "expectError": "unsupported"
+    }
+  ]
+}

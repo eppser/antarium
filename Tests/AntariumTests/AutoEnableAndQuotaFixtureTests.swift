@@ -290,7 +290,12 @@ func singleWindowAndMissingEnvelope() {
 @Test("Currency is read from the window when a path is given, kept literal otherwise")
 func currencyResolution() {
     var map = HarnessDescriptor.Quota.Windows()
-    #expect(DescriptorProvider.currency(map, window: [:]) == "USD")
+    // No default. A descriptor declaring a balance must declare its currency
+    // — the decoder refuses one that does not — so an undeclared currency
+    // here means the rule was removed, not that dollars are a fair guess. It
+    // used to answer "USD", which turns a CNY balance into a dollar figure
+    // wrong by an exchange rate.
+    #expect(DescriptorProvider.currency(map, window: [:]) == "")
     map.currency = "USD"
     #expect(DescriptorProvider.currency(map, window: ["currency": "CNY"]) == "USD")
     map.currency = "currency"

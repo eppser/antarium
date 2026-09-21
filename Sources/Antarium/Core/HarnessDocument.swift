@@ -156,6 +156,23 @@ enum HarnessDocument {
                 throw Error.semantic("quota declares neither an endpoint nor a command")
             default: break
             }
+            // A balance is money, and money with no stated currency is a
+            // number whose meaning is unknown. The mapping used to answer
+            // "USD" for an author who omitted it, which turns a CNY balance
+            // into a dollar figure wrong by an exchange rate — the exact
+            // mistake the deepseek harness carries a note about. Neither
+            // shipped descriptor relied on that default; it was a trap set
+            // for whoever wrote the next one.
+            if let windows = quota["windows"] as? [String: Any],
+               let balance = windows["balance"] as? String, !balance.isEmpty {
+                let currency = (windows["currency"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let currency, !currency.isEmpty else {
+                    throw Error.semantic(
+                        "quota.windows.balance needs quota.windows.currency — a path "
+                        + "into the response where the service states one, or the code itself")
+                }
+            }
             if command?.isEmpty == false {
                 if quota["headers"] != nil {
                     throw Error.semantic("quota.headers is only read for an endpoint")

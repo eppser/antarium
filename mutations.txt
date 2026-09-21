@@ -445,3 +445,7 @@ openrouter reads the inference key variable | Resources/harnesses/openrouter.jso
 openrouter charts purchases as usage | Resources/harnesses/openrouter.json | s|"used": "data.total_usage",|"used": "data.total_credits",|
 openrouter divides by a missing limit | Sources/Antarium/Providers/DescriptorProvider.swift | s|let limit = FieldPath.number(window, limitPath), limit > 0 {|let limit = FieldPath.number(window, limitPath), limit >= 0 {|
 openrouter numbers claim to be verified | Resources/harnesses/openrouter.json | s|"verified": false|"verified": true|
+a balance may omit its currency | Sources/Antarium/Core/HarnessDocument.swift | s|                guard let currency, !currency.isEmpty else {|                guard true else {|
+an undeclared currency is assumed to be dollars | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard let declared = map.currency else { return "" }|guard let declared = map.currency else { return "USD" }|
+moonshot charts a half instead of the gated figure | Resources/harnesses/moonshot.json | s|"balance": "data.available_balance"|"balance": "data.cash_balance"|
+moonshot numbers claim to be verified | Resources/harnesses/moonshot.json | s|"verified": false|"verified": true|

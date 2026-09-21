@@ -58,9 +58,14 @@ struct QuotaCheckTests {
         #expect(try check { $0["windows"] = ["root": "usage"] } != 0)
         // `used` without `limit` is a ratio with no denominator.
         #expect(try check { $0["windows"] = ["root": "usage", "used": "n"] } != 0)
+        // And a balance without a currency is money of unknown denomination.
+        #expect(try check { $0["windows"] = ["single": "c", "balance": "amount"] } != 0)
+        #expect(try check {
+            $0["windows"] = ["single": "c", "balance": "amount", "currency": "  "]
+        } != 0, "whitespace is not a currency")
         for shape in [["root": "usage", "percentRemaining": "left"],
                       ["root": "usage", "used": "n", "limit": "cap"],
-                      ["single": "credits", "balance": "amount"]] {
+                      ["single": "credits", "balance": "amount", "currency": "USD"]] {
             #expect(try check { $0["windows"] = shape } == 0, "rejected a valid shape: \(shape)")
         }
     }
@@ -724,5 +729,85 @@ struct OpenRouterQuotaTests {
     func exhaustedReadsFull() throws {
         let gauge = try #require(try snapshot(credits: 40, usage: 40).gauges.first)
         #expect(abs(gauge.used - 1.0) < 0.0001)
+    }
+}
+
+/// Moonshot's balance, and the currency it does not state.
+///
+/// The API returns no currency field. The mapping used to answer "USD" for a
+/// descriptor that declared none, which turns a CNY balance into a dollar
+/// figure wrong by an exchange rate — the mistake the deepseek harness
+/// already carries a note about. The decoder refuses a balance without a
+/// currency now, so this descriptor has to say what it means and why.
+@Suite("Moonshot charts the figure the service itself gates on")
+struct MoonshotQuotaTests {
+
+    private func descriptor() throws -> HarnessDescriptor {
+        let url = try #require(AppResources.bundle.url(
+            forResource: "moonshot", withExtension: "json", subdirectory: "harnesses"))
+        return try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+    }
+
+    private func snapshot(_ data: [String: Any]) throws -> Snapshot {
+        let provider = try #require(DescriptorProvider(try descriptor()))
+        return try provider.makeSnapshot(["code": 0, "status": true, "data": data])
+    }
+
+    /// The service says requests start failing once `available_balance`
+    /// reaches zero, so that is the number worth watching — not the cash and
+    /// voucher halves it is made of, which would be two bars for one fact.
+    @Test("The gated figure is charted, not the halves it is made of")
+    func chartsAvailableBalance() throws {
+        let windows = try #require(try descriptor().quota?.windows)
+        #expect(windows.balance == "data.available_balance")
+        let gauges = try snapshot(["available_balance": 10.0,
+                                   "voucher_balance": 7.0, "cash_balance": 3.0]).gauges
+        #expect(gauges.count == 1, "the halves were charted as their own rows")
+        #expect(gauges.first?.amount?.value == 10.0)
+    }
+
+    /// A balance cannot honestly be a bar: pinning it to full would paint the
+    /// same green meter whether fifty dollars or two cents remained.
+    @Test("A balance draws its figure and no meter")
+    func balanceHasNoMeter() throws {
+        let gauge = try #require(try snapshot(["available_balance": 49.58894]).gauges.first)
+        #expect(gauge.hasMeter == false)
+        #expect(gauge.amount?.currency == "USD")
+    }
+
+    /// Nought is a reading. Dropping it would make an account that has run
+    /// out look exactly like one that could not be reached.
+    @Test("An exhausted account reads nought rather than vanishing")
+    func exhaustedIsARreading() throws {
+        let gauge = try #require(try snapshot(["available_balance": 0.0]).gauges.first)
+        #expect(gauge.amount?.value == 0.0)
+    }
+
+    @Test("A reply with no balance charts nothing")
+    func missingBalanceChartsNothing() {
+        #expect(throws: (any Error).self) { _ = try snapshot([:]) }
+    }
+
+    /// The currency is declared on evidence rather than stated by the API, so
+    /// the figures are not presented as confirmed.
+    @Test("The numbers are declared unverified")
+    func unverified() throws {
+        #expect(try descriptor().quota?.verified != true)
+    }
+
+    /// This is the API platform. The kimi harness reads the Kimi Code CLI's
+    /// transcripts. One is an account and the other is a conversation, so
+    /// neither counts the other — the double-counting rule that keeps
+    /// aggregators out does not apply here, and a test says so because the
+    /// two names look like they ought to collide.
+    @Test("It does not overlap the Kimi CLI harness")
+    func doesNotOverlapKimi() throws {
+        let moonshot = try descriptor()
+        let url = try #require(AppResources.bundle.url(
+            forResource: "kimi", withExtension: "json", subdirectory: "harnesses"))
+        let kimi = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+        #expect(moonshot.id != kimi.id)
+        #expect(moonshot.source.kind == .none, "the account harness reads no sessions")
+        #expect(kimi.quota == nil, "the CLI harness charts no quota")
     }
 }

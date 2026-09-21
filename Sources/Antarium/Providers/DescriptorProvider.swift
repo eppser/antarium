@@ -390,7 +390,11 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     /// relabelling the money.
     static func currency(_ map: HarnessDescriptor.Quota.Windows,
                          window: [String: Any]) -> String {
-        guard let declared = map.currency else { return "USD" }
+        // No default. A descriptor declaring a balance must declare its
+        // currency — the decoder refuses one that does not — so reaching here
+        // with nothing means the rule was removed rather than that dollars
+        // are a reasonable guess.
+        guard let declared = map.currency else { return "" }
         if let found = FieldPath.lookup(window, declared) as? String, !found.isEmpty {
             return clamped(found)
         }
