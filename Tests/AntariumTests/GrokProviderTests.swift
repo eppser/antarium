@@ -163,3 +163,69 @@ struct GrokCredentialTests {
                                           issuer: "https://auth.x.ai", clientID: "c").canRefresh)
     }
 }
+
+/// Where a refresh token is allowed to be spent.
+///
+/// The issuer comes out of `~/.grok/auth.json`, which another application
+/// writes, so it is input rather than configuration. Posting a bearer token
+/// to the host a file names is the same mistake the zai credential made, and
+/// it is worth a suite of its own because the guard is one line that nothing
+/// else exercises.
+@Suite("Grok refreshes only against x.ai")
+struct GrokIssuerTests {
+
+    @Test("The documented issuer resolves to its token endpoint")
+    func accepted() throws {
+        let url = try #require(GrokProvider.tokenEndpoint(issuer: "https://accounts.x.ai"))
+        #expect(url.absoluteString == "https://accounts.x.ai/oauth2/token")
+    }
+
+    @Test("A trailing slash on the issuer does not double up the path")
+    func trailingSlash() throws {
+        let url = try #require(GrokProvider.tokenEndpoint(issuer: "https://accounts.x.ai/"))
+        #expect(url.absoluteString == "https://accounts.x.ai/oauth2/token")
+    }
+
+    @Test("x.ai itself is accepted, not only its subdomains")
+    func apexHost() {
+        #expect(GrokProvider.tokenEndpoint(issuer: "https://x.ai") != nil)
+    }
+
+    /// The reason a suffix test is not enough. Each of these ends with the
+    /// string `x.ai` and none of them is x.ai.
+    @Test("A lookalike host is refused", arguments: [
+        "https://evilx.ai", "https://notx.ai", "https://xx.ai",
+        "https://attacker.com/x.ai",
+    ])
+    func lookalikeHost(_ issuer: String) {
+        #expect(GrokProvider.tokenEndpoint(issuer: issuer) == nil,
+                "a refresh token would be posted to \(issuer)")
+    }
+
+    @Test("A host that merely contains x.ai is refused")
+    func containsButDoesNotEnd() {
+        #expect(GrokProvider.tokenEndpoint(issuer: "https://x.ai.attacker.com") == nil)
+    }
+
+    /// A token sent without TLS is a token given away, whatever the host.
+    @Test("A plaintext or non-web issuer is refused", arguments: [
+        "http://accounts.x.ai", "ftp://accounts.x.ai", "file:///tmp/x.ai",
+        "accounts.x.ai",
+    ])
+    func schemeRequired(_ issuer: String) {
+        #expect(GrokProvider.tokenEndpoint(issuer: issuer) == nil)
+    }
+
+    @Test("A missing or empty issuer is refused rather than defaulted")
+    func absentIssuer() {
+        #expect(GrokProvider.tokenEndpoint(issuer: nil) == nil)
+        #expect(GrokProvider.tokenEndpoint(issuer: "") == nil)
+    }
+
+    /// Hosts are case-insensitive, so the check has to be too — otherwise
+    /// `https://ACCOUNTS.X.AI` is refused for a real account.
+    @Test("The host comparison is case-insensitive")
+    func caseInsensitive() {
+        #expect(GrokProvider.tokenEndpoint(issuer: "https://ACCOUNTS.X.AI") != nil)
+    }
+}

@@ -221,7 +221,7 @@ grok prefers an unrefreshable credential | Sources/Antarium/Providers/GrokProvid
 grok staleness margin removed | Sources/Antarium/Providers/GrokProvider.swift | s|return expiresAt.timeIntervalSince(now) <= margin|return expiresAt.timeIntervalSince(now) <= 0|
 grok products unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|.prefix(maxProducts)||
 grok product names unclamped | Sources/Antarium/Providers/GrokProvider.swift | s|text.count <= maxText ? text : String(text.prefix(maxText))|text|
-grok refresh posts to any host the file names | Sources/Antarium/Providers/GrokProvider.swift | s|url.scheme == "https", (url.host ?? "").hasSuffix("x.ai")|url.scheme != nil|
+grok refresh posts to any host the file names | Sources/Antarium/Providers/GrokProvider.swift | s|url.scheme == "https", let host = url.host?.lowercased(),|url.scheme != nil, let host = url.host?.lowercased(),|
 grok credential file read unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|BoundedFile.read(file ?? credentialsFile, maxBytes: 256 \* 1_024)|Data(contentsOf: file ?? credentialsFile)|
 grok credential missing issuer still refreshable | Sources/Antarium/Providers/GrokProvider.swift | s|refreshToken != nil \&\& issuer != nil \&\& clientID != nil|refreshToken != nil|
 grok credits charted as headroom | Sources/Antarium/Providers/GrokProvider.swift | s|used: min(max(used / 100, 0), 1), resetsAt: resets,|used: min(max(1 - used / 100, 0), 1), resetsAt: resets,|
@@ -374,3 +374,7 @@ content probe ignores the suffix filter | Sources/Antarium/Core/ProjectContext.s
 copilot prefers the shared agent file | Resources/harnesses/vscode.json | s|".github/copilot-instructions.md",|"AGENTS.md",|
 copilot scoped folder counts every file | Resources/harnesses/copilot-cli.json | s|".instructions.md"|".md"|
 remote pane walk gives up one level early | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxPaneDepth = 8|static let maxPaneDepth = 7|
+grok accepts a lookalike issuer host | Sources/Antarium/Providers/GrokProvider.swift | s|host == "x.ai" \|\| host.hasSuffix(".x.ai")|host.hasSuffix("x.ai")|
+grok refresh ignores the scheme | Sources/Antarium/Providers/GrokProvider.swift | s|url.scheme == "https"|url.scheme != nil|
+descriptor json credential read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
+descriptor credential bound raised | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxCredentialBytes = 256 \* 1_024|static let maxCredentialBytes = 512 * 1_024|

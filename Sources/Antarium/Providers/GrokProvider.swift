@@ -123,15 +123,32 @@ final class GrokProvider: UsageProvider, @unchecked Sendable {
                                         session: session))
     }
 
-    /// Spends the refresh token at the issuer the credential names. The issuer
-    /// is checked rather than trusted: it comes out of a file, and a bearer
-    /// token must not be posted to whatever host that file says.
-    private func refresh(_ credentials: Credentials) async throws -> Credentials {
-        guard let issuer = credentials.issuer, let clientID = credentials.clientID,
-              let token = credentials.refreshToken,
+    /// Where a refresh token may be spent, or nothing.
+    ///
+    /// The issuer is checked rather than trusted: it comes out of a file
+    /// another application writes, and a bearer token must not be posted to
+    /// whatever host that file names. Separated from `refresh` so the check
+    /// is reachable without a network — inline, the only way to reach it was
+    /// to have a credential file, which meant it was never reached at all.
+    ///
+    /// The host must be `x.ai` or something under it. A suffix test on its
+    /// own is not that: `evilx.ai` ends with `x.ai` and belongs to somebody
+    /// else entirely.
+    static func tokenEndpoint(issuer: String?) -> URL? {
+        guard let issuer, !issuer.isEmpty,
               let url = URL(string: issuer.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                             + "/oauth2/token"),
-              url.scheme == "https", (url.host ?? "").hasSuffix("x.ai")
+              url.scheme == "https", let host = url.host?.lowercased(),
+              host == "x.ai" || host.hasSuffix(".x.ai")
+        else { return nil }
+        return url
+    }
+
+    /// Spends the refresh token at the issuer the credential names.
+    private func refresh(_ credentials: Credentials) async throws -> Credentials {
+        guard let clientID = credentials.clientID,
+              let token = credentials.refreshToken,
+              let url = Self.tokenEndpoint(issuer: credentials.issuer)
         else { throw ProviderError.needsAuth("Grok's stored login cannot be refreshed.") }
 
         let form = "grant_type=refresh_token"

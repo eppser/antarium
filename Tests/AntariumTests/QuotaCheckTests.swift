@@ -283,3 +283,77 @@ struct ResponseBoundsTests {
         #expect(snapshot.gauges.first?.title == long)
     }
 }
+
+/// Credential files are written by another application, so they are input.
+/// Every native provider reads its own through `BoundedFile`; the descriptor
+/// path read `~/.claude/settings.json` with no cap at all, which is the sort
+/// of difference that survives precisely because both halves work.
+@Suite("A descriptor credential file is read within a bound", .serialized)
+struct DescriptorCredentialBoundTests {
+
+    private func provider(_ kind: String, contents: Data) throws -> (DescriptorProvider, URL) {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("credential-\(UUID()).txt")
+        try contents.write(to: file)
+        var credential: [String: Any] = ["kind": kind, "path": file.path]
+        if kind == "jsonFile" { credential["field"] = "token" }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "bounded-\(UUID().uuidString)", "name": "Bounded",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": "https://example.invalid/usage",
+                      "credential": credential,
+                      "windows": ["list": "data", "usedPercent": "percentage"]]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return (try #require(DescriptorProvider(descriptor)), file)
+    }
+
+    /// Padding inside the JSON rather than after it, so the file is still
+    /// valid: a reader that rejects it is applying a size limit and not
+    /// merely failing to parse.
+    private func oversizedJSON() -> Data {
+        let padding = String(repeating: "x", count: DescriptorProvider.maxCredentialBytes)
+        return Data(#"{"token":"synthetic","pad":"\#(padding)"}"#.utf8)
+    }
+
+    @Test("An ordinary JSON credential is still read")
+    func jsonWithinBound() throws {
+        ConfiguredProbe.invalidate()
+        let (p, file) = try provider("jsonFile", contents: Data(#"{"token":"synthetic"}"#.utf8))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.isConfigured, "a normal credential file stopped being readable")
+    }
+
+    @Test("A JSON credential file past the bound is not read")
+    func jsonBeyondBound() throws {
+        ConfiguredProbe.invalidate()
+        let (p, file) = try provider("jsonFile", contents: oversizedJSON())
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.isConfigured == false, "an unbounded read of a credential file")
+    }
+
+    @Test("An ordinary text credential is still read")
+    func textWithinBound() throws {
+        ConfiguredProbe.invalidate()
+        let (p, file) = try provider("textFile", contents: Data("synthetic-token\n".utf8))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.isConfigured)
+    }
+
+    @Test("A text credential file past the bound is not read")
+    func textBeyondBound() throws {
+        ConfiguredProbe.invalidate()
+        let (p, file) = try provider(
+            "textFile",
+            contents: Data(String(repeating: "x", count: DescriptorProvider.maxCredentialBytes + 1).utf8))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.isConfigured == false, "an unbounded read of a credential file")
+    }
+
+    /// The bound matches what Codex and Gemini use. If one moves and the
+    /// other does not, the two halves have drifted again.
+    @Test("The bound is the one the native providers use")
+    func boundMatchesNativeProviders() {
+        #expect(DescriptorProvider.maxCredentialBytes == 256 * 1_024)
+    }
+}

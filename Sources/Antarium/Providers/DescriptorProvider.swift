@@ -57,6 +57,14 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     /// Internal so the bound on a credential command's output can be tested:
     /// `isConfigured` only asks whether the command resolves, and the output
     /// is the part that becomes a bearer token.
+    /// The cap on a credential file, matching what the native providers use.
+    ///
+    /// These are written by another application, so they are input: Codex and
+    /// Gemini read theirs through `BoundedFile` at this size and these two
+    /// branches did not, which is the whole of the difference. A settings
+    /// file large enough to matter is not a settings file.
+    static let maxCredentialBytes = 256 * 1_024
+
     func token() -> String? {
         guard let credential = quota.credential else { return "" }   // endpoint needs none
         switch credential.kind {
@@ -86,13 +94,16 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             return out.isEmpty ? nil : out
         case "textFile":
             guard let path = credential.path?.expandingTilde,
-                  let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+                  let data = try? BoundedFile.read(URL(fileURLWithPath: path),
+                                                   maxBytes: Self.maxCredentialBytes),
+                  let raw = String(data: data, encoding: .utf8) else { return nil }
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         case "jsonFile":
             guard let path = credential.path?.expandingTilde,
                   let field = credential.field,
-                  let data = FileManager.default.contents(atPath: path),
+                  let data = try? BoundedFile.read(URL(fileURLWithPath: path),
+                                                   maxBytes: Self.maxCredentialBytes),
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             else { return nil }
             // A shared file can hold another vendor's token in the same field.
