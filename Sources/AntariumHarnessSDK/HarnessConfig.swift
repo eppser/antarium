@@ -454,6 +454,11 @@ public struct HarnessConfig: Codable {
         /// argv only — never a shell line, and never a path.
         public var command: String?
         public var args: [String]?
+        /// "GET" or "POST". Absent means GET.
+        public var method: String?
+        /// Body for a POST, as flat string values. `{token}` is substituted
+        /// the same way it is in `headers`.
+        public var body: [String: String]?
         public var headers: [String: String]?
         public var credential: Credential?
         public var windows: Windows

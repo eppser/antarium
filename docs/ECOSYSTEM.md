@@ -139,7 +139,7 @@ credential rather than the response.
 | Alibaba Model Studio | authentication is a browser cookie |
 | Mistral | Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`, which the `json` source kind could glob — so this is a session reader, not a quota one. What stops it is the shape rather than the access: the file exposes `stats.session_total_llm_tokens`, a combined figure, and this app splits sent from received on purpose. Mapping a total into either half would report a number that is wrong in a way nobody could see. Worth revisiting if a real `meta.json` turns out to carry the split, a working directory, or both |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
-| Kimi | browser cookie by default; the server endpoint is a POST whose windows nest two levels deep |
+| Kimi | browser cookie by default. The POST half of this is no longer a reason: `quota.method` describes one now, and `roots` already reaches windows that nest. The cookie is what remains, and it is the whole of it |
 
 A provider whose credential expires with no way to renew it is deliberately
 left out rather than shipped degraded: a gauge that reads "sign in" most of the

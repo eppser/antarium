@@ -159,3 +159,109 @@ struct SessionReleaseInFlightTests {
         #expect(!UsageHTTP.isTracked(client))
     }
 }
+
+/// Records what a request actually was, so a descriptor's declared method can
+/// be checked against what left the app.
+private final class RecordingProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var method: String?
+    nonisolated(unsafe) static var body: [String: String]?
+    private static let lock = NSLock()
+
+    static func reset() {
+        lock.lock(); method = nil; body = nil; lock.unlock()
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "record.invalid"
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        // URLProtocol strips httpBody into a stream; read it back out.
+        var sent: Data?
+        if let stream = request.httpBodyStream {
+            stream.open()
+            var buffer = [UInt8](repeating: 0, count: 8_192)
+            var collected = Data()
+            while stream.hasBytesAvailable {
+                let read = stream.read(&buffer, maxLength: buffer.count)
+                if read <= 0 { break }
+                collected.append(buffer, count: read)
+            }
+            stream.close()
+            sent = collected
+        } else {
+            sent = request.httpBody
+        }
+        Self.lock.lock()
+        Self.method = request.httpMethod
+        Self.body = sent.flatMap {
+            try? JSONSerialization.jsonObject(with: $0) as? [String: String]
+        } ?? nil
+        Self.lock.unlock()
+
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+                                       httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"data":[{"pct":40.0}]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+/// A declared POST leaves the app as a POST.
+///
+/// The decoder tests say the field is parsed and the provider tests say the
+/// mapping reads the reply. Neither says the request went out the way the
+/// descriptor asked, which is the only part that could not be checked by
+/// reading.
+@Suite("A posted quota is actually posted", .serialized)
+struct PostQuotaTransportTests {
+
+    private func provider(_ quota: [String: Any]) throws -> DescriptorProvider {
+        var full: [String: Any] = [
+            "windows": ["list": "data", "usedPercent": "pct"],
+            "credential": ["kind": "env", "name": "PATH"],
+        ]
+        full.merge(quota) { _, new in new }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "post-\(UUID().uuidString)", "name": "Post",
+            "process": [:], "source": ["kind": "none", "path": ""], "quota": full]
+        let d = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(d, protocolClasses: [RecordingProtocol.self]))
+    }
+
+    @Test("A declared POST goes out as a POST, carrying its body")
+    func postGoesOutAsPost() async throws {
+        RecordingProtocol.reset()
+        let p = try provider(["endpoint": "https://record.invalid/usage",
+                              "method": "POST", "body": ["scope": "current"]])
+        let snapshot = try await p.fetch()
+        #expect(RecordingProtocol.method == "POST")
+        #expect(RecordingProtocol.body == ["scope": "current"])
+        #expect(abs((snapshot.gauges.first?.used ?? 0) - 0.4) < 0.0001)
+    }
+
+    /// The same substitution headers get, because a posted key is as common
+    /// as a header one and silently sending the literal "{token}" would read
+    /// as a wrong key rather than a missing feature.
+    @Test("The token is substituted into the body")
+    func tokenIsSubstituted() async throws {
+        RecordingProtocol.reset()
+        let p = try provider(["endpoint": "https://record.invalid/usage",
+                              "method": "POST", "body": ["key": "{token}"]])
+        _ = try await p.fetch()
+        let sent = try #require(RecordingProtocol.body?["key"])
+        #expect(sent == ProcessInfo.processInfo.environment["PATH"])
+        #expect(!sent.contains("{token}"), "the placeholder was sent as itself")
+    }
+
+    @Test("An undeclared method still goes out as a GET")
+    func defaultStillGets() async throws {
+        RecordingProtocol.reset()
+        let p = try provider(["endpoint": "https://record.invalid/usage"])
+        _ = try await p.fetch()
+        #expect(RecordingProtocol.method == "GET")
+    }
+}

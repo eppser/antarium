@@ -853,6 +853,23 @@
             "type": "string"
           },
           "description": "Arguments for quota.command. argv, never a shell."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST",
+            "get",
+            "post"
+          ],
+          "description": "HTTP method for quota.endpoint. Absent means GET."
+        },
+        "body": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Body sent with a POST, as flat string values. {token} is substituted."
         }
       }
     },

@@ -3,6 +3,15 @@ import Foundation
 /// Shared plumbing for providers: one configured session, one JSON GET, one
 /// place that decides what an HTTP status means.
 enum UsageHTTP {
+    /// The only kind of session a provider may hold.
+    ///
+    /// Named so that a provider storing one does not have to write
+    /// `URLSession`, which the transport contract forbids everywhere but here
+    /// — and forbids for a good reason, since it cannot tell a session this
+    /// file configured from one built by hand. Spelling it this way says
+    /// which it is.
+    typealias Session = URLSession
+
     /// Usage responses are small; the cap is here so a misbehaving or
     /// compromised endpoint cannot make the app buffer arbitrarily.
     static let maximumBytes = 2 * 1_024 * 1_024

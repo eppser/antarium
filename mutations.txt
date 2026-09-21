@@ -462,3 +462,8 @@ synthetic reads no key file | Resources/harnesses/synthetic.json | s|"path": "~/
 amp claims a failed path lookup means not installed | Sources/Antarium/Providers/AmpProvider.swift | s|Amp wasn't found in the usual places.|Amp isn't installed on this Mac.|
 kiro claims a failed path lookup means not installed | Sources/Antarium/Providers/KiroProvider.swift | s|Kiro wasn't found in the usual places.|Kiro isn't installed on this Mac.|
 the check warning claims absence | Sources/Antarium/Core/HarnessCheck.swift | s|was not found in the usual places"|is not on this Mac"|
+a posted quota goes out as a get | Sources/Antarium/Providers/DescriptorProvider.swift | s|if quota.resolvedMethod == .post {|if false {|
+a posted body drops the token substitution | Sources/Antarium/Providers/DescriptorProvider.swift | /resolvedMethod == .post/,/^        } else {/ s|\$0.replacingOccurrences(of: "{token}", with: token)|\$0|
+an unknown quota method reads as a get | Sources/Antarium/Core/HarnessDocument.swift | s|\["get", "post"\].contains(method.lowercased())|true|
+a body on a get is shipped and never sent | Sources/Antarium/Core/HarnessDocument.swift | s|                if method.lowercased() != "post", quota\["body"\] != nil {|                if false, quota["body"] != nil {|
+a quota method is compared without folding case | Sources/Antarium/Core/HarnessDescriptor.swift | s|Method(rawValue: (method ?? "get").lowercased()) ?? .get|Method(rawValue: method ?? "get") ?? .get|

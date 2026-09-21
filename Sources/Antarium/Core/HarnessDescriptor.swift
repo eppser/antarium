@@ -296,6 +296,21 @@ struct HarnessDescriptor: Codable {
         /// allowlist test beside the rest.
         var command: String?
         var args: [String]?
+        /// `GET` or `POST`. Absent means GET.
+        ///
+        /// Not every usage API is a GET. Codebuff posts to
+        /// `/api/v1/usage`, and Kimi's server endpoint is a POST whose
+        /// windows nest two levels deep — both were unreachable by a model
+        /// that could only describe a GET, for a reason that has nothing to
+        /// do with whether their mapping is expressible.
+        var method: String?
+        /// The body of a POST, as flat string values. `{token}` is replaced
+        /// the same way it is in `headers`.
+        ///
+        /// Flat on purpose: every posted usage body seen so far is a handful
+        /// of scalars, and a nested one can be added when something needs it
+        /// rather than guessed at now.
+        var body: [String: String]?
         var headers: [String: String]?
         var credential: Credential?
         let windows: Windows
@@ -304,6 +319,15 @@ struct HarnessDescriptor: Codable {
         /// Shell command that signs this agent in again, offered in the menu
         /// when the credential is what failed.
         var signInCommand: String?
+        enum Method: String { case get, post }
+        /// The declared method, or GET. Parsed once here rather than compared
+        /// as a string at the call site, where a typo would read as GET and
+        /// the descriptor would quietly fetch the wrong way — the decoder
+        /// refuses anything else, and this is the reading it refuses against.
+        var resolvedMethod: Method {
+            Method(rawValue: (method ?? "get").lowercased()) ?? .get
+        }
+
         /// Whether these numbers have been checked against the real service.
         /// Unverified providers say so rather than quietly showing figures
         /// nobody has confirmed.

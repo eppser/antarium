@@ -522,6 +522,15 @@ shell profile is invisible to it, and three shipped providers could not work
 in the ordinary installation. The variable still wins when both are present,
 so a key rotated in a shell is not overridden by a stale file.
 
+An endpoint quota may declare `method: "POST"` and a flat `body`, with
+`{token}` substituted the way it is in `headers`. Not every usage API is a
+GET — Codebuff posts to its usage path, and Kimi's server endpoint is a POST
+— and a model that could only describe a GET forced native code for a reason
+with nothing to do with whether the mapping was expressible. An unrecognised
+method is refused rather than defaulted, because a typo reads as GET and the
+descriptor would fetch the wrong way and report whatever a GET to that path
+returns.
+
 A `quota` block reads from exactly one place: an `endpoint`, or a `command`
 whose stdout is the JSON the `windows` map describes. Both would leave which
 one wins to the order of an `if`, and neither is a quota block that does

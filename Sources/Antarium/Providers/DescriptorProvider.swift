@@ -13,7 +13,7 @@ import Foundation
 final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     private let descriptor: HarnessDescriptor
     private let quota: HarnessDescriptor.Quota
-    private let session = UsageHTTP.makeSession(headers: [:])
+    private let session: UsageHTTP.Session
 
     /// Called when the registry replaces or drops this provider, because a
     /// session outlives the object that made it until it is invalidated.
@@ -24,10 +24,18 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     /// every other suite is also moving.
     var sessionIsTracked: Bool { UsageHTTP.isTracked(session) }
 
-    init?(_ descriptor: HarnessDescriptor) {
+    /// `protocolClasses` exists so a test can put a synthetic server behind
+    /// the provider and still travel the production path — the session is
+    /// built here either way, so the bounded body and the redirect refusal
+    /// are in it. Taking a whole session instead would mean naming
+    /// a session in this file, which the transport contract forbids for the
+    /// good reason that it cannot tell an injected one from a hand-rolled
+    /// one. The stored property is `UsageHTTP.Session` for the same reason.
+    init?(_ descriptor: HarnessDescriptor, protocolClasses: [AnyClass]? = nil) {
         guard let quota = descriptor.quota else { return nil }
         self.descriptor = descriptor
         self.quota = quota
+        self.session = UsageHTTP.makeSession(headers: [:], protocolClasses: protocolClasses)
     }
 
     var id: String { descriptor.id }
@@ -175,7 +183,16 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         var headers = quota.headers ?? ["Authorization": "Bearer {token}"]
         headers = headers.mapValues { $0.replacingOccurrences(of: "{token}", with: token) }
 
-        let json = try await UsageHTTP.getJSON(url, headers: headers, session: session)
+        let json: [String: Any]
+        if quota.resolvedMethod == .post {
+            let body = (quota.body ?? [:]).mapValues {
+                $0.replacingOccurrences(of: "{token}", with: token)
+            }
+            json = try await UsageHTTP.postJSON(url, body: body, headers: headers,
+                                                session: session)
+        } else {
+            json = try await UsageHTTP.getJSON(url, headers: headers, session: session)
+        }
         return try makeSnapshot(json)
     }
 

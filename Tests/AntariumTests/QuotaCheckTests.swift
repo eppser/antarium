@@ -886,3 +886,112 @@ struct SyntheticQuotaTests {
         #expect(try descriptor().quota?.verified != true)
     }
 }
+
+/// Not every usage API is a GET.
+///
+/// Codebuff posts to /api/v1/usage and Kimi's server endpoint is a POST whose
+/// windows nest two levels deep. Both were unreachable by a model that could
+/// only describe a GET, for a reason with nothing to do with whether their
+/// mapping was expressible — the same shape as the command quota, one layer
+/// out.
+@Suite("A quota endpoint can be posted to", .serialized)
+struct PostQuotaTests {
+
+    private func decode(_ quota: [String: Any]) throws -> HarnessDescriptor {
+        var full: [String: Any] = ["windows": ["list": "data", "usedPercent": "pct"]]
+        full.merge(quota) { _, new in new }
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "post-quota", "name": "Post Quota",
+            "process": [:], "source": ["kind": "none", "path": ""], "quota": full]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    @Test("A declared POST is what gets resolved")
+    func postIsResolved() throws {
+        let quota = try #require(try decode([
+            "endpoint": "https://example.invalid/u", "method": "POST",
+            "body": ["scope": "current"]]).quota)
+        #expect(quota.resolvedMethod == .post)
+        #expect(quota.body == ["scope": "current"])
+    }
+
+    /// Absent means GET, which is what every descriptor written so far
+    /// assumes — adding the field must not change any of them.
+    @Test("An undeclared method is a GET")
+    func defaultIsGet() throws {
+        let quota = try #require(try decode(["endpoint": "https://example.invalid/u"]).quota)
+        #expect(quota.resolvedMethod == .get)
+        #expect(quota.body == nil)
+    }
+
+    @Test("The method is read whatever its case", arguments: ["POST", "post", "Post"])
+    func caseInsensitive(_ spelling: String) throws {
+        let quota = try #require(try decode([
+            "endpoint": "https://example.invalid/u", "method": spelling]).quota)
+        #expect(quota.resolvedMethod == .post)
+    }
+
+    /// A typo reads as GET, and a descriptor that meant to post would fetch
+    /// the wrong way and report whatever a GET to that path returns. Refused
+    /// rather than defaulted.
+    @Test("A method that is neither is refused", arguments: ["PUT", "DELETE", "PSOT", ""])
+    func unknownMethodIsRefused(_ spelling: String) {
+        #expect(throws: (any Error).self) {
+            try decode(["endpoint": "https://example.invalid/u", "method": spelling])
+        }
+    }
+
+    /// A body on a GET would be written, shipped and never sent. Refusing it
+    /// is the difference between a descriptor that does not work and one that
+    /// looks like it does.
+    @Test("A body without a POST is refused")
+    func bodyNeedsPost() {
+        #expect(throws: (any Error).self) {
+            try decode(["endpoint": "https://example.invalid/u", "body": ["a": "b"]])
+        }
+        #expect(throws: (any Error).self) {
+            try decode(["endpoint": "https://example.invalid/u", "method": "GET",
+                        "body": ["a": "b"]])
+        }
+    }
+
+    @Test("A body that is not flat strings is refused")
+    func bodyMustBeFlatStrings() {
+        #expect(throws: (any Error).self) {
+            try decode(["endpoint": "https://example.invalid/u", "method": "POST",
+                        "body": ["nested": ["a": "b"]]])
+        }
+    }
+
+    /// A command reads no endpoint, so it has no method to declare. Fields
+    /// that belong to the other form are refused rather than ignored, because
+    /// a descriptor carrying a method it will never use reads as if it uses
+    /// it.
+    @Test("A command quota declares no method or body")
+    func commandTakesNeither() {
+        #expect(throws: (any Error).self) {
+            try decode(["command": "agy", "method": "POST"])
+        }
+        #expect(throws: (any Error).self) {
+            try decode(["command": "agy", "body": ["a": "b"]])
+        }
+    }
+
+    /// Every shipped descriptor predates the field and must still be a GET —
+    /// adding a way to post is not a reason for anything to start posting.
+    @Test("No shipped descriptor changed method")
+    func shippedAreAllGet() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        var checked = 0
+        for url in urls {
+            let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+            guard let quota = descriptor.quota, quota.command == nil else { continue }
+            #expect(quota.resolvedMethod == .get,
+                    Comment(rawValue: "\(descriptor.id) posts"))
+            checked += 1
+        }
+        #expect(checked >= 8, "only \(checked) endpoint quotas were checked")
+    }
+}

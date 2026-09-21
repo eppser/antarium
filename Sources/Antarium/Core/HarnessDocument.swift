@@ -173,9 +173,29 @@ enum HarnessDocument {
                         + "into the response where the service states one, or the code itself")
                 }
             }
+            // The method is checked rather than defaulted: a typo reads as
+            // GET, and a descriptor that meant to post would fetch the wrong
+            // way and report whatever a GET to that path happens to return.
+            if let raw = quota["method"] {
+                guard let method = raw as? String,
+                      ["get", "post"].contains(method.lowercased()) else {
+                    throw Error.semantic("quota.method must be GET or POST")
+                }
+                if method.lowercased() != "post", quota["body"] != nil {
+                    throw Error.semantic("quota.body is only sent with POST")
+                }
+            } else if quota["body"] != nil {
+                throw Error.semantic("quota.body is only sent with POST")
+            }
+            if let body = quota["body"], !(body is [String: String]) {
+                throw Error.semantic("quota.body must be an object of string values")
+            }
             if command?.isEmpty == false {
                 if quota["headers"] != nil {
                     throw Error.semantic("quota.headers is only read for an endpoint")
+                }
+                if quota["method"] != nil || quota["body"] != nil {
+                    throw Error.semantic("quota.method and quota.body are only read for an endpoint")
                 }
                 // argv, never a shell. A separator in the command name is the
                 // shape of an injected path rather than a program name.
