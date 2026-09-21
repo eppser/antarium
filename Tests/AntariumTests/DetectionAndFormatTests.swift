@@ -34,7 +34,10 @@ struct AgentDetectionTests {
         // installed looks the same as reading the disk.
         #expect(findings.first { $0.id == "here" }?.found == true)
         #expect(findings.first { $0.id == "gone" }?.found == false)
-        #expect(findings.first { $0.id == "gone" }?.detail == "not on this Mac")
+        // "No trace" rather than "not installed": the agent's id is not a
+        // command on this Mac either, and neither miss proves it is absent.
+        #expect(findings.first { $0.id == "gone" }?.detail == "no trace on this Mac")
+        #expect(findings.first { $0.id == "gone" }?.installedUnused == false)
         // The present one reports where it was found, with the home directory
         // shortened rather than spelled out.
         #expect(findings.first { $0.id == "here" }?.detail.contains("present") == true)
@@ -92,5 +95,73 @@ struct FormatAbsenceTests {
         #expect(Format.longReset(past) == "resetting now")
         // And a date in the future never rounds down to zero minutes.
         #expect(Format.shortCountdown(to: Date().addingTimeInterval(5)) == "1m")
+    }
+}
+
+/// An agent that is installed and has not been run yet.
+///
+/// The onboarding screen listed everything without a session store under
+/// "Also supported, not installed here". For an agent installed this morning
+/// and not yet started that is a false statement about the user's own Mac,
+/// and it is the same collapse the rest of this app is careful about: absent,
+/// empty and unknown are three answers, not one.
+@Suite("Installed and unused is not the same as absent")
+struct InstalledButUnusedTests {
+
+    private func descriptor(_ id: String, path: String, process: String) throws
+        -> HarnessDescriptor {
+        try HarnessDocument.decode(JSONSerialization.data(withJSONObject: [
+            "formatVersion": 1, "id": id, "name": id,
+            "process": ["names": [process]],
+            "source": ["kind": "jsonl", "path": path, "glob": "*.jsonl"],
+        ])).descriptor
+    }
+
+    private func findings(_ resolves: Set<String>) throws -> [Onboarding.Finding] {
+        let absent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("never-\(UUID().uuidString)")
+        return Onboarding.harnesses(
+            [try descriptor("unused", path: absent.path, process: "an-agent"),
+             try descriptor("missing", path: absent.path, process: "another-agent")],
+            resolve: { resolves.contains($0) ? "/synthetic/bin/\($0)" : nil })
+    }
+
+    @Test("An agent whose command is here but has no sessions says so")
+    func installedUnusedIsItsOwnAnswer() throws {
+        let found = try findings(["an-agent"])
+        let unused = try #require(found.first { $0.id == "unused" })
+        #expect(unused.found == false, "an unused agent must not earn a bar slot")
+        #expect(unused.installedUnused)
+        #expect(unused.detail == "here, no sessions yet")
+    }
+
+    @Test("An agent with neither sessions nor a command is not called missing")
+    func absentIsNotAClaimOfAbsence() throws {
+        let found = try findings(["an-agent"])
+        let missing = try #require(found.first { $0.id == "missing" })
+        #expect(missing.found == false)
+        #expect(missing.installedUnused == false)
+        #expect(missing.detail == "no trace on this Mac",
+                "a miss on both proves neither; several agents ship as apps, not commands")
+    }
+
+    /// The evidence a first run acts on is unchanged. An agent that has never
+    /// been used still earns nothing, because that item could only say
+    /// "sign in" — which is the whole reason these are two fields and not one.
+    @Test("Being installed and unused earns no menu bar slot")
+    func unusedEarnsNothing() throws {
+        let found = try findings(["an-agent", "another-agent"])
+        let anyFound = found.contains { $0.found }
+        let allInstalled = found.allSatisfy(\.installedUnused)
+        #expect(anyFound == false)
+        #expect(allInstalled)
+    }
+
+    /// Used first, then present but unused, then the rest — and by name
+    /// inside each group, so two Macs with the same agents agree.
+    @Test("The three states are ordered, and ties break on name")
+    func orderIsStable() throws {
+        let ids = try findings(["an-agent"]).map(\.id)
+        #expect(ids == ["unused", "missing"])
     }
 }

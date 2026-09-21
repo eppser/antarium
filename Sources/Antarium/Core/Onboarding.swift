@@ -15,7 +15,19 @@ enum Onboarding {
         let name: String
         /// Where it was found, or what is missing.
         let detail: String
+        /// This agent has left sessions here. Named for what it is used for:
+        /// evidence that the agent is actually in use, which is what earns a
+        /// menu bar slot on a first run.
         let found: Bool
+        /// The agent's command is on this Mac, but it has left no sessions.
+        ///
+        /// Kept apart from `found` on purpose. A first run must not hand a
+        /// bar slot to an agent that has never been used — that item could
+        /// only say "sign in". But the onboarding screen listed everything
+        /// that was not `found` as "not installed here", which is a different
+        /// claim and, for an agent installed this morning and not yet run, a
+        /// false one.
+        var installedUnused: Bool = false
         /// Non-nil when the user could do something about it.
         var hint: String?
     }
@@ -49,18 +61,31 @@ enum Onboarding {
                 let binary = resolve(name)
                 out.append(Finding(id: descriptor.id, name: descriptor.name,
                                    detail: binary.map { shorten($0) + " · no session record" }
-                                       ?? "not on this Mac",
+                                       ?? "no trace on this Mac",
                                    found: binary != nil))
                 continue
             }
             guard !descriptor.source.path.isEmpty else { continue }
             let path = descriptor.source.path.expandingTilde
             let found = FileManager.default.fileExists(atPath: path)
+            // Only asked when there are no sessions, and only ever used to
+            // soften the claim. A hit proves the agent is here; a miss proves
+            // nothing, because plenty of these are applications rather than
+            // commands on PATH — VS Code's process is inside a bundle. So the
+            // three states are "used here", "here and unused", and "no trace",
+            // and the last one is not "not installed".
+            let installed = found
+                ? false
+                : resolve(descriptor.processRule.names?.first ?? descriptor.id) != nil
             out.append(Finding(id: descriptor.id, name: descriptor.name,
-                               detail: found ? shorten(path) : "not on this Mac",
-                               found: found))
+                               detail: found ? shorten(path)
+                                   : (installed ? "here, no sessions yet" : "no trace on this Mac"),
+                               found: found, installedUnused: installed))
         }
-        return out.sorted { ($0.found ? 0 : 1, $0.name) < ($1.found ? 0 : 1, $1.name) }
+        // Used first, then present but unused, then the rest — and by name
+        // inside each group, so two Macs with the same agents agree.
+        func rank(_ f: Finding) -> Int { f.found ? 0 : (f.installedUnused ? 1 : 2) }
+        return out.sorted { (rank($0), $0.name) < (rank($1), $1.name) }
     }
 
     /// Accounts whose quota we can chart. `isConfigured` is documented as cheap

@@ -430,3 +430,7 @@ run record pruning is lexical | Sources/Antarium/Core/RunWrapper.swift | /static
 run record pruning drops the newest | Sources/Antarium/Core/RunWrapper.swift | s|return Array(ordered.dropLast(limit))|return Array(ordered.prefix(names.count - limit).reversed())|
 run record pruning removes what it did not write | Sources/Antarium/Core/RunWrapper.swift | s|.filter { \$0.hasSuffix(".json") }||
 the run record limit is raised without a decision | Sources/Antarium/Core/RunWrapper.swift | s|static let maxRecords = 500|static let maxRecords = 50_000|
+an unused agent is called not installed | Sources/Antarium/Core/Onboarding.swift | /guard !descriptor.source.path.isEmpty/,/^        }$/ s|: resolve(descriptor.processRule.names?.first ?? descriptor.id) != nil|: false|
+an unused agent earns a menu bar slot | Sources/Antarium/Core/Onboarding.swift | s|found: found, installedUnused: installed|found: found \|\| installed, installedUnused: installed|
+an absent agent is claimed to be absent | Sources/Antarium/Core/Onboarding.swift | s|: "no trace on this Mac")|: "not on this Mac")|
+the three detection states are unordered | Sources/Antarium/Core/Onboarding.swift | s|func rank(_ f: Finding) -> Int { f.found ? 0 : (f.installedUnused ? 1 : 2) }|func rank(_ f: Finding) -> Int { f.found ? 0 : 1 }|

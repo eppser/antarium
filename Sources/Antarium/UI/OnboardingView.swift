@@ -9,7 +9,10 @@ struct OnboardingView: View {
     var onDone: () -> Void
 
     private var detected: [Onboarding.Finding] { harnesses.filter(\.found) }
-    private var missing: [Onboarding.Finding] { harnesses.filter { !$0.found } }
+    private var here: [Onboarding.Finding] { harnesses.filter { !$0.found && $0.installedUnused } }
+    private var missing: [Onboarding.Finding] {
+        harnesses.filter { !$0.found && !$0.installedUnused }
+    }
     private var signedIn: [Onboarding.Finding] { Onboarding.partition(accounts).signedIn }
     private var connectable: [Onboarding.Finding] { Onboarding.partition(accounts).connectable }
 
@@ -53,8 +56,17 @@ struct OnboardingView: View {
                         .font(.system(size: 10)).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if !here.isEmpty {
+                    Text("Installed, nothing run yet: "
+                         + here.map(\.name).joined(separator: ", "))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
                 if !missing.isEmpty {
-                    Text("Also supported, not installed here: "
+                    // "No trace" rather than "not installed": a miss on both
+                    // the session store and the command proves neither, since
+                    // several of these ship as applications rather than
+                    // commands on PATH.
+                    Text("Also supported, no trace here: "
                          + missing.map(\.name).joined(separator: ", "))
                         .font(.system(size: 10)).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
