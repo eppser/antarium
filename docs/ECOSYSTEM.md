@@ -109,7 +109,7 @@ works; reading the conventional variable would take the key most people
 have and fail with it for ever, which is the degraded shipping this
 document rules out two paragraphs below.
 
-Three more were looked at and not written, for one reason between them: the
+Five more were looked at and not written, for one reason between them: the
 endpoint is known and the response is not. Chutes publishes
 `GET /users/me/quotas` and `GET /users/me/subscription_usage` in its API
 reference and says "schema not detailed" for both. DeepInfra's balance and
@@ -118,11 +118,24 @@ documentation. Antigravity's field paths are reverse-engineered from the
 binary by the projects that carry them, whose own notes say the shape may
 change without notice.
 
+Codebuff's own documentation has no usage endpoint in it at all, and Poe's
+balance call is named by every tool that reads it and by none of Poe's pages.
+
 A mapping written from another tool's source is a guess about somebody else's
 product that happens to work today, and the fixture beside it would prove
 only that the guess is self-consistent. One real payload each is the whole
 of what is missing, and it is worth more than any amount of reading around
 it.
+
+Fireworks is the exception that failed differently: it publishes a complete
+schema for `GET /v1/accounts/{account_id}/quotas`, and still does not fit.
+The path carries an account id this app has no way to learn — a descriptor
+declares one endpoint, not a call to discover the identifier for the next —
+and the quotas themselves are reserved GPU capacity rather than spend, so a
+serverless account has none. Worth recording because the first half will
+recur: plenty of vendors scope usage under an account or organisation id, and
+until a descriptor can name where to find one, a published schema is not
+enough on its own.
 
 Not currently integrated, with the reason each would need native code — or,
 for the first, the reason it still cannot be written even though it no longer

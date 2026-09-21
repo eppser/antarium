@@ -522,3 +522,12 @@ a loop minutes away is rounded down to nothing | Sources/Antarium/Core/LoopWatch
 a dead loop is still described | Sources/Antarium/Core/LoopWatch.swift | s|guard isLooping(wakeAt: wakeAt, stopped: stopped, now: now), let wakeAt else { return nil }|guard let wakeAt else { return nil }|
 a loop hours away is described in minutes | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 { return "loops in \\(minutes)m" }|if true { return "loops in \\(minutes)m" }|
 the unit is chosen before the rounding | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 {|if seconds < 3600 {|
+a journal append replaces instead of adding | Sources/Antarium/Core/Journal.swift | s|return existing + ((value as? \[Any\]) ?? \[\])|return (value as? [Any]) ?? []|
+a journal set is treated as an append | Sources/Antarium/Core/Journal.swift | s|append: kind == 2|append: true|
+a journal append is treated as a set | Sources/Antarium/Core/Journal.swift | s|append: kind == 2|append: false|
+a journal patch with no path is applied to the root | Sources/Antarium/Core/Journal.swift | s|guard let path = line\["k"\] as? \[Any\], !path.isEmpty else { continue }|guard let path = line["k"] as? [Any] else { continue }|
+a journal index is unbounded | Sources/Antarium/Core/Journal.swift | s|index >= 0, index < 10_000|index >= 0|
+a journal index may be negative | Sources/Antarium/Core/Journal.swift | s|index >= 0, index < 10_000|index < 10_000|
+a journal patch cannot reach a new element | Sources/Antarium/Core/Journal.swift | s|while array.count <= index { array.append(\[String: Any\]()) }||
+a journal patch of nothing clears the element | Sources/Antarium/Core/Journal.swift | s|array\[index\] = write(array\[index\], rest, value, append: append) ?? array\[index\]|array[index] = write(array[index], rest, value, append: append) as Any|
+a journal snapshot is ignored | Sources/Antarium/Core/Journal.swift | s|document = line\["v"\] as? \[String: Any\] ?? document|document = [:]|
