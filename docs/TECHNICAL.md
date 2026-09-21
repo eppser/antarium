@@ -428,6 +428,20 @@ when the host changes — a usage endpoint answering `302 Location: elsewhere`
 would otherwise hand that host the user's token. A refused redirect is
 reported as itself rather than as whatever the 3xx happens to look like.
 
+Every reader that turns input from outside this process into objects bounds
+the objects, not only the bytes. The two are different budgets and the second
+does not imply the first: four megabytes of small JSON records is tens of
+thousands of sessions, and each one becomes a row, a sort key and a
+transcript read. The caps are 64 usage windows per response, 256 rows per
+remote host, 256 sessions per command harness, 400 files per file harness,
+2,000 rows per SQLite query and 2,000 cloud tasks per inventory. Three of
+those were missing and were found one at a time; the rule is written down
+here so the next reader inherits it rather than repeating them.
+
+A budget is a ceiling rather than a default: `BoundedSQLite.query` takes
+`maxRows` and applies `min(2_000, …)`, so a caller can lower it and not raise
+it.
+
 `windows` says where the limits are and what they mean. At most 64 are read
 from one response, and text the response supplies — a window title, a
 currency code, a composite key — is clamped to 64 characters. The 2 MiB body

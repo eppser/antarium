@@ -199,3 +199,9 @@ command harness sessions unbounded | Sources/Antarium/Core/HarnessEngine.swift |
 command harness session cap below a real workspace | Sources/Antarium/Core/HarnessEngine.swift | s|static let maxCommandSessions = 256|static let maxCommandSessions = 2|
 command harness refresh interval ignored | Sources/Antarium/Core/HarnessEngine.swift | s|Date().timeIntervalSince(hit.at) < every|false|
 command harness refresh interval defaulted away | Sources/Antarium/Core/HarnessEngine.swift | s|let every = d.source.refreshEvery ?? 30|let every = 0.0|
+cloud inventory count unbounded | Sources/Antarium/Core/CloudScan.swift | s|guard items.count <= 2_000 else { throw ParseError.capacityExceeded }||
+cloud accepts a paginated inventory as complete | Sources/Antarium/Core/CloudScan.swift | s|guard let cursor = value as? String, cursor.isEmpty else { throw ParseError.incompleteInventory }||
+cloud accepts has_more as complete | Sources/Antarium/Core/CloudScan.swift | s|!more.boolValue else { throw ParseError.incompleteInventory }|true else { throw ParseError.incompleteInventory }|
+sqlite hard row cap raised | Sources/Antarium/Core/BoundedSQLite.swift | s|let rowLimit = min(2_000,max(1,maxRows))|let rowLimit = max(1,maxRows)|
+sqlite row budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|guard rows.count < rowLimit else { throw ReadError.limitExceeded }||
+sqlite byte budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|guard size <= 65_536, bytes <= 4_194_304-size else { throw ReadError.limitExceeded }||
