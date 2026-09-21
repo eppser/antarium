@@ -239,3 +239,5 @@ an empty file counts as content | Sources/Antarium/Core/ProjectContext.swift | s
 an empty directory counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return try !entries(url).isEmpty|return true|
 a multiline TOML string is read as configuration | Sources/Antarium/Core/ProjectContext.swift | s|guard !text.contains("\\"\\"\\""), !text.contains("'''") else { throw ProbeError.unsupported }||
 a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|
+bounded read returns nothing | Sources/Antarium/Core/BoundedFile.swift | s|^        return data$|        return Data()|
+bounded prefix ignores the requested length | Sources/Antarium/Core/BoundedFile.swift | s|count:Int(min(UInt64(limit),size))|count:Int(size)|

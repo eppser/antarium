@@ -47,8 +47,16 @@ enum BoundedFile {
         let limit = min(32 * 1_024 * 1_024, max(1, maxBytes))
         let (fd, size) = try openRegular(url)
         defer { Darwin.close(fd) }
+        // Early exit: the `data.count <= limit` check below refuses the same
+        // file a moment later, having read one byte more than the cap, so no
+        // mutation of this line can be caught. It is here to avoid the read.
         guard size <= limit else { throw ReadError.tooLarge }
-        // One extra byte also detects growth after the size check.
+        // One extra byte also detects growth after the size check: if the file
+        // gained bytes between the stat and the read, `data.count` exceeds
+        // `size` and the read is refused rather than silently truncated.
+        // Deliberately untestable — provoking that race from a test would need
+        // a seam through the stat and the read, and a seam added only so a
+        // test can reach it is a worse thing to own than an untested defence.
         let data = try bytes(fd, offset: 0, count: min(limit + 1, Int(size) + 1))
         guard data.count <= limit else { throw ReadError.tooLarge }
         guard data.count <= size else { throw ReadError.readFailed }

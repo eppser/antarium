@@ -37,3 +37,65 @@ struct BoundedFileTests {
         #expect(objects.last?["which"] as? String == "last")
     }
 }
+
+/// The ordinary path. The suite covered oversized, symbolic and special files
+/// — the boundaries — and not that a normal file comes back intact, which is
+/// what every other reader in this project depends on.
+@Suite("Bounded reads return the file")
+struct BoundedFileOrdinaryTests {
+
+    private func file(_ bytes: Int) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bounded-\(UUID()).bin")
+        try Data((0..<bytes).map { UInt8($0 % 251) }).write(to: url)
+        return url
+    }
+
+    @Test("A file within the cap comes back byte for byte")
+    func exactContents() throws {
+        let url = try file(4_096)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let read = try BoundedFile.read(url, maxBytes: 1_048_576)
+        #expect(read.count == 4_096)
+        #expect(read == (try Data(contentsOf: url)), "the bytes differ from the file")
+    }
+
+    @Test("An empty file reads as empty rather than failing")
+    func emptyFile() throws {
+        let url = try file(0)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(try BoundedFile.read(url).isEmpty)
+    }
+
+    /// The cap is inclusive, and one byte past it is not. Both sides matter:
+    /// a reader that refuses a file exactly at its limit rejects legitimate
+    /// input, and one that accepts a byte more has no limit.
+    @Test("A file exactly at the cap is read; one byte more is refused")
+    func capIsExact() throws {
+        let atCap = try file(1_024)
+        defer { try? FileManager.default.removeItem(at: atCap) }
+        #expect(try BoundedFile.read(atCap, maxBytes: 1_024).count == 1_024)
+
+        let over = try file(1_025)
+        defer { try? FileManager.default.removeItem(at: over) }
+        #expect(throws: BoundedFile.ReadError.tooLarge) {
+            _ = try BoundedFile.read(over, maxBytes: 1_024)
+        }
+    }
+
+    @Test("A prefix read returns the requested length, not the whole file")
+    func prefixLength() throws {
+        let url = try file(8_192)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let head = try BoundedFile.prefix(url, maxBytes: 100)
+        #expect(head.count == 100)
+        #expect(head == (try Data(contentsOf: url)).prefix(100), "the wrong 100 bytes")
+    }
+
+    @Test("A prefix longer than the file is the whole file")
+    func prefixBeyondEnd() throws {
+        let url = try file(10)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(try BoundedFile.prefix(url, maxBytes: 1_000).count == 10)
+    }
+}
