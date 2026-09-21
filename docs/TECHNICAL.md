@@ -592,6 +592,15 @@ certificate in front of a loopback socket, which nobody does. `0.0.0.0` is
 not accepted: it is a bind address meaning every interface rather than a
 destination meaning here, and anyone who meant loopback can write it.
 
+`map.totalTokens` is for a harness that keeps one running token count and no
+split. Mapping such a figure into `inputTokens` would say it was all
+uploaded, which is wrong in a way nobody reading the row could see, and
+leaving it out throws away the only figure the harness has. It is refused
+alongside `inputTokens`, `outputTokens`, `cacheRead` or `cacheWrite`: nothing
+can tell whether the total already counts those, so adding them makes a
+figure too large and ignoring them makes the declaration a lie. The row
+draws it under its own icon, never under the sent arrow.
+
 `{token}` is substituted into the headers, into a POST `body`, and into the
 `endpoint` itself. The last is for services that take the credential as a
 query parameter rather than a header — a self-hosted proxy in front of an

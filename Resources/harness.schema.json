@@ -574,6 +574,10 @@
         "outputTokens": {
           "type": "string"
         },
+        "totalTokens": {
+          "type": "string",
+          "description": "One combined token figure, for a harness that reports no split. Cannot be declared alongside inputTokens, outputTokens, cacheRead or cacheWrite."
+        },
         "cacheRead": {
           "type": "string"
         },

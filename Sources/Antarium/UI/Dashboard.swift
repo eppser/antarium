@@ -375,6 +375,15 @@ private struct AgentRowView: View {
                     if let down = row.receivedTokens {
                         Stat("arrow.down", Fmt.count(down), help: "\(down) tokens received")
                     }
+                    // A harness that reports one combined figure gets an
+                    // icon of its own. Drawing it under the up arrow would
+                    // say it was all sent, which is the misreading the
+                    // separate field exists to avoid.
+                    if let total = row.totalTokens {
+                        Stat("arrow.up.arrow.down", Fmt.count(total),
+                             help: "\(total) tokens in total — this agent does not report "
+                                 + "sent and received separately")
+                    }
                     if let ram = row.rssBytes { Stat("memorychip", Fmt.bytes(ram)) }
                     LastReply(date: row.lastActivity)
                 }

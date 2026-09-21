@@ -326,6 +326,11 @@ public struct HarnessConfig: Codable {
         public var timestamp: String?
         public var inputTokens: String?
         public var outputTokens: String?
+        /// One combined figure, for a harness that reports no split. Cannot
+        /// be declared alongside the four fields around it — the decoder
+        /// refuses that, because nothing can tell whether such a total
+        /// already counts them.
+        public var totalTokens: String?
         public var cacheRead: String?
         public var inputIncludesCacheRead: Bool?
         public var cacheWrite: String?

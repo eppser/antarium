@@ -666,3 +666,7 @@ an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swif
 a journal line with no kind is skipped | Sources/Antarium/Core/Journal.swift | s|            if line\["kind"\] == nil { kind = 0 }|            if false { kind = 0 }|
 a token in the endpoint goes in unencoded | Sources/Antarium/Providers/DescriptorProvider.swift | s|        let encoded = token.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? token|        let encoded = token|
 a token in the endpoint is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|        return URL(string: endpoint.replacingOccurrences(of: "{token}", with: encoded))|        return URL(string: endpoint)|
+a total may be declared beside a split | Sources/Antarium/Core/HarnessDocument.swift | s|            guard split.isEmpty else {|            guard true else {|
+a combined figure is never accumulated | Sources/Antarium/Core/HarnessEngine.swift | s|                    if let total = accumulated(session.totalTokens ?? 0, path: path) {|                    if let total = accumulated(0, path: path) {|
+a combined figure is not observed | Sources/Antarium/Core/HarnessEngine.swift | s|                            ("totalTokens",map.totalTokens)\] {|] {|
+a row shows a combined figure it never read | Sources/Antarium/Core/AgentScan.swift | s|            row.totalTokens = session.hasNumeric("totalTokens") ? session.totalTokens : nil|            row.totalTokens = session.totalTokens|

@@ -493,6 +493,17 @@ struct HarnessDescriptor: Codable {
         var timestamp: String?
         var inputTokens: String?
         var outputTokens: String?
+        /// One figure covering everything, for a harness that reports no
+        /// split.
+        ///
+        /// Some stores keep a single running count and nothing else. Mapping
+        /// that into `inputTokens` would say it was all uploaded, which is
+        /// wrong in a way nobody reading the row could see; leaving it out
+        /// throws away the only figure the harness has. It is its own field
+        /// so the row can show a total as a total, and a descriptor declaring
+        /// it alongside the split is refused rather than silently preferring
+        /// one — nothing can tell whether such a total includes the other two.
+        var totalTokens: String?
         var cacheRead: String?
         /// True when `inputTokens` already counts the cached part, so it is not
         /// added a second time when working out what was actually uploaded.

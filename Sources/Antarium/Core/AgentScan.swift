@@ -115,6 +115,9 @@ struct AgentRow: Identifiable {
     /// Whole-session traffic, shown as plain totals.
     var sentTokens: Int?
     var receivedTokens: Int?
+    /// One figure covering everything, from a harness that reports no split.
+    /// Shown instead of the two above, never alongside them.
+    var totalTokens: Int?
     /// Sub-agents this session spawned. Distinct from tool calls — Kimi's count
     /// was previously shown under the tool icon, which read as 11 tool calls.
     var subAgents: Int?
@@ -526,7 +529,7 @@ enum AgentScan {
         row.activity = stats.activitySeries()
         row.model = stats.model
         if let issue = stats.usageIssue {
-            row.sentTokens = nil; row.receivedTokens = nil
+            row.sentTokens = nil; row.receivedTokens = nil; row.totalTokens = nil
             row.toolCalls = nil; row.costUSD = nil; row.contextTokens = nil
             row.note = issue
         } else {
@@ -826,7 +829,7 @@ enum AgentScan {
             row.note = issue
             row.toolCalls = nil; row.turns = nil; row.subAgents = nil
             row.costUSD = nil; row.contextTokens = nil; row.contextWindow = nil
-            row.sentTokens = nil; row.receivedTokens = nil
+            row.sentTokens = nil; row.receivedTokens = nil; row.totalTokens = nil
         } else {
             row.toolCalls = session.hasNumeric("toolCalls") ? session.toolCalls : nil
             row.turns = session.hasNumeric("turns") ? session.turns : nil
@@ -836,6 +839,7 @@ enum AgentScan {
             // The harness's own figure beats our price table.
             row.contextWindow = session.contextWindow
                 ?? Pricing.rate(for: session.model)?.contextWindow
+            row.totalTokens = session.hasNumeric("totalTokens") ? session.totalTokens : nil
             row.sentTokens = (session.hasNumeric("inputTokens") || session.hasNumeric("cacheWrite")) ? session.sentTokens : nil
             row.receivedTokens = session.hasNumeric("outputTokens") ? session.outputTokens : nil
         }

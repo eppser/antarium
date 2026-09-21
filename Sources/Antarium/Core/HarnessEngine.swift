@@ -110,6 +110,10 @@ enum HarnessEngine {
         /// to give in the one tool whose whole job is telling somebody
         /// whether their mapping works.
         var contextTokens: Int? { measuredContext }
+        /// One figure covering everything, for a harness that reports no
+        /// split. Never combined with the fields below: a descriptor
+        /// declaring both is refused when it decodes.
+        var totalTokens: Int?
         /// Some APIs report input tokens with the cached part already included
         /// — Codex does. Adding the cache write on top then counts the cached
         /// portion twice, and "sent" read 206x what was actually uploaded.
@@ -902,7 +906,8 @@ enum HarnessEngine {
         }
         if session.observedNumericFields == nil { session.observedNumericFields = [] }
         for (field,path) in [("inputTokens",map.inputTokens),("outputTokens",map.outputTokens),
-                            ("cacheRead",map.cacheRead),("cacheWrite",map.cacheWrite)] {
+                            ("cacheRead",map.cacheRead),("cacheWrite",map.cacheWrite),
+                            ("totalTokens",map.totalTokens)] {
             if let path, let value = FieldPath.int(record,path), value >= 0 { session.markNumeric(field) }
         }
         if let path = map.cost, let amount = FieldPath.number(record,path), amount >= 0 { session.markNumeric("cost") }
@@ -919,6 +924,15 @@ enum HarnessEngine {
                let write = accumulated(session.cacheWrite, path: map.cacheWrite) {
                 session.inputTokens = input; session.outputTokens = output
                 session.cacheRead = read; session.cacheWrite = write
+                // Accumulated the same bounded way, and kept apart from the
+                // four above: a harness declares one shape or the other.
+                if let path = map.totalTokens {
+                    if let total = accumulated(session.totalTokens ?? 0, path: path) {
+                        session.totalTokens = total
+                    } else {
+                        session.numericIssue = "Trace usage totals exceeded the supported range. Usage figures are unavailable."
+                    }
+                }
             } else {
                 session.numericIssue = "Trace usage totals exceeded the supported range. Usage figures are unavailable."
             }

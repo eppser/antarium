@@ -140,6 +140,21 @@ enum HarnessDocument {
                     "process.sessionBinding openSourceFile requires a JSON or JSONL source")
             }
         }
+        if let map = object["map"] as? [String: Any],
+           (map["totalTokens"] as? String)?.isEmpty == false {
+            // A total and a split cannot both be believed: nothing here can
+            // tell whether the total already counts the other two, so adding
+            // them makes a figure too large and ignoring them makes the
+            // descriptor's own declaration a lie. Same reasoning as the quota
+            // block refusing an endpoint and a command together.
+            let split = ["inputTokens", "outputTokens", "cacheRead", "cacheWrite"]
+                .filter { (map[$0] as? String)?.isEmpty == false }
+            guard split.isEmpty else {
+                throw Error.semantic(
+                    "map.totalTokens is for a harness that reports no split, and this one "
+                    + "also declares \(split.joined(separator: ", "))")
+            }
+        }
         if let quota = object["quota"] as? [String: Any] {
             // Exactly one way in. Both would leave which one wins to the
             // order of an if, and neither is a quota block that does

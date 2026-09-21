@@ -72,7 +72,7 @@ enum HarnessCheck {
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
                    "journal"],
         "map": ["cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
-                "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
+                "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
                 "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status", "pid", "sessionID",
                 "inputIncludesCacheRead"],
         "quota": ["endpoint", "method", "body", "command", "args",
@@ -88,8 +88,8 @@ enum HarnessCheck {
                       "query", "column", "command", "args", "root"],
         "source.manifest": ["file", "map"],
         "source.manifest.map": ["cwd", "title", "model", "contextWindow", "contextTokens",
-                                "timestamp", "inputTokens", "outputTokens", "cacheRead",
-                                "cacheWrite", "cost", "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns",
+                                "timestamp", "inputTokens", "outputTokens", "totalTokens",
+                                "cacheRead", "cacheWrite", "cost", "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns",
                                 "subAgents", "status", "pid", "sessionID",
                                 "inputIncludesCacheRead"],
         "map.status": ["whileNotEmpty", "field", "working", "idle"],
@@ -475,7 +475,7 @@ enum HarnessCheck {
     }
 
     private static let numeric: Set<String> = [
-        "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
+        "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
         "contextWindow", "contextTokens", "pid",
     ]
 
