@@ -21,6 +21,23 @@ enum Severity: Int, Comparable {
 
 /// One limit window: a 5-hour session, a rolling week, a credit balance.
 struct Gauge: Equatable {
+    /// A last bound on text that reaches a menu item.
+    ///
+    /// Deliberately far above anything anyone would write. It is not the
+    /// policy — `DescriptorProvider.maxResponseText` clamps network text to
+    /// 64 because a response is input, and a descriptor's own labels are left
+    /// exactly as their author wrote them because local configuration is
+    /// trusted. This sits underneath both and exists for the case neither
+    /// covers: a provider that forgets, and a body the 2 MiB cap admits.
+    /// Two megabytes is not a menu item at any level of trust.
+    ///
+    /// Setting it near a plausible title would quietly overrule the author,
+    /// which is why it is not near one.
+    static let maxTitle = 4_096
+    /// A badge is two or three characters — the longest thing any shipped
+    /// harness puts near one is eleven. Beyond that is a misread field.
+    static let maxBadge = 64
+
     let id: String
     /// Two characters, drawn in the menu bar. "5H", "7D", "BAL".
     let badge: String
@@ -42,6 +59,29 @@ struct Gauge: Equatable {
     /// than showing no meter at all. So a gauge carrying an amount draws its
     /// figure and no bar.
     var amount: Amount? = nil
+
+    /// Written out so the clamp cannot be bypassed by constructing one.
+    /// The parameter list matches the memberwise initialiser it replaces.
+    init(id: String, badge: String, title: String, used: Double,
+         resetsAt: Date? = nil, reportedSeverity: Severity = .normal,
+         windowSeconds: Double? = nil, amount: Amount? = nil) {
+        self.id = Gauge.clamp(id, to: Gauge.maxTitle)
+        self.badge = Gauge.clamp(badge, to: Gauge.maxBadge)
+        self.title = Gauge.clamp(title, to: Gauge.maxTitle)
+        // A provider that computes a fraction from two response numbers can
+        // divide by zero. NaN compares false against everything, so it would
+        // pass every bound check below and paint an empty meter that never
+        // moves; infinity would paint a full one.
+        self.used = used.isFinite ? used : 0
+        self.resetsAt = resetsAt
+        self.reportedSeverity = reportedSeverity
+        self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil
+        self.amount = amount
+    }
+
+    static func clamp(_ text: String, to limit: Int) -> String {
+        text.count <= limit ? text : String(text.prefix(limit))
+    }
 
     struct Amount: Equatable {
         let value: Double

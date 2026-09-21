@@ -125,8 +125,11 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
         // found nothing, and dropped every model-specific cap on the floor:
         // this account's only five-hour window lives in here.
         for (i, extra) in (json["additional_rate_limits"] as? [[String: Any]] ?? []).enumerated() {
-            let label = (extra["limit_name"] as? String)
-                ?? (extra["metered_feature"] as? String) ?? "Extra \(i + 1)"
+            // Straight out of the response and into a menu item. Clamped
+            // here for the same reason the descriptor providers clamp theirs:
+            // the 2 MiB body cap is the only other bound on it.
+            let label = (extra["limit_name"] as? String).map(clamped)
+                ?? (extra["metered_feature"] as? String).map(clamped) ?? "Extra \(i + 1)"
             let inner = extra["rate_limit"] as? [String: Any] ?? extra
             for key in ["primary_window", "secondary_window"] {
                 guard let window = inner[key] as? [String: Any],
@@ -144,7 +147,7 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
         gauges.sort { ($0.windowSeconds ?? .greatestFiniteMagnitude)
                     < ($1.windowSeconds ?? .greatestFiniteMagnitude) }
 
-        let plan = (json["plan_type"] as? String).map { "\($0) plan" }
+        let plan = (json["plan_type"] as? String).map { "\(clamped($0)) plan" }
         Log.info("codex", "Usage response parsed: \(gauges.count) primary windows, \(extras.count) additional windows.")
         return Snapshot(providerID: "codex", gauges: gauges, extras: extras,
                         accountLabel: plan, fetchedAt: Date())
@@ -175,6 +178,13 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
         return Gauge(id: id, badge: "", title: nameOverride ?? windowName(span),
                      used: used / 100, resetsAt: resets, reportedSeverity: .normal,
                      windowSeconds: span)
+    }
+
+    /// Response text that reaches a menu item, bounded the way every other
+    /// provider bounds its own.
+    static let maxText = 64
+    private static func clamped(_ text: String) -> String {
+        text.count <= maxText ? text : String(text.prefix(maxText))
     }
 
     /// Names the window from its own length rather than its position.

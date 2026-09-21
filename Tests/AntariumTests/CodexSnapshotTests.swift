@@ -109,3 +109,49 @@ struct CodexSnapshotTests {
         #expect(found.gauges.map(\.used) == [0.25])
     }
 }
+
+/// Codex names its extra caps from the response. Everything else the app puts
+/// in a menu item is clamped where it arrives; this was not, so the only
+/// bound on it was the 2 MiB body cap.
+@Suite("Codex response text stays a menu item")
+struct CodexResponseTextTests {
+
+    private func snapshot(limitName: String, plan: String) throws -> Snapshot {
+        try CodexProvider.makeSnapshot([
+            "plan_type": plan,
+            "rate_limit": ["primary_window": ["used_percent": 10.0,
+                                              "limit_window_seconds": 18_000.0]],
+            "additional_rate_limits": [
+                ["limit_name": limitName,
+                 "rate_limit": ["primary_window": ["used_percent": 20.0,
+                                                   "limit_window_seconds": 3_600.0]]],
+            ],
+        ])
+    }
+
+    @Test("A cap named by a runaway field does not become the menu item")
+    func extraLabelIsClamped() throws {
+        let runaway = String(repeating: "N", count: 100_000)
+        let found = try snapshot(limitName: runaway, plan: "plus")
+        let extra = try #require(found.extras.first)
+        #expect(extra.title.count == CodexProvider.maxText,
+                "a response field reached the menu at its own length")
+    }
+
+    @Test("The account label is bounded too")
+    func planLabelIsClamped() throws {
+        let runaway = String(repeating: "P", count: 100_000)
+        let found = try snapshot(limitName: "code review", plan: runaway)
+        let label = try #require(found.accountLabel)
+        #expect(label.count == CodexProvider.maxText + " plan".count)
+    }
+
+    /// And a name anybody would actually write is left alone — a clamp that
+    /// shortens real labels is a different bug from the one it fixes.
+    @Test("An ordinary cap name is untouched")
+    func ordinaryLabelSurvives() throws {
+        let found = try snapshot(limitName: "GPT-5 high reasoning", plan: "pro")
+        #expect(found.extras.first?.title == "GPT-5 high reasoning")
+        #expect(found.accountLabel == "pro plan")
+    }
+}

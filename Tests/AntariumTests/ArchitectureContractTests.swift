@@ -1222,3 +1222,64 @@ struct ProviderHTTPContractTests {
                         + holders.joined(separator: ", ")))
     }
 }
+
+/// What a provider hands the menu bar, bounded whatever the provider forgot.
+///
+/// Five of the nine native providers clamped their response text and four did
+/// not: Codex put `limit_name` straight into a menu item, bounded only by the
+/// 2 MiB body cap. The per-provider clamps are the policy — 64 characters for
+/// network text, and a descriptor's own labels left exactly as their author
+/// wrote them, because local configuration is trusted and a response is not.
+/// These are the floor under both.
+@Suite("A gauge cannot carry a response into the menu bar")
+struct GaugeBoundsTests {
+
+    @Test("A title the size of a response body is cut to the backstop")
+    func titleIsBounded() {
+        let huge = String(repeating: "T", count: 200_000)
+        let gauge = Gauge(id: huge, badge: huge, title: huge, used: 0.5)
+        #expect(gauge.title.count == Gauge.maxTitle)
+        #expect(gauge.badge.count == Gauge.maxBadge)
+        #expect(gauge.id.count == Gauge.maxTitle)
+    }
+
+    /// The backstop must not overrule an author. A descriptor's label is
+    /// trusted local configuration, and the shipped harnesses' own strings
+    /// are eleven characters at the longest — anything a person would write
+    /// has to pass through untouched.
+    @Test("An authored title passes through unchanged")
+    func authoredTitleSurvives() {
+        let written = String(repeating: "A sensibly long window name. ", count: 10)
+        #expect(written.count < Gauge.maxTitle)
+        #expect(Gauge(id: "w", badge: "5H", title: written, used: 0).title == written)
+    }
+
+    /// A provider computing a fraction from two response numbers can divide
+    /// by zero. NaN compares false against every bound, so it would pass the
+    /// clamps elsewhere and paint a meter that never moves; infinity paints a
+    /// full one. Neither is a usage figure.
+    @Test("A figure that is not a number is zero, not a painted meter",
+          arguments: [Double.nan, .infinity, -.infinity])
+    func nonFiniteUsedIsZero(_ value: Double) {
+        let gauge = Gauge(id: "w", badge: "5H", title: "Window", used: value)
+        #expect(gauge.used == 0)
+        #expect(gauge.remaining == 1)
+        #expect(gauge.usedPercentText == Gauge.percentText(0))
+    }
+
+    @Test("A window length that is not a number is absent, not a sort key")
+    func nonFiniteWindowIsAbsent() {
+        let gauge = Gauge(id: "w", badge: "5H", title: "Window", used: 0.5,
+                          windowSeconds: .nan)
+        #expect(gauge.windowSeconds == nil,
+                "a NaN window seconds sorts unpredictably against every other row")
+    }
+
+    @Test("An ordinary figure is untouched")
+    func ordinaryFigureSurvives() {
+        let gauge = Gauge(id: "w", badge: "5H", title: "Window", used: 0.42,
+                          windowSeconds: 18_000)
+        #expect(gauge.used == 0.42)
+        #expect(gauge.windowSeconds == 18_000)
+    }
+}

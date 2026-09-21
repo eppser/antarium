@@ -403,3 +403,10 @@ zed instruction path cannot be reached | Resources/harnesses/zed.json | s|"AGENT
 enabled agents default to a fixed list again | Sources/Antarium/UI/Settings.swift | s|recorded.map(Set.init) ?? \[\]|recorded.map(Set.init) ?? ["claude-code", "codex", "cursor"]|
 an empty choice reads as no choice | Sources/Antarium/UI/Settings.swift | s|static func unconfigured(recorded: \[String\]?) -> Bool { recorded == nil }|static func unconfigured(recorded: [String]?) -> Bool { (recorded ?? []).isEmpty }|
 claude code reads its body outside the bounded path | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|        try await UsageHTTP.getJSON(|        _ = try await session.data(for: URLRequest(url: endpoint)); return try await UsageHTTP.getJSON(|
+gauge title unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.title = Gauge.clamp(title, to: Gauge.maxTitle)|self.title = title|
+gauge badge unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.badge = Gauge.clamp(badge, to: Gauge.maxBadge)|self.badge = badge|
+gauge backstop cuts an authored title | Sources/Antarium/Core/UsageModel.swift | s|static let maxTitle = 4_096|static let maxTitle = 64|
+a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swift | s|self.used = used.isFinite ? used : 0|self.used = used|
+a window length that is not a number sorts | Sources/Antarium/Core/UsageModel.swift | s|self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil|self.windowSeconds = windowSeconds|
+codex extra label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|(extra\["limit_name"\] as? String).map(clamped)|(extra["limit_name"] as? String)|
+codex plan label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|"\\(clamped(\$0)) plan"|"\\(\$0) plan"|
