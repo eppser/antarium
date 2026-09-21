@@ -234,3 +234,8 @@ a future format version is migrated anyway | Sources/AntariumHarnessSDK/HarnessC
 migration reports the wrong origin | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
 migration reports nothing was migrated | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
 loading rewrites the user's file | Sources/Antarium/Core/HarnessDocument.swift | s|guard let value = object\["formatVersion"\] else { return 0 }|guard let value = object["formatVersion"] else { return currentVersion }|
+a capability probe follows a symlink | Sources/Antarium/Core/ProjectContext.swift | s|info.st_mode \& S_IFMT == S_IFDIR|true|
+an empty file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return info.st_size > 0|return true|
+an empty directory counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return try !entries(url).isEmpty|return true|
+a multiline TOML string is read as configuration | Sources/Antarium/Core/ProjectContext.swift | s|guard !text.contains("\\"\\"\\""), !text.contains("'''") else { throw ProbeError.unsupported }||
+a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|

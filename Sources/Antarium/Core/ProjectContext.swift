@@ -178,6 +178,9 @@ struct ProjectContext {
             guard !text.contains("\"\"\""), !text.contains("'''") else { throw ProbeError.unsupported }
             for raw in text.split(separator: "\n") {
                 let line = raw.trimmingCharacters(in: .whitespaces)
+                // Clarity rather than enforcement: trimming leaves the `#`
+                // in place, so a commented line matches none of the three
+                // forms below anyway and no mutation of this can be caught.
                 guard !line.isEmpty, !line.hasPrefix("#") else { continue }
                 for key in keys {
                     if line == "[\(key)]" || line.hasPrefix("[\(key).") {
