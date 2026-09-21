@@ -189,3 +189,6 @@ remote rows reorder as hosts answer | Sources/Antarium/Core/AgentStore.swift | s
 a host answering clears no previous problem | Sources/Antarium/Core/AgentStore.swift | s|problems\[result.host\] = nil||
 a stopped agent is reported while still working | Sources/Antarium/Core/AgentStore.swift | s|guard was.state.rank > 2 else { return nil }||
 an unobserved agent is reported as stopped | Sources/Antarium/Core/AgentStore.swift | s|if case .unobserved = still.state { return nil }||
+sqlite negative usage accepted | Sources/Antarium/Core/HarnessEngine.swift | s|guard let amount = value.integer, amount >= 0 else {|guard let amount = value.integer else {|
+sqlite negative cost accepted | Sources/Antarium/Core/HarnessEngine.swift | s|if let amount = value.number, amount >= 0 { session.costUSD = amount; session.markNumeric("cost") }|if let amount = value.number { session.costUSD = amount; session.markNumeric("cost") }|
+shipped pricing table emptied | Resources/pricing.json | s|"models"|"modelsX"|

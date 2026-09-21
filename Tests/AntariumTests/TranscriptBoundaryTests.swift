@@ -222,7 +222,11 @@ struct PricingTableTests {
 
     @Test("Rates have the shape a token price must have")
     func ratesAreOrdered() throws {
-        for entry in try bundled() {
+        let entries = try bundled()
+        // Without this the loop below is satisfied by an empty table, which
+        // is exactly the state a broken pricing.json would leave it in.
+        #expect(entries.count > 1, "no rates were checked, so this proved nothing")
+        for entry in entries {
             let read = try #require(entry.cacheRead, "\(entry.prefix) has no cache read rate")
             let write5 = try #require(entry.cacheWrite5m, "\(entry.prefix) has no 5m write rate")
             let write1h = try #require(entry.cacheWrite1h, "\(entry.prefix) has no 1h write rate")

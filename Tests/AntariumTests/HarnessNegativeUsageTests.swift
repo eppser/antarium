@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import Testing
 @testable import Antarium
 
@@ -76,5 +77,71 @@ struct HarnessNegativeUsageTests {
         #expect(found.numericIssue == nil)
         #expect(found.inputTokens == 7)
         #expect(found.outputTokens == 0)
+    }
+}
+
+/// The same rule on the other reader. A harness whose source is SQLite goes
+/// through different code from one reading JSONL, with its own sign check —
+/// and only the JSONL side was held to it. Where two paths do the same job
+/// and one has tests, the untested one is where the next bug lives.
+@Suite("A SQLite harness cannot report negative usage either", .serialized)
+struct SQLiteNegativeUsageTests {
+
+    private func descriptor(_ root: URL, sql: String) throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "sqlite-negative", "name": "Fixture", "process": [:],
+            "source": ["kind": "sqlite",
+                       "path": root.appendingPathComponent("fixture.sqlite").path,
+                       "query": sql,
+                       "columns": ["cwd", "inputTokens", "outputTokens", "cost"]]]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    private func session(_ sql: String) throws -> HarnessEngine.Session {
+        HarnessEngineTestIsolation.lock.lock()
+        defer { HarnessEngineTestIsolation.lock.unlock() }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sqlite-negative-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var database: OpaquePointer?
+        #expect(sqlite3_open(root.appendingPathComponent("fixture.sqlite").path,
+                             &database) == SQLITE_OK)
+        sqlite3_close(database)
+        HarnessEngine.resetCaches(includingParsedFiles: true)
+        return try #require(HarnessEngine.sessions(try descriptor(root, sql: sql)).first)
+    }
+
+    @Test("A negative token count is refused", arguments: [
+        "SELECT '/fixture',-1,0,0",
+        "SELECT '/fixture',0,-1,0",
+    ])
+    func negativeTokens(_ sql: String) throws {
+        #expect(try session(sql).numericIssue != nil)
+    }
+
+    @Test("A negative cost is refused")
+    func negativeCost() throws {
+        #expect(try session("SELECT '/fixture',0,0,-0.5").numericIssue != nil)
+    }
+
+    /// And the ordinary row still reports, or the refusals above are
+    /// satisfied by a reader that refuses every SQLite source.
+    @Test("An ordinary row still reports its figures")
+    func ordinaryRow() throws {
+        let found = try session("SELECT '/fixture',120,53,1.25")
+        #expect(found.numericIssue == nil)
+        #expect(found.inputTokens == 120)
+        #expect(found.outputTokens == 53)
+        #expect(found.costUSD == 1.25)
+    }
+
+    @Test("A zero row is a measurement, not a refusal")
+    func zeroRow() throws {
+        let found = try session("SELECT '/fixture',0,0,0")
+        #expect(found.numericIssue == nil)
+        #expect(found.inputTokens == 0)
+        #expect(found.costUSD == 0)
     }
 }
