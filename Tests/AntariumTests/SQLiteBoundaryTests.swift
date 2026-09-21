@@ -167,3 +167,81 @@ struct SQLiteBoundaryTests {
         #expect(result.stdout.contains("SQLite") || result.stdout.contains("sqlite"))
     }
 }
+
+/// Column conversion in the middle of its range. The boundaries — budgets,
+/// invalid text, unusable queries — are covered above; what an ordinary value
+/// becomes was not, and a harness whose numbers are stored as text would have
+/// reported no numbers at all.
+@Suite("SQLite values become what they are", .serialized)
+struct SQLiteValueTests {
+
+    private func query(_ sql: String) throws -> BoundedSQLite.Result {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("values-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let path = dir.appendingPathComponent("fixture.sqlite").path
+        var database: OpaquePointer?
+        #expect(sqlite3_open(path, &database) == SQLITE_OK)
+        sqlite3_close(database)
+        return try BoundedSQLite.query(path: path, sql: sql)
+    }
+
+    @Test("Text, integers and reals come back as themselves")
+    func ordinaryValues() throws {
+        let result = try query("SELECT 'a text', 42, 1.5")
+        let row = try #require(result.rows.first)
+        #expect(row[0].string == "a text")
+        // An integer read as text is its digits, which is how a column that
+        // sometimes holds either still produces a label.
+        #expect(row[1].string == "42")
+        #expect(row[1].integer == 42)
+        #expect(row[2].number == 1.5)
+    }
+
+    /// A number stored in a text column is still a number. Cursor's store
+    /// keeps values that have been through JSON, so this is the ordinary case
+    /// there rather than an oddity — refusing it reports a session with no
+    /// figures at all.
+    @Test("A number stored as text converts")
+    func numericText() throws {
+        let row = try #require(try query("SELECT '42', '1.5'").rows.first)
+        #expect(row[0].integer == 42)
+        #expect(row[1].number == 1.5)
+    }
+
+    /// And text that is not a number stays unavailable rather than becoming
+    /// zero, which is the distinction the whole reader is built around.
+    @Test("Text that is not a number is unavailable, not zero")
+    func nonNumericText() throws {
+        let row = try #require(try query("SELECT 'not a number'").rows.first)
+        #expect(row[0].integer == nil)
+        #expect(row[0].number == nil)
+        #expect(row[0].string == "not a number")
+    }
+
+    @Test("A NULL is absent in every reading of it")
+    func nullValues() throws {
+        let row = try #require(try query("SELECT NULL").rows.first)
+        #expect(row[0].integer == nil)
+        #expect(row[0].number == nil)
+        #expect(row[0].string == nil)
+    }
+
+    @Test("A non-finite real is unavailable rather than charted")
+    func nonFiniteReal() throws {
+        let row = try #require(try query("SELECT 1e400, -1e400").rows.first)
+        #expect(row[0].number == nil)
+        #expect(row[1].number == nil)
+        // And it has no text form either: `String(Double.infinity)` is "inf",
+        // which would render as a label rather than as nothing.
+        #expect(row[0].string == nil)
+        #expect(row[1].string == nil)
+    }
+
+    @Test("Column names come back with the rows")
+    func columnNames() throws {
+        let result = try query("SELECT 1 AS alpha, 2 AS beta")
+        #expect(result.columns == ["alpha", "beta"])
+    }
+}

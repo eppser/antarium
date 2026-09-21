@@ -260,3 +260,10 @@ harness reader keeps a file URL as the cwd | Sources/Antarium/Core/HarnessEngine
 harness reader accepts a placeholder model | Sources/Antarium/Core/HarnessEngine.swift | s|!value.isEmpty, !value.hasPrefix("<") { session.model = value }|!value.isEmpty { session.model = value }|
 harness reader drops the timestamp | Sources/Antarium/Core/HarnessEngine.swift | s|if let path = map.timestamp, let when = date(record, path) {|if false, let path = map.timestamp, let when = date(record, path) {|
 harness reader shows the whole prompt as a title | Sources/Antarium/Core/HarnessEngine.swift | s|session.title = value.split(separator: "\\n").first|session.title = value; _ = value.split(separator: "\\n").first|
+sqlite text column read as nothing | Sources/Antarium/Core/BoundedSQLite.swift | s|case .text(let value): return value|case .text: return nil|
+sqlite integer column read as nothing | Sources/Antarium/Core/BoundedSQLite.swift | s|case .integer(let value): return Int(exactly:value)|case .integer: return nil|
+sqlite numeric text not converted | Sources/Antarium/Core/BoundedSQLite.swift | s|case .text(let value): return Int(value)|case .text: return nil|
+sqlite numeric text not converted to a real | Sources/Antarium/Core/BoundedSQLite.swift | s|case .text(let value): result = Double(value)|case .text: result = nil|
+sqlite integer has no text form | Sources/Antarium/Core/BoundedSQLite.swift | s|case .integer(let value): return String(value)|case .integer: return nil|
+sqlite non-finite real read as text | Sources/Antarium/Core/BoundedSQLite.swift | s|case .real(let value): return value.isFinite ? String(value) : nil|case .real(let value): return String(value)|
+shell loses the exit code | Sources/Antarium/Core/Shell.swift | s|exitCode: status,|exitCode: 0,|
