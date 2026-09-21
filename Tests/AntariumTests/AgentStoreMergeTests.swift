@@ -124,3 +124,61 @@ struct AgentStoreMergeTests {
         #expect(AgentStore.stopped(previous: [:], current: [row("a", .ended)]).isEmpty)
     }
 }
+
+/// How often the app scans, which is most of what it costs to leave running.
+/// Three mutations of this survived: the counter never coming back down, the
+/// counter going negative, and the interval ignoring visibility altogether.
+/// Each is a laptop that does not idle, and none of them look like a bug.
+@Suite("Scan interval follows what is actually being watched", .serialized)
+@MainActor
+struct ScanIntervalTests {
+
+    @Test("Nothing watching means the interval the user configured")
+    func idleUsesTheConfiguredInterval() {
+        #expect(AgentStore.scanInterval(visible: 0, configured: 30) == 30)
+        #expect(AgentStore.scanInterval(visible: 0, configured: 3) == 3)
+    }
+
+    @Test("Something watching scans at most every five seconds")
+    func watchedIsCapped() {
+        #expect(AgentStore.scanInterval(visible: 1, configured: 30) == 5)
+        #expect(AgentStore.scanInterval(visible: 4, configured: 600) == 5)
+    }
+
+    /// A user who asked for something faster than the cap gets it. The cap is
+    /// a ceiling on the rate, not a floor.
+    @Test("A configured interval below the cap is honoured as it stands")
+    func fastConfigurationIsNotSlowedDown() {
+        #expect(AgentStore.scanInterval(visible: 1, configured: 2) == 2)
+    }
+
+    /// The whole point of the counter: what goes up comes back down. A view
+    /// that fails to release leaves the app scanning every five seconds for
+    /// as long as it runs.
+    @Test("Opening and closing a view returns the interval to idle")
+    func balancedVisibilityReturnsToIdle() {
+        let store = AgentStore()
+        #expect(store.visibleObservers == 0)
+        store.setVisible(true)
+        store.setVisible(true)
+        #expect(store.visibleObservers == 2)
+        store.setVisible(false)
+        store.setVisible(false)
+        #expect(store.visibleObservers == 0, "a view held the fast interval after closing")
+    }
+
+    /// And an unbalanced close cannot drive it below zero, which would make
+    /// the next open a no-op — the dashboard refreshing at the idle rate
+    /// while someone is looking at it.
+    @Test("An unbalanced close does not make the next open a no-op")
+    func countCannotGoNegative() {
+        let store = AgentStore()
+        store.setVisible(false)
+        store.setVisible(false)
+        #expect(store.visibleObservers == 0)
+        store.setVisible(true)
+        #expect(store.visibleObservers == 1)
+        #expect(AgentStore.scanInterval(visible: store.visibleObservers,
+                                        configured: 30) == 5)
+    }
+}

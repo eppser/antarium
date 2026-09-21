@@ -45,7 +45,7 @@ final class AgentStore: ObservableObject {
     private var localScanIssue: String?
     private var cloudScanIssue: String?
     /// Scan more often while the dashboard is on screen.
-    private var visibleObservers = 0
+    private(set) var visibleObservers = 0
 
     /// Agents that were working last pass and aren't now.
     ///
@@ -214,16 +214,33 @@ final class AgentStore: ObservableObject {
 
     /// Called when the dashboard opens and closes.
     func setVisible(_ visible: Bool) {
+        // Clamped at zero: an unbalanced close would otherwise drive the count
+        // negative and every later open would be swallowed getting back to
+        // zero, leaving the dashboard refreshing at the idle rate while open.
         visibleObservers = max(0, visibleObservers + (visible ? 1 : -1))
         reschedule()
         if visible { refresh() }
     }
 
+    /// How often to scan, given how many views are watching.
+    ///
+    /// Pure, because the difference between this returning five and returning
+    /// the user's interval is the difference between a laptop that idles and
+    /// one that does not, and a counter that fails to come back down pins it
+    /// at the fast rate for the life of the process — a battery drain that
+    /// reads as "the app is just like that".
+    ///
+    /// Never slower than the user asked for and never faster than five
+    /// seconds while watched; a configured interval below five is honoured as
+    /// it stands rather than being raised to meet the cap.
+    static func scanInterval(visible: Int, configured: Int) -> Double {
+        visible > 0 ? min(Double(configured), 5) : Double(configured)
+    }
+
     private func reschedule() {
         timer?.invalidate()
-        let seconds = visibleObservers > 0
-            ? min(Double(Settings.agentScanSeconds), 5)
-            : Double(Settings.agentScanSeconds)
+        let seconds = Self.scanInterval(visible: visibleObservers,
+                                        configured: Settings.agentScanSeconds)
         let t = Timer(timeInterval: seconds, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
