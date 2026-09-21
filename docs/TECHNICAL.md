@@ -592,6 +592,15 @@ certificate in front of a loopback socket, which nobody does. `0.0.0.0` is
 not accepted: it is a bind address meaning every interface rather than a
 destination meaning here, and anyone who meant loopback can write it.
 
+`{token}` is substituted into the headers, into a POST `body`, and into the
+`endpoint` itself. The last is for services that take the credential as a
+query parameter rather than a header — a self-hosted proxy in front of an
+agent typically does. It is percent-encoded there, so a key containing `&`,
+`?` or `#` stays one value instead of ending the parameter early. Nothing
+logs a request URL: `UsageHTTP` records the status alone and `--check`
+prints the endpoint's host, so a credential in the query is no more exposed
+than one in a header.
+
 An endpoint quota may declare `method: "POST"` and a flat `body`, with
 `{token}` substituted the way it is in `headers`. Not every usage API is a
 GET — Codebuff posts to its usage path, and Kimi's server endpoint is a POST

@@ -1255,3 +1255,75 @@ struct CredentialFieldApplicabilityTests {
         #expect(checked >= 8, "only \(checked) credentials were checked")
     }
 }
+
+/// A credential that belongs in the URL rather than in a header.
+///
+/// A self-hosted proxy in front of an agent — LiteLLM, and the several like
+/// it — asks for the key being queried as a query parameter. `{token}` was
+/// substituted into headers and POST bodies and not into the endpoint, which
+/// left the whole class undescribable: not by a shipped descriptor, which
+/// cannot know the host anyway, and not by somebody writing their own, which
+/// is the part that mattered. docs/ECOSYSTEM.md recorded the shipping problem
+/// and missed this one.
+@Suite("A token can go in the endpoint")
+struct EndpointTokenTests {
+
+    @Test("The placeholder is replaced with the credential")
+    func placeholderIsFilled() throws {
+        let url = try #require(DescriptorProvider.requestURL(
+            "http://127.0.0.1:4000/key/info?key={token}", token: "sk-abc123"))
+        #expect(url.absoluteString == "http://127.0.0.1:4000/key/info?key=sk%2Dabc123")
+    }
+
+    /// A key carrying a separator would otherwise end the parameter early and
+    /// send the rest as something else — or quietly ask about a different
+    /// key, which is the reading that looks like an answer.
+    @Test("A credential carrying URL punctuation cannot break out of its parameter",
+          arguments: ["a&b=c", "a?b", "a#b", "a/b", "a b", "a+b", "a%b"])
+    func punctuationIsEncoded(token: String) throws {
+        let url = try #require(DescriptorProvider.requestURL(
+            "https://example.invalid/info?key={token}&scope=plan", token: token))
+        let query = try #require(url.query)
+        #expect(query.hasSuffix("&scope=plan"), "the token swallowed the rest of the query")
+        #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "key" }?.value == token,
+                "the token did not survive the round trip intact")
+    }
+
+    /// An endpoint that names no token is left exactly as written, or every
+    /// existing descriptor would be going through a different code path.
+    @Test("An endpoint with no placeholder is untouched")
+    func withoutPlaceholder() throws {
+        let raw = "https://api.example.invalid/v1/usage?scope=plan"
+        #expect(DescriptorProvider.requestURL(raw, token: "sk-abc")?.absoluteString == raw)
+    }
+
+    /// `URL(string:)` accepts far more than a usable endpoint — it percent-
+    /// encodes a line of prose rather than refusing it — so the guard that
+    /// matters is the one at the request, not here. Asserted where it lives,
+    /// since substituting a token must not be a way past it.
+    @Test("An endpoint with no host is still refused at the request")
+    func stillRefusesNonURLs() throws {
+        #expect(DescriptorProvider.requestURL("", token: "t") == nil)
+        let prose = try #require(DescriptorProvider.requestURL("not a url at all", token: "t"))
+        #expect(throws: ProviderError.self) { _ = try UsageHTTP.checkedURL(prose) }
+        // And a token in the query does not smuggle an unusable scheme past it.
+        let ftp = try #require(DescriptorProvider.requestURL(
+            "ftp://example.invalid/info?key={token}", token: "sk-abc"))
+        #expect(throws: ProviderError.self) { _ = try UsageHTTP.checkedURL(ftp) }
+        // The loopback case a self-hosted proxy actually uses is allowed.
+        let local = try #require(DescriptorProvider.requestURL(
+            "http://127.0.0.1:4000/key/info?key={token}", token: "sk-abc"))
+        #expect(throws: Never.self) { _ = try UsageHTTP.checkedURL(local) }
+    }
+
+    /// The token must not be able to bend the request somewhere else — the
+    /// encoding is what keeps a credential a value rather than syntax.
+    @Test("A credential cannot redirect the request to another host")
+    func cannotChangeTheHost() throws {
+        let url = try #require(DescriptorProvider.requestURL(
+            "https://intended.invalid/info?key={token}",
+            token: "x@evil.invalid/steal?y="))
+        #expect(url.host == "intended.invalid", "the token moved the request to \(url.host ?? "—")")
+    }
+}

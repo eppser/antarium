@@ -177,7 +177,26 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     func fetch() async throws -> Snapshot {
         if quota.command != nil { return try makeSnapshot(try runCommand()) }
         guard let token = token() else { throw ProviderError.notConfigured(setupHint) }
-        guard let endpoint = quota.endpoint, let url = URL(string: endpoint) else {
+        // The token may belong in the URL rather than in a header. A
+        // self-hosted proxy in front of an agent — LiteLLM, and the several
+        // like it — asks for the key being queried as a query parameter, and
+        // until now `{token}` was substituted into headers and POST bodies
+        // but not here. That left the whole class undescribable: not by a
+        // shipped descriptor, which cannot know the host anyway, and not by
+        // somebody writing their own either, which is the part that mattered.
+        //
+        // Encoded before it goes in. A key carrying `&`, `?` or `#` would
+        // otherwise end the parameter early and send the rest of it as
+        // something else — or, worse, quietly query a different key. Encoded
+        // conservatively for the same reason the form bodies are: over-
+        // encoding a query value is always safe, guessing at a context is
+        // not.
+        //
+        // Nothing logs a request URL — `UsageHTTP` records the status alone,
+        // and `--check` prints the endpoint's host — so a credential placed
+        // here does not reach the log the way one in a header does not.
+        guard let endpoint = quota.endpoint,
+              let url = Self.requestURL(endpoint, token: token) else {
             throw ProviderError.badResponse("\(displayName)'s endpoint is not a URL.")
         }
         var headers = quota.headers ?? ["Authorization": "Bearer {token}"]
@@ -194,6 +213,16 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             json = try await UsageHTTP.getJSON(url, headers: headers, session: session)
         }
         return try makeSnapshot(json)
+    }
+
+    /// The URL to ask, with the credential in it if that is where it goes.
+    ///
+    /// Callable so the substitution can be checked without a network: the
+    /// only other way to see this URL is to watch a request leave.
+    static func requestURL(_ endpoint: String, token: String) -> URL? {
+        guard endpoint.contains("{token}") else { return URL(string: endpoint) }
+        let encoded = token.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? token
+        return URL(string: endpoint.replacingOccurrences(of: "{token}", with: encoded))
     }
 
     /// Reads the figures from a command's stdout.

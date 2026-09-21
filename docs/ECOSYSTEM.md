@@ -141,6 +141,13 @@ master key in the header and the key being asked about in the query. A
 shipped descriptor cannot carry a working default for either, so this is a
 thing to document for somebody writing their own rather than to ship.
 
+The second half of that was wrong for longer than it looked. "Document it
+for somebody writing their own" assumed they could, and they could not:
+`{token}` was substituted into headers and into a POST body but not into the
+endpoint, so a credential belonging in the query had nowhere to go. The
+class was undescribable by anybody, not merely unshippable by us. It is
+substituted there now, percent-encoded, and the authoring guide says so.
+
 Fireworks is the exception that failed differently: it publishes a complete
 schema for `GET /v1/accounts/{account_id}/quotas`, and still does not fit.
 The path carries an account id this app has no way to learn — a descriptor

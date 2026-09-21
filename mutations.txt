@@ -664,3 +664,5 @@ an unmeasured context reads as empty | Sources/Antarium/Core/HarnessEngine.swift
 a malformed journal kind replaces the document | Sources/Antarium/Core/Journal.swift | s|            } else { continue }|            } else { kind = 0 }|
 an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...2).contains(declared) {|            else if let declared = line["kind"] as? Int {|
 a journal line with no kind is skipped | Sources/Antarium/Core/Journal.swift | s|            if line\["kind"\] == nil { kind = 0 }|            if false { kind = 0 }|
+a token in the endpoint goes in unencoded | Sources/Antarium/Providers/DescriptorProvider.swift | s|        let encoded = token.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? token|        let encoded = token|
+a token in the endpoint is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|        return URL(string: endpoint.replacingOccurrences(of: "{token}", with: encoded))|        return URL(string: endpoint)|
