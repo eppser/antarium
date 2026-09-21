@@ -208,3 +208,9 @@ sqlite byte budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|
 seeding overwrites a file the user edited | Sources/Antarium/Core/HarnessSeed.swift | s|if let current, owned\[name\] != current { result.keptYours.append(name); continue }||
 seeding reports an edited file as updated | Sources/Antarium/Core/HarnessSeed.swift | s|{ result.keptYours.append(name); continue }|{ result.updated.append(name); continue }|
 seeding rewrites an unchanged file every launch | Sources/Antarium/Core/HarnessSeed.swift | s|if current == next { owned\[name\] = next; continue }||
+session fixture always passes | Sources/Antarium/Core/HarnessCompatibility.swift | s|let passed = actual == fixture.expected|let passed = true|
+session fixture ignores the expected values | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: passed ? .fixtureVerified : .incompatible,|return Report(status: .fixtureVerified,|
+missing fixture file reported as verified | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: .incompatible, detail: "fixture missing or unreadable: \\(fixturePath)",|return Report(status: .fixtureVerified, detail: "fixture missing or unreadable: \\(fixturePath)",|
+declared level reported as fixture verified | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: declaration.level == .experimental ? .experimental : .declared,|return Report(status: .fixtureVerified,|
+quota fixture always passes | Sources/Antarium/Core/QuotaFixture.swift | s|return Report(id: descriptor.id, passed: problems.isEmpty,|return Report(id: descriptor.id, passed: true,|
+quota fixture tolerance swallows a wrong mapping | Sources/Antarium/Core/QuotaFixture.swift | s|static let tolerance = 0.005|static let tolerance = 1000.0|
