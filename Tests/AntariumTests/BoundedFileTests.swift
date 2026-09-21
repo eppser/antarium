@@ -99,3 +99,87 @@ struct BoundedFileOrdinaryTests {
         #expect(try BoundedFile.prefix(url, maxBytes: 1_000).count == 10)
     }
 }
+
+/// The glob search that finds a harness's session files. Its boundaries —
+/// entry limits, directory limits, cycles — are covered elsewhere; what it
+/// actually returns was not.
+@Suite("Glob search returns the right files, in a stable order")
+struct BoundedDirectoryGlobTests {
+
+    private func tree(_ build: (URL) throws -> Void) rethrows -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("glob-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try build(root)
+        return root
+    }
+
+    private func write(_ root: URL, _ path: String) throws {
+        let url = root.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try Data("{}\n".utf8).write(to: url)
+    }
+
+    @Test("A pattern finds the files that match it and not the others")
+    func findsMatches() throws {
+        let root = try tree {
+            try write($0, "a.jsonl"); try write($0, "b.jsonl"); try write($0, "c.txt")
+        }
+        defer { try? FileManager.default.removeItem(at: root) }
+        let found = try BoundedGlob.files(under: root, pattern: "*.jsonl")
+        #expect(found.map(\.lastPathComponent) == ["a.jsonl", "b.jsonl"])
+    }
+
+    /// A directory can match a file pattern — `sessions.jsonl/` is a legal
+    /// name — and handing one to a file reader is a read that fails for a
+    /// reason nobody will understand.
+    @Test("A directory whose name matches the pattern is not a file")
+    func directoriesAreNotFiles() throws {
+        let root = try tree {
+            try write($0, "real.jsonl")
+            try FileManager.default.createDirectory(
+                at: $0.appendingPathComponent("decoy.jsonl"), withIntermediateDirectories: true)
+        }
+        defer { try? FileManager.default.removeItem(at: root) }
+        let found = try BoundedGlob.files(under: root, pattern: "*.jsonl")
+        #expect(found.map(\.lastPathComponent) == ["real.jsonl"])
+    }
+
+    /// The order is the sort, not the filesystem's. Two machines with the
+    /// same files must produce the same list, for the same reason first-run
+    /// detection breaks its ties on id.
+    @Test("Results come back sorted, whatever order the filesystem gives")
+    func orderIsStable() throws {
+        let names = ["z.jsonl", "m.jsonl", "a.jsonl", "b.jsonl", "y.jsonl"]
+        let root = try tree { for name in names { try write($0, name) } }
+        defer { try? FileManager.default.removeItem(at: root) }
+        let found = try BoundedGlob.files(under: root, pattern: "*.jsonl")
+        #expect(found.map(\.lastPathComponent) == names.sorted())
+        // And again, to catch an order that is stable only by luck of hashing.
+        let again = try BoundedGlob.files(under: root, pattern: "*.jsonl")
+        #expect(again == found)
+    }
+
+    @Test("A recursive pattern descends, and still returns only files")
+    func recursivePattern() throws {
+        let root = try tree {
+            try write($0, "top.jsonl")
+            try write($0, "one/nested.jsonl")
+            try write($0, "one/two/deep.jsonl")
+            try FileManager.default.createDirectory(
+                at: $0.appendingPathComponent("one/dir.jsonl"), withIntermediateDirectories: true)
+        }
+        defer { try? FileManager.default.removeItem(at: root) }
+        let found = try BoundedGlob.files(under: root, pattern: "**/*.jsonl")
+            .map(\.lastPathComponent).sorted()
+        #expect(found == ["deep.jsonl", "nested.jsonl", "top.jsonl"])
+    }
+
+    @Test("A pattern matching nothing finds nothing rather than everything")
+    func noMatches() throws {
+        let root = try tree { try write($0, "a.txt") }
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try BoundedGlob.files(under: root, pattern: "*.jsonl").isEmpty)
+    }
+}

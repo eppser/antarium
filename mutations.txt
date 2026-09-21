@@ -241,3 +241,8 @@ a multiline TOML string is read as configuration | Sources/Antarium/Core/Project
 a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|
 bounded read returns nothing | Sources/Antarium/Core/BoundedFile.swift | s|^        return data$|        return Data()|
 bounded prefix ignores the requested length | Sources/Antarium/Core/BoundedFile.swift | s|count:Int(min(UInt64(limit),size))|count:Int(size)|
+directory listing returns nothing | Sources/Antarium/Core/BoundedDirectory.swift | s|^        return entries$|        return []|
+directory listing loses entry kinds | Sources/Antarium/Core/BoundedDirectory.swift | s|isRegular:info.st_mode \& S_IFMT == S_IFREG,|isRegular:true,|
+glob search returns unsorted | Sources/Antarium/Core/BoundedDirectory.swift | s|return found.sorted { \$0.path < \$1.path }|return Array(found)|
+sqlite query returns no rows | Sources/Antarium/Core/BoundedSQLite.swift | s|return Result(columns:columns,rows:rows)|return Result(columns:columns,rows:[])|
+shell captures no output | Sources/Antarium/Core/Shell.swift | s|return Result(stdout: string(capturedOut.data),|return Result(stdout: "",|
