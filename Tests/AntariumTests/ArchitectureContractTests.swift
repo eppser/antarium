@@ -1369,3 +1369,57 @@ struct ProviderSessionReleaseTests {
         #expect(released(provider), "a removed descriptor kept its session")
     }
 }
+
+/// Waking refreshes both readings the bar shows.
+///
+/// A menu bar carries two pictures of the same moment: the quota gauges and
+/// the agent rows. Only the gauges were refreshed when the machine woke. The
+/// rows waited for their next tick, and `agentScanSeconds` is configurable up
+/// to ten minutes — so after a lid had been shut overnight the bar could
+/// report agents that had not existed for hours, beside gauges that were
+/// current. Stale beside fresh is worse than both being a moment late,
+/// because only one of them looks wrong.
+@Suite("Waking refreshes the rows as well as the gauges")
+struct WakeRefreshContractTests {
+
+    private func source(_ path: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("The wake handler refreshes both the items and the store")
+    func wakeTouchesBoth() throws {
+        let text = try source("Sources/Antarium/AppController.swift")
+        let handler = try #require(text.range(of: "func didWake()"),
+                                   "there is no wake handler any more")
+        let body = text[handler.lowerBound...].prefix(400)
+        #expect(body.contains("items.forEach"), "waking stopped refreshing the gauges")
+        #expect(body.contains("AgentStore.shared.wake()"),
+                "waking refreshes the gauges and leaves the rows stale")
+    }
+
+    /// And the store's own wake does both halves: a refresh with the timer
+    /// left where it was fires again almost immediately, which is a scan
+    /// nobody asked for.
+    @Test("The store's wake reschedules as well as refreshing")
+    func storeWakeReschedules() throws {
+        let text = try source("Sources/Antarium/Core/AgentStore.swift")
+        let wake = try #require(text.range(of: "func wake() {"))
+        let body = text[wake.lowerBound...].prefix(120)
+        #expect(body.contains("reschedule()"), "the next tick keeps the old phase")
+        #expect(body.contains("refresh()"), "waking no longer refreshes")
+    }
+
+    /// A forced refresh would bypass the remote sweep's minimum interval, and
+    /// a lid opened and closed a few times would become a burst of SSH.
+    @Test("Waking does not force the remote sweep")
+    func wakeDoesNotForceRemote() throws {
+        let text = try source("Sources/Antarium/Core/AgentStore.swift")
+        let wake = try #require(text.range(of: "func wake() {"))
+        let body = text[wake.lowerBound...].prefix(120)
+        #expect(!body.contains("force: true"),
+                "waking forces a remote sweep past its own throttle")
+    }
+}

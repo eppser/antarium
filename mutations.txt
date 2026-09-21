@@ -422,3 +422,6 @@ a quota command output is unbounded | Sources/Antarium/Providers/DescriptorProvi
 a truncated quota reply is parsed anyway | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else {|guard true else {|
 a failed quota command is read as data | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.exitCode == 0 else {|guard true else {|
 an optional leaks into the exit status | Sources/Antarium/Providers/DescriptorProvider.swift | s|let status = result.exitCode.map(String.init) ?? "no status"|let status = String(describing: result.exitCode)|
+waking leaves the agent rows stale | Sources/Antarium/AppController.swift | s|        AgentStore.shared.wake()||
+waking keeps the old timer phase | Sources/Antarium/Core/AgentStore.swift | /func wake() {/,/^    }$/ s|reschedule()||
+waking forces the remote sweep | Sources/Antarium/Core/AgentStore.swift | /func wake() {/,/^    }$/ s|refresh()|refresh(force: true)|

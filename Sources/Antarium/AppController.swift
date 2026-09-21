@@ -164,7 +164,13 @@ final class AppController: NSObject {
 
     func intervalChanged() { items.forEach { $0.intervalChanged() } }
 
-    @objc private func didWake() { items.forEach { $0.refresh(reason: .wake) } }
+    /// Both readings, not one. The gauges refreshed on wake from the first
+    /// version of this; the rows did not, and stale rows beside current
+    /// gauges is a worse answer than both arriving a moment late.
+    @objc private func didWake() {
+        items.forEach { $0.refresh(reason: .wake) }
+        AgentStore.shared.wake()
+    }
 
     /// Dynamic colours are baked in at draw time, so a theme or display change
     /// needs an explicit redraw.

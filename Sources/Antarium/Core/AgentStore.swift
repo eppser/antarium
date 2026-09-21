@@ -306,6 +306,25 @@ final class AgentStore: ObservableObject {
 
     func intervalChanged() { reschedule() }
 
+    /// The machine woke, so everything observed before it slept is a guess.
+    ///
+    /// Processes exited, sessions ended, transcripts moved on. The quota
+    /// items were already refreshed on wake and the rows were not, and
+    /// `agentScanSeconds` goes up to ten minutes — so the bar could report
+    /// agents that had not existed for hours, beside gauges that were
+    /// current. Two readings of the same moment, one of them stale, which is
+    /// worse than both being late.
+    ///
+    /// Rescheduling as well as refreshing, so the next tick is a full
+    /// interval after waking rather than whatever the timer had left.
+    ///
+    /// Not forced: the remote sweep keeps its own minimum interval. A lid
+    /// opened and closed a few times must not become a burst of SSH.
+    func wake() {
+        reschedule()
+        refresh()
+    }
+
     // MARK: - Scanning
 
     /// `force` is the refresh button: throw away what we are holding first, so
