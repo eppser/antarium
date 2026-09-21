@@ -150,7 +150,7 @@ enum HarnessCLI {
             case (true, true):   why = "signed in, sessions here"
             case (true, false):  why = "signed in"
             case (false, true):  why = "sessions here, not signed in"
-            case (false, false): why = "no trace on this Mac"
+            case (false, false): why = Onboarding.absent
             }
             print("\(chosen.contains(item.id) ? "●" : "○") \(item.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \(why)")
         }

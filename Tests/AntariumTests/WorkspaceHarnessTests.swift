@@ -185,7 +185,7 @@ struct WorkspaceDetectionTests {
 
         let absent = Onboarding.workspaces(all) { _ in nil }
         let nonePresent = absent.filter(\.found).isEmpty
-        let allAbsentDetail = absent.filter { $0.detail == "not on this Mac" }.count
+        let allAbsentDetail = absent.filter { $0.detail == Onboarding.absent }.count
         #expect(nonePresent)
         #expect(allAbsentDetail == absent.count)
     }

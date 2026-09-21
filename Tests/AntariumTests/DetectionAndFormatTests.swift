@@ -165,3 +165,65 @@ struct InstalledButUnusedTests {
         #expect(ids == ["unused", "missing"])
     }
 }
+
+/// The app says the same thing about finding nothing, wherever it says it.
+///
+/// There were three phrases. The onboarding screen said "not installed
+/// here", the settings list said "Not found on this Mac", and
+/// `--detect-agents` said "no trace on this Mac". Only the last is true, and
+/// the first is a claim about the user's Mac the app is in no position to
+/// make: an agent can be installed without having been run, several ship as
+/// applications rather than commands on PATH, and a GUI-launched app searches
+/// a shorter PATH than a shell does.
+@Suite("Finding nothing is reported the same way everywhere")
+struct AbsenceVocabularyTests {
+
+    private func source(_ path: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("The phrase reports what was seen, not what is concluded")
+    func phraseIsObservational() {
+        #expect(Onboarding.absent == "no trace on this Mac")
+    }
+
+    /// Nothing may state that an agent is not installed, because nothing here
+    /// can establish it.
+    @Test("No surface claims an agent is not installed", arguments: [
+        "Sources/Antarium/Core/Onboarding.swift",
+        "Sources/Antarium/Core/HarnessCLI.swift",
+        "Sources/Antarium/UI/OnboardingView.swift",
+        "Sources/Antarium/UI/SettingsView.swift",
+    ])
+    func noSurfaceClaimsAbsence(_ path: String) throws {
+        let text = try source(path)
+        for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false)
+            .enumerated() {
+            // The comments explaining the change quote the phrases it
+            // replaced; a rule that cannot tell prose from code makes
+            // recording a mistake impossible.
+            guard !line.trimmingCharacters(in: .whitespaces).hasPrefix("//"),
+                  !line.trimmingCharacters(in: .whitespaces).hasPrefix("///") else { continue }
+            for claim in ["not installed", "isn't installed", "Not found on this Mac",
+                          "not on this Mac"] {
+                #expect(!line.contains(claim), Comment(rawValue:
+                    "\(path):\(index + 1) states \"\(claim)\", which none of these checks proves"))
+            }
+        }
+    }
+
+    /// And each surface goes through the one constant rather than spelling it
+    /// again, which is how three of them drifted apart in the first place.
+    @Test("Each surface reads the phrase from one place", arguments: [
+        "Sources/Antarium/Core/HarnessCLI.swift",
+        "Sources/Antarium/UI/OnboardingView.swift",
+        "Sources/Antarium/UI/SettingsView.swift",
+    ])
+    func surfacesShareTheConstant(_ path: String) throws {
+        #expect(try source(path).contains("Onboarding.absent"),
+                Comment(rawValue: "\(path) spells the phrase itself"))
+    }
+}

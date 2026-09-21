@@ -10,6 +10,18 @@ import Foundation
 /// and even that is offered rather than demanded.
 enum Onboarding {
 
+    /// What the app says when it found nothing.
+    ///
+    /// One phrase, in one place, because there were three: the onboarding
+    /// screen said "not installed here", the settings list said "Not found on
+    /// this Mac" and `--detect-agents` said "no trace on this Mac". Only the
+    /// last is true. None of these checks is conclusive — an agent can be
+    /// installed without having been run, several ship as applications rather
+    /// than commands on PATH, and a GUI-launched app searches a shorter PATH
+    /// than a shell does — so the app reports what it saw rather than what it
+    /// concludes.
+    static let absent = "no trace on this Mac"
+
     struct Finding: Identifiable {
         let id: String
         let name: String
@@ -61,7 +73,7 @@ enum Onboarding {
                 let binary = resolve(name)
                 out.append(Finding(id: descriptor.id, name: descriptor.name,
                                    detail: binary.map { shorten($0) + " · no session record" }
-                                       ?? "no trace on this Mac",
+                                       ?? Self.absent,
                                    found: binary != nil))
                 continue
             }
@@ -79,7 +91,7 @@ enum Onboarding {
                 : resolve(descriptor.processRule.names?.first ?? descriptor.id) != nil
             out.append(Finding(id: descriptor.id, name: descriptor.name,
                                detail: found ? shorten(path)
-                                   : (installed ? "here, no sessions yet" : "no trace on this Mac"),
+                                   : (installed ? "here, no sessions yet" : Self.absent),
                                found: found, installedUnused: installed))
         }
         // Used first, then present but unused, then the rest — and by name
@@ -119,7 +131,7 @@ enum Onboarding {
                 let found = !command.isEmpty && resolve(command) != nil
                 return Finding(id: descriptor.id, name: descriptor.name,
                                detail: found ? "routes clicks to the right pane"
-                                             : "not on this Mac",
+                                             : Self.absent,
                                found: found)
             }
             .sorted { ($0.found ? 0 : 1, $0.name) < ($1.found ? 0 : 1, $1.name) }

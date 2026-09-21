@@ -617,7 +617,7 @@ struct SettingsView: View {
         return VStack(alignment: .leading, spacing: 7) {
             ForEach(here) { agentToggle($0) }
             if !elsewhere.isEmpty {
-                Text("Not found on this Mac")
+                Text(Onboarding.absent.prefix(1).uppercased() + Onboarding.absent.dropFirst())
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)

@@ -66,7 +66,7 @@ struct OnboardingView: View {
                     // the session store and the command proves neither, since
                     // several of these ship as applications rather than
                     // commands on PATH.
-                    Text("Also supported, no trace here: "
+                    Text("Also supported, \(Onboarding.absent): "
                          + missing.map(\.name).joined(separator: ", "))
                         .font(.system(size: 10)).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
