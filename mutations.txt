@@ -359,3 +359,5 @@ backoff exceeds the configured interval | Sources/Antarium/AgentItem.swift | s|m
 backoff never grows | Sources/Antarium/AgentItem.swift | s|pow(2, Double(min(max(failures, 0), 4))) \* 60|60|
 backoff doubling uncapped | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|max(failures, 0)|
 backoff negative on a negative count | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|min(failures, 4)|
+a documented cap drifts from the code | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 16|
+a documented remote cap drifts | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 64|

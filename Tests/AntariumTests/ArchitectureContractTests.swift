@@ -994,3 +994,53 @@ struct FixedDateFormatLocaleTests {
         #expect(calendars >= 3, "expected the explicit calendars; saw \(calendars)")
     }
 }
+
+/// The caps written into TECHNICAL.md, checked against the constants they
+/// describe. Documentation that states a number is a claim like any other,
+/// and one nobody verifies drifts quietly — a reader trusting "64 windows"
+/// after it became 16 is worse off than one who had to go and look.
+@Suite("Documented limits are the limits")
+struct DocumentedLimitTests {
+
+    @Test("Every cap named in TECHNICAL.md matches the code")
+    func capsMatchTheSource() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let doc = try String(contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"),
+                             encoding: .utf8)
+        // Line breaks fall inside these phrases, so the text is flattened
+        // first — the omission that hid one of them from a grep.
+        let flat = doc.replacingOccurrences(of: "\n", with: " ")
+
+        let expected: [(phrase: String, value: Int)] = [
+            ("usage windows per response", DescriptorProvider.maxWindows),
+            ("rows per remote host", RemoteTmux.maxRows),
+            ("sessions per command harness", HarnessEngine.maxCommandSessions),
+            ("cloud tasks per inventory", 2_000),
+            ("rows per SQLite query", 2_000),
+            ("files per file harness", 400),
+        ]
+        for (phrase, value) in expected {
+            // Grouped by hand. `formatted()` follows the reader's region, and
+            // on the machine this was written on that is Germany, so it
+            // produced "2.000" and the check failed against a document that
+            // was correct. The rule against locale-sensitive formatting,
+            // broken inside the test that checks the rules.
+            let plain = "\(value) \(phrase)"
+            let grouped = value >= 1_000
+                ? "\(value / 1_000),\(String(format: "%03d", value % 1_000)) \(phrase)"
+                : plain
+            #expect(flat.contains(plain) || flat.contains(grouped),
+                    Comment(rawValue: "TECHNICAL.md does not say \(plain)"))
+        }
+    }
+
+    /// And the numbers the prose quotes are the ones the code enforces, not
+    /// merely numbers that appear in both places.
+    @Test("The constants behind those phrases are what the readers use")
+    func constantsAreTheOnesInForce() {
+        #expect(DescriptorProvider.maxWindows == 64)
+        #expect(RemoteTmux.maxRows == 256)
+        #expect(HarnessEngine.maxCommandSessions == 256)
+    }
+}
