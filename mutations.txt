@@ -372,7 +372,7 @@ grok refresh ignores the scheme | Sources/Antarium/Providers/GrokProvider.swift 
 descriptor json credential read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
 descriptor credential bound raised | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxCredentialBytes = 256 \* 1_024|static let maxCredentialBytes = 512 * 1_024|
 a focus-only harness declares project context | Resources/harnesses/herdr.json | s|"contributes": "focus"|"capabilities": {"instruction": {"project": ["AGENTS.md"]}}, "contributes": "focus"|
-a gap drops out of the ecosystem list | docs/ECOSYSTEM.md | s|`pi`|`pi-renamed`|
+the gap marker claims a gap that is closed | docs/ECOSYSTEM.md | s|<!-- capability-gap: none -->|<!-- capability-gap: pi -->|
 gemini global context read as a project file | Resources/harnesses/gemini.json | s|"~/.gemini/GEMINI.md"|"GEMINI.md"|
 gemini skill folders in the wrong precedence | Resources/harnesses/gemini.json | s|"\.agents/skills"|".gemini/skills"|
 opencode prefers the claude fallback | Resources/harnesses/opencode.json | s|^        "AGENTS.md",$||
@@ -393,3 +393,7 @@ hermes context chain loses its head | Resources/harnesses/hermes.json | s|^     
 hermes personal override yields to the committed file | Resources/harnesses/hermes.json | s|^        "AGENTS.override.md",$||
 hermes persona read from the project | Resources/harnesses/hermes.json | s|"~/.hermes/SOUL.md"|"SOUL.md"|
 hermes memories read as skills | Resources/harnesses/hermes.json | s|"~/.hermes/memories"|"~/.hermes/skills"|
+the gap marker is missing entirely | docs/ECOSYSTEM.md | s|<!-- capability-gap: none -->||
+pi personal override yields to the committed file | Resources/harnesses/pi.json | s|^        "AGENTS.override.md",$||
+pi global instructions read from the project | Resources/harnesses/pi.json | s|"~/.pi/agent/AGENTS.md"|"AGENTS.md"|
+pi skills miss the shared project folder | Resources/harnesses/pi.json | s|^        ".agents/skills"$||

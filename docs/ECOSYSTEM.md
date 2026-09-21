@@ -118,31 +118,41 @@ A row can report what a project gives its agent — instructions, memory,
 skills, MCP servers, permissions — but only where the convention is written
 down by the vendor and unambiguous enough to probe without guessing.
 
-Described so far: Claude Code (five), Codex and Codex Desktop (four each),
-Cursor (`.cursor/rules/*.mdc`, filtered to `.mdc` because Cursor's docs say a
-plain `.md` there is ignored), Zed (`.rules`, `.cursorrules`, `CLAUDE.md`,
-`AGENTS.md`).
+Described: every harness that puts a row on the dashboard.
 
-Not described: `pi`. One, not the
-fifteen that "every descriptor without capabilities" suggests — project context hangs off a row, and the other fourteen
-make none. A quota-only harness like `copilot` or `zai` reads no session
-source, and a focus-only one like `herdr` or `orca` reports panes that are
-already somebody else's rows. A capability rule on either is configuration
-nothing will ever read, so a test refuses one and this list is derived from
-the descriptors rather than counted by hand.
+<!-- capability-gap: none -->
 
-The seven are a gap rather than a decision, and closing one means finding the
-vendor's own statement of where the files live — a convention taken from
-memory would report a capability the agent never reads, or miss one it does.
-Two shapes make it harder than it looks: a folder where only some names count
-needs `fileSuffixes`, and a capability whose location moves between versions
-needs whichever paths are still honoured, not only the newest.
+That line is not prose. A test derives the harnesses that make rows and
+declare no capabilities, and requires this marker to name exactly that set,
+so adding a harness without capabilities fails until the marker admits it —
+and closing the last gap could not be announced here without being true.
 
-One gap is recorded rather than approximated. GitHub documents Copilot's
-scoped instructions as living "within or below" `.github/instructions`; the
-probe looks one level deep, so a file in a subfolder there is not counted.
-Descending would need a bounded recursive walk, and reporting the folder as
-empty is the safer of the two wrong answers.
+Nine of the twenty-two never appear in it. Project context hangs off a row,
+and those nine make none: a quota-only harness like `copilot` or `zai` reads
+no session source, and a focus-only one like `herdr` or `orca` reports panes
+that are already somebody else's rows. A capability rule on either is
+configuration nothing will ever read, so a second test refuses one.
+
+What closing them took, each time, was the vendor's own statement of where
+the files live — a convention taken from memory would report a capability the
+agent never reads, or miss one it does. Two shapes made it harder than it
+looks. A folder where only some names count needs `fileSuffixes`: Cursor
+reads `.cursor/rules/*.mdc` and ignores a plain `.md` there, and Copilot's
+scoped instructions must end `.instructions.md`, which is a suffix and not an
+extension. And where an agent documents a chain rather than a set — Hermes
+names six files and loads the first that matches; pi loads
+`AGENTS.override.md` instead of `AGENTS.md` — the declared order is that
+chain, because the probe returns the first path that matches and a wrong
+order names a file the agent ignored.
+
+What none of them declares is the walk. Most of these agents look up through
+parent directories to a repository root, and several discover more files as
+they read; the probe sees the session's working directory. A repository-wide
+file read from a subdirectory reads as absent, which is the safer of the two
+wrong answers, and each descriptor's note says so rather than approximating.
+The same holds one level down: GitHub documents Copilot's scoped instructions
+as living "within or below" `.github/instructions`, and a file in a subfolder
+there is not counted.
 
 ## Positioning in one sentence
 

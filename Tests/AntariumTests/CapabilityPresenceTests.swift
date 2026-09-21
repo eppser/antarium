@@ -343,6 +343,22 @@ struct ShippedCapabilityTests {
                 "the editor claimed a file only the CLI documents")
     }
 
+    /// pi loads `AGENTS.override.md` instead of `AGENTS.md` or `CLAUDE.md`
+    /// when a directory has one, so the override comes first — the same shape
+    /// Hermes has, and the same way to get it wrong.
+    @Test("pi prefers the personal override to the committed file")
+    func piContextFiles() throws {
+        let rules = try descriptor("pi").capabilityRules
+        let instruction = try #require(rules["instruction"])
+        #expect(instruction.projectPaths
+                == ["AGENTS.override.md", "AGENTS.md", "CLAUDE.md"])
+        #expect(instruction.inheritedPaths == ["~/.pi/agent/AGENTS.md"])
+
+        let skills = try #require(rules["skills"])
+        #expect(skills.projectPaths == [".pi/skills", ".agents/skills"])
+        #expect(skills.inheritedPaths == ["~/.pi/agent/skills", "~/.agents/skills"])
+    }
+
     /// Hermes documents one project context file per session, first match
     /// wins, and names the chain explicitly. The probe returns the first path
     /// that matches, so the declared order *is* that chain — get it wrong and
@@ -559,19 +575,44 @@ struct CapabilityApplicabilityTests {
         }
     }
 
-    /// The gap ECOSYSTEM.md records, derived rather than counted by hand so
-    /// it cannot drift from the descriptors it describes.
-    @Test("The documented gap is the harnesses that make rows and say nothing")
+    /// The gap ECOSYSTEM.md records, compared against the descriptors rather
+    /// than counted by hand.
+    ///
+    /// The marker is machine-readable because the prose around it was not:
+    /// the count in it said fifteen for as long as nobody asked which
+    /// harnesses could use a capability rule, and then said seven, five,
+    /// four, two and one over an afternoon of closing them. A sentence that
+    /// has to be edited by hand to stay true is a sentence that will be
+    /// wrong.
+    @Test("The gap marker in ECOSYSTEM.md names exactly the harnesses missing one")
     func documentedGapMatches() throws {
         let missing = try shipped
             .filter { makesRows($0) && $0.capabilityRules.isEmpty }
             .map(\.id).sorted()
         let doc = try String(contentsOf: URL(fileURLWithPath: "docs/ECOSYSTEM.md"),
                              encoding: .utf8)
-        for id in missing {
-            #expect(doc.contains("`\(id)`"),
-                    Comment(rawValue: "\(id) has no capability rule and is not recorded as a gap"))
-        }
-        #expect(!missing.isEmpty, "the list is empty, so this test asserts nothing")
+        let marker = "<!-- capability-gap:"
+        let line = try #require(doc.split(separator: "\n")
+            .first { $0.hasPrefix(marker) }
+            .map(String.init), "ECOSYSTEM.md carries no capability-gap marker")
+        let listed = line.dropFirst(marker.count)
+            .replacingOccurrences(of: "-->", with: "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0 != "none" }
+            .sorted()
+        #expect(listed == missing,
+                Comment(rawValue: "the marker says \(listed) and the descriptors say \(missing)"))
+    }
+
+    /// The set the marker is derived from, asserted separately so an empty
+    /// gap cannot be reached by finding no harnesses at all.
+    @Test("Most shipped harnesses make rows")
+    func rowMakingHarnessesExist() throws {
+        let makers = try shipped.filter(makesRows)
+        #expect(makers.count >= 12,
+                Comment(rawValue: "only \(makers.count) harnesses make rows"))
+        #expect(makers.allSatisfy { !$0.capabilityRules.isEmpty },
+                "a harness that makes rows says nothing about the project it is in")
     }
 }
