@@ -620,3 +620,6 @@ a backlogged run over budget fails instead of concluding nothing | Sources/Antar
 a run over budget is waved through | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .inconclusive|
 detection is not consulted at all | Sources/Antarium/Core/AgentAutoEnable.swift | s|        Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|        []|
 detection reports every harness as installed | Sources/Antarium/Core/AgentAutoEnable.swift | s|Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|Set(Onboarding.harnesses(descriptors).map(\\.id))|
+the first run ignores what detection found | Sources/Antarium/Core/AgentAutoEnable.swift | s|            evidence: evidence(providers: providers, sessionsPresent: sessions),|            evidence: evidence(providers: providers, sessionsPresent: []),|
+the first run treats every agent as used here | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains($0.id))|                     hasSessions: true)|
+the first run drops the agents it was given | Sources/Antarium/Core/AgentAutoEnable.swift | s|            fallback: providers.map(\\.id))|            fallback: [])|

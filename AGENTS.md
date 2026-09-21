@@ -204,3 +204,9 @@ official evidence.
   network waits, or caches.
 - Flag a published numeric claim unless a reproducible command or exact fixture
   contract supports it.
+- Flag a test whose expected value is also what the code produces when the rule
+  under test does nothing. A first-run test asserting that the used agent is
+  enabled named that same agent first in the provider list, where the
+  no-evidence fallback would have put it anyway: it passed whether detection
+  worked or not, and the mutation that discarded the whole session set
+  survived it. Choose inputs where the right answer and the fallback differ.

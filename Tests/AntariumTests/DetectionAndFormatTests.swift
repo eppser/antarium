@@ -76,21 +76,20 @@ struct AgentDetectionTests {
         #expect(sessions == ["used-here"],
                 "detection reported \(sessions.sorted()) for a machine with one store")
 
-        // And the evidence that reaches the first-run decision carries it.
-        // Neither provider is signed in, so sessions are the only thing that
-        // can distinguish them — which is the case the live Mac cannot test.
-        let evidence = AgentAutoEnable.evidence(
-            providers: [], sessionsPresent: sessions)
-        #expect(evidence.isEmpty, "no providers were given, so there is no evidence to have")
-
-        let chosen = AgentAutoEnable.resolve([
-            AgentAutoEnable.Evidence(id: "used-here", signedIn: false,
-                                     hasSessions: sessions.contains("used-here")),
-            AgentAutoEnable.Evidence(id: "never-used", signedIn: false,
-                                     hasSessions: sessions.contains("never-used")),
-        ], fallback: ["fallback"])
-        #expect(chosen == ["used-here"],
-                "the bar opened to \(chosen.sorted()) on a machine with one agent used on it")
+        // And it reaches the choice the bar opens to. Neither agent is signed
+        // in, so what detection found on disk is the only thing that can
+        // distinguish them — the case the live Mac cannot produce, because
+        // every provider it enables is signed in too.
+        let record = AgentAutoEnable.firstRunRecord(
+            recorded: nil,
+            // Not first in the list, so the fallback — which shows the first
+            // provider when nothing is detected — cannot supply the right
+            // answer by accident.
+            providers: [("never-used", false), ("used-here", false)],
+            sessions: sessions)
+        #expect(record?.enabled == ["used-here"],
+                Comment(rawValue: "the bar opened to \(record?.enabled.sorted() ?? []) "
+                        + "on a machine with one agent used on it"))
     }
 
     @Test("A harness with no session store is not offered as found")

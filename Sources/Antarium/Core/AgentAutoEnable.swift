@@ -75,11 +75,22 @@ enum AgentAutoEnable {
 
     /// Reads the machine. Kept separate from `resolve` so the policy above has
     /// no I/O in it.
+    ///
+    /// Asking each provider whether it is signed in is the only I/O; the
+    /// tuple form below is what everything else is written against, so the
+    /// join between the two halves of the evidence is arithmetic rather than
+    /// something only a real Mac can perform.
     static func evidence(providers: [UsageProvider],
+                         sessionsPresent: Set<String>) -> [Evidence] {
+        evidence(providers: providers.map { ($0.id, $0.isConfigured) },
+                 sessionsPresent: sessionsPresent)
+    }
+
+    static func evidence(providers: [(id: String, signedIn: Bool)],
                          sessionsPresent: Set<String>) -> [Evidence] {
         providers.map {
             Evidence(id: $0.id,
-                     signedIn: $0.isConfigured,
+                     signedIn: $0.signedIn,
                      hasSessions: sessionsPresent.contains($0.id))
         }
     }
@@ -110,9 +121,6 @@ enum AgentAutoEnable {
         return chosen.isEmpty ? nil : chosen
     }
 
-    /// First launch only. Returns what it chose, or nil when it declined to
-    /// act because a choice already exists.
-    @discardableResult
     /// What a first launch should record, given what it found.
     ///
     /// Both halves or neither. `known` is what lets a later launch tell an
@@ -127,13 +135,38 @@ enum AgentAutoEnable {
         return (chosen, Set(evidence.map(\.id)))
     }
 
+    /// The same record, from what the machine reported rather than from
+    /// evidence somebody else assembled.
+    ///
+    /// Building the evidence used to happen inside `applyIfNeeded`, in among
+    /// the two settings writes, where nothing could reach it: discarding the
+    /// session set it was handed changed nothing any suite could see. That
+    /// line needs a Mac with an agent used but not signed in to matter, and a
+    /// synthetic home cannot be one — seeding always writes the bundled
+    /// catalogue, and the providers read the real credentials. In here it is
+    /// arithmetic, and the test below is about the machine rather than about
+    /// this one.
+    static func firstRunRecord(recorded: [String]?,
+                               providers: [(id: String, signedIn: Bool)],
+                               sessions: Set<String>)
+        -> (enabled: Set<String>, known: Set<String>)? {
+        guard !providers.isEmpty else { return nil }
+        return firstRunRecord(
+            recorded: recorded,
+            evidence: evidence(providers: providers, sessionsPresent: sessions),
+            fallback: providers.map(\.id))
+    }
+
+    /// First launch only. Returns what it chose, or nil when it declined to
+    /// act because a choice already exists.
+    ///
+    /// Two writes and nothing else. Everything it decides is decided above.
+    @discardableResult
     static func applyIfNeeded(providers: [UsageProvider],
                               sessions: Set<String> = sessionsPresent()) -> Set<String>? {
-        guard !providers.isEmpty else { return nil }
-        let found = evidence(providers: providers, sessionsPresent: sessions)
         guard let record = firstRunRecord(recorded: Settings.recordedAgents,
-                                          evidence: found,
-                                          fallback: providers.map(\.id)) else { return nil }
+                                          providers: providers.map { ($0.id, $0.isConfigured) },
+                                          sessions: sessions) else { return nil }
         Settings.enabledAgents = record.enabled
         known = record.known
         return record.enabled

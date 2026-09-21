@@ -49,6 +49,47 @@ struct FirstRunLifecycleTests {
     private func agent(_ id: String, signedIn: Bool = true, sessions: Bool = false)
         -> (id: String, signedIn: Bool, sessions: Bool) { (id, signedIn, sessions) }
 
+    /// The case the live machine cannot produce, and the one the whole
+    /// sessions half of the evidence exists for: an agent used here but not
+    /// signed in. Every provider this developer's Mac enables is also signed
+    /// in, so a first run that threw the session set away behaved identically
+    /// — which is exactly what it did, undetected, until the evidence step
+    /// was moved out of `applyIfNeeded` and into a function a test can call.
+    @Test("An agent used here but not signed in is still put in the bar")
+    func sessionsAloneEarnASlot() throws {
+        // The used agent is deliberately not first in the list. When nothing
+        // at all is detected the fallback shows the first provider, so a test
+        // that names the same agent in both places passes whether detection
+        // worked or not — this one did, and the mutation that threw the
+        // session set away survived it.
+        let record = try #require(AgentAutoEnable.firstRunRecord(
+            recorded: nil,
+            providers: [("neither", false), ("used-not-signed-in", false)],
+            sessions: ["used-not-signed-in"]))
+        #expect(record.enabled == ["used-not-signed-in"],
+                "the bar opened to \(record.enabled.sorted())")
+        #expect(record.known == ["used-not-signed-in", "neither"],
+                "an agent seen and passed over must still count as seen")
+    }
+
+    /// And the sessions it is handed are the ones it uses. Handing it a set
+    /// naming an agent it was not told about must not conjure one.
+    @Test("Sessions for an agent that is not a provider enable nothing")
+    func sessionsForAnUnknownAgent() {
+        let record = AgentAutoEnable.firstRunRecord(
+            recorded: nil, providers: [("only-provider", false)],
+            sessions: ["some-other-agent"])
+        // No evidence at all, so the fallback shows one item rather than
+        // leaving a menu bar with no way back into the app.
+        #expect(record?.enabled == ["only-provider"])
+    }
+
+    @Test("A machine with no providers records nothing at all")
+    func noProvidersRecordsNothing() {
+        #expect(AgentAutoEnable.firstRunRecord(
+            recorded: nil, providers: [], sessions: ["anything"]) == nil)
+    }
+
     @Test("A first launch enables what is installed and records everything it saw")
     func firstLaunch() {
         var install = Install()
