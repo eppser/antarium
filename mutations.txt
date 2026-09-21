@@ -404,7 +404,7 @@ claude code reads its body outside the bounded path | Sources/Antarium/Providers
 gauge title unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.title = Gauge.clamp(title, to: Gauge.maxTitle)|self.title = title|
 gauge badge unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.badge = Gauge.clamp(badge, to: Gauge.maxBadge)|self.badge = badge|
 gauge backstop cuts an authored title | Sources/Antarium/Core/UsageModel.swift | s|static let maxTitle = 4_096|static let maxTitle = 64|
-a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swift | s|self.used = used.isFinite ? used : 0|self.used = used|
+a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swift | s|        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0|        self.used = used|
 a window length that is not a number sorts | Sources/Antarium/Core/UsageModel.swift | s|self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil|self.windowSeconds = windowSeconds|
 codex extra label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|(extra\["limit_name"\] as? String).map(clamped)|(extra["limit_name"] as? String)|
 codex plan label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|"\\(clamped(\$0)) plan"|"\\(\$0) plan"|
@@ -629,3 +629,4 @@ an absurd window is accepted | Sources/Antarium/Core/FieldPath.swift | s|guard l
 a zero-length window is a window | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value >= 0, value <= maxWindowSeconds|
 codex reads its reset date unbounded | Sources/Antarium/Providers/CodexProvider.swift | s|            resets = FieldPath.epoch(at)|            resets = Date(timeIntervalSince1970: at)|
 the descriptor badge converts an unbounded window | Sources/Antarium/Providers/DescriptorProvider.swift | s|        guard let seconds = FieldPath.seconds(raw)|        guard let seconds = raw, seconds > 0|
+a gauge keeps a figure outside the range it documents | Sources/Antarium/Core/UsageModel.swift | s|        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0|        self.used = used.isFinite ? used : 0|

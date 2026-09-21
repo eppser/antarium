@@ -34,6 +34,24 @@ struct HostileResponseTests {
         #expect(FieldPath.seconds(FieldPath.maxWindowSeconds) == FieldPath.maxWindowSeconds)
     }
 
+    /// The range `used` documents, enforced where it is written rather than
+    /// by every provider remembering to. The value is multiplied by a hundred
+    /// and converted to an `Int` downstream, and that conversion traps rather
+    /// than rounds — so one mapping that forgot its own clamp was a crash
+    /// waiting on a response, not a wrong percentage.
+    @Test("A gauge cannot be built outside the range it documents",
+          arguments: [(1e30, 1.0), (-5.0, 0.0), (2.5, 1.0), (0.4, 0.4),
+                      (0.0, 0.0), (1.0, 1.0)])
+    func gaugeUsedIsClamped(given: Double, expected: Double) {
+        #expect(Gauge(id: "g", badge: "", title: "g", used: given).used == expected)
+    }
+
+    @Test("A gauge built from a division by zero reports nothing, not everything")
+    func gaugeUsedIsFinite() {
+        #expect(Gauge(id: "g", badge: "", title: "g", used: .nan).used == 0)
+        #expect(Gauge(id: "g", badge: "", title: "g", used: .infinity).used == 0)
+    }
+
     @Test("A Cursor bucket with an unreadable maximum is skipped, not fatal")
     func cursorLegacyAbsurdMaximum() throws {
         #expect(throws: (any Error).self) {

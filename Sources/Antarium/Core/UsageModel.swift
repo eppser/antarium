@@ -72,7 +72,14 @@ struct Gauge: Equatable {
         // divide by zero. NaN compares false against everything, so it would
         // pass every bound check below and paint an empty meter that never
         // moves; infinity would paint a full one.
-        self.used = used.isFinite ? used : 0
+        //
+        // Clamped as well as checked, so the range this field documents is
+        // true by construction rather than by every provider remembering.
+        // They all do clamp today — but the value is multiplied by a hundred
+        // and converted to an `Int` downstream, and `Int` conversion traps
+        // rather than rounds on a large enough figure. One forgetful mapping
+        // would have been a crash, and the invariant is one line.
+        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0
         self.resetsAt = resetsAt
         self.reportedSeverity = reportedSeverity
         self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil

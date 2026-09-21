@@ -204,6 +204,13 @@ official evidence.
   network waits, or caches.
 - Flag a published numeric claim unless a reproducible command or exact fixture
   contract supports it.
+- Flag `Int(someDouble)` where the double came off a network, out of a file
+  another application writes, or from arithmetic on either. The conversion
+  traps outside `Int`'s range and on NaN — it does not round and it does not
+  throw, the process dies — and `1e30` is legal JSON. Three provider mappings
+  converted a response number that way. `FieldPath.epoch` bounds a date and
+  `FieldPath.seconds` bounds a window; `Int(exactly:)` is the answer where a
+  count is genuinely wanted.
 - Flag a test whose expected value is also what the code produces when the rule
   under test does nothing. A first-run test asserting that the used agent is
   enabled named that same agent first in the provider list, where the
