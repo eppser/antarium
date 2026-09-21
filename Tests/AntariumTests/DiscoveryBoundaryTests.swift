@@ -134,3 +134,90 @@ struct DiscoveryBoundaryTests {
         }
     }
 }
+
+/// Which sessions a harness reports as still open. The refusals are covered
+/// above — a corrupt window, a missing id, an oversized file — and what an
+/// ordinary selection returns was not. An empty answer here hides every open
+/// session of that agent, which looks like nobody is working.
+@Suite("Open-session selection returns what is open", .serialized)
+struct OpenSelectionTests {
+
+    private func selection(_ object: [String: Any]) throws
+        -> HarnessDescriptor.Selection {
+        let wrapper: [String: Any] = [
+            "formatVersion": 1, "id": "selection-fixture", "name": "Fixture",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "selection": object]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: wrapper)).descriptor
+        return try #require(descriptor.sessionSelection)
+    }
+
+    private func stateFile(_ body: [String: Any]) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("selection-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: body)
+            .write(to: dir.appendingPathComponent("state.json"))
+        return dir
+    }
+
+    @Test("Every record's id is reported")
+    func allIDs() throws {
+        let dir = try stateFile(["tabs": [["id": "one"], ["id": "two"]]])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let found = SessionSelection.openIDs(try selection([
+            "kind": "jsonFiles", "path": dir.path, "glob": "*.json",
+            "records": "tabs", "id": "id"]))
+        #expect(found == ["one", "two"])
+    }
+
+    /// A filter is how a harness says which tabs count. Ignoring it reports
+    /// every session the file has ever held as currently open.
+    @Test("A filter narrows the selection to the records that match")
+    func filterNarrows() throws {
+        let dir = try stateFile(["tabs": [
+            ["id": "open-one", "state": "open"],
+            ["id": "closed-one", "state": "closed"],
+            ["id": "open-two", "state": "open"]]])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let found = SessionSelection.openIDs(try selection([
+            "kind": "jsonFiles", "path": dir.path, "glob": "*.json",
+            "records": "tabs", "id": "id", "filter": ["state": ["open"]]]))
+        #expect(found == ["open-one", "open-two"])
+    }
+
+    /// Booleans and numbers are compared as text, because a descriptor
+    /// declares its filter values as strings.
+    @Test("A filter matches a boolean or a number written as text")
+    func filterCoercesScalars() throws {
+        let dir = try stateFile(["tabs": [
+            ["id": "live", "active": true, "pane": 2],
+            ["id": "dead", "active": false, "pane": 3]]])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(SessionSelection.openIDs(try selection([
+            "kind": "jsonFiles", "path": dir.path, "glob": "*.json",
+            "records": "tabs", "id": "id", "filter": ["active": ["true"]]])) == ["live"])
+        #expect(SessionSelection.openIDs(try selection([
+            "kind": "jsonFiles", "path": dir.path, "glob": "*.json",
+            "records": "tabs", "id": "id", "filter": ["pane": ["3"]]])) == ["dead"])
+    }
+
+    /// No matching records is an answer — that agent has nothing open — and
+    /// is not the same as being unable to tell, which withholds the filter
+    /// entirely rather than hiding every session.
+    @Test("No matching records is an empty selection, not a failure")
+    func emptyIsAnAnswer() throws {
+        let dir = try stateFile(["tabs": [["id": "one", "state": "closed"]]])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let found = SessionSelection.openIDs(try selection([
+            "kind": "jsonFiles", "path": dir.path, "glob": "*.json",
+            "records": "tabs", "id": "id", "filter": ["state": ["open"]]]))
+        #expect(found == [])
+    }
+
+    @Test("A descriptor with no selection declares nothing to filter by")
+    func noSelection() {
+        #expect(SessionSelection.openIDs(nil) == nil)
+    }
+}

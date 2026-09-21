@@ -87,6 +87,32 @@ trap 'restore' EXIT
 
 survived=0 caught=0 broken=0
 
+# A mutation can remove a loop bound, and then the suite never finishes. macOS
+# ships no `timeout`, so the run is backgrounded and killed. A hang is a caught
+# mutation: not finishing is a way of failing, and the alternative is a runner
+# that stops at the first one.
+run_tests() {
+    local log=$1 pid limit=${MUTATE_TIMEOUT:-600} waited=0
+    ./test.sh >"$log" 2>&1 &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ "$waited" -ge "$limit" ]; then
+            # The children matter more than the shell. `swift test` is a child
+            # of test.sh, and killing only the parent leaves it running — still
+            # holding the log open, still writing at its inherited offset, over
+            # anything appended after. The first version of this reported such a
+            # mutation as SURVIVED, which is the one answer it must never give.
+            pkill -9 -P "$pid" 2>/dev/null
+            kill -9 "$pid" 2>/dev/null
+            wait "$pid" 2>/dev/null
+            return 124
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    wait "$pid"
+}
+
 while IFS='|' read -r name file expression; do
     name=$(echo "$name" | sed 's/^ *//;s/ *$//')
     file=$(echo "$file" | sed 's/^ *//;s/ *$//')
@@ -108,8 +134,13 @@ while IFS='|' read -r name file expression; do
         if grep -q 'error:' "$BACKUP/build"; then
             printf '  %-46s does not compile\n' "$name"
             broken=$((broken+1))
-        elif ./test.sh >"$BACKUP/out" 2>&1; grep -q '^✘ Test "' "$BACKUP/out"; then
-            printf '  %-46s caught\n' "$name"
+        elif run_tests "$BACKUP/out"; status=$?
+              [ "$status" -eq 124 ] || grep -q '^✘ Test "' "$BACKUP/out"; then
+            # A mutation that never finishes has failed: not returning is a way
+            # of being wrong, and a bound removed from a loop is exactly that.
+            [ "$status" -eq 124 ] \
+                && printf '  %-46s caught (never finished)\n' "$name" \
+                || printf '  %-46s caught\n' "$name"
             caught=$((caught+1))
         elif [ -x tools/strip-inert.py ] \
              && python3 tools/strip-inert.py "$file" >"$BACKUP/now" 2>/dev/null \
