@@ -907,6 +907,29 @@ struct ProviderMappingCoverageTests {
         }
     }
 
+    /// The settings toggle uses the rule rather than reimplementing it.
+    ///
+    /// A weaker check than the others here, and deliberately so: the decision
+    /// it guards is made inside a SwiftUI body, which no test in this project
+    /// can reach — mutating the view's wiring survives the whole suite. What
+    /// this can do is notice a return to the shape the rule was extracted
+    /// from, where the view kept its own copy of "never leave an empty menu
+    /// bar" and enforced it by discarding the user's click in silence.
+    @Test("The agent toggle asks Settings rather than deciding for itself")
+    func toggleUsesTheRule() throws {
+        let text = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
+        let start = try #require(text.range(of: "private func agentToggle"),
+                                 "the agent toggle was renamed")
+        let body = String(text[start.lowerBound...].prefix(1_500))
+        #expect(body.contains("Settings.toggling"),
+                "the toggle decides for itself again")
+        #expect(body.contains(".disabled("),
+                "a refused toggle is clickable, so the refusal is silent again")
+        #expect(!body.contains("if !set.isEmpty"),
+                "the rule the view used to enforce in silence is back")
+    }
+
     /// A fixture that only records a good day proves the mapping can chart a
     /// number, not that it refuses one it cannot read — and refusing is the
     /// half that keeps an invented figure off the menu bar. Three shipped

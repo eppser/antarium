@@ -175,3 +175,59 @@ struct FirstRunLifecycleTests {
         #expect(install.enabled?.count == 1)
     }
 }
+
+/// The other half of the promise: the bar configures itself, and then the
+/// user's choice wins. Detection has tests; what the Settings toggles
+/// actually do had none, because the decision lived inside a SwiftUI body
+/// where the only way to reach it was to click it.
+@Suite("What the settings toggles do")
+struct AgentToggleTests {
+
+    @Test("Switching an agent on adds it and leaves the rest alone")
+    func switchOn() {
+        #expect(Settings.toggling("zai", on: true, in: ["codex", "cursor"])
+            == .apply(["codex", "cursor", "zai"]))
+    }
+
+    @Test("Switching an agent off removes exactly that one")
+    func switchOff() {
+        #expect(Settings.toggling("cursor", on: false, in: ["codex", "cursor"])
+            == .apply(["codex"]))
+    }
+
+    /// The rule that was enforced silently. `ProviderRegistry.shown` falls
+    /// back to the first provider from an empty set, so the bar would not
+    /// actually empty — but the user's click was discarded and the toggle
+    /// sprang back, which reads as a broken control rather than a rule.
+    @Test("Switching off the last agent is refused, with a reason")
+    func lastOneIsRefused() throws {
+        let outcome = Settings.toggling("codex", on: false, in: ["codex"])
+        let why = try #require(outcome.refusal, "the last agent was switched off silently")
+        #expect(why.contains("only agent"))
+        #expect(outcome != .apply([]), "an empty choice was written")
+    }
+
+    /// Switching one off is fine as long as another remains, or the rule
+    /// above would be a way of refusing every change.
+    @Test("With two agents on, either can be switched off")
+    func eitherOfTwo() {
+        #expect(Settings.toggling("codex", on: false, in: ["codex", "zai"]).refusal == nil)
+        #expect(Settings.toggling("zai", on: false, in: ["codex", "zai"]).refusal == nil)
+    }
+
+    /// Switching *on* is never refused, whatever the set looks like — the
+    /// rule is about emptying the bar, not about changing it.
+    @Test("Switching an agent on is never refused")
+    func onIsNeverRefused() {
+        #expect(Settings.toggling("codex", on: true, in: []).refusal == nil)
+        #expect(Settings.toggling("codex", on: true, in: ["codex"])
+            == .apply(["codex"]), "switching on an agent already on changed the set")
+    }
+
+    /// Switching off one that was never on is not a change and not a
+    /// refusal — unless it would empty the bar, which it cannot.
+    @Test("Switching off an agent that is not on leaves the set as it was")
+    func offWhenNotOn() {
+        #expect(Settings.toggling("zai", on: false, in: ["codex"]) == .apply(["codex"]))
+    }
+}

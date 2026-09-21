@@ -44,6 +44,40 @@ enum Settings {
     /// nothing".
     static var recordedAgents: [String]? { Config.strings("enabledAgents") }
 
+    /// What switching one agent's toggle should do, and why it may decline.
+    ///
+    /// Declining was already the behaviour and it was silent: turning off the
+    /// last enabled agent skipped the write, the view re-read a setting that
+    /// had not changed, and the toggle sprang back with nothing said. The rule
+    /// is right — `ProviderRegistry.shown` falls back to the first provider
+    /// from an empty set, so the bar would not actually empty, but a choice
+    /// the app quietly overrules is worse than one it refuses out loud. A rule
+    /// the user cannot see is indistinguishable from a bug.
+    ///
+    /// Pure, so the rule is testable: the view it used to live in has no
+    /// coverage at all, and a decision inside a SwiftUI body is reachable only
+    /// by clicking it.
+    enum AgentToggle: Equatable {
+        case apply(Set<String>)
+        case refuse(String)
+
+        /// The reason, when there is one.
+        var refusal: String? {
+            if case .refuse(let why) = self { return why }
+            return nil
+        }
+
+        static let lastOne = "This is the only agent in the menu bar. "
+            + "Switch another on first."
+    }
+
+    static func toggling(_ id: String, on: Bool, in enabled: Set<String>) -> AgentToggle {
+        var next = enabled
+        if on { next.insert(id) } else { next.remove(id) }
+        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }
+        return .apply(next)
+    }
+
     /// What a recorded value means, and whether there is one.
     ///
     /// Both are functions of the recorded value rather than properties

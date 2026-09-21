@@ -630,3 +630,7 @@ a zero-length window is a window | Sources/Antarium/Core/FieldPath.swift | s|gua
 codex reads its reset date unbounded | Sources/Antarium/Providers/CodexProvider.swift | s|            resets = FieldPath.epoch(at)|            resets = Date(timeIntervalSince1970: at)|
 the descriptor badge converts an unbounded window | Sources/Antarium/Providers/DescriptorProvider.swift | s|        guard let seconds = FieldPath.seconds(raw)|        guard let seconds = raw, seconds > 0|
 a gauge keeps a figure outside the range it documents | Sources/Antarium/Core/UsageModel.swift | s|        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0|        self.used = used.isFinite ? used : 0|
+the last agent can be switched off | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }||
+every settings change is refused | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }|        return .refuse(AgentToggle.lastOne)|
+switching an agent on removes it instead | Sources/Antarium/UI/Settings.swift | s|        if on { next.insert(id) } else { next.remove(id) }|        if on { next.remove(id) } else { next.insert(id) }|
+the settings toggle decides for itself again | Sources/Antarium/UI/SettingsView.swift | s|        .disabled(refusal != nil)||

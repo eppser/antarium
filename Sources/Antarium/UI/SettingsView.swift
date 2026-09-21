@@ -641,19 +641,27 @@ struct SettingsView: View {
     }
 
     private func agentToggle(_ row: AgentRow) -> some View {
-        Toggle(title: row.name + (row.unverified ? " · unverified" : ""),
-               subtitle: row.detail,
-               on: row.enabled) { on in
+        // Said before the click rather than after it. Switching this one off
+        // is refused when it is the only agent left, and the toggle used to
+        // spring back with no explanation at all.
+        let refusal = row.enabled
+            ? Settings.toggling(row.id, on: false, in: Settings.enabledAgents).refusal
+            : nil
+        return Toggle(title: row.name + (row.unverified ? " · unverified" : ""),
+                      subtitle: refusal ?? row.detail,
+                      on: row.enabled) { on in
             model.update {
-                var set = Settings.enabledAgents
-                if on { set.insert(row.id) } else { set.remove(row.id) }
-                // Never leave an empty menu bar — there'd be no way back.
-                if !set.isEmpty { Settings.enabledAgents = set }
+                if case .apply(let set) = Settings.toggling(
+                    row.id, on: on, in: Settings.enabledAgents) {
+                    Settings.enabledAgents = set
+                }
             }
         }
-        .help(row.unverified
-            ? "\(row.name): the mapping is checked against a recorded response, but the figures have not been confirmed against a live account."
-            : row.detail)
+        .disabled(refusal != nil)
+        .help(refusal
+            ?? (row.unverified
+                ? "\(row.name): the mapping is checked against a recorded response, but the figures have not been confirmed against a live account."
+                : row.detail))
     }
 
     private var dashboardControls: some View {
