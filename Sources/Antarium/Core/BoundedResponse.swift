@@ -21,6 +21,9 @@ final class BoundedBodyDelegate: NSObject, URLSessionDataDelegate, @unchecked Se
 
     enum Failure: Error {
         case tooLarge, noResponse
+        /// The session was released while this transfer was in flight —
+        /// the descriptor behind it changed or went away.
+        case sessionInvalidated
         /// The server answered with a redirect to somewhere the credential on
         /// this request was not meant for. Reported in its own right rather
         /// than left to whatever the 3xx eventually looks like — the refusal
@@ -118,6 +121,27 @@ final class BoundedBodyDelegate: NSObject, URLSessionDataDelegate, @unchecked Se
         entry.data.append(data)
         pending[id] = entry
         lock.unlock()
+    }
+
+    /// A session with a delegate keeps that delegate alive until it is
+    /// invalidated, so this is where a released session's reader is let go.
+    /// Any transfer still in flight is failed rather than left suspended: a
+    /// continuation nobody resumes is a `fetch` that never returns.
+    ///
+    /// That drain has no mutation in the catalogue, deliberately. Every
+    /// reachable path resumes its continuation from `didCompleteWithError`
+    /// before invalidation finishes, so removing it breaks no test — and it
+    /// stays anyway, because the failure it guards against is a provider that
+    /// hangs for ever rather than one that reports something wrong.
+    func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
+        lock.lock()
+        let abandoned = pending
+        pending.removeAll()
+        lock.unlock()
+        for (_, entry) in abandoned {
+            entry.finish(.failure(error ?? Failure.sessionInvalidated))
+        }
+        UsageHTTP.forget(session)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {

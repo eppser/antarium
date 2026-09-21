@@ -1283,3 +1283,89 @@ struct GaugeBoundsTests {
         #expect(gauge.windowSeconds == 18_000)
     }
 }
+
+/// A provider owns a URLSession, and a session with a delegate stays alive
+/// until something invalidates it.
+///
+/// Nothing did. Editing a harness file changes its signature, the registry
+/// builds a replacement provider, and the old one was dropped holding a live
+/// session, a live delegate, and an entry in `UsageHTTP.readers` that nothing
+/// removed. Ordinary use — a contributor with the JSON open — grew the app a
+/// session at a time, and no test could see it because every other thing
+/// about the replacement was right.
+@Suite("Replaced providers let their sessions go", .serialized)
+struct ProviderSessionReleaseTests {
+
+    /// A descriptor with a quota block, so the registry builds a provider for
+    /// it, and `token` so the signature moves when we want it to.
+    private func descriptor(id: String, endpoint: String) throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": "Release \(id)",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": endpoint,
+                      "credential": ["kind": "env", "name": "RELEASE_TEST_TOKEN"],
+                      "windows": ["list": "data", "usedPercent": "pct"]]]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    /// Waits for the session's own queue to finish invalidating, which does
+    /// not happen synchronously with the call that asked for it.
+    private func released(_ provider: DescriptorProvider) -> Bool {
+        for _ in 0..<60 where provider.sessionIsTracked { usleep(50_000) }
+        return !provider.sessionIsTracked
+    }
+
+    private func build(_ descriptor: HarnessDescriptor) throws -> DescriptorProvider {
+        try #require(ProviderRegistry.providers(from: [descriptor]).first
+                     as? DescriptorProvider)
+    }
+
+    /// Rebuilding with the same descriptor keeps the same provider and the
+    /// same session — the baseline, and the thing a release must not break.
+    @Test("An unchanged descriptor keeps its provider and its session")
+    func unchangedDescriptorIsStable() throws {
+        let one = try descriptor(id: "release-stable", endpoint: "https://example.invalid/a")
+        let first = try build(one)
+        for _ in 0..<5 {
+            #expect(try build(one) === first, "an unchanged descriptor was rebuilt")
+        }
+        #expect(first.sessionIsTracked, "a live provider lost its session")
+        _ = ProviderRegistry.providers(from: [])
+        #expect(released(first))
+    }
+
+    /// The one that was leaking. Each edit is a new signature and a new
+    /// provider; without a release each is also a session that never goes.
+    @Test("Editing a descriptor releases the provider it replaced")
+    func editingReleasesTheOldOne() throws {
+        var previous: DescriptorProvider?
+        var abandoned: [DescriptorProvider] = []
+        for i in 0..<5 {
+            let edited = try descriptor(id: "release-edited",
+                                        endpoint: "https://example.invalid/v\(i)")
+            let provider = try build(edited)
+            if let previous {
+                #expect(provider !== previous, "an edited descriptor was not rebuilt")
+                abandoned.append(previous)
+            }
+            previous = provider
+        }
+        for old in abandoned {
+            #expect(released(old), "an edit left its predecessor's session behind")
+        }
+        #expect(previous?.sessionIsTracked == true, "the current provider lost its session")
+        _ = ProviderRegistry.providers(from: [])
+    }
+
+    /// A descriptor that goes away is the other half: its provider is dropped
+    /// from the cache, and dropping it is not releasing it.
+    @Test("A descriptor that disappears takes its session with it")
+    func removedDescriptorIsReleased() throws {
+        let gone = try descriptor(id: "release-gone", endpoint: "https://example.invalid/g")
+        let provider = try build(gone)
+        #expect(provider.sessionIsTracked)
+        _ = ProviderRegistry.providers(from: [])
+        #expect(released(provider), "a removed descriptor kept its session")
+    }
+}

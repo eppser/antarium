@@ -96,3 +96,66 @@ struct UsageHTTPBoundaryTests {
         }
     }
 }
+
+/// A server that answers slowly, so a release can happen while a request is
+/// still in flight.
+private final class SlowUsageProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "slow.invalid"
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let url = request.url!
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self else { return }
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                                           headerFields: ["Content-Type": "application/json"])!
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: Data(#"{"used":0.25}"#.utf8))
+            self.client?.urlProtocolDidFinishLoading(self)
+        }
+    }
+    override func stopLoading() {}
+}
+
+/// Releasing a session is not cancelling what it is doing.
+///
+/// A descriptor changes while its provider is mid-fetch — a harness file
+/// saved from an editor is exactly that — and the reply that is already on
+/// its way is still the answer. `finishTasksAndInvalidate` lets it land;
+/// `invalidateAndCancel` would turn an ordinary save into a failed reading,
+/// which is the kind of flake nobody can reproduce.
+@Suite("Releasing a session lets its request finish")
+struct SessionReleaseInFlightTests {
+
+    private func session() -> URLSession {
+        UsageHTTP.makeSession(headers: [:], protocolClasses: [SlowUsageProtocol.self])
+    }
+
+    @Test("A request already in flight still answers after the session is released")
+    func inFlightRequestStillAnswers() async throws {
+        let client = session()
+        async let reply = UsageHTTP.getJSON(URL(string: "https://slow.invalid/usage")!,
+                                            headers: [:], session: client)
+        // Long enough for the task to have started, short enough to be well
+        // inside the protocol's own delay.
+        try await Task.sleep(nanoseconds: 100_000_000)
+        UsageHTTP.release(client)
+        let json = try await reply
+        #expect(json["used"] as? Double == 0.25,
+                "releasing the session lost a reply that was already coming")
+    }
+
+    /// And the reader is let go once it has finished, rather than being kept
+    /// by a session nobody holds.
+    @Test("The reader is released once the request has landed")
+    func readerIsReleasedAfterwards() async throws {
+        let client = session()
+        #expect(UsageHTTP.isTracked(client))
+        _ = try await UsageHTTP.getJSON(URL(string: "https://slow.invalid/usage")!,
+                                        headers: [:], session: client)
+        UsageHTTP.release(client)
+        for _ in 0..<60 where UsageHTTP.isTracked(client) { try await Task.sleep(nanoseconds: 50_000_000) }
+        #expect(!UsageHTTP.isTracked(client))
+    }
+}

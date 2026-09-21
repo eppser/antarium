@@ -71,6 +71,12 @@ enum ProviderRegistry {
         let taken = Set(native.map(\.id))
         var added: [UsageProvider] = []
         var live = Set<String>()
+        // Each provider owns a URLSession, and a session holds its delegate
+        // until it is invalidated — so one that is replaced or dropped has to
+        // be told, or editing a harness file grows the app a session at a
+        // time. Collected here and released after the lock, because releasing
+        // takes another one.
+        var doomed: [DescriptorProvider] = []
         for descriptor in descriptors
         where descriptor.quota != nil && !taken.contains(descriptor.id) {
             live.insert(descriptor.id)
@@ -81,17 +87,26 @@ enum ProviderRegistry {
                cached.signature == signature {
                 provider = cached.provider
             } else {
+                if let replaced = fromDescriptors[descriptor.id]?.provider {
+                    doomed.append(replaced)
+                }
                 provider = DescriptorProvider(descriptor)
                 if let provider {
                     fromDescriptors[descriptor.id] = (signature, provider)
+                } else {
+                    fromDescriptors.removeValue(forKey: descriptor.id)
                 }
             }
             lock.unlock()
             if let provider { added.append(provider) }
         }
         lock.lock()
+        for (id, cached) in fromDescriptors where !live.contains(id) {
+            doomed.append(cached.provider)
+        }
         fromDescriptors = fromDescriptors.filter { live.contains($0.key) }
         lock.unlock()
+        for provider in doomed { provider.releaseSession() }
         return added.sorted { $0.id < $1.id }
     }
 

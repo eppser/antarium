@@ -33,6 +33,40 @@ enum UsageHTTP {
         return session
     }
 
+    /// Lets a session go when whatever held it is replaced.
+    ///
+    /// Nothing invalidated a session, and `URLSession` holds its delegate
+    /// until something does — so every `DescriptorProvider` dropped because
+    /// its descriptor changed left a live session, a live delegate, and an
+    /// entry in `readers` that nothing removed. A harness file being edited
+    /// is the ordinary way that happens, so the growth followed the user
+    /// around rather than being a one-off.
+    ///
+    /// `finishTasksAndInvalidate` rather than `invalidateAndCancel`: a fetch
+    /// already in flight is allowed to finish and answer, and the reader is
+    /// released afterwards through `didBecomeInvalidWithError`.
+    static func release(_ session: URLSession) {
+        session.finishTasksAndInvalidate()
+    }
+
+    /// Called by the delegate once the session is done with it.
+    static func forget(_ session: URLSession) {
+        readerLock.lock()
+        readers.removeValue(forKey: ObjectIdentifier(session))
+        readerLock.unlock()
+    }
+
+    /// Whether this session still holds a reader.
+    ///
+    /// Asked per session rather than counted, because a count is global: the
+    /// first version of this test watched `readers.count` and read other
+    /// suites releasing their own sessions as its own failure.
+    static func isTracked(_ session: URLSession) -> Bool {
+        readerLock.lock()
+        defer { readerLock.unlock() }
+        return readers[ObjectIdentifier(session)] != nil
+    }
+
     private static func reader(for session: URLSession) -> BoundedBodyDelegate? {
         readerLock.lock()
         defer { readerLock.unlock() }

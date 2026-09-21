@@ -15,6 +15,15 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     private let quota: HarnessDescriptor.Quota
     private let session = UsageHTTP.makeSession(headers: [:])
 
+    /// Called when the registry replaces or drops this provider, because a
+    /// session outlives the object that made it until it is invalidated.
+    func releaseSession() { UsageHTTP.release(session) }
+
+    /// Whether this provider's session is still live. The observable half of
+    /// `releaseSession`, so a test can watch one object rather than a count
+    /// every other suite is also moving.
+    var sessionIsTracked: Bool { UsageHTTP.isTracked(session) }
+
     init?(_ descriptor: HarnessDescriptor) {
         guard let quota = descriptor.quota else { return nil }
         self.descriptor = descriptor

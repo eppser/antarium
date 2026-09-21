@@ -410,3 +410,7 @@ a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swif
 a window length that is not a number sorts | Sources/Antarium/Core/UsageModel.swift | s|self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil|self.windowSeconds = windowSeconds|
 codex extra label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|(extra\["limit_name"\] as? String).map(clamped)|(extra["limit_name"] as? String)|
 codex plan label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|"\\(clamped(\$0)) plan"|"\\(\$0) plan"|
+a replaced provider keeps its session | Sources/Antarium/Core/UsageProvider.swift | s|                    doomed.append(replaced)||
+a removed descriptor keeps its session | Sources/Antarium/Core/UsageProvider.swift | s|            doomed.append(cached.provider)||
+releasing a session forgets nothing | Sources/Antarium/Core/BoundedResponse.swift | s|        UsageHTTP.forget(session)||
+a released session is cancelled mid flight | Sources/Antarium/Core/UsageHTTP.swift | s|session.finishTasksAndInvalidate()|session.invalidateAndCancel()|
