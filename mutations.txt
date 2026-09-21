@@ -205,3 +205,6 @@ cloud accepts has_more as complete | Sources/Antarium/Core/CloudScan.swift | s|!
 sqlite hard row cap raised | Sources/Antarium/Core/BoundedSQLite.swift | s|let rowLimit = min(2_000,max(1,maxRows))|let rowLimit = max(1,maxRows)|
 sqlite row budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|guard rows.count < rowLimit else { throw ReadError.limitExceeded }||
 sqlite byte budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|guard size <= 65_536, bytes <= 4_194_304-size else { throw ReadError.limitExceeded }||
+seeding overwrites a file the user edited | Sources/Antarium/Core/HarnessSeed.swift | s|if let current, owned\[name\] != current { result.keptYours.append(name); continue }||
+seeding reports an edited file as updated | Sources/Antarium/Core/HarnessSeed.swift | s|{ result.keptYours.append(name); continue }|{ result.updated.append(name); continue }|
+seeding rewrites an unchanged file every launch | Sources/Antarium/Core/HarnessSeed.swift | s|if current == next { owned\[name\] = next; continue }||

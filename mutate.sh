@@ -7,6 +7,17 @@
 # deleted. That is the failure mode nothing else here can see: a suite of tests
 # that cannot fail looks exactly like a suite that passes.
 #
+# Writing one: mutate the expression that ENFORCES a rule, not the constant it
+# compares against. A constant wrapped in `min(…)`, `max(…)` or `??` is
+# frequently overridden a line later, so changing it alters no behaviour, the
+# tests pass, and the report says SURVIVED — which reads exactly like a
+# missing test. Three exploratory mutations went that way in one afternoon.
+# A survivor means the mutation and the tests disagree about what matters;
+# check which of the two is wrong before believing either.
+#
+# The catalogue itself cannot be corrupted this way: a no-op survives, and only
+# mutations confirmed caught are recorded.
+#
 # Every mutation is reverted, including on interrupt.
 set -uo pipefail
 cd "$(dirname "$0")"

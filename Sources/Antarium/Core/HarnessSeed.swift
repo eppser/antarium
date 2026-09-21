@@ -72,6 +72,10 @@ enum HarnessSeed {
             let file = directory.appendingPathComponent(name), stamp = FileStamp.of(directory.appendingPathComponent(name))
             do {
                 let existing = try readIfPresent(file,maxBytes:1_048_576)
+                // Narrows the window rather than closing it: `replace` checks
+                // the same stamp again inside the write, so no mutation of
+                // this line can be caught. Kept because failing here costs
+                // nothing and avoids doing the work at all.
                 guard FileStamp.of(file) == stamp else { throw Failure.changed }
                 let current = existing.map(checksum), next = checksum(data)
                 if current == next { owned[name] = next; continue }
@@ -94,6 +98,9 @@ enum HarnessSeed {
             catch { result.issues.append("The editor schema could not be updated safely.") }
         }
         let readmeFile = directory.appendingPathComponent("README.txt")
+        // `expecting:""` below means the write is refused unless the file is
+        // absent, so this test is an early exit rather than the rule — which
+        // is why removing it changes nothing a test can see.
         if FileStamp.of(readmeFile).isEmpty {
             do { try replace(Data(readme.utf8),readmeFile,expecting:"",limit:65_536) }
             catch { result.issues.append("The harness instructions file could not be created safely.") }
