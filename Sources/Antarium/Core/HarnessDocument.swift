@@ -140,6 +140,39 @@ enum HarnessDocument {
                     "process.sessionBinding openSourceFile requires a JSON or JSONL source")
             }
         }
+        if let quota = object["quota"] as? [String: Any] {
+            // Exactly one way in. Both would leave which one wins to the
+            // order of an if, and neither is a quota block that does
+            // anything — it would decode, ship, and report nothing.
+            let endpoint = (quota["endpoint"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let command = (quota["command"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            switch (endpoint?.isEmpty == false, command?.isEmpty == false) {
+            case (true, true):
+                throw Error.semantic(
+                    "quota declares both an endpoint and a command; it reads from one or the other")
+            case (false, false):
+                throw Error.semantic("quota declares neither an endpoint nor a command")
+            default: break
+            }
+            if command?.isEmpty == false {
+                if quota["headers"] != nil {
+                    throw Error.semantic("quota.headers is only read for an endpoint")
+                }
+                // argv, never a shell. A separator in the command name is the
+                // shape of an injected path rather than a program name.
+                if let command, command.contains("/") || command.contains(" ") {
+                    throw Error.semantic(
+                        "quota.command must be a program name resolved on PATH, not a path or a line")
+                }
+                if let args = quota["args"], !(args is [String]) {
+                    throw Error.semantic("quota.args must be an array of strings")
+                }
+            } else if quota["args"] != nil {
+                throw Error.semantic("quota.args is only read for a command")
+            }
+        }
         if let quota = object["quota"] as? [String: Any],
            let credential = quota["credential"] as? [String: Any],
            let rawRequires = credential["requires"] {

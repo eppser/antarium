@@ -447,7 +447,13 @@ public struct HarnessConfig: Codable {
     }
 
     public struct Quota: Codable {
-        public var endpoint: String
+        /// An https URL to read the figures from. Exactly one of this and
+        /// `command`.
+        public var endpoint: String?
+        /// A program name, resolved on PATH, whose stdout is the usage JSON.
+        /// argv only — never a shell line, and never a path.
+        public var command: String?
+        public var args: [String]?
         public var headers: [String: String]?
         public var credential: Credential?
         public var windows: Windows
@@ -458,6 +464,16 @@ public struct HarnessConfig: Codable {
 
         public init(endpoint: String, windows: Windows) {
             self.endpoint = endpoint
+            self.windows = windows
+        }
+
+        /// The command form. Separate initialiser rather than two optional
+        /// parameters, so a configuration declaring both cannot be written in
+        /// the first place — the runtime refuses one, and the SDK should not
+        /// let it be built.
+        public init(command: String, args: [String] = [], windows: Windows) {
+            self.command = command
+            self.args = args
             self.windows = windows
         }
 

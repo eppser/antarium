@@ -51,6 +51,13 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     }
 
     private func probeConfigured() -> Bool {
+        // A command quota is configured when its program is there. Falling
+        // through to the credential branch answered `true` for every one of
+        // them, because a command quota declares no credential and "no
+        // credential needed" is a legitimate endpoint. So an agent that is
+        // not installed would have been offered as signed in, and said so
+        // until the first refresh failed.
+        if let command = quota.command { return CommandPath.resolve(command) != nil }
         guard let credential = quota.credential else { return true }
         switch credential.kind {
         case "command":
@@ -131,9 +138,19 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
 
     // MARK: - Fetch
 
+    /// The most a command's reply may be.
+    ///
+    /// Larger than a credential because this is a payload rather than a
+    /// token, and still far below anything that belongs in a menu bar. A
+    /// truncated reply is refused rather than parsed: half a JSON document is
+    /// not a smaller set of windows, it is a parse error at best and a
+    /// misread number at worst.
+    static let maxCommandOutput = 512 * 1_024
+
     func fetch() async throws -> Snapshot {
+        if quota.command != nil { return try makeSnapshot(try runCommand()) }
         guard let token = token() else { throw ProviderError.notConfigured(setupHint) }
-        guard let url = URL(string: quota.endpoint) else {
+        guard let endpoint = quota.endpoint, let url = URL(string: endpoint) else {
             throw ProviderError.badResponse("\(displayName)'s endpoint is not a URL.")
         }
         var headers = quota.headers ?? ["Authorization": "Bearer {token}"]
@@ -141,6 +158,54 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
 
         let json = try await UsageHTTP.getJSON(url, headers: headers, session: session)
         return try makeSnapshot(json)
+    }
+
+    /// Reads the figures from a command's stdout.
+    ///
+    /// No credential is involved: the CLI is already signed in or it is not,
+    /// and saying "not signed in" for a CLI that is missing would be a
+    /// different untruth from the one it fixes. A command that is not
+    /// installed is `notConfigured`; one that runs and fails is a failure,
+    /// which is what keeps "missing" and "broken" apart.
+    private func runCommand() throws -> [String: Any] {
+        guard let name = quota.command, let path = CommandPath.resolve(name) else {
+            throw ProviderError.notConfigured(setupHint)
+        }
+        let result = Shell.execute(path, quota.args ?? [], timeout: 15,
+                                   outputLimit: Self.maxCommandOutput)
+        // Asked apart rather than through `completeOutput`, which is
+        // `succeeded && !stdoutTruncated` and so is false for every kind of
+        // failure. Reporting all of them as "printed too much" is the same
+        // mistake as reporting a missing file as an empty one: the person
+        // reading it goes and looks at the wrong thing.
+        if result.timedOut {
+            throw ProviderError.transport("\(displayName)'s usage command did not answer.")
+        }
+        if let launchError = result.launchError {
+            throw ProviderError.notConfigured(
+                "\(displayName)'s usage command could not be run: \(launchError)")
+        }
+        guard result.exitCode == 0 else {
+            // Unwrapped rather than interpolated: `exitCode` is optional, and
+            // the message it produced read "exited with Optional(1)".
+            let status = result.exitCode.map(String.init) ?? "no status"
+            throw ProviderError.badResponse(
+                "\(displayName)'s usage command exited with \(status).")
+        }
+        // Equivalent to `completeOutput` by this line — timeout, launch and
+        // exit status are all settled above, and nothing here passes a
+        // cancellation — so there is no catalogue entry for it. Written this
+        // way regardless, because the next reader should not have to
+        // reconstruct that argument to know what is being asked.
+        guard !result.stdoutTruncated else {
+            throw ProviderError.badResponse(
+                "\(displayName) printed more than \(Self.maxCommandOutput / 1_024) KB of usage.")
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: Data(result.stdout.utf8))
+                as? [String: Any] else {
+            throw ProviderError.badResponse("\(displayName)'s usage command did not print JSON.")
+        }
+        return json
     }
 
     func makeSnapshot(_ json: [String: Any]) throws -> Snapshot {

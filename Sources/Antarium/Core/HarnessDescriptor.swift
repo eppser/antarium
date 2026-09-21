@@ -272,7 +272,25 @@ struct HarnessDescriptor: Codable {
             var resetsAt: String?
             var title: String?
         }
-        let endpoint: String
+        /// An https URL to read the figures from. Optional because some
+        /// services no longer offer one.
+        var endpoint: String?
+        /// A command to read the figures from instead, as argv. Its stdout
+        /// must be the JSON the `windows` map describes.
+        ///
+        /// Some agents have stopped answering over HTTP at all. Antigravity's
+        /// embedded server began rejecting every tokenless request once its
+        /// CLI stopped publishing the CSRF token it generates, and the
+        /// working path became `agy -p /usage --output-format json`. A model
+        /// that can only describe an endpoint cannot describe that, so an
+        /// agent whose mapping is perfectly expressible still needed native
+        /// code — which is the opposite of what this file is for.
+        ///
+        /// Run through `Shell.execute` like every other harness command:
+        /// argv, never a shell, bounded in time and output, and listed in the
+        /// allowlist test beside the rest.
+        var command: String?
+        var args: [String]?
         var headers: [String: String]?
         var credential: Credential?
         let windows: Windows

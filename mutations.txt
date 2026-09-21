@@ -171,7 +171,7 @@ field path missing value becomes zero | Sources/Antarium/Core/FieldPath.swift | 
 field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s|return suffix.isEmpty ? array : array.compactMap { lookup(\$0, suffix) }|return array|
 field path integer total wraps | Sources/Antarium/Core/FieldPath.swift | s|guard !sum.overflow else { return nil }||
 check accepts an unknown descriptor field | Sources/Antarium/Core/HarnessCheck.swift | s|for problem in schemaProblems(in: object) { fail(problem) }||
-check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|fail("quota.endpoint is not an https URL: \\(quota.endpoint)")||
+check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|                    fail("quota.endpoint is not an https URL: \\(raw)")||
 check accepts a credential missing its path | Sources/Antarium/Core/HarnessCheck.swift | s|fail("quota.credential of kind \\(credential.kind) needs \\(missing)")||
 check reports a problem on a clean descriptor | Sources/Antarium/Core/HarnessCheck.swift | s|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }; problems += 1|
 unreadable local source leaves stale rows looking live | Sources/Antarium/Core/AgentStore.swift | s|row.state = .unobserved; row.rssBytes = nil; row.localObservationIssue = issue|row.localObservationIssue = issue|
@@ -414,3 +414,11 @@ a replaced provider keeps its session | Sources/Antarium/Core/UsageProvider.swif
 a removed descriptor keeps its session | Sources/Antarium/Core/UsageProvider.swift | s|            doomed.append(cached.provider)||
 releasing a session forgets nothing | Sources/Antarium/Core/BoundedResponse.swift | s|        UsageHTTP.forget(session)||
 a released session is cancelled mid flight | Sources/Antarium/Core/UsageHTTP.swift | s|session.finishTasksAndInvalidate()|session.invalidateAndCancel()|
+a quota may declare both an endpoint and a command | Sources/Antarium/Core/HarnessDocument.swift | s|            case (true, true):|            case (true, false):|
+a quota may declare neither | Sources/Antarium/Core/HarnessDocument.swift | s|            case (false, false):|            case (false, true):|
+a quota command may be a path | Sources/Antarium/Core/HarnessDocument.swift | s|if let command, command.contains("/") \|\| command.contains(" ") {|if let command, false, command.contains("/") {|
+a command quota reads as signed in when absent | Sources/Antarium/Providers/DescriptorProvider.swift | s|if let command = quota.command { return CommandPath.resolve(command) != nil }||
+a quota command output is unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|outputLimit: Self.maxCommandOutput|outputLimit: Int.max|
+a truncated quota reply is parsed anyway | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else {|guard true else {|
+a failed quota command is read as data | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.exitCode == 0 else {|guard true else {|
+an optional leaks into the exit status | Sources/Antarium/Providers/DescriptorProvider.swift | s|let status = result.exitCode.map(String.init) ?? "no status"|let status = String(describing: result.exitCode)|

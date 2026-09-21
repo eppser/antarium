@@ -811,13 +811,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "endpoint",
         "windows"
       ],
       "properties": {
         "endpoint": {
           "type": "string",
-          "format": "uri"
+          "format": "uri",
+          "description": "https URL to read the figures from. Exactly one of endpoint or command."
         },
         "headers": {
           "type": "object",
@@ -842,6 +842,17 @@
         },
         "verified": {
           "type": "boolean"
+        },
+        "command": {
+          "type": "string",
+          "description": "Program name, resolved on PATH, whose stdout is the usage JSON. Exactly one of endpoint or command."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Arguments for quota.command. argv, never a shell."
         }
       }
     },

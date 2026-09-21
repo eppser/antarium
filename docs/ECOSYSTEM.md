@@ -91,7 +91,9 @@ was written as a descriptor first and reverted, because a correct mapping
 behind a credential that expires is exactly what the note below says not to
 ship.
 
-Not currently integrated, with the reason each would need native code. The
+Not currently integrated, with the reason each would need native code — or,
+for the first, the reason it still cannot be written even though it no longer
+would. The
 table is the answer to "add every provider some other tool supports", and it
 is worth reading before starting one: a mapping being expressible is not the
 same as a provider being shippable, and the difference is almost always the
@@ -99,7 +101,7 @@ credential rather than the response.
 
 | Service | Why a descriptor cannot express it |
 | --- | --- |
-| Antigravity | usage comes from a local server on a discovered port behind a CSRF token |
+| Antigravity | the reason moved. Its embedded language server began refusing every tokenless request once the `agy` CLI stopped publishing the CSRF token it generates, so the port-probing route other tools used is closed to them too; the working path is now `agy -p /usage --output-format json`. A descriptor can express that — `quota.command` reads its figures from a program's stdout — so the blocker is no longer the access. What is missing is the mapping: the field paths are reverse-engineered from the binary by the tools that carry them, and their own documentation says the shape may change without notice. One real payload would be enough to write the descriptor and its fixture, and nothing short of that should be written |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
 | Mistral | Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`, which the `json` source kind could glob — so this is a session reader, not a quota one. What stops it is the shape rather than the access: the file exposes `stats.session_total_llm_tokens`, a combined figure, and this app splits sent from received on purpose. Mapping a total into either half would report a number that is wrong in a way nobody could see. Worth revisiting if a real `meta.json` turns out to carry the split, a working directory, or both |

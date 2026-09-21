@@ -491,6 +491,22 @@ A budget is a ceiling rather than a default: `BoundedSQLite.query` takes
 `maxRows` and applies `min(2_000, …)`, so a caller can lower it and not raise
 it.
 
+A `quota` block reads from exactly one place: an `endpoint`, or a `command`
+whose stdout is the JSON the `windows` map describes. Both would leave which
+one wins to the order of an `if`, and neither is a quota block that does
+anything, so the decoder refuses each. The command form exists because some
+services have stopped answering over HTTP at all, and a model that can only
+describe an endpoint forces native code for an agent whose mapping is
+perfectly expressible.
+
+A quota command is argv and never a shell, must be a program name rather than
+a path, is bounded in time and output, and appears in the allowlist test in
+`ExtensibilityAndReleaseTests.swift` beside every other command a shipped
+harness may run. Its failures are told apart rather than folded together:
+`Shell.Result.completeOutput` is `succeeded && !stdoutTruncated`, so a
+command that exits non-zero printing nothing reads as one that printed too
+much unless the cases are asked separately.
+
 A capability probe may declare `fileSuffixes`, and then a directory counts
 only the entries whose names end with one of them. Some conventions are a
 folder where the agent reads one kind of file and ignores the rest — Cursor's

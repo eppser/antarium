@@ -261,11 +261,21 @@ enum HarnessCheck {
         //     endpoint of "not a url" passed with no problems and failed at
         //     the first fetch instead, which is the wrong moment to find out.
         if let quota = descriptor.quota {
-            if let endpoint = URL(string: quota.endpoint), endpoint.scheme == "https",
-               let host = endpoint.host, !host.isEmpty {
-                ok("quota endpoint \(host)")
+            if let command = quota.command {
+                if CommandPath.resolve(command) != nil {
+                    ok("quota command \(([command] + (quota.args ?? [])).joined(separator: " "))")
+                } else {
+                    warn("quota.command \(command) is not on this Mac — fine if the agent isn't installed")
+                }
+            } else if let raw = quota.endpoint {
+                if let endpoint = URL(string: raw), endpoint.scheme == "https",
+                   let host = endpoint.host, !host.isEmpty {
+                    ok("quota endpoint \(host)")
+                } else {
+                    fail("quota.endpoint is not an https URL: \(raw)")
+                }
             } else {
-                fail("quota.endpoint is not an https URL: \(quota.endpoint)")
+                fail("quota declares neither an endpoint nor a command")
             }
             if let credential = quota.credential {
                 let missing: String?

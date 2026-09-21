@@ -441,6 +441,11 @@ struct UIAndReleaseContractTests {
                credential.kind == "command", let command = credential.command {
                 commands.append("\(descriptor.id):credential \(([command] + (credential.args ?? [])).joined(separator: " "))")
             }
+            // A quota command runs on every refresh, so it belongs under the
+            // same gate as the ones run during a scan.
+            if let quota = descriptor.quota, let command = quota.command {
+                commands.append("\(descriptor.id):quota \(([command] + (quota.args ?? [])).joined(separator: " "))")
+            }
             // A focus command is run when a row is clicked, so it belongs
             // under the same gate as the ones run during a scan.
             if let focus = descriptor.focus {

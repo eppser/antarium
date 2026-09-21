@@ -357,3 +357,190 @@ struct DescriptorCredentialBoundTests {
         #expect(DescriptorProvider.maxCredentialBytes == 256 * 1_024)
     }
 }
+
+/// A quota that comes from a command rather than an endpoint.
+///
+/// Some agents have stopped answering over HTTP. Antigravity's embedded
+/// server began rejecting every tokenless request once its CLI stopped
+/// publishing the CSRF token it generates, and the working path became
+/// `agy -p /usage --output-format json`. A model that can only describe an
+/// endpoint cannot describe that, so an agent whose mapping is perfectly
+/// expressible still needed native code — the opposite of what descriptors
+/// are for.
+@Suite("A quota can be read from a command")
+struct CommandQuotaTests {
+
+    private func decode(_ quota: [String: Any]) throws -> HarnessDescriptor {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "cmd-quota", "name": "Command Quota",
+            "process": [:], "source": ["kind": "none", "path": ""], "quota": quota]
+        return try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    private var windows: [String: Any] {
+        ["list": "data", "usedPercent": "pct"]
+    }
+
+    @Test("A command quota decodes and carries its argv")
+    func commandDecodes() throws {
+        let d = try decode(["command": "agy", "args": ["-p", "/usage", "--output-format", "json"],
+                            "windows": windows])
+        let quota = try #require(d.quota)
+        #expect(quota.command == "agy")
+        #expect(quota.args == ["-p", "/usage", "--output-format", "json"])
+        #expect(quota.endpoint == nil)
+    }
+
+    /// Both would leave which one wins to the order of an `if`, and neither
+    /// is a quota block that does anything — it would decode, ship, and
+    /// report nothing at all.
+    @Test("Declaring both an endpoint and a command is refused")
+    func bothIsRefused() {
+        #expect(throws: (any Error).self) {
+            try decode(["endpoint": "https://example.invalid/u", "command": "agy",
+                        "windows": windows])
+        }
+    }
+
+    @Test("Declaring neither is refused")
+    func neitherIsRefused() {
+        #expect(throws: (any Error).self) { try decode(["windows": windows]) }
+    }
+
+    /// argv, never a shell. A separator in the program name is the shape of
+    /// an injected path rather than a name to resolve on PATH.
+    @Test("A command that is a path or a line is refused", arguments: [
+        "/usr/local/bin/agy", "agy --usage", "sh -c agy", "../agy",
+    ])
+    func commandMustBeAName(_ command: String) {
+        #expect(throws: (any Error).self) {
+            try decode(["command": command, "windows": windows])
+        }
+    }
+
+    @Test("Arguments must be strings")
+    func argsMustBeStrings() {
+        #expect(throws: (any Error).self) {
+            try decode(["command": "agy", "args": [1, 2], "windows": windows])
+        }
+    }
+
+    /// Fields that belong to the other form are refused rather than ignored,
+    /// because a descriptor carrying headers it will never send reads as if
+    /// it sends them.
+    @Test("Endpoint-only and command-only fields do not cross over")
+    func fieldsDoNotCrossOver() {
+        #expect(throws: (any Error).self) {
+            try decode(["command": "agy", "headers": ["X": "1"], "windows": windows])
+        }
+        #expect(throws: (any Error).self) {
+            try decode(["endpoint": "https://example.invalid/u", "args": ["-p"],
+                        "windows": windows])
+        }
+    }
+
+    /// The whole point of the shape: the mapping is checked against a
+    /// synthetic payload, with nothing installed. What the command would have
+    /// printed is exactly what `makeSnapshot` is handed.
+    @Test("The mapping is verified from a payload, with no CLI present")
+    func mappingIsCheckedOffline() throws {
+        let d = try decode(["command": "agy", "args": ["-p", "/usage"],
+                            "windows": ["list": "groups", "usedPercent": "pct",
+                                        "key": ["id"], "labels": ["five-hour": "Session"]]])
+        let provider = try #require(DescriptorProvider(d))
+        let snapshot = try provider.makeSnapshot(
+            ["groups": [["id": "five-hour", "pct": 42.0]]])
+        let gauge = try #require(snapshot.gauges.first)
+        #expect(gauge.title == "Session")
+        #expect(abs(gauge.used - 0.42) < 0.0001)
+    }
+
+    /// A CLI that is not installed is not a signed-out account. Reporting
+    /// "sign in" for a missing program sends the user to fix the wrong thing.
+    @Test("A command that is not on this Mac is not configured, not signed out")
+    func missingCommandIsNotConfigured() throws {
+        let d = try decode(["command": "definitelynotarealprogramxyz",
+                            "windows": windows])
+        let provider = try #require(DescriptorProvider(d))
+        #expect(provider.isConfigured == false)
+    }
+}
+
+/// What a quota command's output is allowed to be.
+///
+/// These run real programs that every Mac has, because the bounds being
+/// checked are on the subprocess rather than on a parser: a `yes`-shaped
+/// command flooding stdout, and one that fails. Neither can be reached by
+/// handing `makeSnapshot` a dictionary.
+@Suite("A quota command's output is bounded and its failure is a failure")
+struct CommandQuotaOutputTests {
+
+    private func provider(command: String, args: [String]) throws -> DescriptorProvider {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "cmd-out-\(UUID().uuidString)", "name": "Command Output",
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["command": command, "args": args,
+                      "windows": ["list": "data", "usedPercent": "pct"]]]
+        let d = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(d))
+    }
+
+    /// Each of these asserts *which* failure, not merely that one happened.
+    /// Every one of these paths ends in a throw whatever goes wrong, so
+    /// "it threw" is satisfied by removing the check being tested — which is
+    /// exactly what the first version of these did, and two mutations
+    /// survived them.
+    private func failure(_ p: DescriptorProvider) async -> ProviderError? {
+        do {
+            _ = try await p.fetch()
+            return nil
+        } catch let error as ProviderError {
+            return error
+        } catch {
+            return nil
+        }
+    }
+
+    /// Half a JSON document is not a smaller set of windows. A truncated
+    /// reply is refused rather than parsed, so a flood cannot become a
+    /// plausible-looking figure.
+    @Test("A command that floods stdout is refused, not truncated and parsed")
+    func floodIsRefused() async throws {
+        let p = try provider(command: "head",
+                             args: ["-c", "\(DescriptorProvider.maxCommandOutput * 2)", "/dev/zero"])
+        #expect(await failure(p) == .badResponse(
+            "Command Output printed more than \(DescriptorProvider.maxCommandOutput / 1_024) KB of usage."))
+    }
+
+    /// An exit code is the difference between "no figures" and "figures that
+    /// happen to be empty" — and the message has to say so. This first read
+    /// "printed more than 512 KB", because the check was written against
+    /// `Shell.Result.completeOutput`, which is `succeeded && !stdoutTruncated`
+    /// and so is false for every kind of failure. A command that exits 1
+    /// printing nothing was reported as one that printed too much.
+    @Test("A command that fails is a failure, not an empty reading")
+    func failureIsAFailure() async throws {
+        let p = try provider(command: "false", args: [])
+        #expect(await failure(p) == .badResponse(
+            "Command Output's usage command exited with 1."),
+                "an optional leaked into a message the user reads")
+    }
+
+    @Test("A command that prints something other than JSON is a failure")
+    func nonJSONIsAFailure() async throws {
+        let p = try provider(command: "echo", args: ["not json at all"])
+        #expect(await failure(p) == .badResponse(
+            "Command Output's usage command did not print JSON."))
+    }
+
+    /// And the ordinary path: a command that prints the payload is read.
+    @Test("A command that prints the usage JSON is read")
+    func ordinaryOutputIsRead() async throws {
+        let p = try provider(command: "echo",
+                             args: [#"{"data":[{"pct":30.0}]}"#])
+        let snapshot = try await p.fetch()
+        #expect(abs((snapshot.gauges.first?.used ?? 0) - 0.30) < 0.0001)
+    }
+}
