@@ -491,13 +491,21 @@ A budget is a ceiling rather than a default: `BoundedSQLite.query` takes
 `maxRows` and applies `min(2_000, …)`, so a caller can lower it and not raise
 it.
 
-A `directory` capability probe may declare `fileExtensions`, and then only
-entries with those suffixes count. Some conventions are a folder where the
-agent reads one kind of file and ignores the rest — Cursor's documentation
-says a plain `.md` in `.cursor/rules` is ignored because it carries no
-frontmatter — and counting every entry would report a capability for a folder
-the agent never reads. The filter is opt-in: without it every entry counts,
-which is what the other conventions here want.
+A capability probe may declare `fileSuffixes`, and then a directory counts
+only the entries whose names end with one of them. Some conventions are a
+folder where the agent reads one kind of file and ignores the rest — Cursor's
+documentation says a plain `.md` in `.cursor/rules` is ignored because it
+carries no frontmatter — and counting every entry would report a capability
+for a folder the agent never reads. The filter is opt-in: without it every
+entry counts, which is what the other conventions here want.
+
+Suffixes rather than extensions, because a convention can require more than
+an extension: Copilot's scoped instructions must end `.instructions.md`, and
+the path extension of `style.instructions.md` is `md`, the same as a file
+Copilot ignores. The filter applies wherever a probe looks at a directory,
+including a `content` rule — Copilot's one rule lists a file, a folder and
+three more files, and a filter that applied to only one probe kind would
+count files the agent never reads.
 
 `windows` says where the limits are and what they mean. At most 64 are read
 from one response, and text the response supplies — a window title, a

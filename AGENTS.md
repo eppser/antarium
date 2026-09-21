@@ -86,6 +86,21 @@ without anyone noticing.
 Every mutation is reverted, including on interrupt. It takes several minutes,
 so it is not part of `verify.sh`.
 
+The commonest way to write a test that cannot fail is to derive what you
+expect from the thing you are testing. A test reading
+`chain(RemoteTmux.maxPaneDepth - 1)` passes for every value of
+`maxPaneDepth`, so lowering the bound is a change nothing objects to. Write
+the number out, and assert the constant separately — then the two tests
+disagree when somebody moves it. The same applies to a `count` compared
+against `Registry.all.count`, and to any expectation built by calling the
+function under test. Observe the value first, then assert it.
+
+A mutation reported as `caught (never finished)` was caught by a test that
+hung rather than one that failed. That is a real catch and the harness treats
+it as one, but it is a slow one: prefer a test that fails outright on the same
+mutation, and keep the hanging case only when the shape it covers — a cycle,
+an unbounded stream — is the reason the bound exists.
+
 The parts, if you need one on its own:
 
 ```bash

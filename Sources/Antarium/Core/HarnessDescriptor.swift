@@ -156,22 +156,25 @@ struct HarnessDescriptor: Codable {
         var index: String?
         /// Candidate object keys, TOML keys, or TOML table prefixes.
         var keys: [String]?
-        /// For a directory probe: only entries with these extensions count.
+        /// When a path is a directory: only entries whose names end with one
+        /// of these count.
         ///
-        /// Some conventions are a folder of files with a particular suffix,
-        /// and the others in it are ignored by the agent — Cursor reads
-        /// `.cursor/rules/*.mdc` and states that a plain `.md` there is
-        /// ignored. Counting every entry would report the capability as
-        /// present for a folder the agent pays no attention to.
-        var fileExtensions: [String]?
+        /// Some conventions are a folder where the agent reads one kind of
+        /// file and ignores the rest — Cursor reads `.cursor/rules/*.mdc` and
+        /// states that a plain `.md` there is ignored, and Copilot's scoped
+        /// instructions must end `.instructions.md`. Counting every entry
+        /// would report the capability for a folder the agent never reads.
+        ///
+        /// Suffixes rather than extensions, because `.instructions.md` is not
+        /// an extension: the path extension of `style.instructions.md` is
+        /// `md`, which would not tell it from a file Copilot ignores.
+        var fileSuffixes: [String]?
 
         var resolvedProbe: Probe { probe ?? .content }
         var projectPaths: [String] { project ?? [] }
         var inheritedPaths: [String] { inherited ?? [] }
         var objectKeys: [String] { keys ?? [] }
-        var countedExtensions: [String] {
-            (fileExtensions ?? []).map { $0.hasPrefix(".") ? String($0.dropFirst()) : $0 }
-        }
+        var countedSuffixes: [String] { fileSuffixes ?? [] }
     }
 
     struct Quota: Codable {

@@ -693,12 +693,12 @@
             "type": "string"
           }
         },
-        "fileExtensions": {
+        "fileSuffixes": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Directory probe only: only entries with these extensions are counted."
+          "description": "When a path is a directory: only entries whose names end with one of these are counted."
         }
       }
     },

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "copilot-cli",
   "name": "Copilot CLI",
-  "note": "GitHub Copilot's command-line agent, which is a different thing from the VS Code extension the `copilot` harness charts quota for and the `vscode` harness reads sessions from. It keeps its own SQLite store at ~/.copilot/session-store.db with a row per session and a usage event per model call, so token counts come from the agent's own accounting rather than from re-parsing a transcript. Cache reads are summed separately from input, because they are re-used server-side rather than uploaded again.",
+  "note": "GitHub Copilot's command-line agent, which is a different thing from the VS Code extension the `copilot` harness charts quota for and the `vscode` harness reads sessions from. It keeps its own SQLite store at ~/.copilot/session-store.db with a row per session and a usage event per model call, so token counts come from the agent's own accounting rather than from re-parsing a transcript. Cache reads are summed separately from input, because they are re-used server-side rather than uploaded again. Instruction files follow GitHub's documented Copilot convention: a repository-wide .github/copilot-instructions.md, scoped files under .github/instructions that must end .instructions.md, and the shared agent files AGENTS.md, CLAUDE.md and GEMINI.md in the repository root. The scoped folder is counted by that suffix, so a plain .md left there does not report instructions Copilot never reads. Files nested below .github/instructions are read by Copilot and are not counted here: the probe looks one level deep.",
   "process": {
     "names": [
       "copilot"
@@ -73,5 +73,20 @@
   "multiSession": true,
   "presentation": {
     "sourceLabel": "SQLite"
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        ".github/copilot-instructions.md",
+        ".github/instructions",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "GEMINI.md"
+      ],
+      "fileSuffixes": [
+        ".instructions.md"
+      ]
+    }
   }
 }

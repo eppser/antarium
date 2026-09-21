@@ -127,15 +127,17 @@ struct ProjectContext {
             }
             return info
         }
-        func entries(_ url:URL, extensions:[String] = []) throws -> [BoundedDirectory.Entry] {
+        func entries(_ url:URL, suffixes:[String] = []) throws -> [BoundedDirectory.Entry] {
             guard remainingEntries > 0 else { throw ProbeError.budget }
             let entries = try BoundedDirectory.entries(url,limit:min(4_096,remainingEntries))
             // The budget is spent on what was read, not on what survives the
             // filter — a folder of a thousand ignored files costs the same to
             // look at as a folder of a thousand counted ones.
             remainingEntries -= entries.count
-            guard !extensions.isEmpty else { return entries }
-            return entries.filter { extensions.contains($0.url.pathExtension) }
+            guard !suffixes.isEmpty else { return entries }
+            return entries.filter { entry in
+                suffixes.contains { entry.url.lastPathComponent.hasSuffix($0) }
+            }
         }
         func data(_ url:URL) throws -> Data {
             guard remainingBytes > 0 else { throw ProbeError.budget }
@@ -143,9 +145,16 @@ struct ProjectContext {
             remainingBytes -= bytes.count
             return bytes
         }
-        func hasContent(_ url: URL) throws -> Bool {
+        /// A directory here is filtered the same way a directory probe is.
+        /// Without that, a rule listing both files and a folder — Copilot
+        /// lists `.github/copilot-instructions.md` beside `.github/
+        /// instructions/` — would apply the suffixes to one and not the
+        /// other, and the folder would count files the agent ignores.
+        func hasContent(_ url: URL, suffixes: [String] = []) throws -> Bool {
             guard let info = try metadata(url) else { return false }
-            if info.st_mode & S_IFMT == S_IFDIR { return try !entries(url).isEmpty }
+            if info.st_mode & S_IFMT == S_IFDIR {
+                return try !entries(url, suffixes: suffixes).isEmpty
+            }
             return info.st_size > 0
         }
 
@@ -205,13 +214,13 @@ struct ProjectContext {
             guard try metadata(url) != nil else { return nil }
             switch rule.resolvedProbe {
             case .content:
-                return try hasContent(url) ? (url, 0) : nil
+                return try hasContent(url, suffixes: rule.countedSuffixes) ? (url, 0) : nil
             case .jsonObject:
                 return try jsonObject(url, keys: rule.objectKeys) ? (url, 0) : nil
             case .toml:
                 return try declaresTOML(url, keys: rule.objectKeys) ? (url, 0) : nil
             case .directory:
-                let entries = try entries(url, extensions: rule.countedExtensions)
+                let entries = try entries(url, suffixes: rule.countedSuffixes)
                 guard !entries.isEmpty else { return nil }
                 if let index = rule.index {
                     let indexURL = url.appendingPathComponent(index)

@@ -123,13 +123,19 @@ Cursor (`.cursor/rules/*.mdc`, filtered to `.mdc` because Cursor's docs say a
 plain `.md` there is ignored), Zed (`.rules`, `.cursorrules`, `CLAUDE.md`,
 `AGENTS.md`).
 
-Not described: the remaining seventeen. That is a gap rather than a decision,
+Not described: the remaining fifteen. That is a gap rather than a decision,
 and closing one means finding the vendor's own statement of where the files
 live — a convention taken from memory would report a capability the agent
 never reads, or miss one it does. Two shapes make it harder than it looks: a
-folder where only one extension counts needs `fileExtensions`, and a
-capability whose location moves between versions needs whichever paths are
-still honoured, not only the newest.
+folder where only some names count needs `fileSuffixes`, and a capability
+whose location moves between versions needs whichever paths are still
+honoured, not only the newest.
+
+One gap is recorded rather than approximated. GitHub documents Copilot's
+scoped instructions as living "within or below" `.github/instructions`; the
+probe looks one level deep, so a file in a subfolder there is not counted.
+Descending would need a bounded recursive walk, and reporting the folder as
+empty is the safer of the two wrong answers.
 
 ## Positioning in one sentence
 

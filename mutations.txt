@@ -235,7 +235,7 @@ migration reports nothing was migrated | Sources/Antarium/Core/HarnessDocument.s
 loading rewrites the user's file | Sources/Antarium/Core/HarnessDocument.swift | s|guard let value = object\["formatVersion"\] else { return 0 }|guard let value = object["formatVersion"] else { return currentVersion }|
 a capability probe follows a symlink | Sources/Antarium/Core/ProjectContext.swift | s|info.st_mode \& S_IFMT == S_IFDIR|true|
 an empty file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return info.st_size > 0|return true|
-an empty directory counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return try !entries(url).isEmpty|return true|
+an empty directory counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return try !entries(url, suffixes: suffixes).isEmpty|return true|
 a multiline TOML string is read as configuration | Sources/Antarium/Core/ProjectContext.swift | s|guard !text.contains("\\"\\"\\""), !text.contains("'''") else { throw ProbeError.unsupported }||
 a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|
 bounded read returns nothing | Sources/Antarium/Core/BoundedFile.swift | s|^        return data$|        return Data()|
@@ -266,9 +266,9 @@ sqlite numeric text not converted to a real | Sources/Antarium/Core/BoundedSQLit
 sqlite integer has no text form | Sources/Antarium/Core/BoundedSQLite.swift | s|case .integer(let value): return String(value)|case .integer: return nil|
 sqlite non-finite real read as text | Sources/Antarium/Core/BoundedSQLite.swift | s|case .real(let value): return value.isFinite ? String(value) : nil|case .real(let value): return String(value)|
 shell loses the exit code | Sources/Antarium/Core/Shell.swift | s|exitCode: status,|exitCode: 0,|
-remote pane walk is unbounded | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<8 {|while true {|
+remote pane walk is unbounded | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<maxPaneDepth {|while true {|
 remote rows built in whatever order | Sources/Antarium/Core/RemoteTmux.swift | s|for (pid, info) in processes.sorted(by: { \$0.key < \$1.key })|for (pid, info) in processes|
-remote pane walk stops at the process itself | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<8 {|for _ in 0..<1 {|
+remote pane walk stops at the process itself | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<maxPaneDepth {|for _ in 0..<1 {|
 selection filter ignored | Sources/Antarium/Core/SessionSelection.swift | s|guard accepted else { continue }||
 selection boolean filters stop matching | Sources/Antarium/Core/SessionSelection.swift | s|text = CFGetTypeID(value) == CFBooleanGetTypeID() ? (value.boolValue ? "true" : "false") : value.stringValue|text = value.stringValue|
 presence rows unsorted | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.pid < \$1.pid }|.sorted { _, _ in Bool.random() }|
@@ -362,11 +362,15 @@ backoff negative on a negative count | Sources/Antarium/AgentItem.swift | s|min(
 a documented cap drifts from the code | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 16|
 a documented remote cap drifts | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 64|
 a count is interpolated into a localized key | Sources/Antarium/UI/Dashboard.swift | s|Text(verbatim: "\\(store.rows.count)")|Text("\\(store.rows.count)")|
-capability filter ignored | Sources/Antarium/Core/ProjectContext.swift | s|return entries.filter { extensions.contains(\$0.url.pathExtension) }|return entries|
-capability filter applied when not asked for | Sources/Antarium/Core/ProjectContext.swift | s|guard !extensions.isEmpty else { return entries }||
-capability filter rejects a leading dot | Sources/Antarium/Core/HarnessDescriptor.swift | s|\$0.hasPrefix(".") ? String(\$0.dropFirst()) : \$0|$0|
+capability filter ignored | Sources/Antarium/Core/ProjectContext.swift | s|return entries.filter { entry in|return entries; _ = { (entry: BoundedDirectory.Entry) in|
+capability filter applied when not asked for | Sources/Antarium/Core/ProjectContext.swift | s|guard !suffixes.isEmpty else { return entries }||
 finished agents are shown again | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|rows|
 the active filter hides everything | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|[]|
 filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift | s|noticeStops(in: fresh)|noticeStops(in: Self.active(fresh))|
 zed instructions read from the wrong file | Resources/harnesses/zed.json | s|".rules",|".rulez",|
 cursor instructions unfiltered | Resources/harnesses/cursor.json | s|".mdc"|".md"|
+suffix filter compares the extension only | Sources/Antarium/Core/ProjectContext.swift | s|entry.url.lastPathComponent.hasSuffix(\$0)|\$0.hasSuffix(entry.url.pathExtension)|
+content probe ignores the suffix filter | Sources/Antarium/Core/ProjectContext.swift | s|hasContent(url, suffixes: rule.countedSuffixes)|hasContent(url)|
+copilot prefers the shared agent file | Resources/harnesses/vscode.json | s|".github/copilot-instructions.md",|"AGENTS.md",|
+copilot scoped folder counts every file | Resources/harnesses/copilot-cli.json | s|".instructions.md"|".md"|
+remote pane walk gives up one level early | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxPaneDepth = 8|static let maxPaneDepth = 7|

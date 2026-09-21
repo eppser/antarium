@@ -165,8 +165,8 @@ struct CapabilityPresenceTests {
 /// agent ignores the rest. Cursor reads `.cursor/rules/*.mdc` and says plainly
 /// that a `.md` there is ignored — so counting every entry would report
 /// instructions for a folder the agent pays no attention to.
-@Suite("A directory probe can count only the files that count", .serialized)
-struct CapabilityExtensionFilterTests {
+@Suite("A probe can count only the files that count", .serialized)
+struct CapabilitySuffixFilterTests {
 
     private func project(_ files: [String]) throws -> URL {
         let root = FileManager.default.temporaryDirectory
@@ -179,9 +179,10 @@ struct CapabilityExtensionFilterTests {
         return root
     }
 
-    private func scope(_ root: URL, extensions: [String]?) throws -> Capability.Scope {
-        var rule: [String: Any] = ["probe": "directory", "project": [".cursor/rules"]]
-        if let extensions { rule["fileExtensions"] = extensions }
+    private func scope(_ root: URL, suffixes: [String]?,
+                       probe: String = "directory") throws -> Capability.Scope {
+        var rule: [String: Any] = ["probe": probe, "project": [".cursor/rules"]]
+        if let suffixes { rule["fileSuffixes"] = suffixes }
         let object: [String: Any] = [
             "formatVersion": 1, "id": "extfilter-fixture", "name": "Fixture",
             "process": [:], "source": ["kind": "none", "path": ""],
@@ -198,7 +199,7 @@ struct CapabilityExtensionFilterTests {
     func onlyIgnoredFiles() throws {
         let root = try project(["readme.md", "notes.txt"])
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(try scope(root, extensions: [".mdc"]) == .absent,
+        #expect(try scope(root, suffixes: [".mdc"]) == .absent,
                 "instructions were reported for files the agent ignores")
     }
 
@@ -206,7 +207,7 @@ struct CapabilityExtensionFilterTests {
     func countedFiles() throws {
         let root = try project(["style.mdc", "readme.md"])
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(try scope(root, extensions: [".mdc"]) == .project)
+        #expect(try scope(root, suffixes: [".mdc"]) == .project)
     }
 
     /// Without the filter every entry counts, which is what the other
@@ -216,23 +217,47 @@ struct CapabilityExtensionFilterTests {
     func noFilterCountsEverything() throws {
         let root = try project(["readme.md"])
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(try scope(root, extensions: nil) == .project)
+        #expect(try scope(root, suffixes: nil) == .project)
     }
 
-    @Test("The leading dot is optional in the declaration")
-    func dotIsOptional() throws {
-        let root = try project(["style.mdc"])
-        defer { try? FileManager.default.removeItem(at: root) }
-        #expect(try scope(root, extensions: ["mdc"]) == .project)
-        #expect(try scope(root, extensions: [".mdc"]) == .project)
+    /// The filter matches the end of the name rather than the path
+    /// extension, and Copilot is why. Its scoped instructions must end
+    /// `.instructions.md`; the path extension of `style.instructions.md` is
+    /// `md`, the same as a file Copilot ignores, so an extension filter would
+    /// have to accept both or reject both.
+    @Test("A compound suffix tells a counted file from an ignored one")
+    func compoundSuffix() throws {
+        let counted = try project(["style.instructions.md"])
+        defer { try? FileManager.default.removeItem(at: counted) }
+        #expect(try scope(counted, suffixes: [".instructions.md"]) == .project)
+
+        let ignored = try project(["readme.md"])
+        defer { try? FileManager.default.removeItem(at: ignored) }
+        #expect(try scope(ignored, suffixes: [".instructions.md"]) == .absent,
+                "a plain .md was counted as a scoped instruction file")
+    }
+
+    /// A `content` rule accepts a file or a folder, and Copilot's convention
+    /// is both at once. If the filter applied only to the `directory` probe,
+    /// that one rule would count files the agent ignores.
+    @Test("A content probe filters a folder the same way")
+    func contentProbeFiltersFolders() throws {
+        let ignored = try project(["readme.md"])
+        defer { try? FileManager.default.removeItem(at: ignored) }
+        #expect(try scope(ignored, suffixes: [".instructions.md"], probe: "content") == .absent,
+                "a content rule counted a folder's ignored files")
+
+        let counted = try project(["style.instructions.md"])
+        defer { try? FileManager.default.removeItem(at: counted) }
+        #expect(try scope(counted, suffixes: [".instructions.md"], probe: "content") == .project)
     }
 
     @Test("An empty folder reports nothing, filtered or not")
     func emptyFolder() throws {
         let root = try project([])
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(try scope(root, extensions: [".mdc"]) == .absent)
-        #expect(try scope(root, extensions: nil) == .absent)
+        #expect(try scope(root, suffixes: [".mdc"]) == .absent)
+        #expect(try scope(root, suffixes: nil) == .absent)
     }
 }
 
@@ -256,7 +281,29 @@ struct ShippedCapabilityTests {
         let rule = try #require(try descriptor("cursor").capabilityRules["instruction"])
         #expect(rule.resolvedProbe == .directory)
         #expect(rule.projectPaths == [".cursor/rules"])
-        #expect(rule.countedExtensions == ["mdc"], "an ignored file would count as instructions")
+        #expect(rule.countedSuffixes == [".mdc"], "an ignored file would count as instructions")
+    }
+
+    /// GitHub documents one convention for every Copilot surface: a
+    /// repository-wide file, a scoped folder, and the shared agent files. The
+    /// `vscode` and `copilot-cli` harnesses are two of those surfaces and
+    /// declare the same rule; the `copilot` harness contributes no sessions,
+    /// so it has no row for project context to appear on.
+    @Test("Every Copilot surface reads the same documented instruction files",
+          arguments: ["vscode", "copilot-cli"])
+    func copilotInstructions(_ id: String) throws {
+        let rule = try #require(try descriptor(id).capabilityRules["instruction"])
+        #expect(rule.resolvedProbe == .content)
+        #expect(rule.projectPaths == [".github/copilot-instructions.md",
+                                      ".github/instructions",
+                                      "AGENTS.md", "CLAUDE.md", "GEMINI.md"],
+                "the repository-wide file must be preferred over the shared ones")
+        #expect(rule.countedSuffixes == [".instructions.md"])
+    }
+
+    @Test("The quota-only Copilot harness declares no project context")
+    func copilotQuotaOnly() throws {
+        #expect(try descriptor("copilot").capabilityRules.isEmpty)
     }
 
     /// Zed names four project instruction files. Each is a single file, so an

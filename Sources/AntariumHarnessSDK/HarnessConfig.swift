@@ -384,8 +384,10 @@ public struct HarnessConfig: Codable {
         public var inherited: [String]?
         public var index: String?
         public var keys: [String]?
-        /// Directory probe only: only entries with these extensions count.
-        public var fileExtensions: [String]?
+        /// When a path is a directory: only entries whose names end with one
+        /// of these count. Suffixes rather than extensions, because
+        /// `.instructions.md` is not an extension.
+        public var fileSuffixes: [String]?
 
         public init(probe: Probe, project: [String]? = nil,
                     inherited: [String]? = nil, index: String? = nil,

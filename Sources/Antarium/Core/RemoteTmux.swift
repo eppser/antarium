@@ -361,6 +361,33 @@ enum RemoteTmux {
     /// than a fleet worth watching.
     static let maxRows = 256
 
+    /// How far up the process tree the pane is looked for.
+    ///
+    /// A wrapper or two is normal; eight of them is not a session layout, and
+    /// the walk has to stop somewhere. This table is parsed from another
+    /// machine's `ps` output, so it is text rather than a kernel structure:
+    /// a chain long enough to matter, or one that points back at itself, is
+    /// something a far side can produce and this side must survive.
+    static let maxPaneDepth = 8
+
+    /// The pane a process sits in, or nothing.
+    ///
+    /// Separated from `parse` so the bound is callable. Inline it was the one
+    /// part of the remote scan no test could reach: every synthetic process
+    /// table terminates on its own, so an unbounded walk behaves identically
+    /// until the day a real one does not.
+    static func containingPane(of pid: Int32, parents: [Int32: Int32],
+                               panes: [Int32: (target: String, cwd: String)])
+        -> (target: String, cwd: String)? {
+        var walk = pid
+        for _ in 0..<maxPaneDepth {
+            if let pane = panes[walk] { return pane }
+            guard let parent = parents[walk], parent > 1 else { return nil }
+            walk = parent
+        }
+        return nil
+    }
+
     static func parse(_ output: String, host: String, descriptors load: () -> [HarnessDescriptor] = HarnessDescriptor.all) -> [AgentRow] {
         let (paneText, rest) = section(output, upTo: psSeparator)
         guard !rest.isEmpty else { return [] }
@@ -411,14 +438,8 @@ enum RemoteTmux {
             // Walk up to the pane that contains it. The agent is usually the
             // pane's own child, but a shell wrapper or `npx` puts it a level or
             // two deeper — the same walk the local scan does.
-            var walk = pid
-            var found: (target: String, cwd: String)?
-            for _ in 0..<8 {
-                if let pane = panes[walk] { found = pane; break }
-                guard let parent = parents[walk], parent > 1 else { break }
-                walk = parent
-            }
-            guard let pane = found else { continue }
+            guard let pane = containingPane(of: pid, parents: parents, panes: panes)
+            else { continue }
             // One row per pane: an agent that spawns a copy of itself is still
             // one session in one pane, and two rows would double-count it.
             guard claimed.insert(pane.target).inserted else { continue }

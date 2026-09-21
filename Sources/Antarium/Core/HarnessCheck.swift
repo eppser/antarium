@@ -110,7 +110,7 @@ enum HarnessCheck {
         }
 
         let capabilityFields: Set<String> = ["probe", "project", "inherited", "index",
-                                             "keys", "fileExtensions"]
+                                             "keys", "fileSuffixes"]
         let capabilityKinds = Set(Capability.Kind.allCases.map(\.rawValue))
         if let capabilities = object["capabilities"] as? [String: Any] {
             for (kind, raw) in capabilities {

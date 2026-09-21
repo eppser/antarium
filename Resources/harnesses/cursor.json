@@ -63,7 +63,7 @@
       "project": [
         ".cursor/rules"
       ],
-      "fileExtensions": [
+      "fileSuffixes": [
         ".mdc"
       ]
     }
