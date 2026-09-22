@@ -928,6 +928,11 @@ private struct Toggle: View {
     let onChange: (Bool) -> Void
 
     var body: some View {
+        // The state is drawn — a filled box with a tick — and was drawn only.
+        // This is a `Button` wearing a checkbox, so without a trait and a
+        // value it announces as "button" and a screen reader has no way to
+        // say which agents are switched on. That is the whole of what this
+        // panel is for.
         Button { onChange(!on) } label: {
             HStack(spacing: 8) {
                 ZStack {
@@ -966,6 +971,8 @@ private struct Toggle: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityValue(on ? "on" : "off")
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
         .accessibilityLabel(title)
         .accessibilityValue(on ? "On" : "Off")
         .accessibilityHint(subtitle ?? "")

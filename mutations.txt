@@ -879,3 +879,8 @@ a drawn label is taken from the id rather than the name | Sources/Antarium/UI/Gl
 a drawn label grows past what the glyph holds | Sources/Antarium/UI/Glyphs.swift | s|        return String(letters.prefix(2)).uppercased()|        return String(letters.prefix(4)).uppercased()|
 the menu bar item stops naming itself to a screen reader | Sources/Antarium/AgentItem.swift | s|        statusItem.button?.setAccessibilityLabel(provider.displayName)||
 two letters are drawn at the size of one | Sources/Antarium/UI/Glyphs.swift | s|rect.height \* (letter.count > 1 ? 0.52 : 0.72)|rect.height * 0.72|
+a settings toggle stops saying whether it is on | Sources/Antarium/UI/SettingsView.swift | /^        .accessibilityValue(on ? "on" : "off")$/d
+a settings toggle announces as a plain button | Sources/Antarium/UI/SettingsView.swift | /^        .accessibilityAddTraits(on ? \[.isButton, .isSelected\] : .isButton)$/d
+a capability button opens a file under no name | Sources/Antarium/UI/Dashboard.swift | s|                    .accessibilityLabel("Open \\(capability.kind.label)")||
+a sort option stops saying whether it is chosen | Sources/Antarium/UI/Dashboard.swift | s|                .accessibilityValue(selected ? "Selected" : "Not selected")||
+a sort option loses its name | Sources/Antarium/UI/Dashboard.swift | s|                .accessibilityLabel("Sort by \\(option.title)")||

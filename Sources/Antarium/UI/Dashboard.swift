@@ -779,6 +779,9 @@ private struct CapabilityDot: View {
             if let url = capability.url {
                 Button { NSWorkspace.shared.open(url) } label: { icon }
                     .buttonStyle(.plain)
+                    // The icon is the whole of the button, so without this it
+                    // opens a file under no name at all.
+                    .accessibilityLabel("Open \(capability.kind.label)")
                     .help("\(capability.kind.label)\(capability.scope == .inherited ? " (inherited)" : "") — \(url.path)\nClick to open")
             } else {
                 icon.help("\(capability.kind.label) — not present")
