@@ -204,6 +204,13 @@ official evidence.
   network waits, or caches.
 - Flag a published numeric claim unless a reproducible command or exact fixture
   contract supports it.
+- Flag a concurrency test that contends a warm cache. A memoising cache read
+  from several threads races nothing once it is populated, so such a test
+  passes with the lock removed and proves only that reading is safe. Contend
+  the path that writes: a key nothing has asked about yet, or a rebuild
+  forced on every thread. Three of these were written the weak way before the
+  mutation showed it, and the registry's own lock was the one that mattered —
+  a lost race there is a second URLSession per harness, for ever.
 - Flag `Int(someDouble)` where the double came off a network, out of a file
   another application writes, or from arithmetic on either. The conversion
   traps outside `Int`'s range and on NaN — it does not round and it does not

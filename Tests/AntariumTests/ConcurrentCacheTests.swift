@@ -11,6 +11,14 @@ import Testing
 @Suite("Caches under contention", .serialized)
 struct ConcurrentCacheTests {
 
+    /// A set that does not itself need the thing under test to work.
+    private final class IdentitySet: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: Set<ObjectIdentifier> = []
+        func insert(_ value: ObjectIdentifier) { lock.lock(); values.insert(value); lock.unlock() }
+        var count: Int { lock.lock(); defer { lock.unlock() }; return values.count }
+    }
+
     /// A counter that does not itself need the thing under test to work.
     private final class Counter: @unchecked Sendable {
         private let lock = NSLock()
@@ -175,6 +183,57 @@ struct ConcurrentCacheTests {
         }
         #expect(mismatches.count == 0,
                 Comment(rawValue: "\(mismatches.count) of 16 scans disagreed"))
+    }
+
+    /// The provider registry keeps one `DescriptorProvider` per descriptor
+    /// on purpose: each owns a URLSession, and a session holds its delegate
+    /// until it is invalidated, so a second instance for the same harness is
+    /// a leak that grows every time the file is re-read. The registry is
+    /// built from a SwiftUI body and from the refresh loop, which is two
+    /// threads asking at once.
+    @Test("Building the registry from many threads keeps one provider per harness")
+    func registryKeepsOneProviderEach() {
+        // A harness nothing has asked about yet, so every thread below misses
+        // the cache and writes. Reading a warm one races nothing, and the
+        // registry is static: by the time any test runs, the shipped
+        // harnesses have long since been built by another.
+        let id = "race-\(UUID().uuidString)"
+        let descriptor = try? HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: [
+                "formatVersion": 1, "id": id, "name": "Race", "process": [:],
+                "source": ["kind": "none", "path": ""],
+                "quota": ["endpoint": "https://example.invalid/u",
+                          "credential": ["kind": "textFile", "path": "~/.antarium/keys/race"],
+                          "windows": ["single": "info", "usedPercent": "info.pct"]],
+            ])).descriptor
+        guard let descriptor else {
+            Issue.record("the synthetic descriptor did not decode")
+            return
+        }
+
+        let identities = IdentitySet()
+        DispatchQueue.concurrentPerform(iterations: 32) { _ in
+            if let provider = ProviderRegistry.providers(from: [descriptor])
+                .first(where: { $0.id == id }) {
+                identities.insert(ObjectIdentifier(provider as AnyObject))
+            }
+        }
+        #expect(identities.count == 1,
+                Comment(rawValue: "\(identities.count) separate providers were made for one "
+                        + "harness, which is that many URLSessions"))
+    }
+
+    @Test("Every caller of a contended registry sees the same providers")
+    func registryIsConsistent() {
+        HarnessDescriptor.seed()
+        let expected = ProviderRegistry.all.map(\.id).sorted()
+        #expect(!expected.isEmpty)
+        let wrong = Counter()
+        DispatchQueue.concurrentPerform(iterations: 32) { _ in
+            if ProviderRegistry.all.map(\.id).sorted() != expected { wrong.increment() }
+        }
+        #expect(wrong.count == 0,
+                Comment(rawValue: "\(wrong.count) of 32 builds disagreed"))
     }
 
     /// The transcript cache is read by every scan and written by the same
