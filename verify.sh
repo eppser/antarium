@@ -228,6 +228,30 @@ else
     ok "no SwiftPM bundle to fall back to"
 fi
 
+# The remote path, checked without a second machine. Nothing ran this command
+# until now — not this script, not the suite — and it had a hole worth
+# finding: every property it reports is `allSatisfy`, which holds of no rows
+# at all, so a reply that parsed and yielded nothing printed four ticks and
+# exited zero.
+step "A synthetic remote reply is replayed through the real parser"
+reply=$(mktemp)
+printf '100\t%%%%1\t/fixture/project\n__ANTARIUM_PS__\n100 1 claude\n__ANTARIUM_EXE__\n100 /fixture/agent/claude\n__ANTARIUM_STATUS__:0:0:0\n__ANTARIUM_DONE__\n' > "$reply"
+if out=$("$BIN" --verify-remote-discovery-reply "$reply" 2>&1); then
+    printf '%s' "$out" | grep -q '"verified":true' \
+        && ok "a complete reply produces rows and passes" \
+        || bad "a complete reply passed without verifying anything: $out"
+else
+    bad "a complete synthetic reply was refused: $out"
+fi
+# And the empty one is refused, so the tick above means something.
+printf '__ANTARIUM_PS__\n__ANTARIUM_EXE__\n__ANTARIUM_STATUS__:0:0:0\n__ANTARIUM_DONE__\n' > "$reply"
+if "$BIN" --verify-remote-discovery-reply "$reply" >/dev/null 2>&1; then
+    bad "a reply with no rows in it passed"
+else
+    ok "a reply with nothing in it is not a pass"
+fi
+rm -f "$reply"
+
 step "A first run leaves its settings directory private"
 home=$(mktemp -d)
 chmod 755 "$home"

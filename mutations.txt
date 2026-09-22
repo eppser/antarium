@@ -721,3 +721,6 @@ a provider writes back the token it refreshed | Sources/Antarium/Providers/GrokP
 a deaf subprocess is only asked to stop | Sources/Antarium/Core/Shell.swift | s|                kill(process.processIdentifier, SIGKILL)||
 the credential reader never escalates | Sources/Antarium/Providers/ClaudeCredentials.swift | s|            if process.isRunning { kill(process.processIdentifier, SIGKILL) }||
 the credential kill outlives the call | Sources/Antarium/Providers/ClaudeCredentials.swift | s|        force.cancel()||
+an empty remote reply verifies four properties of nothing | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|            return accepted \&\& !rows.isEmpty ? 0 : 1|            return accepted ? 0 : 1|
+a refused remote reply is reported as verified | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|            return accepted \&\& !rows.isEmpty ? 0 : 1|            return 0|
+the remote verifier hides how much it saw | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|         "verified":accepted \&\& !rows.isEmpty,|         "verified":true,|
