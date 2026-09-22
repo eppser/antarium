@@ -131,7 +131,13 @@ struct SettingsWidthTests {
         let font = NSFont.systemFont(ofSize: 10, weight: .regular)
         // The subtitle is inset by the toggle's control and the panel's own
         // padding; 96pt is the space those take before any text is drawn.
-        let available = SettingsView.width - 96
+        // Divided by the column count, so splitting the list is checked
+        // against the hints rather than discovered by truncating them: the
+        // design review proposed two columns here, which would give each hint
+        // 206pt against a widest of 378.
+        let columns = CGFloat(SettingsView.agentListColumns)
+        let available = (SettingsView.width - 96
+                         - SettingsView.agentListGutter * (columns - 1)) / columns
         var widest = 0.0, worst = ""
         for provider in ProviderRegistry.all {
             let w = (provider.setupHint as NSString).size(withAttributes: [.font: font]).width
@@ -139,6 +145,19 @@ struct SettingsWidthTests {
         }
         #expect(widest <= available,
                 Comment(rawValue: "\"\(worst)\" needs \(widest)pt of a \(available)pt line"))
+    }
+
+    /// And the fit is not achieved by the panel being enormous: the widest
+    /// hint should use most of the line it is given, or the width is padding.
+    @Test("The panel is not wider than its longest instruction needs")
+    func widthIsNotExcessive() {
+        let font = NSFont.systemFont(ofSize: 10, weight: .regular)
+        let widest = ProviderRegistry.all
+            .map { ($0.setupHint as NSString).size(withAttributes: [.font: font]).width }
+            .max() ?? 0
+        #expect(SettingsView.width - 96 - widest <= 80,
+                Comment(rawValue: "the widest hint is \(widest)pt on a "
+                        + "\(SettingsView.width - 96)pt line"))
     }
 
     @Test("The panel is at least as wide as the dashboard's own column")

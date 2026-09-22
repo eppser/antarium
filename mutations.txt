@@ -813,3 +813,5 @@ a rendered sheet shows only the open tab | Sources/Antarium/UI/SettingsView.swif
 the panel is too narrow for its own instructions | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 400|
 a tab carries an icon that does not exist | Sources/Antarium/UI/SettingsView.swift | s|            case .advanced:  return "slider.horizontal.3"|            case .advanced:  return "slider.horizontal.9"|
 two tabs share the same icon | Sources/Antarium/UI/SettingsView.swift | s|            case .dashboard: return "rectangle.grid.1x2"|            case .dashboard: return "gearshape"|
+the agent list is split and its instructions truncate | Sources/Antarium/UI/SettingsView.swift | s|    static let agentListColumns = 1|    static let agentListColumns = 2|
+the panel is widened past what it has to say | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 760|

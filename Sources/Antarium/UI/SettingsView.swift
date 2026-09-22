@@ -25,6 +25,24 @@ struct SettingsView: View {
     /// the panel was hiding its own instructions.
     static let width: CGFloat = 520
 
+    /// The agent list stays in one column, and this is why.
+    ///
+    /// Seventeen toggles is a tall section, and splitting it in two would
+    /// halve it — the design review recommended exactly that. It cannot be
+    /// done here: each toggle's subtitle is the provider's `setupHint`, held
+    /// to one line, and the widest is 378pt. One column gives it 424; two
+    /// would give 206, and five of the seventeen would truncate — including
+    /// the longest by a wide margin, which is the one telling somebody where
+    /// the Codex binary lives inside ChatGPT.app.
+    ///
+    /// Widening the panel and splitting the list are the same space spent
+    /// twice. The hint is the instruction for fixing a provider that is not
+    /// signed in, so the height is what gives way.
+    static let agentListColumns = 1
+
+    /// Between columns, if there is ever more than one.
+    static let agentListGutter: CGFloat = 12
+
     /// Settings arrived as seven sections in one scrolling column — about
     /// 1,600pt of content against a 13" display's 715, so two fifths of it
     /// was reachable at a time and the section you wanted was usually off
