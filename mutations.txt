@@ -838,3 +838,7 @@ the label column is sized for a panel that is gone | Sources/Antarium/UI/Setting
 a label is cut off by its own column | Sources/Antarium/UI/SettingsView.swift | s|    static let labelColumn: CGFloat = 44|    static let labelColumn: CGFloat = 30|
 the settings header is a poster again | Sources/Antarium/UI/SettingsView.swift | s|                        .frame(width: 20, height: 20)|                        .frame(width: 56, height: 56)|
 labels start together instead of ending together | Sources/Antarium/UI/SettingsView.swift | s|alignment: .trailing)$|alignment: .leading)|
+the undocumented note loses the date it was checked | Resources/harnesses/opencode.json | s|checked 2026-09-22, opencode.ai|checked recently, opencode.ai|
+a mapping both cites a reference and claims there is none | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas", "unusedNote": "published nowhere",|
+the synthetic mapping stops saying where it was read from | Resources/harnesses/synthetic.json | /"documentation": "https/d
+an uncited mapping stops saying why | Resources/harnesses/copilot.json | s|is published nowhere|is undocumented|

@@ -5,7 +5,7 @@
   "presentation": {
     "mark": "copilot"
   },
-  "note": "Quota only \u2014 Copilot's sessions are read through the vscode harness. The token comes from `gh auth token` rather than an environment variable, because an app launched from Finder inherits no shell. Windows without has_quota are skipped: a free plan lists a premium tier it does not have.",
+  "note": "Quota only \u2014 Copilot's sessions are read through the vscode harness. The token comes from `gh auth token` rather than an environment variable, because an app launched from Finder inherits no shell. Windows without has_quota are skipped: a free plan lists a premium tier it does not have. The endpoint is GitHub's own internal one \u2014 `copilot_internal/user` \u2014 and is published nowhere; checked 2026-09-22. Nothing here can be compared against a reference, so the fixture is the whole of the check.",
   "process": {},
   "compatibility": {
     "level": "declared",

@@ -37,6 +37,7 @@
       }
     },
     "setupHint": "Put your key in ~/.antarium/keys/synthetic",
+    "documentation": "https://dev.synthetic.new/docs/synthetic/quotas",
     "verified": false
   }
 }

@@ -62,6 +62,49 @@ struct QuotaProvenanceTests {
         #expect(cited.hasPrefix("https://"))
     }
 
+    /// A citation that is absent because nobody looked, and one that is
+    /// absent because the vendor publishes nothing, are different facts and
+    /// used to look identical.
+    ///
+    /// Two of the ten are the second kind: OpenCode documents its models and
+    /// its pricing and not this endpoint, and Copilot's is GitHub's own
+    /// internal one. Neither can ever carry a URL, and without somewhere to
+    /// say so the next person re-runs the same search. Where a mapping
+    /// cannot be checked against a reference, its fixture is the whole of
+    /// the check — which is worth stating in the file that carries it.
+    @Test("An uncited mapping says whether a reference exists at all")
+    func uncitedMappingsExplainThemselves() throws {
+        let undocumented = ["opencode", "copilot"]
+        for id in undocumented {
+            let descriptor = try #require(quotaDescriptors.first { $0.id == id },
+                                          Comment(rawValue: "\(id) no longer ships"))
+            #expect(descriptor.quota?.documentation == nil,
+                    Comment(rawValue: "\(id) now cites a reference — move it out of this list"))
+            let note = descriptor.note ?? ""
+            #expect(note.lowercased().contains("published nowhere")
+                    || note.lowercased().contains("carries no usage or quota reference"),
+                    Comment(rawValue: "\(id) has no citation and does not say why"))
+            #expect(note.contains("2026-"),
+                    Comment(rawValue: "\(id) does not say when that was last checked"))
+        }
+    }
+
+    /// And the ones that do cite a reference are not in that list, or "we
+    /// checked and there is nothing" would be a way of not checking.
+    @Test("A cited mapping is not also excused")
+    func citedMappingsAreNotExcused() throws {
+        var cited = 0
+        for descriptor in quotaDescriptors {
+            guard descriptor.quota?.documentation != nil else { continue }
+            cited += 1
+            let note = descriptor.note ?? ""
+            #expect(!note.lowercased().contains("published nowhere"),
+                    Comment(rawValue: "\(descriptor.id) both cites a reference and says "
+                            + "there is none"))
+        }
+        #expect(cited >= 5, Comment(rawValue: "only \(cited) mappings cite a reference"))
+    }
+
     /// A string value is not an unusual case to be defensive about: two of
     /// the four vendors above publish their balance that way, so a reader
     /// that took only JSON numbers would report nothing for either and look
