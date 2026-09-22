@@ -45,6 +45,8 @@ enum RowMetrics {
     static let spacerFloor: CGFloat = 4
     static let rowInset: CGFloat = 7
     static let listInset: CGFloat = 6
+    /// Between two columns of rows.
+    static let gutter: CGFloat = 12
 
     /// What is left for the name and the path once everything of fixed width
     /// has taken its share. Stated so that widening a column is checked
@@ -101,9 +103,30 @@ struct DashboardView: View {
         max(200, (NSScreen.main?.visibleFrame.height ?? 900) - 130)
     }
 
-    /// Reduced mode drops the whole second line, so the full width would just
-    /// be a gap in the middle of every row. Narrow the panel to match.
-    private var panelWidth: CGFloat { reduced ? RowMetrics.panelReduced : RowMetrics.panelFull }
+    /// Remembered only so the column count has hysteresis: a list of live
+    /// agents crosses the boundary constantly, and without a previous value
+    /// the panel changes width under the pointer every time it does.
+    @State private var columnCount = 1
+
+    /// One column's width. Reduced mode drops the whole second line, so the
+    /// full width would just be a gap in the middle of every row.
+    private var columnWidth: CGFloat {
+        reduced ? RowMetrics.panelReduced : RowMetrics.panelFull
+    }
+
+    /// Decided from the row count, which is known before any layout happens.
+    /// Deriving it from the width available would close a loop with the
+    /// height this panel measures and reports back up.
+    private var columns: Int {
+        PanelPlacement.columns(
+            rowCount: store.rows.count, previous: columnCount, panel: columnWidth,
+            visibleWidth: NSScreen.main?.visibleFrame.width ?? columnWidth)
+    }
+
+    private var panelWidth: CGFloat {
+        let count = CGFloat(columns)
+        return columnWidth * count + RowMetrics.gutter * (count - 1)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -114,15 +137,33 @@ struct DashboardView: View {
                 placeholder
             } else {
                 ScrollView(.vertical, showsIndicators: listHeight > maxListHeight) {
-                    VStack(spacing: 1) {
-                        ForEach(store.rows) { row in
-                            AgentRowView(row: row, reduced: reduced, hoveredID: $hoveredID)
+                    // Column-major, so reading down one column and then the
+                    // next reproduces the sort. A row-major fill would put
+                    // the second row beside the first instead of beneath it,
+                    // and the order the user chose would stop being the order
+                    // the list reads in — which is also the order VoiceOver
+                    // walks it.
+                    HStack(alignment: .top, spacing: RowMetrics.gutter) {
+                        ForEach(0..<columns, id: \.self) { column in
+                            VStack(spacing: 1) {
+                                ForEach(PanelPlacement.column(column, of: columns,
+                                                              rows: store.rows.count), id: \.self) {
+                                    AgentRowView(row: store.rows[$0], reduced: reduced,
+                                                 hoveredID: $hoveredID)
+                                }
+                                // Holds a short column's rows at the top
+                                // rather than spreading them down its height.
+                                if columns > 1 { Spacer(minLength: 0) }
+                            }
+                            .frame(width: columnWidth - (reduced ? 10 : 12))
                         }
                     }
                     .padding(.horizontal, reduced ? 5 : 6).padding(.vertical, 5)
                     .modifier(MeasureHeight())
                 }
                 .onPreferenceChange(HeightKey.self) { listHeight = $0 }
+                .onChange(of: store.rows.count) { _ in columnCount = columns }
+                .onAppear { columnCount = columns }
                 // Definite height: everything the rows need, capped at the screen.
                 .frame(height: min(max(listHeight, 30), maxListHeight))
             }
