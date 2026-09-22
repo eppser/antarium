@@ -190,6 +190,86 @@ struct RowColumnWidthTests {
                 "without this the path competes with the name for the same space")
     }
 
+    /// The row's *second* line, which nothing measured.
+    ///
+    /// `RowMetrics` and the tests above are about the three fixed columns on
+    /// line one. Line two carries the capability strip, the sparkline, up to
+    /// seven stats and the last-reply — every one of them `.fixedSize()`, so
+    /// none can give way — and it is the wider of the two lines. It is what
+    /// sets this panel's width, which is why the row could not be narrowed to
+    /// 460 as the design review proposed.
+    ///
+    /// It also had no slack to spare, and one of its cells was unbounded.
+    @Test("Every cell line two can carry fits the width it has")
+    func secondLineFits() {
+        func stat(_ text: String, cap: CGFloat? = nil) -> CGFloat {
+            let natural = 9 + 2 + width(text, size: 9.5, weight: .regular, monospacedDigits: true)
+            return cap.map { min(natural, $0) } ?? natural
+        }
+        // Constants read from the views: five capability dots at 17 with 2.5
+        // between, and one sparkline bar per ten-minute bucket over six hours.
+        let capabilities = 5 * 17 + 4 * 2.5
+        let buckets = CGFloat(TranscriptStats.historyHours * 3600 / TranscriptStats.bucketSeconds)
+        let sparkline = buckets * 1.6 + (buckets - 1) * 0.9
+        let lastReply: CGFloat = 54
+
+        // The widest each slot can be. The plan label stands in for the model
+        // and is the one that is vendor text rather than a formatted figure.
+        let cells = [stat("Sonnet 4.6"), stat("412MB"), stat("2.4M"), stat("890k"),
+                     stat("1.2k"), stat("480"), stat("12")]
+        let gaps = CGFloat(2 + cells.count + 1 - 1) * 7
+        let used = capabilities + sparkline + cells.reduce(0, +) + lastReply + gaps + 6
+        let available = RowMetrics.panelFull - 2 * RowMetrics.listInset - 2 * RowMetrics.rowInset
+        #expect(used <= available,
+                Comment(rawValue: "line two needs \(used)pt of \(available)"))
+
+        // And the plan label, which a vendor names, cannot be wider than the
+        // model name it replaces — or a long plan pushes the row past its
+        // panel, which a 64-character one did by 242pt.
+        let longestPlan = stat(String(repeating: "Enterprise ", count: 6),
+                               cap: RowMetrics.planLabel)
+        #expect(longestPlan <= stat("Sonnet 4.6") + 1,
+                Comment(rawValue: "a plan label can be \(longestPlan)pt where a model is "
+                        + "\(stat("Sonnet 4.6"))pt"))
+    }
+
+    /// And the ceiling is actually applied. The arithmetic above uses the
+    /// constant, so it holds whether or not the row passes it — which is the
+    /// shape AGENTS.md records as checking the author's own allowlist rather
+    /// than the code, and it survived a mutation that dropped the argument.
+    @Test("The plan label's ceiling reaches the row that draws it")
+    func planLabelCeilingIsApplied() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        let call = try #require(source.range(of: "Stat(\"creditcard\""),
+                                "the plan is no longer drawn as a stat")
+        let declaration = String(source[call.lowerBound...].prefix(220))
+        #expect(declaration.contains("maxWidth: RowMetrics.planLabel"),
+                Comment(rawValue: "the plan stat is drawn without its ceiling: \(declaration)"))
+        // Nothing else on that line is vendor text, so nothing else needs one.
+        let capped = source.components(separatedBy: "maxWidth: RowMetrics.planLabel").count - 1
+        #expect(capped == 1, Comment(rawValue: "\(capped) stats carry the plan ceiling"))
+    }
+
+    /// Every cell on that line is held to one line, for the reason the pill
+    /// was: `fixedSize` prevents a shrink, not a wrap, so a cell given less
+    /// width than it wants still wraps and takes its row's height with it.
+    @Test("The second line's cells cannot wrap")
+    func secondLineCellsAreSingleLine() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        let start = try #require(source.range(of: "private struct Stat: View"))
+        let rest = source[start.upperBound...]
+        let body = rest.range(of: "\nprivate struct ").map { String(rest[..<$0.lowerBound]) }
+            ?? String(rest)
+        #expect(body.contains(".lineLimit(1)"),
+                "a stat can wrap, and a taller cell makes a taller row")
+    }
+
     /// Both are single-line by declaration. A wrapped cell makes its row
     /// taller than its neighbours, which is the defect `LastReply` already
     /// names — and the pill, whose content comes from a cloud service, had

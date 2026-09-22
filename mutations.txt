@@ -815,3 +815,11 @@ a tab carries an icon that does not exist | Sources/Antarium/UI/SettingsView.swi
 two tabs share the same icon | Sources/Antarium/UI/SettingsView.swift | s|            case .dashboard: return "rectangle.grid.1x2"|            case .dashboard: return "gearshape"|
 the agent list is split and its instructions truncate | Sources/Antarium/UI/SettingsView.swift | s|    static let agentListColumns = 1|    static let agentListColumns = 2|
 the panel is widened past what it has to say | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 760|
+an unreadable reply does not say what it held | Sources/Antarium/Providers/DescriptorProvider.swift | s|            guard offered.isEmpty else {|            guard true else {|
+the names repeated back are unbounded in number | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .prefix(Self.maxNamedInError)|                .prefix(100000)|
+the names repeated back are unbounded in length | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .map { Self.clamped(\$0.key) }|                .map { \$0.key }|
+an empty reply is described as holding windows | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .filter { !\$0.isEmpty }||
+a plan label is drawn at whatever length the vendor sent | Sources/Antarium/UI/Dashboard.swift | s|                             maxWidth: RowMetrics.planLabel)|)|
+the plan label is wide enough to push the row off its panel | Sources/Antarium/UI/Dashboard.swift | s|    static let planLabel: CGFloat = 62|    static let planLabel: CGFloat = 300|
+a stat wraps and makes its row taller | Sources/Antarium/UI/Dashboard.swift | /^                .lineLimit(1).truncationMode(.tail)$/d
+the second line is measured against the wrong panel | Sources/Antarium/UI/Dashboard.swift | s|    static let rowInset: CGFloat = 7|    static let rowInset: CGFloat = 40|

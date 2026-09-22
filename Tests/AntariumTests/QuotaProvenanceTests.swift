@@ -77,3 +77,115 @@ struct QuotaProvenanceTests {
         #expect(FieldPath.numeric("1e400") == nil, "an unrepresentable amount is not a figure")
     }
 }
+
+/// What a descriptor provider says when the reply carries windows it was not
+/// written to read.
+///
+/// "Reported no usage window" is true and unactionable for the account that
+/// hits it most often: a plan whose limits are all of a kind the mapping does
+/// not name reads exactly like a plan with no limits at all. Z.ai is the
+/// concrete case — its mapping names `TOKENS_LIMIT` and `TIME_LIMIT`, and
+/// other tools have reported accounts whose replies carry a different kind
+/// entirely. The mapping is not changed on that evidence, because a field
+/// path taken from another tool's issue tracker is a guess about somebody
+/// else's product. What changes is that the message says what it saw.
+@Suite("An unreadable reply says what it did contain")
+struct UnreadableWindowMessageTests {
+
+    private func provider(_ id: String) throws -> DescriptorProvider {
+        let descriptor = try #require(
+            HarnessCLI.bundledDescriptors().first { $0.id == id && $0.quota != nil },
+            Comment(rawValue: "\(id) no longer ships a quota block"))
+        return try #require(DescriptorProvider(descriptor),
+                            Comment(rawValue: "\(id) no longer builds a provider"))
+    }
+
+    @Test("Window names the mapping does not know are reported back")
+    func unknownWindowsAreNamed() throws {
+        let zai = try provider("zai")
+        let reply: [String: Any] = ["data": ["limits": [
+            ["type": "CREDIT_LIMIT", "unit": 3, "percentage": 40],
+            ["type": "CREDIT_LIMIT", "unit": 6, "percentage": 12]]]]
+        do {
+            _ = try zai.makeSnapshot(reply)
+            Issue.record("a reply with no readable window produced a snapshot")
+        } catch let error as ProviderError {
+            let text = "\(error)"
+            #expect(text.contains("CREDIT_LIMIT"),
+                    Comment(rawValue: "the message does not say what it saw: \(text)"))
+        }
+    }
+
+    /// And a reply that genuinely carries nothing says that instead, or the
+    /// two situations would read the same from the other direction.
+    @Test("A reply with no windows at all is not described as unreadable ones")
+    func emptyRepliesSayNothingExtra() throws {
+        let zai = try provider("zai")
+        do {
+            _ = try zai.makeSnapshot(["data": ["limits": []]])
+            Issue.record("an empty reply produced a snapshot")
+        } catch let error as ProviderError {
+            let text = "\(error)"
+            #expect(!text.contains("The reply named:"),
+                    Comment(rawValue: "an empty reply listed windows: \(text)"))
+        }
+    }
+
+    /// Built here rather than taken from what ships: every shipped descriptor
+    /// names a window from at most two fields, and the bounds below are about
+    /// a descriptor that names one from five. A contributed harness is a file
+    /// somebody else writes.
+    private func synthetic(key: [String], keys: [String]) throws -> DescriptorProvider {
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": "synthetic-quota", "name": "Synthetic", "process": [:],
+            "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": "https://example.invalid/usage",
+                      "windows": ["list": "limits", "key": key, "keys": keys,
+                                  "usedPercent": "percentage"]],
+        ]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(descriptor))
+    }
+
+    /// The names are vendor text on their way to a menu item, and a reply can
+    /// carry a great many of them, each built from several fields.
+    @Test("The names repeated back are bounded in number and in length")
+    func namesAreBounded() throws {
+        let parts = ["a", "b", "c", "d", "e"]
+        let provider = try synthetic(key: parts, keys: ["nothing-matches-this"])
+        let limits = (0..<200).map { _ -> [String: Any] in
+            var window: [String: Any] = ["percentage": 1]
+            for part in parts { window[part] = String(repeating: "L", count: 500) }
+            return window
+        }
+        do {
+            _ = try provider.makeSnapshot(["limits": limits])
+            Issue.record("a reply with no readable window produced a snapshot")
+        } catch let error as ProviderError {
+            let text = "\(error)"
+            #expect(text.count < 600,
+                    Comment(rawValue: "the message ran to \(text.count) characters"))
+        }
+    }
+
+    /// A window whose name is the empty string is nameable — an object key
+    /// can be "" — and listing it back would put a stray comma in the
+    /// message where a name should be.
+    @Test("A window with no name of its own is not listed as a blank")
+    func blankNamesAreNotListed() throws {
+        let provider = try synthetic(key: ["label"], keys: ["nothing-matches-this"])
+        let reply: [String: Any] = ["limits": [
+            ["label": "", "percentage": 1],
+            ["label": "real-window", "percentage": 2]]]
+        do {
+            _ = try provider.makeSnapshot(reply)
+            Issue.record("a reply with no readable window produced a snapshot")
+        } catch let error as ProviderError {
+            let text = "\(error)"
+            #expect(text.contains("real-window"))
+            #expect(!text.contains(": ,") && !text.contains(", ,") && !text.contains(", ."),
+                    Comment(rawValue: "a nameless window was listed as a blank: \(text)"))
+        }
+    }
+}

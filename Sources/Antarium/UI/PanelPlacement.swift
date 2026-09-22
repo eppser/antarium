@@ -62,16 +62,6 @@ enum PanelPlacement {
         return origin
     }
 
-    /// Low wins when the window is wider than the space, which is the case a
-    /// plain `min(max(…))` gets backwards: on a screen narrower than the
-    /// panel the high bound falls below the low one, and clamping to it would
-    /// push the panel off the left edge rather than leaving it at the
-    /// margin.
-    ///
-    /// Shared rather than private because the banner stack clamps the same
-    /// way and had the same inversion. Its own rule differs — a banner
-    /// follows its button leftward where a panel pins to the edge — so the
-    /// two are not one placement, but they cross their bounds identically.
     /// How many columns the agent list should use.
     ///
     /// The complaint this answers is that the panel is a tall thin ribbon: a
@@ -137,6 +127,16 @@ enum PanelPlacement {
         return start..<(start + length)
     }
 
+    /// Low wins when the window is wider than the space, which is the case a
+    /// plain `min(max(…))` gets backwards: on a screen narrower than the
+    /// panel the high bound falls below the low one, and clamping to it would
+    /// push the panel off the left edge rather than leaving it at the
+    /// margin.
+    ///
+    /// Shared rather than private because the banner stack clamps the same
+    /// way and had the same inversion. Its own rule differs — a banner
+    /// follows its button leftward where a panel pins to the edge — so the
+    /// two are not one placement, but they cross their bounds identically.
     static func clamp(_ value: CGFloat, low: CGFloat, high: CGFloat) -> CGFloat {
         guard value.isFinite else { return low }
         return high <= low ? low : min(max(value, low), high)

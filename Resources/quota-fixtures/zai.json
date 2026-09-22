@@ -87,6 +87,29 @@
       "name": "a reply missing the envelope entirely",
       "response": {},
       "expectError": "unsupported"
+    },
+    {
+      "name": "a plan whose limits are all of a kind this mapping does not name",
+      "response": {
+        "data": {
+          "level": "lite",
+          "limits": [
+            {
+              "type": "CREDIT_LIMIT",
+              "unit": 3,
+              "percentage": 40,
+              "nextResetTime": 1789330000000
+            },
+            {
+              "type": "CREDIT_LIMIT",
+              "unit": 6,
+              "percentage": 12,
+              "nextResetTime": 1789930000000
+            }
+          ]
+        }
+      },
+      "expectError": "unsupported"
     }
   ]
 }

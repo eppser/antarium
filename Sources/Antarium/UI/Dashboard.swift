@@ -47,6 +47,11 @@ enum RowMetrics {
     static let listInset: CGFloat = 6
     /// Between two columns of rows.
     static let gutter: CGFloat = 12
+    /// The plan label on a row's second line. Matched to the widest model
+    /// name, which is what occupies that slot when a model is known — so the
+    /// line's width does not depend on which of the two a row happens to
+    /// have, nor on how long a vendor's name for its plan is.
+    static let planLabel: CGFloat = 62
 
     /// What is left for the name and the path once everything of fixed width
     /// has taken its share. Stated so that widening a column is checked
@@ -484,7 +489,8 @@ private struct AgentRowView: View {
                     if let model = Pricing.shortName(row.model) {
                         Stat("cpu", model)
                     } else if let plan = quotaStore.snapshot(for: row.agentID)?.accountLabel {
-                        Stat("creditcard", plan, help: "\(plan) plan")
+                        Stat("creditcard", plan, help: "\(plan) plan",
+                             maxWidth: RowMetrics.planLabel)
                     }
                     if let tools = row.toolCalls {
                         Stat("hammer", Fmt.count(tools), help: "\(tools) tool calls")
@@ -942,15 +948,32 @@ struct AccountQuotaBar: View {
 
 private struct Stat: View {
     let symbol: String, text: String, help: String?
-    init(_ symbol: String, _ text: String, help: String? = nil) {
-        self.symbol = symbol; self.text = text; self.help = help
+    /// A ceiling, for the one of these whose text is not a figure.
+    ///
+    /// Everything else here is `Fmt.count` or a model name, both short and
+    /// both bounded by their own formatter. The plan label is not: it is
+    /// whatever the vendor calls the plan, clamped to 64 characters on its
+    /// way out of the provider — which is right for a tooltip and far too
+    /// wide for a row. "GLM Coding Plan Lite" is a real one, and it is 49pt
+    /// wider than the longest model name, against a line with 8pt to spare.
+    var maxWidth: CGFloat?
+    init(_ symbol: String, _ text: String, help: String? = nil, maxWidth: CGFloat? = nil) {
+        self.symbol = symbol; self.text = text; self.help = help; self.maxWidth = maxWidth
     }
     var body: some View {
         HStack(spacing: 2) {
             Image(systemName: symbol).font(.system(size: 8))
+            // One line, like every other cell in this row. `fixedSize` alone
+            // does not prevent a wrap, it prevents a *shrink* — the text
+            // still wraps if it is given less width than it wants, and a
+            // taller cell makes a taller row.
             Text(text).font(.system(size: 9.5).monospacedDigit())
+                .lineLimit(1).truncationMode(.tail)
         }
-        .foregroundStyle(.secondary).fixedSize().help(help ?? "")
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: maxWidth == nil, vertical: true)
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .help(help ?? "")
     }
 }
 

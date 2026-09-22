@@ -398,6 +398,24 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                 windowSeconds: span))
         }
         guard !gauges.isEmpty else {
+            // Say what the reply did carry, when it carried something this
+            // descriptor does not name. "Reported no usage window" is true
+            // and unactionable for the account that hits it most: a plan
+            // whose limits are all of a kind the mapping was not written for
+            // reads exactly like a plan with no limits at all. The names come
+            // from the response, so this reports rather than guesses — and
+            // it costs nothing until there is already nothing to draw.
+            var unfiltered = map
+            unfiltered.keys = nil
+            let offered = Self.windows(in: json, map: unfiltered)
+                .map { Self.clamped($0.key) }
+                .filter { !$0.isEmpty }
+                .prefix(Self.maxNamedInError)
+            guard offered.isEmpty else {
+                throw ProviderError.unsupported(
+                    "\(displayName) reported no usage window this app reads. "
+                    + "The reply named: \(offered.joined(separator: ", ")).")
+            }
             throw ProviderError.unsupported("\(displayName) reported no usage window.")
         }
         // Shortest window first, so the fast-moving one is the top row.
@@ -443,6 +461,11 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     static func clamped(_ text: String) -> String {
         text.count <= maxResponseText ? text : String(text.prefix(maxResponseText))
     }
+
+    /// How many of the reply's own window names an error may repeat back.
+    /// They are vendor text on their way to a menu, so they are clamped
+    /// individually as well.
+    static let maxNamedInError = 6
 
     static func windows(in json: [String: Any],
                         map: HarnessDescriptor.Quota.Windows) -> [(key: String, window: [String: Any])] {
