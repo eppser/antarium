@@ -84,17 +84,42 @@ pipeline.
 
 ## Supported tools
 
-Antarium currently includes harnesses for:
+Antarium ships harnesses for 25 tools.
+
+Agents whose sessions appear in the dashboard:
+
+- Codex Desktop
+- ChatGPT (Codex)
+- Copilot CLI
+- Cursor CLI
+- Cursor
+- Herdr
+- Hermes
+- Kimi
+- OpenClaw
+- opencode
+- Orca
+- PI
+- VS Code (Copilot)
+- Zed
+
+Accounts whose usage appears in the menu bar:
 
 - Claude Code
-- Codex CLI and Codex Desktop
-- Cursor CLI and Cursor
-- OpenCode
-- Kimi Code
-- Pi
-- Hermes
-- Zed
-- VS Code with Copilot Chat
+- Command Code
+- GitHub Copilot
+- DeepSeek
+- Gemini CLI
+- MiniMax
+- Moonshot (Kimi API)
+- OpenRouter
+- Synthetic
+- Vercel AI Gateway
+- Z.ai GLM
+
+Some tools appear in both lists under different names — a CLI and the
+account behind it are separate harnesses, because one reads sessions on
+this Mac and the other asks a service what is left.
 
 Install detection covers documented npm, curl/native, Homebrew, direct binary,
 app-bundle, interpreter, and Nix layouts where the upstream tool supports them.

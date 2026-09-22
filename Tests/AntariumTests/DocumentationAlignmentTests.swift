@@ -321,3 +321,77 @@ struct WorkedExampleTests {
                 "the example does not say how to check it against a real reply")
     }
 }
+
+/// The README names every tool that ships, and no others.
+///
+/// It listed eleven while twenty-five shipped. Fourteen were missing —
+/// Gemini CLI, which has a native provider of its own; every quota-only
+/// account, so OpenRouter, Z.ai, DeepSeek, MiniMax, Vercel and the rest; and
+/// Herdr and Orca, which somebody asked for specifically. A reader looking
+/// for one of those would conclude it was not supported, which is the same
+/// failure as promising one that is not there and harder to notice, because
+/// nothing looks wrong.
+@Suite("The README lists what ships")
+struct SupportedToolsListTests {
+
+    private var readme: String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return (try? String(contentsOf: root.appendingPathComponent("README.md"),
+                            encoding: .utf8)) ?? ""
+    }
+
+    private var shipped: [HarnessDescriptor] { HarnessCLI.bundledDescriptors() }
+
+    @Test("Every shipped harness is named")
+    func everyHarnessIsListed() {
+        #expect(shipped.count >= 20, "only \(shipped.count) harnesses were read from the bundle")
+        let text = readme
+        var missing: [String] = []
+        for descriptor in shipped where !text.contains(descriptor.name) {
+            missing.append(descriptor.name)
+        }
+        #expect(missing.isEmpty,
+                Comment(rawValue: "these ship and the README does not mention them: "
+                        + missing.joined(separator: ", ")))
+    }
+
+    /// And the count it states is the number that ship, since a reader takes
+    /// that at face value and it is the easiest thing to leave behind.
+    @Test("The stated count is the number of harnesses")
+    func statedCountIsRight() throws {
+        let line = try #require(readme.split(separator: "\n")
+            .first { $0.contains("ships harnesses for") },
+            "the README no longer says how many tools it supports")
+        #expect(line.contains("\(shipped.count) tools"),
+                Comment(rawValue: "the README says \"\(line)\" and \(shipped.count) ship"))
+    }
+
+    /// The list does not name tools that do not ship either — a reader
+    /// hunting for one of those finds nothing and concludes the app is
+    /// broken rather than that the README is.
+    @Test("No tool is listed that does not ship")
+    func noPhantomTools() {
+        let names = Set(shipped.map(\.name))
+        // Scoped to the section rather than guessed from the shape of a
+        // line. The first version looked at every bullet in the file and
+        // reported three questions from "Great for" as tools that do not
+        // ship — a check that reads the wrong part of a document says
+        // nothing about the right part.
+        let text = readme
+        guard let start = text.range(of: "## Supported tools") else {
+            Issue.record("the supported tools section is gone")
+            return
+        }
+        let after = text[start.upperBound...]
+        let end = after.range(of: "\n## ")?.lowerBound ?? after.endIndex
+        var phantom: [String] = []
+        for line in after[..<end].split(separator: "\n") where line.hasPrefix("- ") {
+            let entry = String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+            if !entry.isEmpty && !names.contains(entry) { phantom.append(entry) }
+        }
+        #expect(phantom.isEmpty,
+                Comment(rawValue: "listed and not shipped: \(phantom.joined(separator: ", "))"))
+    }
+}

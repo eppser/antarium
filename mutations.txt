@@ -728,3 +728,6 @@ the help offers a command nothing implements | Sources/Antarium/Core/LaunchArgum
 a removed command is accepted again | Sources/Antarium/Core/LaunchArguments.swift | s|        let single:Set<String> = \["--help","-h","--status"|        let single:Set<String> = ["--help","-h","--activity-demo","--status"|
 a mode is accepted with neither documentation nor a reason | Sources/Antarium/Core/LaunchArguments.swift | s|        modes\["--remote-tmux"\] = Mode(maximum:256)|        modes["--remote-tmux"] = Mode(maximum:256); modes["--undocumented-mode"] = Mode()|
 the remote pair stops being documented | Sources/Antarium/Core/LaunchArguments.swift | s|      --verify-remote-discovery-reply <file>||
+the readme drops a shipped tool | README.md | s|^- Gemini CLI$||
+the readme invents a tool | README.md | s|^- Zed$|- Zed\n- Emacs Agent|
+the readme miscounts what ships | README.md | s|ships harnesses for 25 tools|ships harnesses for 11 tools|
