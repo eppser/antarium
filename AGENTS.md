@@ -204,6 +204,12 @@ official evidence.
   network waits, or caches.
 - Flag a published numeric claim unless a reproducible command or exact fixture
   contract supports it.
+- Flag a check that derives its subjects from the thing it checks, without
+  counting them. A test reading resource names out of the sources, or a
+  verify.sh step reading them with grep, loses its subjects when the call is
+  renamed and then reports that every one of nothing was fine. Count what was
+  examined and refuse a count that is too low — three instances of this were
+  found in one afternoon, in Swift and in shell.
 - Flag logic keyed on a string the user reads. The dashboard's "N still
   reading" counted rows whose note contained "still being read", a sentence
   written in two other files; the remote verifier asked whether a state's
