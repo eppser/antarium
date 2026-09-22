@@ -52,6 +52,17 @@ struct GlyphFallbackTests {
         }
     }
 
+    /// Nearly every agent draws one, and the tests below iterate that set —
+    /// an empty one would satisfy all of them. This guard was written, lost
+    /// in a rewrite, and is back.
+    @Test("Nearly every agent draws a label")
+    func thereAreSubjects() {
+        #expect(drawn.count == descriptors.count - vectorDrawn.count,
+                Comment(rawValue: "\(drawn.count) of \(descriptors.count) draw a label"))
+        #expect(drawn.count >= 20,
+                Comment(rawValue: "only \(drawn.count) harnesses draw a label"))
+    }
+
     @Test("Every drawn label is one or two upper-case characters")
     func labelsAreShort() {
         for descriptor in drawn {

@@ -228,6 +228,14 @@ official evidence.
   thing the field can hold measures where it is drawn, and hold the cell to
   one line so an overflow truncates rather than wrapping — `fixedSize`
   prevents a shrink, not a wrap.
+- Flag a test that reads something this machine has and the repository does
+  not. `Resources/marks/*.png` is in .gitignore — the artwork is local to a
+  developer — and a suite that asked which marks existed passed here and
+  failed in every clean checkout. Worse than the failure: `mutate.sh` runs in
+  a throwaway checkout, so from that commit on every mutation was measured
+  against an already-failing suite and every one was reported as caught. The
+  runner now refuses to mutate anything until the suite passes, which is the
+  precondition every verdict it prints depends on.
 - Flag a completeness guard that is a floor rather than a total. `pairs.count
   >= 10` is satisfied by ten other entries while the eleventh — the one that
   drifted — is simply not in the list. Three of these were found in one

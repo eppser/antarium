@@ -95,6 +95,7 @@ survived=0 caught=0 broken=0
 printf 'against %s (%s)\n' "$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" \
     "$(git log -1 --format=%s 2>/dev/null | cut -c1-60 || echo '')"
 
+
 # A mutation can remove a loop bound, and then the suite never finishes. macOS
 # ships no `timeout`, so the run is backgrounded and killed. A hang is a caught
 # mutation: not finishing is a way of failing, and the alternative is a runner
@@ -120,6 +121,29 @@ run_tests() {
     done
     wait "$pid"
 }
+
+# The suite has to pass before anything is mutated.
+#
+# Every verdict here is "the suite failed, therefore the mutation was
+# caught". If it was already failing, every mutation is reported as caught
+# and the report is worthless in the direction that matters — it says the
+# catalogue is covered when it is not. That happened: a test read a file that
+# is in .gitignore, so it passed in the tree it was written in and failed in
+# the throwaway checkout this runs in, and fourteen entries went into the
+# catalogue on the strength of it. Thirteen were real. One was not.
+#
+# This costs one build and one suite per invocation, which is the price of
+# the results meaning anything.
+printf 'checking the suite passes before mutating anything\n'
+if ! run_tests "$BACKUP/baseline"; then
+    echo
+    echo "the suite is already failing, so every mutation would report as caught:"
+    grep -E '^✘ ' "$BACKUP/baseline" | head -5 | sed 's/^/   /'
+    echo "   (full output in $BACKUP/baseline)"
+    echo
+    echo "nothing was mutated."
+    exit 2
+fi
 
 while IFS='|' read -r name file expression; do
     name=$(echo "$name" | sed 's/^ *//;s/ *$//')
