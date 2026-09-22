@@ -872,3 +872,5 @@ a section the schema does not describe is accepted | Sources/Antarium/Core/Harne
 a section is left out of the comparison | Sources/Antarium/Core/HarnessCheck.swift | s|        "map": mapKeys,|        "map": mapKeys, "notInSchema.at.all": ["x"],|
 the app stops launching a command the allowlist still permits | Sources/Antarium/Core/RemoteTmux.swift | s|for path in \["/opt/homebrew/bin/sshpass", "/usr/local/bin/sshpass", "/usr/bin/sshpass"\]|for path in ["/opt/homebrew/bin/nothing", "/usr/local/bin/nothing", "/usr/bin/nothing"]|
 a CLI is no longer launched but is still allowed | Sources/Antarium/Providers/KiroProvider.swift | s|"kiro-cli"|"kiro-cli-gone"|
+a quota provider loses the fixture that is its only check | Resources/harnesses/synthetic.json | s|"id": "synthetic"|"id": "synthetic-renamed"|
+a session fixture is named but not shipped | Resources/harnesses/codex.json | s|"fixture": "harness-fixtures/codex.json"|"fixture": "harness-fixtures/codex-gone.json"|
