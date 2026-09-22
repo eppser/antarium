@@ -786,3 +786,8 @@ the pill is sized for a label it does not hold | Sources/Antarium/UI/Dashboard.s
 the pill column is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let pill: CGFloat = 68|    static let pill: CGFloat = 140|
 the cost column is too narrow for a real figure | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 44|
 the cost column is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 160|
+a negative context becomes a negative percentage | Sources/Antarium/Core/AgentScan.swift | s|        guard let contextTokens, contextTokens >= 0,|        guard let contextTokens,|
+an invalid context reads as an empty one | Sources/Antarium/Core/AgentScan.swift | s|        guard let contextTokens, contextTokens >= 0,|        guard let contextTokens = contextTokens.map({ max(0, $0) }),|
+an empty context is refused along with the invalid ones | Sources/Antarium/Core/AgentScan.swift | s|contextTokens >= 0,|contextTokens > 0,|
+a database column reporting a negative count is trusted | Sources/Antarium/Core/HarnessEngine.swift | s|                    guard let amount = value.integer, amount >= 0 else {|                    guard let amount = value.integer else {|
+a trace path reporting a negative count is trusted | Sources/Antarium/Core/HarnessEngine.swift | s|               (FieldPath.int(record, path).map { $0 >= 0 } != true) {|               (FieldPath.int(record, path) == nil) {|

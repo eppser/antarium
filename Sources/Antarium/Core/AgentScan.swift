@@ -189,8 +189,21 @@ struct AgentRow: Identifiable {
         guard let startedAt else { return nil }
         return (state.isLive ? Date() : (lastActivity ?? Date())).timeIntervalSince(startedAt)
     }
+    /// How full the context is, or nothing when that cannot be said.
+    ///
+    /// Capped above at 1 since it was written, and not below at 0 — so a
+    /// negative token count became a negative percentage. The dashboard turns
+    /// this into `Int(fraction * 100)`, and that traps rather than rounds on
+    /// a large enough one: a harness reporting a negative context against a
+    /// small window took the menu bar down.
+    ///
+    /// Nothing, rather than zero. A negative count is invalid data, not an
+    /// empty context, and the two must not draw the same bar. The readers
+    /// refuse it too — this is the decision that turns it into a percentage,
+    /// and it should not depend on them having done so.
     var contextFraction: Double? {
-        guard let contextTokens, let contextWindow, contextWindow > 0 else { return nil }
+        guard let contextTokens, contextTokens >= 0,
+              let contextWindow, contextWindow > 0 else { return nil }
         return min(1, Double(contextTokens) / Double(contextWindow))
     }
 }

@@ -74,4 +74,45 @@ struct HarnessZeroValueTests {
         #expect(value.note?.contains("unavailable") == true)
         #expect(value.sentTokens == nil)
     }
+
+    /// A negative context is invalid data, not an empty context, and the two
+    /// must not produce the same row — it reaches `Int(fraction * 100)` in
+    /// the dashboard, which traps rather than rounds on a large enough one.
+    ///
+    /// Both source kinds already refuse it, and neither said so for this
+    /// field: the trace reader rejects any declared integer path that reads
+    /// negative, and the SQLite reader guards every integer column before it
+    /// is assigned. Written down here because a guard nothing exercises is a
+    /// guard nobody can keep — and the first attempt at this added two more
+    /// of them, redundant with these, which mutation testing exposed by
+    /// refusing to die.
+    @Test("A negative context from a trace is unavailable, not zero")
+    func negativeContextFromTrace() throws {
+        HarnessEngineTestIsolation.lock.lock(); defer { HarnessEngineTestIsolation.lock.unlock() }
+        let root = try root(); defer { try? FileManager.default.removeItem(at:root) }
+        let file = root.appendingPathComponent("trace.jsonl")
+        let descriptor = try descriptor(root)
+        try Data(#"{"cwd":"/fixture","input":1,"output":1,"context":-5}"#.appending("\n").utf8)
+            .write(to:file)
+        #expect(try row(descriptor).contextTokens == nil, "a negative context was stored")
+        // And a measured zero from the same path still is zero, or refusing
+        // negatives would have been done by refusing everything at or below.
+        try Data(#"{"cwd":"/fixture","input":1,"output":1,"context":0}"#.appending("\n").utf8)
+            .write(to:file,options:.atomic)
+        #expect(try row(descriptor).contextTokens == 0, "an empty context stopped being reported")
+    }
+
+    @Test("A negative context from a database column is unavailable, not zero")
+    func negativeContextFromSQLite() throws {
+        HarnessEngineTestIsolation.lock.lock(); defer { HarnessEngineTestIsolation.lock.unlock() }
+        let root = try root(); defer { try? FileManager.default.removeItem(at:root) }
+        var db:OpaquePointer?
+        #expect(sqlite3_open(root.appendingPathComponent("fixture.sqlite").path,&db) == SQLITE_OK)
+        #expect(sqlite3_exec(db,"CREATE TABLE fixture(n);",nil,nil,nil) == SQLITE_OK)
+        sqlite3_close(db)
+        let negative = try row(descriptor(root,sql:"SELECT '/fixture',1,1,0,-5,0,0,0"))
+        #expect(negative.contextTokens == nil, "a negative context was stored")
+        let zero = try row(descriptor(root,sql:"SELECT '/fixture',1,1,0,0,0,0,0"))
+        #expect(zero.contextTokens == 0, "an empty context stopped being reported")
+    }
 }

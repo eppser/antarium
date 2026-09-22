@@ -114,3 +114,69 @@ struct RowColumnWidthTests {
         #expect(checked == 3, "a fixed-width cell was not examined")
     }
 }
+
+/// The context bar's figure, which is a percentage computed from two numbers
+/// a harness reports.
+///
+/// `contextFraction` capped above at 1 from the day it was written and never
+/// below at 0. The dashboard renders it as `Int(fraction * 100)`, and that
+/// traps rather than rounds: a harness reporting a negative context against a
+/// small window took the menu bar down with SIGTRAP.
+@Suite("The context figure is a measurement or it is nothing")
+struct ContextFractionTests {
+
+    private func row(tokens: Int?, window: Int?) -> AgentRow {
+        var row = AgentRow(id: "synthetic", agentID: "claude-code", name: "p",
+                           cwd: "/synthetic/p", state: .working)
+        row.contextTokens = tokens
+        row.contextWindow = window
+        return row
+    }
+
+    @Test("A negative count is no measurement, not an empty one",
+          arguments: [-1, -1_000, Int.min])
+    func negativeCountsAreRefused(tokens: Int) {
+        #expect(row(tokens: tokens, window: 200_000).contextFraction == nil,
+                Comment(rawValue: "\(tokens) tokens produced a fraction"))
+    }
+
+    /// The case that actually crashed: the percentage is taken of the
+    /// fraction, so a huge negative over a tiny window overflows `Int`.
+    @Test("The figure that trapped now yields nothing")
+    func theTrappingCaseIsGone() {
+        let fraction = row(tokens: Int.min, window: 1).contextFraction
+        #expect(fraction == nil)
+        // And anything a fraction can be survives the conversion the bar does.
+        for value in [row(tokens: 0, window: 1), row(tokens: Int.max, window: 1),
+                      row(tokens: 199_000, window: 200_000)] {
+            guard let f = value.contextFraction else { continue }
+            #expect((0...1).contains(f), Comment(rawValue: "\(f) is not a fraction"))
+            #expect(Int(f * 100) >= 0 && Int(f * 100) <= 100)
+        }
+    }
+
+    /// Zero is a real measurement and must still draw. Refusing negatives by
+    /// refusing everything at or below zero would hide a fresh session.
+    @Test("An empty context is still a measurement")
+    func zeroIsAMeasurement() {
+        #expect(row(tokens: 0, window: 200_000).contextFraction == 0)
+    }
+
+    @Test("An ordinary reading is unchanged")
+    func ordinaryReading() throws {
+        let f = try #require(row(tokens: 50_000, window: 200_000).contextFraction)
+        #expect(abs(f - 0.25) < 1e-9)
+    }
+
+    /// The other half of the guard, which was already there.
+    @Test("A window of zero or less says nothing", arguments: [0, -1])
+    func windowMustBePositive(window: Int) {
+        #expect(row(tokens: 10, window: window).contextFraction == nil)
+    }
+
+    @Test("A missing half says nothing")
+    func missingHalves() {
+        #expect(row(tokens: nil, window: 200_000).contextFraction == nil)
+        #expect(row(tokens: 10, window: nil).contextFraction == nil)
+    }
+}
