@@ -748,3 +748,72 @@ struct IdleCostContractTests {
                 "the idle budget includes startup, which is not steady state")
     }
 }
+
+/// Every shipped harness is verified offline by one mechanism or the other.
+///
+/// Two suites cover the two kinds: a data-backed harness must have a passing
+/// dated session fixture, and one declaring a quota must have a passing
+/// quota fixture. Between them they check all twenty-five — but they
+/// partition by `source.kind`, and nothing said the partition was
+/// exhaustive. A descriptor with no session source and no quota block sits
+/// in neither: it decodes, it ships, and no fixture anywhere replays it.
+///
+/// There is a third kind the two suites do not see, and finding it was the
+/// point: a descriptor that exists for presence alone — a name, a mark, a
+/// process rule — whose figures come from a provider written in Swift.
+/// Claude and Gemini are both, because a keychain and an OAuth refresh are
+/// not things a descriptor can describe. They are covered, by mapping tests
+/// and by mutations, and this asks for the provider rather than a fixture.
+///
+/// This is the promise that the whole catalogue can be checked without
+/// installing a single one of these agents, stated as one property rather
+/// than inferred from two and a gap.
+@Suite("No shipped harness escapes both fixtures")
+struct EveryHarnessIsVerifiedOfflineTests {
+
+    @Test("Each one is covered by a session fixture or a quota fixture")
+    func everyHarnessHasEvidence() throws {
+        let descriptors = HarnessCLI.bundledDescriptors()
+        #expect(descriptors.count >= 20, "only \(descriptors.count) harnesses were read")
+
+        var session = 0, quota = 0, uncovered: [String] = [], native: [String] = []
+        for descriptor in descriptors {
+            let hasSession = descriptor.source.kind != .none
+            let hasQuota = descriptor.quota != nil
+            switch (hasSession, hasQuota) {
+            case (true, _):
+                // Checked by the session fixture suite above.
+                session += 1
+                #expect(descriptor.compatibility?.fixture?.isEmpty == false,
+                        Comment(rawValue: "\(descriptor.id) reads sessions and declares no fixture"))
+            case (false, true):
+                // Checked by the quota fixture suite.
+                quota += 1
+                let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+                #expect(report?.passed == true,
+                        Comment(rawValue: "\(descriptor.id): \(report?.detail ?? "no report")"))
+            case (false, false):
+                // The third kind, and the one the two suites do not see: a
+                // descriptor that exists for presence — a name, a mark, a
+                // process rule — whose figures come from a provider written
+                // in Swift. Claude and Gemini are both of these, because
+                // their credentials are a keychain and an OAuth refresh.
+                // Covered, but by mapping tests and mutations rather than by
+                // a fixture, so that is what is asked of them here.
+                native.append(descriptor.id)
+                #expect(ProviderRegistry.all.contains { $0.id == descriptor.id },
+                        Comment(rawValue: "\(descriptor.id) reads nothing, reports nothing "
+                                + "and has no provider behind it, so nothing verifies it"))
+            }
+        }
+        #expect(uncovered.isEmpty,
+                Comment(rawValue: "these read nothing and report nothing, so no fixture "
+                        + "replays them: \(uncovered.joined(separator: ", "))"))
+        // Each kind must be non-empty, or this passes by everything
+        // happening to be one of them.
+        #expect(session >= 10, "only \(session) harnesses read sessions")
+        #expect(quota >= 5, "only \(quota) harnesses declare a quota")
+        #expect(!native.isEmpty, "no presence-only harness was seen")
+        #expect(session + quota + native.count == descriptors.count)
+    }
+}

@@ -754,3 +754,4 @@ the window cap moves and the reference does not | Sources/Antarium/Providers/Des
 the remote row cap moves and the reference does not | Sources/Antarium/Core/RemoteTmux.swift | s|    static let maxRows = 256|    static let maxRows = 2560|
 the command session cap moves and the reference does not | Sources/Antarium/Core/HarnessEngine.swift | s|    static let maxCommandSessions = 256|    static let maxCommandSessions = 2560|
 the reference stops listing the caps | docs/TECHNICAL.md | s|The caps are|The limits include|
+a harness reads nothing and reports nothing | Resources/harnesses/zed.json | s|"kind": "sqlite"|"kind": "none"|
