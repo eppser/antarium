@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "commandcode",
   "name": "Command Code",
-  "note": "Quota only. The rolling and weekly caps come from `windowLimits`, which Command Code returns either at the top level or inside a `data` envelope depending on the call \u2014 both paths are declared rather than guessed. The monthly credit balance is deliberately not charted: turning it into a percentage needs a plan-id-to-allowance table that only the vendor knows, and an unrecognised plan would produce a confident wrong number.",
+  "note": "Quota only. The rolling and weekly caps come from `windowLimits`, which Command Code returns either at the top level or inside a `data` envelope depending on the call \u2014 both paths are declared rather than guessed. The monthly credit balance is deliberately not charted: turning it into a percentage needs a plan-id-to-allowance table that only the vendor knows, and an unrecognised plan would produce a confident wrong number. The response shape is published nowhere; checked 2026-09-22, commandcode.ai/docs/resources/usage-limits documents the windows themselves \u2014 a five-hour cap and a weekly one on every plan, which is what the two keys here are named for \u2014 and points at the CLI's own /usage for reading them. The fixture is the whole of the check.",
   "process": {},
   "compatibility": {
     "level": "declared",

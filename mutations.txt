@@ -842,3 +842,6 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 a mapping both cites a reference and claims there is none | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas", "unusedNote": "published nowhere",|
 the synthetic mapping stops saying where it was read from | Resources/harnesses/synthetic.json | /"documentation": "https/d
 an uncited mapping stops saying why | Resources/harnesses/copilot.json | s|is published nowhere|is undocumented|
+a mapping is neither checked nor recorded as uncheckable | Resources/harnesses/minimax.json | s|The endpoint is published nowhere|The endpoint is undocumented|
+the partition is satisfied by excusing everything | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"note2": "published nowhere",|
+the z.ai note loses the date it was established | Resources/harnesses/zai.json | s|checked 2026-09-22, docs.z.ai|checked, docs.z.ai|

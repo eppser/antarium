@@ -66,23 +66,25 @@ struct QuotaProvenanceTests {
     /// absent because the vendor publishes nothing, are different facts and
     /// used to look identical.
     ///
-    /// Two of the ten are the second kind: OpenCode documents its models and
-    /// its pricing and not this endpoint, and Copilot's is GitHub's own
-    /// internal one. Neither can ever carry a URL, and without somewhere to
-    /// say so the next person re-runs the same search. Where a mapping
+    /// Five of the ten are the second kind, each established by looking:
+    /// OpenCode documents its models and its pricing and not this endpoint,
+    /// Copilot's is GitHub's own internal one, MiniMax's own page says the
+    /// quota "is shown as a usage bar in the console", Z.ai documents the
+    /// plan and not the call, and Command Code documents the windows without
+    /// the shape that reports them. None can ever carry a URL, and without
+    /// somewhere to say so the next person re-runs the same five searches. Where a mapping
     /// cannot be checked against a reference, its fixture is the whole of
     /// the check — which is worth stating in the file that carries it.
     @Test("An uncited mapping says whether a reference exists at all")
     func uncitedMappingsExplainThemselves() throws {
-        let undocumented = ["opencode", "copilot"]
+        let undocumented = ["opencode", "copilot", "minimax", "zai", "commandcode"]
         for id in undocumented {
             let descriptor = try #require(quotaDescriptors.first { $0.id == id },
                                           Comment(rawValue: "\(id) no longer ships"))
             #expect(descriptor.quota?.documentation == nil,
                     Comment(rawValue: "\(id) now cites a reference — move it out of this list"))
             let note = descriptor.note ?? ""
-            #expect(note.lowercased().contains("published nowhere")
-                    || note.lowercased().contains("carries no usage or quota reference"),
+            #expect(note.lowercased().contains("published nowhere"),
                     Comment(rawValue: "\(id) has no citation and does not say why"))
             #expect(note.contains("2026-"),
                     Comment(rawValue: "\(id) does not say when that was last checked"))
@@ -103,6 +105,31 @@ struct QuotaProvenanceTests {
                             + "there is none"))
         }
         #expect(cited >= 5, Comment(rawValue: "only \(cited) mappings cite a reference"))
+    }
+
+    /// The partition is total.
+    ///
+    /// Every quota mapping is either checked against a published shape or
+    /// recorded as having none to check against. A new one that is neither
+    /// is the case this exists to catch: it would ship looking exactly like
+    /// the five that were verified, and nothing would say otherwise.
+    @Test("Every quota mapping is either cited or excused, and nothing is neither")
+    func everyMappingHasAPosition() {
+        var cited: [String] = [], excused: [String] = [], neither: [String] = []
+        for descriptor in quotaDescriptors {
+            let note = (descriptor.note ?? "").lowercased()
+            if descriptor.quota?.documentation != nil { cited.append(descriptor.id) }
+            else if note.contains("published nowhere") { excused.append(descriptor.id) }
+            else { neither.append(descriptor.id) }
+        }
+        #expect(neither.isEmpty,
+                Comment(rawValue: "\(neither.sorted().joined(separator: ", ")) neither names a "
+                        + "reference nor records that there is none"))
+        #expect(cited.count + excused.count == quotaDescriptors.count)
+        // And both halves are populated, or the rule is being satisfied by
+        // putting everything in one of them.
+        #expect(cited.count >= 5, Comment(rawValue: "only \(cited.count) are cited"))
+        #expect(excused.count >= 5, Comment(rawValue: "only \(excused.count) are excused"))
     }
 
     /// A string value is not an unusual case to be defensive about: two of

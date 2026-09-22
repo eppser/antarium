@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "minimax",
   "name": "MiniMax",
-  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name. The key is read from MINIMAX_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/minimax otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works.",
+  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name. The key is read from MINIMAX_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/minimax otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works. The endpoint is published nowhere; checked 2026-09-22, platform.minimax.io/docs/token-plan says only that the quota \"is shown as a usage bar in the console\". The fixture is the whole of the check.",
   "process": {},
   "compatibility": {
     "level": "declared",
