@@ -84,7 +84,7 @@ enum Glyphs {
         switch markName(agentID) {
         case "claude-code": burst(in: rect)
         case "codex":       rosette(in: rect)
-        default:            initialLetter(agentID.prefix(1).uppercased(), in: rect, color: color)
+        default:            initialLetter(fallbackLabel(agentID), in: rect, color: color)
         }
     }
 
@@ -123,8 +123,43 @@ enum Glyphs {
 
 
     /// Fallback for an agent with no mark of its own.
+    /// The letters drawn for an agent whose artwork this app does not ship.
+    ///
+    /// It was the first letter of the id, which put an identical "O" in the
+    /// menu bar for openclaw, opencode, openrouter and orca, and a shared
+    /// letter on six others. A user with two of them enabled saw two items
+    /// that differ only by their figures.
+    ///
+    /// The display name's capitals come first, because a vendor's own styling
+    /// is where the distinction already lives — OpenRouter is OR and MiniMax
+    /// is MM. A name with no second capital falls back to its first two
+    /// letters, and a one-letter label is kept only where the name gives
+    /// nothing more.
+    ///
+    /// Two characters is the ceiling: a 14pt glyph holds no more, and three
+    /// would not help — Herdr and Hermes differ at their fourth letter.
+    /// Three pairs still share a label, and the tests name them, so a new
+    /// harness landing on a taken one is a decision rather than a surprise.
+    /// Every item also carries the provider's name as its tooltip and its
+    /// accessibility label, which is what actually tells two apart.
+    static func fallbackLabel(_ agentID: String,
+                              in descriptors: [HarnessDescriptor]
+                                  = HarnessDescriptor.all()) -> String {
+        let name = descriptors.first { $0.id == agentID }?.name ?? agentID
+        let capitals = name.filter(\.isUppercase)
+        if capitals.count >= 2 { return String(capitals.prefix(2)) }
+        let words = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        if words.count >= 2, let a = words[0].first, let b = words[1].first {
+            return (String(a) + String(b)).uppercased()
+        }
+        let letters = name.filter(\.isLetter)
+        return String(letters.prefix(2)).uppercased()
+    }
+
     private static func initialLetter(_ letter: String, in rect: NSRect, color: NSColor) {
-        let font = NSFont.systemFont(ofSize: rect.height * 0.72, weight: .bold)
+        // Two characters need a smaller face than one to sit in the same box.
+        let font = NSFont.systemFont(ofSize: rect.height * (letter.count > 1 ? 0.52 : 0.72),
+                                     weight: .bold)
         let s = NSAttributedString(string: letter,
                                    attributes: [.font: font, .foregroundColor: color])
         let size = s.size()

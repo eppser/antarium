@@ -874,3 +874,8 @@ the app stops launching a command the allowlist still permits | Sources/Antarium
 a CLI is no longer launched but is still allowed | Sources/Antarium/Providers/KiroProvider.swift | s|"kiro-cli"|"kiro-cli-gone"|
 a quota provider loses the fixture that is its only check | Resources/harnesses/synthetic.json | s|"id": "synthetic"|"id": "synthetic-renamed"|
 a session fixture is named but not shipped | Resources/harnesses/codex.json | s|"fixture": "harness-fixtures/codex.json"|"fixture": "harness-fixtures/codex-gone.json"|
+every agent without artwork draws one letter again | Sources/Antarium/UI/Glyphs.swift | s|        if capitals.count >= 2 { return String(capitals.prefix(2)) }|        if false { return String(capitals.prefix(2)) }|
+a drawn label is taken from the id rather than the name | Sources/Antarium/UI/Glyphs.swift | s|        let name = descriptors.first { \$0.id == agentID }?.name ?? agentID|        let name = agentID|
+a drawn label grows past what the glyph holds | Sources/Antarium/UI/Glyphs.swift | s|        return String(letters.prefix(2)).uppercased()|        return String(letters.prefix(4)).uppercased()|
+the menu bar item stops naming itself to a screen reader | Sources/Antarium/AgentItem.swift | s|        statusItem.button?.setAccessibilityLabel(provider.displayName)||
+two letters are drawn at the size of one | Sources/Antarium/UI/Glyphs.swift | s|rect.height \* (letter.count > 1 ? 0.52 : 0.72)|rect.height * 0.72|

@@ -326,6 +326,12 @@ final class AgentItem: NSObject, NSMenuDelegate {
         lastRender = next
         statusItem.button?.image = Renderer.image(next, appearance: appearance, scale: scale)
         statusItem.button?.toolTip = tooltip()
+        // Named for VoiceOver as well as for the pointer. Sixteen of the
+        // shipped harnesses have no artwork here and draw letters instead,
+        // and a few of those letters are shared — so without this the only
+        // thing distinguishing two items is a glyph that a screen reader
+        // cannot read at all.
+        statusItem.button?.setAccessibilityLabel(provider.displayName)
     }
 
     private func publishQuota() {
