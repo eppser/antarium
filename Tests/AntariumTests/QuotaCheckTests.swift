@@ -262,7 +262,14 @@ struct ResponseBoundsTests {
         let long = String(repeating: "C", count: 100_000)
         let snapshot = try p.makeSnapshot(["data": [["amount": 5.0, "code": long]]])
         let gauge = try #require(snapshot.gauges.first)
-        #expect(gauge.amount?.currency.count == DescriptorProvider.maxResponseText)
+        // Twice over. The provider holds response text to 64 characters,
+        // which is right for a sentence and far too generous for a currency:
+        // this string reaches the menu bar, where sixty-four characters is
+        // 540 points of a bar shared with every other application. `Gauge`
+        // takes it down to a code's length.
+        #expect(gauge.amount?.currency.count == Gauge.maxCurrency)
+        #expect(Gauge.maxCurrency < DescriptorProvider.maxResponseText,
+                "the gauge's bound is no tighter than the provider's, so it is doing nothing")
     }
 
     @Test("A window key the server sends cannot be arbitrarily long")

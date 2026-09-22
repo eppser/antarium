@@ -845,3 +845,8 @@ an uncited mapping stops saying why | Resources/harnesses/copilot.json | s|is pu
 a mapping is neither checked nor recorded as uncheckable | Resources/harnesses/minimax.json | s|The endpoint is published nowhere|The endpoint is undocumented|
 the partition is satisfied by excusing everything | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"note2": "published nowhere",|
 the z.ai note loses the date it was established | Resources/harnesses/zai.json | s|checked 2026-09-22, docs.z.ai|checked, docs.z.ai|
+a vendor's currency reaches the menu bar unbounded | Sources/Antarium/Core/UsageModel.swift | s|                   currency: Gauge.clamp(\$0.currency, to: Gauge.maxCurrency))|                   currency: \$0.currency)|
+the currency bound is no tighter than a sentence | Sources/Antarium/Core/UsageModel.swift | s|    static let maxCurrency = 8|    static let maxCurrency = 64|
+a balance of three hundred digits is printed in full | Sources/Antarium/Core/UsageModel.swift | s|        if magnitude >= Gauge.plainAmountLimit {|        if false {|
+an ordinary balance is printed in scientific notation | Sources/Antarium/Core/UsageModel.swift | s|    static let plainAmountLimit = 1e12|    static let plainAmountLimit = 10.0|
+a value that is not a number reaches the formatter | Sources/Antarium/Core/UsageModel.swift | s|            Amount(value: \$0.value.isFinite ? \$0.value : 0,|            Amount(value: \$0.value,|

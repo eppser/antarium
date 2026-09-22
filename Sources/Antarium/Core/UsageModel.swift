@@ -37,6 +37,15 @@ struct Gauge: Equatable {
     /// A badge is two or three characters — the longest thing any shipped
     /// harness puts near one is eleven. Beyond that is a misread field.
     static let maxBadge = 64
+    /// A currency code, not a sentence. ISO 4217 is three letters; eight
+    /// leaves room for the informal ones a service might send instead.
+    static let maxCurrency = 8
+    /// Above this a figure is printed in scientific notation rather than in
+    /// full. Not a rejection — the number is still the number, and refusing
+    /// it would make `hasMeter` true and draw a bar where there is no
+    /// denominator, which is a figure invented out of a broken one. This only
+    /// stops a balance being three hundred digits of menu bar.
+    static let plainAmountLimit = 1e12
 
     let id: String
     /// Two characters, drawn in the menu bar. "5H", "7D", "BAL".
@@ -83,7 +92,19 @@ struct Gauge: Equatable {
         self.resetsAt = resetsAt
         self.reportedSeverity = reportedSeverity
         self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil
-        self.amount = amount
+        // The amount was the one field here that was taken as given, in an
+        // initialiser whose whole argument is that the range each field
+        // documents should be true by construction. Its currency is vendor
+        // text — clamped to sixty-four characters on the way out of a
+        // provider, which is a sentence, not a currency code — and its value
+        // is only checked for being finite. Both are drawn in the menu bar,
+        // which is shared with every other application's status item and has
+        // one screen's width for all of them. A sixty-four character currency
+        // made this item 540 points wide and a balance of 1e300 made it 1,993.
+        self.amount = amount.map {
+            Amount(value: $0.value.isFinite ? $0.value : 0,
+                   currency: Gauge.clamp($0.currency, to: Gauge.maxCurrency))
+        }
     }
 
     static func clamp(_ text: String, to limit: Int) -> String {
@@ -114,8 +135,15 @@ struct Gauge: Equatable {
     var amountText: String? {
         guard let amount else { return nil }
         let magnitude = abs(amount.value)
-        let digits = magnitude >= 100 ? 0 : 2
-        let number = String(format: "%.\(digits)f", amount.value)
+        let number: String
+        if magnitude >= Gauge.plainAmountLimit {
+            // Scientific rather than truncated: a shortened number is a
+            // different number, and this one is still exactly what was
+            // reported — just not three hundred digits of it.
+            number = String(format: "%.3g", amount.value)
+        } else {
+            number = String(format: "%.\(magnitude >= 100 ? 0 : 2)f", amount.value)
+        }
         return Gauge.symbol(for: amount.currency).map { $0 + number }
             ?? "\(number) \(amount.currency)"
     }
