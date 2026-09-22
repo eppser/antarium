@@ -355,6 +355,40 @@ import json,sys
 try: print(','.join(json.load(open('$home/config.json')).get('enabledAgents') or []))
 except Exception: print('')" 2>/dev/null)
     [ -n "$chosen" ] && ok "detected and enabled: $chosen" || bad "first run enabled nothing"
+
+    # Both halves, or neither. `knownAgents` is what lets a later launch tell
+    # an agent that shipped since from one the user switched off, so a first
+    # run that chooses without recording it disables adoption for ever — and
+    # the bar it produced looks perfectly correct. AgentAutoEnable says so in
+    # as many words; nothing checked it.
+    known=$(python3 -c "
+import json
+try: print(len(json.load(open('$home/config.json')).get('knownAgents') or []))
+except Exception: print(0)" 2>/dev/null)
+    [ "${known:-0}" -gt 0 ] \
+        && ok "recorded $known provider(s) as already offered" \
+        || bad "first run chose without recording what it had seen"
+
+    # And it chose a bar, not every agent it could find. The cap exists
+    # because a developer's Mac shows traces of most of them.
+    count=$(printf '%s' "$chosen" | awk -F, '{print NF}')
+    [ "${count:-0}" -le 4 ] \
+        && ok "$count item(s), within the first-run cap" \
+        || bad "first run enabled $count agents, past the cap of 4"
+
+    # A second launch against the same home must leave the choice alone. This
+    # is the rule the whole design rests on and it was only ever checked in
+    # unit tests, never through the app.
+    ANTARIUM_HOME="$home" "$APP" >/dev/null 2>&1 & pid=$!
+    sleep 6
+    kill $pid 2>/dev/null; wait $pid 2>/dev/null
+    again=$(python3 -c "
+import json
+try: print(','.join(json.load(open('$home/config.json')).get('enabledAgents') or []))
+except Exception: print('')" 2>/dev/null)
+    [ "$again" = "$chosen" ] \
+        && ok "a second launch left the choice alone" \
+        || bad "a second launch changed the choice: $chosen then $again"
     rm -rf "$home"
 else
     bad "no built app at $APP"

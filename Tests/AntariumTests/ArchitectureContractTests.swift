@@ -1328,6 +1328,67 @@ struct ProviderHTTPContractTests {
 /// network text, and a descriptor's own labels left exactly as their author
 /// wrote them, because local configuration is trusted and a response is not.
 /// These are the floor under both.
+/// First run writes both halves of its decision, or neither.
+///
+/// `firstRunRecord` returns the agents to enable and the agents it has
+/// offered, and every test of it is about that pure function. Nothing
+/// covered the two writes that follow. Deleting the second — the one that
+/// records what was offered — left all 1,455 tests passing: the bar it
+/// produces is correct, and adoption of anything shipped later is disabled
+/// for ever with nothing to show for it.
+///
+/// It cannot be exercised in-process, because `Config` binds its directory
+/// at first touch, so verify.sh launches the built app against a fresh home
+/// and reads both keys back. This is the fast loop's copy of that: it cannot
+/// see behaviour, only that the line is still there, which is worth having
+/// between full runs of the gate.
+@Suite("First run records what it chose and what it saw")
+struct FirstRunWritesBothTests {
+
+    private func source() throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/Core/AgentAutoEnable.swift"),
+                   encoding: .utf8)
+    }
+
+    @Test("Applying a first-run decision writes the choice and the record")
+    func bothHalvesAreWritten() throws {
+        let text = try source()
+        let start = try #require(text.range(of: "static func applyIfNeeded"),
+                                 "first run no longer applies through applyIfNeeded")
+        let end = try #require(text[start.upperBound...].range(of: "\n    }"),
+                               "applyIfNeeded has no end")
+        let body = String(text[start.upperBound..<end.lowerBound])
+        #expect(body.contains("Settings.enabledAgents = record.enabled"),
+                "the choice is not written")
+        #expect(body.contains("known = record.known"),
+                "what was offered is not recorded, so nothing shipped later is ever adopted")
+    }
+
+    /// And the later launch writes its own half whether it adopted anything
+    /// or not — a provider that stays "new" comes back every launch after
+    /// the user switches it off.
+    @Test("Adoption records what it saw even when it adopts nothing")
+    func adoptionAlwaysRecords() throws {
+        let text = try source()
+        let start = try #require(text.range(of: "static func adoptNewProviders"))
+        let end = try #require(text[start.upperBound...].range(of: "\n    }"))
+        let body = String(text[start.upperBound..<end.lowerBound])
+        // A statement at the function's own level, not one tucked inside a
+        // branch. Asked by indentation, because looking for the assignment
+        // "near" the branch found the wrong occurrence when a mutation added
+        // a second one — the detector answered about the line it happened to
+        // match first.
+        let unconditional = body.split(separator: "\n", omittingEmptySubsequences: false)
+            .contains { $0 == "        known = record.known" }
+        #expect(unconditional, Comment(rawValue:
+                "the record is updated only inside a branch, so a provider the user "
+                + "switched off stays new and comes back every launch"))
+    }
+}
+
 @Suite("A gauge cannot carry a response into the menu bar")
 struct GaugeBoundsTests {
 

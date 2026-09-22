@@ -857,3 +857,6 @@ the menu title bound is wide enough to be none | Sources/Antarium/AgentItem.swif
 an authored window name is cut anyway | Sources/Antarium/AgentItem.swift | s|    static let maxMenuTitle = 120|    static let maxMenuTitle = 10|
 a cut title says nothing about being cut | Sources/Antarium/AgentItem.swift | s|        return String(title.prefix(maxMenuTitle - 1)) + "…"|        return String(title.prefix(maxMenuTitle))|
 the cut lands in the middle of a character | Sources/Antarium/AgentItem.swift | s|        return String(title.prefix(maxMenuTitle - 1)) + "…"|        return String(decoding: title.utf8.prefix(maxMenuTitle - 1), as: UTF8.self) + "…"|
+first run chooses without recording what it offered | Sources/Antarium/Core/AgentAutoEnable.swift | /^        known = record.known$/d
+a later launch records only when it adopted something | Sources/Antarium/Core/AgentAutoEnable.swift | s|^        known = record.known$|        if !record.adopted.isEmpty { known = record.known }|
+a later launch records only when it adopted something | Sources/Antarium/Core/AgentAutoEnable.swift | /if !record.adopted.isEmpty/{n;s|^        known = record.known$|        if !record.adopted.isEmpty { known = record.known }|;}
