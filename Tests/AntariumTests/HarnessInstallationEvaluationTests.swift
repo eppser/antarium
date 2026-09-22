@@ -19,7 +19,11 @@ struct HarnessInstallationEvaluationTests {
                 || !$0.processRule.names.orEmpty.isEmpty
                 || !$0.processRule.argv0Contains.orEmpty.isEmpty
         }
-        #expect(!descriptors.isEmpty)
+        // Counted, not merely non-empty. Every assertion below is inside
+        // a loop over this list, so a filter that stopped matching would
+        // leave the test green having checked one harness, or none.
+        #expect(descriptors.count >= 15,
+                "only \(descriptors.count) process-backed harnesses were examined")
 
         for descriptor in descriptors {
             let probes = descriptor.processRule.installationProbes.orEmpty

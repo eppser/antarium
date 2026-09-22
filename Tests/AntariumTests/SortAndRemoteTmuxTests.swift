@@ -114,7 +114,8 @@ struct SortAndRemoteTmuxTests {
     @Test("Remote rows are tagged, marked remote, and carry no local tmux target")
     func parseTagsRowsAndWithholdsTheLocalFocusTarget() {
         let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
-        #expect(!rows.isEmpty)
+        #expect(rows.count >= 2,
+                "only \(rows.count) rows were parsed, so the loop below proves little")
         for row in rows {
             #expect(row.hostApp == RemoteTmux.tag)
             #expect(row.hostApp == "tmux-remote")

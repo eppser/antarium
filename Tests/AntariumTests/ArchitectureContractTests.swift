@@ -817,7 +817,8 @@ struct ArchitectureContractTests {
     func shippedHarnessesHaveNoStructuralProblems() throws {
         let urls = AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
-        #expect(!urls.isEmpty)
+        #expect(urls.count >= 20,
+                "only \(urls.count) harnesses were read from the bundle")
         for url in urls {
             let data = try Data(contentsOf: url)
             let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
