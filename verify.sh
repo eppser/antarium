@@ -54,6 +54,34 @@ else
 fi
 rm -rf "$bare"
 
+step "Tests on a machine that did not generate the local artwork"
+# Every machine but a developer's. `Resources/marks/*.png` is in .gitignore —
+# third-party artwork, derived by a script, never distributed — so a clean
+# checkout has none of it and the app falls back to a vector or a letter.
+#
+# A suite that reads that directory passes here and fails everywhere, which
+# happened: and because mutate.sh works in a throwaway checkout, it then
+# reported every mutation as caught against an already-failing baseline. The
+# bare-home step above covers what this machine has *run*; this covers what it
+# has *generated*.
+hidden=$(mktemp -d)
+marks=$(ls Resources/marks/*.png 2>/dev/null | wc -l | tr -d ' ')
+if [ "$marks" -gt 0 ]; then
+    mv Resources/marks/*.png "$hidden"/ 2>/dev/null
+    restore_marks() { mv "$hidden"/*.png Resources/marks/ 2>/dev/null; rm -rf "$hidden"; }
+    trap 'restore_marks' EXIT
+    if ./test.sh >/tmp/verify-nomarks.log 2>&1; then
+        ran /tmp/verify-nomarks.log "without the local artwork"
+    else
+        bad "test suite depends on artwork the repository does not carry — see /tmp/verify-nomarks.log"
+        grep -E '^✘ Test "' /tmp/verify-nomarks.log | head -3
+    fi
+    restore_marks
+    trap - EXIT
+else
+    ok "no local artwork to hide — this machine is already the bare case"
+fi
+
 # Package.swift excludes `dist` only when it exists, because SwiftPM warns
 # about an exclude that names nothing. SwiftPM also caches the evaluated
 # manifest, so that condition is frozen at whatever was true last time — and a
