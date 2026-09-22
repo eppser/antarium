@@ -214,3 +214,110 @@ struct QuotaDocumentationTests {
         #expect(section.count > 400, "the walkthrough is \(section.count) characters")
     }
 }
+
+/// The worked example in the documentation, run.
+///
+/// It is the only complete descriptor a reader is given, and the one thing
+/// they will copy. An example that has quietly stopped decoding — a field
+/// renamed, a rule tightened — is worse than none: they would follow it
+/// exactly and be told their own file is wrong.
+///
+/// Taken out of the document rather than repeated here, so the thing under
+/// test is the thing they read.
+@Suite("The documented LiteLLM example works")
+struct WorkedExampleTests {
+
+    private func documentedDescriptor() throws -> [String: Any] {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"),
+                              encoding: .utf8)
+        let heading = try #require(text.range(of: "### A worked example"),
+                                   "the worked example is gone")
+        let after = text[heading.upperBound...]
+        let open = try #require(after.range(of: "```json"), "the example carries no descriptor")
+        let close = try #require(after[open.upperBound...].range(of: "```"),
+                                 "the example's code block is unterminated")
+        let json = String(after[open.upperBound..<close.lowerBound])
+        return try #require(
+            JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+            "the documented example is not a JSON object")
+    }
+
+    @Test("It decodes as a descriptor")
+    func exampleDecodes() throws {
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: try documentedDescriptor())).descriptor
+        #expect(descriptor.quota?.endpoint?.hasPrefix("http://127.0.0.1") == true)
+        #expect(descriptor.quota?.credential?.kind == "textFile")
+    }
+
+    /// And `--check` passes it, since that is the first thing a reader will
+    /// run. It exercises the loopback rule too: an example the validator
+    /// rejects is the failure this whole example was written after.
+    @Test("--check accepts it")
+    func exampleChecksClean() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("worked-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: try documentedDescriptor()).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(HarnessCheck.run(url.path) == 0)
+    }
+
+    /// The mapping, against the reply LiteLLM's own documentation shows.
+    /// Synthetic figures; the shape is theirs.
+    @Test("It charts a key with a budget")
+    func exampleMapsAReply() throws {
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: try documentedDescriptor())).descriptor
+        let provider = try #require(DescriptorProvider(descriptor))
+        let snapshot = try provider.makeSnapshot(
+            ["key": "sk-synthetic", "info": ["spend": 2.5, "max_budget": 10.0]])
+        let gauge = try #require(snapshot.gauges.first)
+        #expect(gauge.title == "Key budget")
+        #expect(gauge.badge == "KEY")
+        #expect(abs(gauge.used - 0.25) < 0.0001, "2.5 of 10 was charted as \(gauge.used)")
+    }
+
+    /// The case the documentation warns about: no budget set, so no
+    /// denominator, so nothing charted. A spend figure with no cap is not a
+    /// meter, and drawing one would be a bar against a number nobody stated.
+    @Test("A key with no budget charts nothing rather than guessing one")
+    func noBudgetChartsNothing() throws {
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: try documentedDescriptor())).descriptor
+        let provider = try #require(DescriptorProvider(descriptor))
+        #expect(throws: (any Error).self) {
+            _ = try provider.makeSnapshot(
+                ["key": "sk-synthetic", "info": ["spend": 2.5, "max_budget": NSNull()]])
+        }
+    }
+
+    /// And the documentation says both of those things, since the example is
+    /// only safe to copy if the reader is told when it will show nothing.
+    @Test("The example says what happens with no budget")
+    func exampleExplainsTheEmptyCase() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"),
+                              encoding: .utf8)
+        let heading = try #require(text.range(of: "### A worked example"))
+        let after = text[heading.upperBound...]
+        // The prose, not the descriptor. `max_budget` appears in the example
+        // itself, so a check over the whole section is satisfied by the JSON
+        // and says nothing about whether the reader was told what it does —
+        // which is what this is for. The first version did exactly that, and
+        // the mutation removing the explanation survived it.
+        let open = try #require(after.range(of: "```json"))
+        let close = try #require(after[open.upperBound...].range(of: "```"))
+        let prose = String(after[close.upperBound...].prefix(2_000))
+        #expect(prose.contains("max_budget"),
+                "the prose does not mention the field that decides whether anything is drawn")
+        #expect(prose.contains("no denominator") || prose.contains("nothing is charted"),
+                "the prose does not say that a key with no budget shows nothing")
+        #expect(prose.contains("quota-fixture.json"),
+                "the example does not say how to check it against a real reply")
+    }
+}

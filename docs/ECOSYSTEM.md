@@ -160,6 +160,15 @@ master key in the header and the key being asked about in the query. A
 shipped descriptor cannot carry a working default for either, so this is a
 thing to document for somebody writing their own rather than to ship.
 
+Documented now, and the two-secret problem turned out not to need a second
+credential: the key being watched is not a secret from the person watching
+it, so it goes in their own descriptor while the master key stays in the
+keys folder. The worked example in docs/TECHNICAL.md is decoded, checked
+and mapped by the test suite, against the reply LiteLLM's own pages show.
+`/spend/keys` would take one secret rather than two and is not used: its
+response shape is not published, and the shape of a structurally similar
+endpoint is the guess this document exists to refuse.
+
 The second half of that was wrong for longer than it looked. "Document it
 for somebody writing their own" assumed they could, and they could not:
 `{token}` was substituted into headers and into a POST body but not into the

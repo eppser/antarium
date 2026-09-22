@@ -684,4 +684,6 @@ a session fixture beside a descriptor is never found | Sources/Antarium/Core/Har
 a claim of fixtureVerified needs no fixture | Sources/Antarium/Core/HarnessCheck.swift | s|        } else if descriptor.compatibility?.level == .fixtureVerified {||
 differing fixture values are not named | Sources/Antarium/Core/HarnessCompatibility.swift | s|                return text(want) == text(got) ? nil : "\\(key) \\(text(got)) ≠ \\(text(want))"|                return nil|
 
-the walkthrough stops naming the fixture a reader must write | docs/TECHNICAL.md | s|`<id>.quota-fixture.json`, beside the descriptor|beside the descriptor|
+the walkthrough stops naming the fixture a reader must write | docs/TECHNICAL.md | s|id>.quota-fixture.json|id>.nothing.json|
+the worked example stops saying when it charts nothing | docs/TECHNICAL.md | s|`max_budget` is frequently `null`|A budget is frequently absent|
+the worked example maps the wrong field | docs/TECHNICAL.md | s|      "used": "info.spend",|      "used": "info.token",|

@@ -584,6 +584,59 @@ table because the decoder already refuses it outright on anything but a
 `jsonFile`: a guard that silently does nothing is worse than no guard, and a
 warning where there is already a refusal would be unreachable.
 
+### A worked example: a self-hosted proxy
+
+LiteLLM is the case this section exists for. It cannot ship — the host and
+port are yours and nobody else's — and everything else about it is now
+expressible. Its own documentation states the call and the reply, which is
+step one done for you.
+
+```json
+{
+  "formatVersion": 1,
+  "id": "litellm",
+  "name": "LiteLLM",
+  "process": {},
+  "source": { "kind": "none", "path": "" },
+  "quota": {
+    "endpoint": "http://127.0.0.1:4000/key/info?key=sk-the-key-you-are-watching",
+    "headers": { "Authorization": "Bearer {token}" },
+    "credential": { "kind": "textFile", "path": "~/.antarium/keys/litellm" },
+    "windows": {
+      "single": "key",
+      "used": "info.spend",
+      "limit": "info.max_budget",
+      "labels": { "key": "Key budget" },
+      "badges": { "key": "KEY" }
+    },
+    "setupHint": "Put your LiteLLM master key in ~/.antarium/keys/litellm",
+    "verified": false
+  }
+}
+```
+
+Four things worth saying about it.
+
+The call takes two secrets — the master key authorises it, and a query
+parameter names the key being asked about — and a credential supplies one.
+The key you are watching is not a secret from you, so it goes in the
+descriptor; the master key stays in the keys folder. Both sit under a
+directory this app keeps private, and only one of them is in a file you
+might paste somewhere.
+
+`http` to `127.0.0.1` is accepted, by the request and by `--check` alike.
+Plaintext to this machine never reaches a wire.
+
+`max_budget` is frequently `null`, and then there is no denominator and
+nothing is charted — which is correct, and is why the row will say nothing
+until a budget is set on the key. A spend figure with no cap is not a
+meter, and calling it one would draw a bar against a number nobody stated.
+
+LiteLLM's own pages show the reply in two shapes: nested under `info`, as
+above, and flat. Record whichever yours returns as
+`litellm.quota-fixture.json` beside the descriptor and run `--check`; that
+is what the fixture is for, and it takes one reply and no account.
+
 ### Quota transport
 
 A `balance` must declare a `currency` — a path into the response where the
