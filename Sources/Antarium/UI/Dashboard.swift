@@ -16,6 +16,21 @@ enum RowMetrics {
     /// Every figure the money formatter can print, beside every duration
     /// `Fmt.duration` can print.
     static let cost: CGFloat = 78
+    /// The meter slot: a context bar, an account bar, or the reserve that
+    /// stands in for both when a row has neither.
+    ///
+    /// A *minimum*, not a fixed width. The three things that occupy it
+    /// measured 29.9pt to 64.3pt — a balance figure alone, a bar with a
+    /// percentage beside it — and the reserve was 61pt, which matched none of
+    /// the common cases. Everything after the row's spacer is pushed right by
+    /// what precedes it, so the cost column landed in a different place
+    /// depending on which meter its row happened to have, and the figures did
+    /// not line up down the list.
+    ///
+    /// A minimum rather than a frame because the content is a number: a
+    /// balance wider than this must grow rather than truncate, since a
+    /// shortened figure is a wrong figure. 65 covers every realistic one.
+    static let meter: CGFloat = 65
 }
 
 /// Reports a measured height up through the view tree.
@@ -381,7 +396,7 @@ private struct AgentRowView: View {
                                     plan: quotaStore.snapshot(for: row.agentID)?.accountLabel,
                                     fetchedAt: quotaStore.fetchedAt(for: row.agentID))
                 } else {
-                    Color.clear.frame(width: 61, height: 1)
+                    Color.clear.frame(width: RowMetrics.meter, height: 1)
                 }
                 StatePill(state: row.state)
                 if reduced { LastReply(date: row.lastActivity, width: 52) }
@@ -789,6 +804,7 @@ private struct ContextBar: View {
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary).fixedSize()
         }
+        .frame(minWidth: RowMetrics.meter, alignment: .trailing)
         .help(tokens.map { "\($0 / 1000)k of \((window ?? 0) / 1000)k context used" } ?? "Context")
     }
 }
@@ -844,6 +860,7 @@ struct AccountQuotaBar: View {
         // still the best there is, and the reason it is old — a refresh that
         // keeps failing — is already reported where failures belong. This
         // only stops it claiming to be current.
+        .frame(minWidth: RowMetrics.meter, alignment: .trailing)
         .opacity(isStale ? 0.45 : 1)
         .help(Self.help(gauge: gauge, plan: plan, fetchedAt: fetchedAt))
     }

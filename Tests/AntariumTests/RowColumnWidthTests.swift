@@ -86,6 +86,55 @@ struct RowColumnWidthTests {
                         + "needing \(widest)pt"))
     }
 
+    /// The meter slot, which three different things occupy: a context bar, an
+    /// account bar with a percentage, an account bar showing a bare balance,
+    /// or a blank reserve when the row has none of them.
+    ///
+    /// They measured 29.9pt to 64.3pt while the reserve was a flat 61pt. The
+    /// row's trailing group is pushed right by whatever precedes it, so the
+    /// cost column sat in a different place on every row depending on which
+    /// meter that row had.
+    @Test("Every meter a row can show fits the slot reserved for it")
+    func meterVariantsFitTheSlot() {
+        // Capsule plus the HStack's spacing, from both bar views.
+        let bar: CGFloat = 34 + 3.5
+        func percent(_ text: String) -> CGFloat {
+            bar + width(text, size: 9, weight: .medium, monospacedDigits: true)
+        }
+        func balance(_ text: String) -> CGFloat {
+            width(text, size: 9, weight: .medium, monospacedDigits: true)
+        }
+        // Every shape `Gauge.percentText` can return, and a balance in each
+        // currency form `Gauge.amountText` can build.
+        let metered = ["0%", "<1%", "42%", ">99%", "100%"].map(percent)
+        let balances = ["$95.50", "$1204", "8.25 CNY", "1204.00 CNY", "¥88.00"].map(balance)
+        let widest = (metered + balances).max() ?? 0
+
+        #expect(widest <= RowMetrics.meter,
+                Comment(rawValue: "a meter needs \(widest)pt in a \(RowMetrics.meter)pt slot"))
+        // And not so generous that the common case is padding. The narrowest
+        // is a bare balance, which is legitimately short — judge against the
+        // widest, as with the other two columns.
+        #expect(RowMetrics.meter - widest <= 12,
+                Comment(rawValue: "the meter slot is \(RowMetrics.meter)pt for content "
+                        + "needing \(widest)pt"))
+    }
+
+    /// The reserve and the bars have to agree, or the column it exists to
+    /// align is only aligned for the rows that have no meter at all.
+    @Test("The blank reserve is the same width as the meters it stands in for")
+    func reserveMatchesTheMeters() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        #expect(source.contains("Color.clear.frame(width: RowMetrics.meter, height: 1)"),
+                "the blank reserve carries its own number again")
+        let pinned = source.components(separatedBy: "minWidth: RowMetrics.meter").count - 1
+        #expect(pinned == 2,
+                Comment(rawValue: "\(pinned) of the two meter views size themselves to the slot"))
+    }
+
     /// Both are single-line by declaration. A wrapped cell makes its row
     /// taller than its neighbours, which is the defect `LastReply` already
     /// names — and the pill, whose content comes from a cloud service, had

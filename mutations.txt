@@ -791,3 +791,8 @@ an invalid context reads as an empty one | Sources/Antarium/Core/AgentScan.swift
 an empty context is refused along with the invalid ones | Sources/Antarium/Core/AgentScan.swift | s|contextTokens >= 0,|contextTokens > 0,|
 a database column reporting a negative count is trusted | Sources/Antarium/Core/HarnessEngine.swift | s|                    guard let amount = value.integer, amount >= 0 else {|                    guard let amount = value.integer else {|
 a trace path reporting a negative count is trusted | Sources/Antarium/Core/HarnessEngine.swift | s|               (FieldPath.int(record, path).map { $0 >= 0 } != true) {|               (FieldPath.int(record, path) == nil) {|
+the meter slot is too narrow for a full bar | Sources/Antarium/UI/Dashboard.swift | s|    static let meter: CGFloat = 65|    static let meter: CGFloat = 40|
+the meter slot is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let meter: CGFloat = 65|    static let meter: CGFloat = 150|
+the blank reserve carries its own width again | Sources/Antarium/UI/Dashboard.swift | s|Color.clear.frame(width: RowMetrics.meter, height: 1)|Color.clear.frame(width: 61, height: 1)|
+the context bar stops aligning to the slot | Sources/Antarium/UI/Dashboard.swift | /^        .frame(minWidth: RowMetrics.meter, alignment: .trailing)$/d
+a balance is truncated to the slot rather than growing | Sources/Antarium/UI/Dashboard.swift | s|.frame(minWidth: RowMetrics.meter, alignment: .trailing)|.frame(width: RowMetrics.meter, alignment: .trailing)|
