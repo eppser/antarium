@@ -813,8 +813,6 @@ a rendered sheet shows only the open tab | Sources/Antarium/UI/SettingsView.swif
 the panel is too narrow for its own instructions | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 400|
 a tab carries an icon that does not exist | Sources/Antarium/UI/SettingsView.swift | s|            case .advanced:  return "slider.horizontal.3"|            case .advanced:  return "slider.horizontal.9"|
 two tabs share the same icon | Sources/Antarium/UI/SettingsView.swift | s|            case .dashboard: return "rectangle.grid.1x2"|            case .dashboard: return "gearshape"|
-the agent list is split and its instructions truncate | Sources/Antarium/UI/SettingsView.swift | s|    static let agentListColumns = 1|    static let agentListColumns = 2|
-the panel is widened past what it has to say | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 760|
 an unreadable reply does not say what it held | Sources/Antarium/Providers/DescriptorProvider.swift | s|            guard offered.isEmpty else {|            guard true else {|
 the names repeated back are unbounded in number | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .prefix(Self.maxNamedInError)|                .prefix(100000)|
 the names repeated back are unbounded in length | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .map { Self.clamped(\$0.key) }|                .map { \$0.key }|
@@ -823,3 +821,8 @@ a plan label is drawn at whatever length the vendor sent | Sources/Antarium/UI/D
 the plan label is wide enough to push the row off its panel | Sources/Antarium/UI/Dashboard.swift | s|    static let planLabel: CGFloat = 62|    static let planLabel: CGFloat = 300|
 a stat wraps and makes its row taller | Sources/Antarium/UI/Dashboard.swift | /^                .lineLimit(1).truncationMode(.tail)$/d
 the second line is measured against the wrong panel | Sources/Antarium/UI/Dashboard.swift | s|    static let rowInset: CGFloat = 7|    static let rowInset: CGFloat = 40|
+the list inset is charged to every column | Sources/Antarium/UI/Dashboard.swift | s|        return (panel - 2 \* inset - gutter \* (count - 1)) / count|        return (panel - 2 \* inset \* count - gutter \* (count - 1)) / count|
+the gutter is not taken out of the columns | Sources/Antarium/UI/Dashboard.swift | s|        return (panel - 2 \* inset - gutter \* (count - 1)) / count|        return (panel - 2 \* inset) / count|
+a column count of zero divides by zero | Sources/Antarium/UI/Dashboard.swift | s|        let count = CGFloat(max(1, columns))|        let count = CGFloat(columns)|
+the agent subtitle is cut off instead of wrapping | Sources/Antarium/UI/SettingsView.swift | s|                            .lineLimit(2)|                            .lineLimit(1)|
+the wrapped subtitle has no height to wrap into | Sources/Antarium/UI/SettingsView.swift | /^                            .fixedSize(horizontal: false, vertical: true)$/d

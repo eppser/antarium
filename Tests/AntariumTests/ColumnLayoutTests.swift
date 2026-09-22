@@ -130,6 +130,43 @@ struct ColumnFillTests {
     }
 }
 
+/// The panel's width and the content inside it have to be the same number.
+///
+/// They were not. The list's horizontal inset is applied once to the stack
+/// of columns, and it was being subtracted from each column — exact at one
+/// column, 12pt short at two, so the error arrived with the layout that was
+/// just added. A framed view pads its content to the frame, so the panel
+/// looked right and carried 12pt of dead space down its middle.
+@Suite("A panel is as wide as what is in it")
+struct ColumnWidthIdentityTests {
+
+    @Test("Columns, gutters and insets add up to the panel",
+          arguments: [(1, 600.0, 6.0), (2, 1212.0, 6.0), (1, 400.0, 5.0), (2, 812.0, 5.0)])
+    func widthsAddUp(columns: Int, panel: CGFloat, inset: CGFloat) {
+        let inner = RowMetrics.columnInner(panel: panel, columns: columns, inset: inset)
+        let content = CGFloat(columns) * inner
+            + RowMetrics.gutter * CGFloat(columns - 1)
+            + 2 * inset
+        #expect(abs(content - panel) < 0.01,
+                Comment(rawValue: "\(columns) column(s) of \(inner) come to \(content) "
+                        + "inside a \(panel)pt panel"))
+    }
+
+    /// And a column is still most of the panel, or the arithmetic could
+    /// balance by making the columns nothing.
+    @Test("A column keeps most of the width it is given")
+    func columnsAreNotDegenerate() {
+        let inner = RowMetrics.columnInner(panel: 1_212, columns: 2, inset: 6)
+        #expect(inner > 560, Comment(rawValue: "a column came to \(inner)pt"))
+    }
+
+    @Test("A column count of zero does not divide by it")
+    func zeroColumnsIsOne() {
+        #expect(RowMetrics.columnInner(panel: 600, columns: 0, inset: 6)
+                == RowMetrics.columnInner(panel: 600, columns: 1, inset: 6))
+    }
+}
+
 /// The decision above, actually applied to a panel.
 ///
 /// The arithmetic being right is not the same as the layout using it. This

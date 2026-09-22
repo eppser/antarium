@@ -24,25 +24,6 @@ struct SettingsView: View {
     /// how to fix a provider that is not signed in. At 420 they truncated, so
     /// the panel was hiding its own instructions.
     static let width: CGFloat = 520
-
-    /// The agent list stays in one column, and this is why.
-    ///
-    /// Seventeen toggles is a tall section, and splitting it in two would
-    /// halve it — the design review recommended exactly that. It cannot be
-    /// done here: each toggle's subtitle is the provider's `setupHint`, held
-    /// to one line, and the widest is 378pt. One column gives it 424; two
-    /// would give 206, and five of the seventeen would truncate — including
-    /// the longest by a wide margin, which is the one telling somebody where
-    /// the Codex binary lives inside ChatGPT.app.
-    ///
-    /// Widening the panel and splitting the list are the same space spent
-    /// twice. The hint is the instruction for fixing a provider that is not
-    /// signed in, so the height is what gives way.
-    static let agentListColumns = 1
-
-    /// Between columns, if there is ever more than one.
-    static let agentListGutter: CGFloat = 12
-
     /// Settings arrived as seven sections in one scrolling column — about
     /// 1,600pt of content against a 13" display's 715, so two fifths of it
     /// was reachable at a time and the section you wanted was usually off
@@ -718,6 +699,17 @@ struct SettingsView: View {
         let here = rows.filter(\.present)
         let elsewhere = rows.filter { !$0.present }
 
+        // One column, though seventeen toggles is a tall section and the
+        // design review twice recommended splitting it.
+        //
+        // The first argument against was width: each subtitle carries the
+        // provider's setup hint, and halving the line would truncate them.
+        // That argument is gone — the subtitle wraps now. The one that
+        // remains is plainer. This is a list of checkboxes you scan for the
+        // one you want, and column-major reading makes "the next agent
+        // after this one" mean the row below on the left and then jump to
+        // the top on the right. The present/absent split below already does
+        // the work that the height was being spent on.
         return VStack(alignment: .leading, spacing: 7) {
             ForEach(here) { agentToggle($0) }
             if !elsewhere.isEmpty {
@@ -935,8 +927,23 @@ private struct Toggle: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.system(size: 11.5))
                     if let subtitle {
+                        // Two lines, and it wraps rather than truncating.
+                        //
+                        // This is where an agent's setup hint is drawn, and
+                        // an agent that is not signed in but has sessions
+                        // here gets a composed one: "Sessions on this Mac · "
+                        // in front of the hint. For Codex that is 467pt of a
+                        // 424pt line, so the instruction for fixing the very
+                        // thing the row is reporting was cut off mid-path —
+                        // at 420pt and still at 520. A wrap costs one line of
+                        // height on the few rows that need it. A truncation
+                        // costs the reader the instruction, and widening the
+                        // panel far enough to hold the longest of them is not
+                        // something a panel can do: the login-item refusal
+                        // below is a whole sentence.
                         Text(subtitle).font(.system(size: 9.5)).foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()

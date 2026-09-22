@@ -47,6 +47,21 @@ enum RowMetrics {
     static let listInset: CGFloat = 6
     /// Between two columns of rows.
     static let gutter: CGFloat = 12
+    /// One column's inner width — what a row actually gets.
+    ///
+    /// The list's horizontal inset is applied once, to the stack of columns,
+    /// not to each column. Subtracting it from every column charged it twice
+    /// and left the two-column panel 12pt wider than the content inside it:
+    /// exact at one column, so the error only appeared in the layout the
+    /// panel had just gained.
+    ///
+    /// Stated as a function with an identity the test asserts — the columns,
+    /// the gutters between them and the two insets add up to the panel.
+    static func columnInner(panel: CGFloat, columns: Int, inset: CGFloat) -> CGFloat {
+        let count = CGFloat(max(1, columns))
+        return (panel - 2 * inset - gutter * (count - 1)) / count
+    }
+
     /// The plan label on a row's second line. Matched to the widest model
     /// name, which is what occupies that slot when a model is known — so the
     /// line's width does not depend on which of the two a row happens to
@@ -160,7 +175,9 @@ struct DashboardView: View {
                                 // rather than spreading them down its height.
                                 if columns > 1 { Spacer(minLength: 0) }
                             }
-                            .frame(width: columnWidth - (reduced ? 10 : 12))
+                            .frame(width: RowMetrics.columnInner(
+                                panel: panelWidth, columns: columns,
+                                inset: reduced ? 5 : 6))
                         }
                     }
                     .padding(.horizontal, reduced ? 5 : 6).padding(.vertical, 5)

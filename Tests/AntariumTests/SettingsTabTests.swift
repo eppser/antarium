@@ -122,42 +122,57 @@ struct SettingsTabTests {
 @MainActor
 struct SettingsWidthTests {
 
-    /// A `Toggle`'s subtitle here is held to one line and carries each
-    /// provider's `setupHint` — the one string that says how to fix a
-    /// provider that is not signed in. At 420pt the longest of them
-    /// truncated, so the panel was hiding its own instructions.
-    @Test("Every provider's setup hint fits the panel")
-    func setupHintsFit() {
-        let font = NSFont.systemFont(ofSize: 10, weight: .regular)
+    /// What the panel actually draws under an agent's name.
+    ///
+    /// The first version of this measured `provider.setupHint` at 10pt. The
+    /// view draws neither: it draws `row.detail` at 9.5pt, and `detail`
+    /// composes "Sessions on this Mac · " in front of the hint for an agent
+    /// that has sessions here but is not signed in. For Codex that is 467pt
+    /// against a 424pt line — so the test passed while the panel truncated
+    /// the instruction for fixing exactly the state the row was reporting.
+    ///
+    /// It wraps to a second line now, so the question is whether two lines
+    /// are enough rather than whether one is.
+    @Test("Every subtitle the agent list can draw fits two lines")
+    func subtitlesFitTwoLines() {
+        let font = NSFont.systemFont(ofSize: 9.5)
         // The subtitle is inset by the toggle's control and the panel's own
         // padding; 96pt is the space those take before any text is drawn.
-        // Divided by the column count, so splitting the list is checked
-        // against the hints rather than discovered by truncating them: the
-        // design review proposed two columns here, which would give each hint
-        // 206pt against a widest of 378.
-        let columns = CGFloat(SettingsView.agentListColumns)
-        let available = (SettingsView.width - 96
-                         - SettingsView.agentListGutter * (columns - 1)) / columns
+        let line = SettingsView.width - 96
+        let providers = ProviderRegistry.all
+        // Both states that compose a subtitle, over every shipped provider.
+        let states = [(false, true), (false, false), (true, true), (true, false)]
         var widest = 0.0, worst = ""
-        for provider in ProviderRegistry.all {
-            let w = (provider.setupHint as NSString).size(withAttributes: [.font: font]).width
-            if w > widest { widest = w; worst = provider.setupHint }
+        for (signedIn, hasSessions) in states {
+            let rows = SettingsView.agentRows(
+                providers: providers, enabled: [],
+                evidence: providers.map { .init(id: $0.id, signedIn: signedIn,
+                                                hasSessions: hasSessions) })
+            for row in rows {
+                let w = (row.detail as NSString).size(withAttributes: [.font: font]).width
+                if w > widest { widest = w; worst = row.detail }
+            }
         }
-        #expect(widest <= available,
-                Comment(rawValue: "\"\(worst)\" needs \(widest)pt of a \(available)pt line"))
+        #expect(widest > 0, "no subtitles were measured")
+        #expect(widest <= line * 2,
+                Comment(rawValue: "\"\(worst)\" needs \(widest)pt of two \(line)pt lines"))
     }
 
-    /// And the fit is not achieved by the panel being enormous: the widest
-    /// hint should use most of the line it is given, or the width is padding.
-    @Test("The panel is not wider than its longest instruction needs")
-    func widthIsNotExcessive() {
-        let font = NSFont.systemFont(ofSize: 10, weight: .regular)
-        let widest = ProviderRegistry.all
-            .map { ($0.setupHint as NSString).size(withAttributes: [.font: font]).width }
-            .max() ?? 0
-        #expect(SettingsView.width - 96 - widest <= 80,
-                Comment(rawValue: "the widest hint is \(widest)pt on a "
-                        + "\(SettingsView.width - 96)pt line"))
+    /// And the wrap is declared, or the measurement above is about a panel
+    /// that still cuts the text off at one line.
+    @Test("The subtitle wraps rather than truncating")
+    func subtitleWraps() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
+        let start = try #require(source.range(of: "Text(subtitle)"),
+                                 "the toggle no longer draws a subtitle")
+        let declaration = String(source[start.lowerBound...].prefix(220))
+        #expect(declaration.contains(".lineLimit(2)"),
+                Comment(rawValue: "the subtitle is held to one line: \(declaration)"))
+        #expect(declaration.contains("fixedSize(horizontal: false, vertical: true)"),
+                "without this the second line has no height to wrap into")
     }
 
     @Test("The panel is at least as wide as the dashboard's own column")
