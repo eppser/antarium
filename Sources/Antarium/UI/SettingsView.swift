@@ -521,7 +521,8 @@ struct SettingsView: View {
             // after the attempt: a registration macOS refuses springs the
             // switch back rather than showing a preference that is not real.
             Toggle(title: "Open at Login",
-                   subtitle: "Start Antarium when you log in to this Mac",
+                   subtitle: LaunchAtLogin.refusal
+                       ?? "Start Antarium when you log in to this Mac",
                    on: LaunchAtLogin.isEnabled) { on in
                 LaunchAtLogin.set(on)
                 model.update { }

@@ -700,3 +700,8 @@ the harness cache leaves its old versions behind | Sources/Antarium/Core/Harness
 the harness cleanup deletes the live cache | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json"\]|    static let supersededCacheFilenames = ["harness-cache-v1.json", cacheFilename]|
 only the app secures the settings folder | Sources/Antarium/main.swift | s|^Config.secure(Config.directory)$||
 an open folder is left open | Sources/Antarium/Core/Config.swift | s|            guard current \& 0o077 != 0 else { return true }|            guard false else { return true }|
+a successful login change complains anyway | Sources/Antarium/Core/LaunchAtLogin.swift | s|        guard requested != achieved else { return nil }||
+the login refusal always reads as switching on | Sources/Antarium/Core/LaunchAtLogin.swift | s|        let action = requested ? "switch this on" : "switch this off"|        let action = "switch this on"|
+the login refusal drops the system's reason | Sources/Antarium/Core/LaunchAtLogin.swift | s|        let reason = error.map { "macOS refused: \\($0)" }|        let reason: String? = nil ?? Optional("macOS refused.")|
+a refused login switch says nothing | Sources/Antarium/Core/LaunchAtLogin.swift | s|        guard requested != achieved else { return nil }|        if true { return nil }|
+the settings panel hides the refusal | Sources/Antarium/UI/SettingsView.swift | s|                   subtitle: LaunchAtLogin.refusal|                   subtitle: Optional<String>.none|
