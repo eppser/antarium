@@ -289,3 +289,61 @@ struct OnboardingCountContractTests {
                 "the callback is never handed back")
     }
 }
+
+/// The case a real install reaches: an agent that was there at the first
+/// launch and not signed in, signed into a week later.
+///
+/// Adoption is for agents the user has never been asked about — ones that
+/// shipped after their choice. This one was on the list and showed no
+/// evidence, so it was passed over, and passing over is a kind of answer.
+/// Switching it on later is therefore the user's to do, and the settings
+/// panel has to make that possible rather than leaving them to guess.
+///
+/// Both halves matter and only together: a rule that quietly declines to
+/// add something is defensible when the thing is visible and one item away,
+/// and indefensible when it is not.
+@Suite("An agent signed into later is offered, not added")
+struct SignedInLaterTests {
+
+    private func agent(_ id: String, signedIn: Bool)
+        -> (id: String, signedIn: Bool) { (id, signedIn) }
+
+    @Test("Signing in later does not add it to the bar by itself")
+    func notAdoptedOnSigningIn() {
+        // A first run saw it, found nothing, and recorded having seen it.
+        let seen: Set<String> = ["already-here", "chosen"]
+        let adopted = AgentAutoEnable.adoptions(
+            known: seen, enabled: ["chosen"],
+            providers: [agent("chosen", signedIn: true),
+                        agent("already-here", signedIn: true)])
+        #expect(adopted.isEmpty,
+                Comment(rawValue: "\(adopted.sorted()) was added to the bar without being asked"))
+    }
+
+    /// The distinction that makes the rule coherent: one the user has never
+    /// been shown is adopted, one they were shown is not.
+    @Test("An agent that was never on the list is still adopted")
+    func newAgentIsStillAdopted() {
+        let adopted = AgentAutoEnable.adoptions(
+            known: ["chosen"], enabled: ["chosen"],
+            providers: [agent("chosen", signedIn: true), agent("brand-new", signedIn: true)])
+        #expect(adopted == ["brand-new"])
+    }
+
+    /// And the settings panel offers it, which is what the rule rests on.
+    @Test("The settings list shows it as found here, waiting to be switched on")
+    func settingsOffersIt() {
+        let providers = ProviderRegistry.all
+        let id = providers.first?.id ?? "claude-code"
+        let rows = SettingsView.agentRows(
+            providers: providers, enabled: [],
+            evidence: [AgentAutoEnable.Evidence(id: id, signedIn: true, hasSessions: false)])
+        let row = rows.first { $0.id == id }
+        #expect(row?.present == true, "an agent signed in on this Mac is not marked as found")
+        #expect(row?.enabled == false)
+        #expect(row?.detail.contains("Signed in") == true,
+                Comment(rawValue: "the row does not say why it is offered: " + (row?.detail ?? "")))
+        #expect(SettingsView.agentCountSummary(rows).contains("more found here"),
+                "the panel does not say that something was found and not shown")
+    }
+}
