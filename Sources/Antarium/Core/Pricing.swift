@@ -59,6 +59,28 @@ enum Pricing {
         return built
     }
 
+    /// The day the rates were taken from the vendor's published page, as the
+    /// table states it, or nothing when no table says.
+    ///
+    /// The file has carried this since it was written and nothing read it. A
+    /// cost is presented as an estimate everywhere it appears, and an
+    /// estimate rests on prices from a particular day: if a vendor changes
+    /// theirs, every figure here is quietly wrong and the row says only that
+    /// it was an estimate, never of when. The user's own table wins, as it
+    /// does for the rates themselves.
+    static var asOf: String? {
+        func day(_ url: URL?) -> String? {
+            guard let url, let data = try? Data(contentsOf: url),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return nil }
+            let value = (object["asOf"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (value?.isEmpty == false) ? value : nil
+        }
+        return day(Config.directory.appendingPathComponent("pricing.json"))
+            ?? day(AppResources.bundle.url(forResource: "pricing", withExtension: "json"))
+    }
+
     private static func build() -> [(prefix: String, rate: Rate)] {
         func load(_ url: URL?) -> [Entry] {
             guard let url, let data = try? Data(contentsOf: url),

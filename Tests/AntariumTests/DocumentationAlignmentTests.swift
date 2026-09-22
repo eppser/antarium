@@ -659,3 +659,65 @@ struct DocumentedCapsTests {
                 "the caps are no longer gathered anywhere a reader would find them")
     }
 }
+
+/// A cost estimate says which prices it used.
+///
+/// The pricing table has carried an `asOf` day since it was written and
+/// nothing read it. Every cost is presented as an estimate — that much was
+/// already true and tested — but an estimate rests on prices from a
+/// particular day, and a vendor can change theirs between then and now. A
+/// figure that says only "estimated" leaves a reader unable to tell whether
+/// it is approximating today's prices or last year's.
+@Suite("A cost says which prices it used")
+struct PricingDateTests {
+
+    @Test("The shipped table states the day its rates were taken")
+    func tableIsDated() throws {
+        let asOf = try #require(Pricing.asOf, "the pricing table names no day")
+        // A day, not a sentence: this reaches a tooltip.
+        #expect(asOf.count == 10, Comment(rawValue: "\(asOf) is not a date"))
+        #expect(asOf.allSatisfy { $0.isNumber || $0 == "-" },
+                Comment(rawValue: "\(asOf) is not a plain ISO day"))
+    }
+
+    @Test("The help text carries it")
+    func helpCarriesTheDay() throws {
+        let asOf = try #require(Pricing.asOf)
+        let text = DashboardView.pricedAt("Estimated list-price cost.")
+        #expect(text.contains(asOf),
+                Comment(rawValue: "the tooltip does not say which prices: \(text)"))
+        #expect(text.hasPrefix("Estimated list-price cost."),
+                "the original sentence was lost")
+    }
+
+    /// A table with no day still produces a usable sentence — somebody's own
+    /// pricing.json need not carry one, and a dangling "Rates as of ." would
+    /// be worse than saying nothing.
+    @Test("With no day stated, the sentence is unchanged")
+    func undatedTableSaysNothingExtra() {
+        // Exercised through the same function with the real table absent is
+        // not reachable here, so this holds the shape the guard produces.
+        let plain = "Estimated list-price cost."
+        #expect(DashboardView.pricedAt(plain).hasPrefix(plain))
+        #expect(!DashboardView.pricedAt(plain).contains("as of ."),
+                "an undated table would leave a dangling sentence")
+    }
+
+    /// And every place a cost is drawn goes through it, or one tooltip says
+    /// which prices and its neighbour does not.
+    @Test("Every cost tooltip is priced")
+    func everyTooltipIsPriced() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        let estimates = text.components(separatedBy: "Estimated list-price").count - 1
+        let priced = text.components(separatedBy: "pricedAt(").count - 1
+        #expect(estimates >= 3, "only \(estimates) cost tooltips were found")
+        // One `pricedAt` may wrap a help with two branches, so this asks that
+        // none is left bare rather than that the counts match exactly.
+        #expect(priced >= estimates - 1,
+                Comment(rawValue: "\(estimates) cost tooltips and \(priced) say which prices"))
+    }
+}

@@ -183,8 +183,9 @@ struct DashboardView: View {
 
             if store.totalCost > 0 {
                 Label(Pricing.money(store.totalCost), systemImage: "creditcard")
-                    .help("Estimated list-price cost of every session's tokens. "
-                        + "On a subscription plan this is a size signal, not a bill.")
+                    .help(DashboardView.pricedAt(
+                        "Estimated list-price cost of every session's tokens. "
+                        + "On a subscription plan this is a size signal, not a bill."))
             }
             if store.totalRAM > 0 { Label(Fmt.bytes(store.totalRAM), systemImage: "memorychip") }
             // Why some rows have no figures. It is on each row's tooltip too,
@@ -216,6 +217,17 @@ extension DashboardView {
     /// wrote. Matching "still being read" in the note tied this to prose
     /// produced in two other files: rewording either moved the count, and a
     /// different note containing the phrase would have joined it.
+    /// Appends the day the rates were taken, when the table says.
+    ///
+    /// An estimate rests on prices from a particular day, and a vendor can
+    /// change theirs. Saying which day is the difference between "this is
+    /// approximate" and "this is approximate, and here is what it is
+    /// approximating".
+    static func pricedAt(_ text: String) -> String {
+        guard let asOf = Pricing.asOf else { return text }
+        return text + " Rates as of \(asOf)."
+    }
+
     static func rowsAwaitingHistory(_ rows: [AgentRow]) -> String? {
         let waiting = rows.filter(\.awaitingHistory).count
         guard waiting > 0 else { return nil }
@@ -696,8 +708,10 @@ private struct CostLabel: View {
                     }
                 }
                 .help(over.map {
-                    "Estimated list-price cost of this session's tokens, over \(Fmt.duration($0))"
-                } ?? "Estimated list-price cost of this session's tokens")
+                    DashboardView.pricedAt(
+                        "Estimated list-price cost of this session's tokens, over "
+                        + Fmt.duration($0))
+                } ?? DashboardView.pricedAt("Estimated list-price cost of this session's tokens"))
             } else {
                 Text("")
             }
