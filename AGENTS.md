@@ -210,6 +210,21 @@ official evidence.
   renamed and then reports that every one of nothing was fine. Count what was
   examined and refuse a count that is too low — three instances of this were
   found in one afternoon, in Swift and in shell.
+- Flag a check that loops over the very list it is pinning. Asserting that
+  each entry of `CommandPath.fallbacks` is searched says nothing about an
+  empty `fallbacks`, and emptying it is the change that matters: an app
+  launched from Finder inherits a minimal PATH and has only that list to find
+  an installed agent with. Name the entries the check requires, then assert
+  the declared list is a subset — the loop pins the contents, the literal
+  pins that there are any.
+- Flag a test that names a branch its inputs cannot reach. "With no day
+  stated, the sentence is unchanged" called a function that reads the bundled
+  pricing table, and that table always states a day, so it checked the dated
+  sentence for a defect only the undated one can have; deleting the guard
+  left it green, and its own comment said the branch was "not reachable
+  here". When a comment concedes that, the fix is a parameter, not a
+  narrower assertion — and then assert both sides, or "return it unchanged"
+  can be the whole implementation.
 - Flag logic keyed on a string the user reads. The dashboard's "N still
   reading" counted rows whose note contained "still being read", a sentence
   written in two other files; the remote verifier asked whether a state's
