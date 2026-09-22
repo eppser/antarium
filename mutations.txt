@@ -687,3 +687,6 @@ differing fixture values are not named | Sources/Antarium/Core/HarnessCompatibil
 the walkthrough stops naming the fixture a reader must write | docs/TECHNICAL.md | s|id>.quota-fixture.json|id>.nothing.json|
 the worked example stops saying when it charts nothing | docs/TECHNICAL.md | s|`max_budget` is frequently `null`|A budget is frequently absent|
 the worked example maps the wrong field | docs/TECHNICAL.md | s|      "used": "info.spend",|      "used": "info.token",|
+the configured probe drops its lock | Sources/Antarium/Core/ConfiguredProbe.swift | /static func value/,/^        return value$/ s|        lock.lock()||; /static func value/,/^        return value$/ s|        defer { lock.unlock() }||
+the transcript cache drops its lock on read | Sources/Antarium/Core/TranscriptStats.swift | /static func of/,/^        if stats.readerState == nil/ s|        lock.lock()||; /static func of/,/^        if stats.readerState == nil/ s|        lock.unlock()||
+the configured probe recomputes under contention | Sources/Antarium/Core/ConfiguredProbe.swift | s|        if let entry = entries\[key\], now >= entry.at, now - entry.at < ttl {|        if false, let entry = entries[key] {|

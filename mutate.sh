@@ -157,7 +157,7 @@ while IFS='|' read -r name file expression; do
                 printf '  %-46s caught (never finished)\n' "$name"
             elif grep -q '^✘ ' "$BACKUP/out"; then
                 printf '  %-46s caught\n' "$name"
-            elif grep -qE 'Fatal error|Swift runtime failure|Trace/BPT trap|Illegal instruction' "$BACKUP/out"; then
+            elif grep -qE 'Fatal error|Swift runtime failure|Trace/BPT trap|Illegal instruction|exited with unexpected signal' "$BACKUP/out"; then
                 # Checked before the `error:` test below, because a trap
                 # prints "Fatal error:" — which contains "error:" — and so
                 # was reported as the tests failing to compile. Both are
@@ -165,6 +165,13 @@ while IFS='|' read -r name file expression; do
                 # which is the kind of report that sends somebody looking for
                 # a build problem that is not there. Two mutations bounding
                 # network numbers were announced that way in one afternoon.
+                #
+                # "exited with unexpected signal" is the same event wearing a
+                # different coat: when the test process aborts rather than
+                # trapping in Swift, SwiftPM reports the signal and prints no
+                # Swift message at all. Removing a lock from a cache does
+                # exactly that — sixty-four threads into one dictionary is a
+                # SIGABRT, not a `Fatal error:` line.
                 printf '  %-46s caught (the suite did not survive it)\n' "$name"
             elif grep -q 'error:' "$BACKUP/out"; then
                 # The sources still build — that is checked above — so an
