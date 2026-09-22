@@ -894,3 +894,6 @@ a host beginning with a dash is accepted | Sources/Antarium/Core/RemoteTmux.swif
 the host list is normalised on only one side | Sources/Antarium/UI/Settings.swift | s|        get { RemoteTmux.normalizedHosts(Config.strings("remoteTmuxHosts") ?? \[\]) }|        get { Config.strings("remoteTmuxHosts") ?? [] }|
 a shell metacharacter is accepted in a host | Sources/Antarium/Core/RemoteTmux.swift | /^            && trimmed.rangeOfCharacter(from: CharacterSet(charactersIn:/d
 a host with whitespace in the middle is accepted | Sources/Antarium/Core/RemoteTmux.swift | s|        return !trimmed.contains(where: { \$0.isWhitespace })|        return true \&\& !false|
+a second resource directory is excluded unremarked | .gitignore | s|^Resources/marks/\*.png$|Resources/marks/*.png\nResources/quota-fixtures/*.json|
+the artwork stops explaining why it is absent | Resources/marks/README.md | s|ignored by Git|managed separately|
+the artwork readme stops naming the fallback | Resources/marks/README.md | s|vector or initial-letter fallbacks|other marks|
