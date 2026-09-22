@@ -750,3 +750,7 @@ a transcript backlog is not marked | Sources/Antarium/Core/AgentScan.swift | s| 
 the remote verifier reads a state's label again | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|         "allStatesUnknown":rows.allSatisfy(\\.state.isUnobserved),|         "allStatesUnknown":rows.allSatisfy { $0.state.label == "Unknown" },|
 any state counts as unobserved | Sources/Antarium/Core/AgentScan.swift | s|            if case .unobserved = self { return true }|            return true; if case .unobserved = self { return true }|
 a found agent is not reported as found | Sources/Antarium/UI/SettingsView.swift | s|        let waiting = rows.filter { \$0.present \&\& !\$0.enabled }.count|        let waiting = 0|
+the window cap moves and the reference does not | Sources/Antarium/Providers/DescriptorProvider.swift | s|    static let maxWindows = 64|    static let maxWindows = 640|
+the remote row cap moves and the reference does not | Sources/Antarium/Core/RemoteTmux.swift | s|    static let maxRows = 256|    static let maxRows = 2560|
+the command session cap moves and the reference does not | Sources/Antarium/Core/HarnessEngine.swift | s|    static let maxCommandSessions = 256|    static let maxCommandSessions = 2560|
+the reference stops listing the caps | docs/TECHNICAL.md | s|The caps are|The limits include|

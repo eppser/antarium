@@ -582,3 +582,80 @@ struct DescriptorFieldsAreDocumentedTests {
         }
     }
 }
+
+/// The caps the reference states are the caps the code applies.
+///
+/// docs/TECHNICAL.md lists six: 64 usage windows per response, 256 rows per
+/// remote host, 256 sessions per command harness, 400 files per file
+/// harness, 2,000 rows per SQLite query, 2,000 cloud tasks per inventory. It
+/// says three of them were missing and were found one at a time, and that
+/// the rule is written down "so the next reader inherits it rather than
+/// repeating them".
+///
+/// A reader inherits it only if it is true. A cap that moves in the code and
+/// not in the sentence leaves the document describing a bound nothing
+/// applies — and these are the bounds that keep a large file from becoming a
+/// hung menu bar.
+@Suite("The documented caps are the ones in force")
+struct DocumentedCapsTests {
+
+    private var reference: String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return (try? String(contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"),
+                            encoding: .utf8)) ?? ""
+    }
+
+    /// The four that are named constants, asked of the constant.
+    @Test("Every cap with a name matches its sentence")
+    func namedCapsMatch() {
+        let text = reference
+        #expect(DescriptorProvider.maxWindows == 64)
+        #expect(text.contains("64 usage windows"),
+                "the reference no longer states the window cap")
+
+        #expect(RemoteTmux.maxRows == 256)
+        #expect(text.contains("256 rows per\nremote host") || text.contains("256 rows per remote host"),
+                "the reference no longer states the remote row cap")
+
+        #expect(HarnessEngine.maxCommandSessions == 256)
+        #expect(text.contains("256 sessions per command harness"),
+                "the reference no longer states the command session cap")
+
+        #expect(RemoteTmux.fleetLimit == 256, "the fleet limit moved")
+    }
+
+    /// The two written inline, asked of the source that applies them. Weaker
+    /// — it checks the number is present rather than used — and said so
+    /// rather than implying the constant exists.
+    @Test("Every cap written inline appears where it is applied")
+    func inlineCapsMatch() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = reference
+
+        let engine = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/HarnessEngine.swift"), encoding: .utf8)
+        #expect(text.contains("400 files per file harness"))
+        #expect(engine.contains("400)"), "the file cap is not applied in the engine")
+
+        let sqlite = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/BoundedSQLite.swift"), encoding: .utf8)
+        #expect(text.contains("2,000 rows per SQLite query"))
+        #expect(sqlite.contains("2_000"), "the SQLite row cap is not applied")
+
+        let cloud = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/CloudScan.swift"), encoding: .utf8)
+        #expect(text.contains("2,000 cloud tasks per inventory"))
+        #expect(cloud.contains("2_000"), "the cloud task cap is not applied")
+    }
+
+    /// And the sentence still exists to be checked against.
+    @Test("The reference still lists the caps in one place")
+    func theListSurvives() {
+        #expect(reference.contains("The caps are"),
+                "the caps are no longer gathered anywhere a reader would find them")
+    }
+}
