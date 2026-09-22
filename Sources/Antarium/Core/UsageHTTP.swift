@@ -274,6 +274,10 @@ enum UsageHTTP {
     /// Returns nil for every other shape rather than guessing, including dates
     /// the formatter would reject: the calendar arithmetic below is only valid
     /// for a well-formed date, so the ranges are checked rather than assumed.
+    /// Sub-second digits read. Nine is nanoseconds — the finest an ISO-8601
+    /// timestamp customarily states and finer than a `Date` can hold.
+    static let maxFractionDigits = 9
+
     static func fastUTC(_ text: String) -> Date? {
         let b = Array(text.utf8)
         guard b.count >= 20, b.last == UInt8(ascii: "Z"),
@@ -294,12 +298,29 @@ enum UsageHTTP {
               let hour = digits(11..<13), let minute = digits(14..<16),
               let second = digits(17..<19) else { return nil }
 
+        // Digits without accumulating them. `digits` builds `value * 10 +
+        // digit` with no ceiling, which is safe over the fixed two- and
+        // four-wide fields above and was not over the fraction, whose length
+        // nothing bounded: twenty digits overflow `Int` and trap, and a
+        // transcript timestamp is written by another application.
+        func allDigits(_ range: Range<Int>) -> Bool {
+            for index in range where !(48...57).contains(b[index]) { return false }
+            return true
+        }
+
         var fraction = 0.0
         if b.count > 20 {
             guard b[19] == UInt8(ascii: ".") else { return nil }
             let end = b.count - 1                       // before the trailing Z
-            guard end > 20, let raw = digits(20..<end) else { return nil }
-            fraction = Double(raw) / pow(10, Double(end - 20))
+            guard end > 20 else { return nil }
+            // Nine digits is nanoseconds, and a `Date` holds nothing finer, so
+            // the rest need only be digits for the timestamp to be well formed.
+            // Refusing a long fraction outright would discard a legal ISO-8601
+            // date; reading all of it is what trapped.
+            let significant = min(end, 20 + maxFractionDigits)
+            guard let raw = digits(20..<significant), allDigits(significant..<end)
+            else { return nil }
+            fraction = Double(raw) / pow(10, Double(significant - 20))
         } else {
             guard b[19] == UInt8(ascii: "Z") else { return nil }
         }

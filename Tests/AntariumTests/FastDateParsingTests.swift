@@ -14,6 +14,41 @@ struct FastDateParsingTests {
         return fractional.date(from: text) ?? ISO8601DateFormatter().date(from: text)
     }
 
+    /// A transcript is written by another application, and the fractional
+    /// second had no length bound. The parser accumulates it as
+    /// `value * 10 + digit`, so twenty digits overflowed `Int` and trapped —
+    /// taking the whole scan down on a timestamp that is legal ISO-8601.
+    ///
+    /// Nine digits are read and the rest are checked, so a long fraction
+    /// still yields the right instant rather than being refused: the seconds
+    /// are what matter, and discarding the record would lose a real activity
+    /// time.
+    @Test("A fraction longer than a Date can hold is read, not accumulated",
+          arguments: [9, 18, 19, 20, 25, 64, 400])
+    func longFractionsAreBounded(width: Int) throws {
+        let text = "2026-09-20T18:30:00." + String(repeating: "9", count: width) + "Z"
+        let parsed = UsageHTTP.fastUTC(text)
+        #expect(parsed != nil, Comment(rawValue: "\(width) fractional digits was refused"))
+        // 0.999… of a second, whatever the width. Measured against the whole
+        // second from the formatter rather than a hand-written epoch, so the
+        // reference is the one the rest of this suite already trusts.
+        let base = try #require(viaFormatter("2026-09-20T18:30:00Z"))
+        let offset = (parsed?.timeIntervalSince1970 ?? 0) - base.timeIntervalSince1970
+        #expect(abs(offset - 0.999_999_999) < 1e-6,
+                Comment(rawValue: "\(width) digits landed \(offset)s into the second"))
+    }
+
+    /// And a long run that is not all digits is still refused, or "stop
+    /// reading after nine" would be a way to smuggle anything past the check.
+    @Test("A long fraction containing a non-digit is still refused")
+    func longFractionsAreStillValidated() {
+        let bad = "2026-09-20T18:30:00." + String(repeating: "9", count: 20) + "x"
+            + String(repeating: "9", count: 20) + "Z"
+        #expect(UsageHTTP.fastUTC(bad) == nil, "a non-digit past the ninth was not noticed")
+        // The formatter refuses it too, so the fast path is not stricter.
+        #expect(viaFormatter(bad) == nil)
+    }
+
     @Test("Every accepted shape parses to the same instant the formatter gives")
     func fastPathAgreesWithTheFormatter() {
         let samples = [

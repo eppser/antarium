@@ -773,3 +773,7 @@ the shell timeout terminates a process it did not start | Sources/Antarium/Core/
 a Finder-launched app searches nowhere for an agent | Sources/Antarium/Core/CommandPath.swift | s|static let fallbacks = \["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"\]|static let fallbacks: [String] = []|
 homebrew is dropped from the search path | Sources/Antarium/Core/CommandPath.swift | s|\["/opt/homebrew/bin", "/usr/local/bin"|["/usr/local/bin"|
 a declared fallback is never actually searched | Sources/Antarium/Core/CommandPath.swift | s|+ fallbacks + \[home + "/.local/bin"\]|+ [home + "/.local/bin"]|
+a long fractional second is accumulated until it traps | Sources/Antarium/Core/UsageHTTP.swift | s|let significant = min(end, 20 + maxFractionDigits)|let significant = end|
+digits past the ninth are never looked at | Sources/Antarium/Core/UsageHTTP.swift | s|guard let raw = digits(20..<significant), allDigits(significant..<end)|guard let raw = digits(20..<significant)|
+the fraction is scaled by the digits present, not the digits read | Sources/Antarium/Core/UsageHTTP.swift | s|fraction = Double(raw) / pow(10, Double(significant - 20))|fraction = Double(raw) / pow(10, Double(end - 20))|
+a long fraction is refused rather than read | Sources/Antarium/Core/UsageHTTP.swift | s|guard end > 20 else { return nil }|guard end > 20, end <= 20 + maxFractionDigits else { return nil }|
