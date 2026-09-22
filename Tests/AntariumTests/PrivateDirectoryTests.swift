@@ -270,10 +270,11 @@ struct AgentListingTests {
 @MainActor
 struct DashboardWithheldTests {
 
-    private func row(_ note: String?) -> AgentRow {
+    private func row(note: String? = nil, awaiting: Bool = false) -> AgentRow {
         var row = AgentRow(id: UUID().uuidString, agentID: "claude-code", name: "s",
                            cwd: "/p", state: .waiting)
         row.note = note
+        row.awaitingHistory = awaiting
         return row
     }
 
@@ -283,13 +284,70 @@ struct DashboardWithheldTests {
         // still being read. A cost of $670 appearing later is a worse surprise
         // than a line saying it is coming.
         #expect(DashboardView.rowsAwaitingHistory([]) == nil)
-        #expect(DashboardView.rowsAwaitingHistory([row(nil), row("Some other problem.")]) == nil)
         #expect(DashboardView.rowsAwaitingHistory(
-            [row("Transcript history is still being read.")]) == "1 still reading")
+            [row(), row(note: "Some other problem.")]) == nil)
         #expect(DashboardView.rowsAwaitingHistory(
-            [row("Transcript history is still being read."),
-             row("Trace history is still being read."),
-             row(nil)]) == "2 still reading")
+            [row(note: "Transcript history is still being read.", awaiting: true)])
+            == "1 still reading")
+        #expect(DashboardView.rowsAwaitingHistory(
+            [row(note: "Transcript history is still being read.", awaiting: true),
+             row(note: "Trace history is still being read.", awaiting: true),
+             row()]) == "2 still reading")
+    }
+
+    /// A note that says it and a row that is not marked must not be counted,
+    /// which is the whole reason this stopped matching prose: two other files
+    /// write that sentence, and a third could.
+    @Test("A note saying it is not enough on its own")
+    func theSentenceAloneDoesNotCount() {
+        #expect(DashboardView.rowsAwaitingHistory(
+            [row(note: "Trace history is still being read.")]) == nil,
+            "the summary is counting sentences again")
+    }
+
+    /// The other path to the same fact. A transcript longer than one read
+    /// budget is backlogged after the first pass, which is what makes the
+    /// benchmark say "still catching up" — and the row must carry it, or the
+    /// footer counts the engine's rows and silently omits Claude's.
+    @Test("A transcript still being read marks its row")
+    func transcriptBacklogMarksTheRow() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backlog-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        // Past the four-mebibyte read budget, so one pass leaves more behind.
+        let line = #"{"type":"assistant","message":{"usage":{"input_tokens":1,"output_tokens":1}}}"# + "\n"
+        let block = String(repeating: line, count: 1_000)
+        var text = ""
+        while text.utf8.count < 5 * 1_024 * 1_024 { text += block }
+        try Data(text.utf8).write(to: url)
+
+        let stats = try #require(TranscriptStats.of(url))
+        #expect(stats.isBacklogged, "a file past the read budget was not reported as behind")
+        var row = AgentRow(id: "r", agentID: "claude-code", name: "s",
+                           cwd: "/p", state: .waiting)
+        AgentScan.applyTranscript(stats, to: &row)
+        #expect(row.awaitingHistory, "the row was not marked as still reading")
+        #expect(DashboardView.rowsAwaitingHistory([row]) == "1 still reading")
+    }
+
+    /// And the fact is set where the sentence is written, so the footer and
+    /// the tooltip still describe the same rows. Driven through the real
+    /// function rather than by setting both by hand.
+    @Test("A backlogged session gets both the fact and the note")
+    func backlogSetsBoth() throws {
+        var session = HarnessEngine.Session()
+        session.sourceBacklogged = true
+        var row = AgentRow(id: "r", agentID: "claude-code", name: "s",
+                           cwd: "/p", state: .waiting)
+        let descriptor = try HarnessDocument.decode(JSONSerialization.data(withJSONObject: [
+            "formatVersion": 1, "id": "backlog", "name": "Backlog", "process": [:],
+            "source": ["kind": "jsonl", "path": "/synthetic", "glob": "*.jsonl"],
+            "map": ["cwd": "cwd"],
+        ])).descriptor
+        AgentScan.apply(session, to: &row, descriptor, processAlive: true)
+        #expect(row.awaitingHistory, "the row was not marked as still reading")
+        #expect(row.note?.contains("still being read") == true,
+                Comment(rawValue: "the note no longer says why: \(row.note ?? "nil")"))
     }
 }
 

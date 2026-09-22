@@ -68,7 +68,7 @@ presence agents vanish from first run | Sources/Antarium/Core/Onboarding.swift |
 benchmark hides an unabsorbed backlog | Sources/Antarium/Core/TranscriptStats.swift | s/return cache.values.filter { \$0.backlog == true }.count/return 0/
 record limit back below real transcripts | Sources/Antarium/Core/BoundedTraceReader.swift | s/maxRecord: Int = 2 \* 1_024 \* 1_024/maxRecord: Int = 1_024 * 1_024/
 agent rows hide why their figures are missing | Sources/Antarium/Diagnostics.swift | s/        if let note = r.note, !note.isEmpty { lines.append("    \\(note)") }//
-dashboard hides that totals are incomplete | Sources/Antarium/UI/Dashboard.swift | s/let waiting = rows.filter { (\$0.note ?? "").contains("still being read") }.count/let waiting = 0/
+dashboard hides that totals are incomplete | Sources/Antarium/UI/Dashboard.swift | s|        let waiting = rows.filter(\\.awaitingHistory).count|        let waiting = 0|
 cache reads billed at the input rate | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheRead) / 1_000_000 \* rate.cacheRead|+ Double(usage.cacheRead) / 1_000_000 * rate.input|
 per-million divisor off by a thousand | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.input) / 1_000_000 \* rate.input|Double(usage.input) / 1_000 * rate.input|
 one-hour cache writes dropped from the bill | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheWrite1h) / 1_000_000 \* rate.cacheWrite1h||
@@ -744,3 +744,6 @@ a vendor cli becomes an absolute path | Sources/Antarium/Providers/AmpProvider.s
 the reference drops the context tokens field | docs/TECHNICAL.md | /^| .contextTokens/d
 the reference drops the context window field | docs/TECHNICAL.md | /^| .contextWindow/d
 the reference drops a credential kind | docs/TECHNICAL.md | s|jsonFile|a file|g
+the footer counts sentences again | Sources/Antarium/UI/Dashboard.swift | s|        let waiting = rows.filter(\\.awaitingHistory).count|        let waiting = rows.filter { ($0.note ?? "").contains("still being read") }.count|
+a backlogged row is not marked | Sources/Antarium/Core/AgentScan.swift | s|        row.awaitingHistory = session.sourceBacklogged == true|        row.awaitingHistory = false|
+a transcript backlog is not marked | Sources/Antarium/Core/AgentScan.swift | s|        row.awaitingHistory = stats.isBacklogged|        row.awaitingHistory = false|

@@ -212,10 +212,12 @@ extension DashboardView {
     /// How many rows are withholding figures because their history is still
     /// being read, or nil when none are.
     ///
-    /// Counted from the note the scan already put on each row rather than from
-    /// a second source, so the summary cannot disagree with the tooltips.
+    /// Counted from the fact the scan recorded, not from the sentence it
+    /// wrote. Matching "still being read" in the note tied this to prose
+    /// produced in two other files: rewording either moved the count, and a
+    /// different note containing the phrase would have joined it.
     static func rowsAwaitingHistory(_ rows: [AgentRow]) -> String? {
-        let waiting = rows.filter { ($0.note ?? "").contains("still being read") }.count
+        let waiting = rows.filter(\.awaitingHistory).count
         guard waiting > 0 else { return nil }
         return waiting == 1 ? "1 still reading" : "\(waiting) still reading"
     }

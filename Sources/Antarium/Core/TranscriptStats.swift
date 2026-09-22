@@ -134,6 +134,10 @@ struct TranscriptStats: Codable {
     /// How many transcripts are still being read in. While any are, a scan is
     /// absorbing history rather than doing its steady-state work, and timing
     /// it measures throughput.
+    /// Whether this transcript's history is still being read, as a fact the
+    /// row can carry rather than a sentence it has to match.
+    var isBacklogged: Bool { backlog == true }
+
     static func backloggedCount() -> Int {
         lock.lock()
         defer { lock.unlock() }

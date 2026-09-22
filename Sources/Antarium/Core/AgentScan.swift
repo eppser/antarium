@@ -118,6 +118,15 @@ struct AgentRow: Identifiable {
     /// One figure covering everything, from a harness that reports no split.
     /// Shown instead of the two above, never alongside them.
     var totalTokens: Int?
+    /// This row is withholding its figures because its history has not been
+    /// read yet.
+    ///
+    /// A fact rather than a phrase. The dashboard's summary used to count
+    /// rows whose note contained "still being read", which is business logic
+    /// keyed on display text: two files produce that sentence, and rewording
+    /// either — or writing a different note that happens to contain it —
+    /// moves the count without touching anything that looks like a counter.
+    var awaitingHistory = false
     /// Sub-agents this session spawned. Distinct from tool calls — Kimi's count
     /// was previously shown under the tool icon, which read as 11 tool calls.
     var subAgents: Int?
@@ -528,6 +537,7 @@ enum AgentScan {
     static func applyTranscript(_ stats:TranscriptStats,to row:inout AgentRow) {
         row.activity = stats.activitySeries()
         row.model = stats.model
+        row.awaitingHistory = stats.isBacklogged
         if let issue = stats.usageIssue {
             row.sentTokens = nil; row.receivedTokens = nil; row.totalTokens = nil
             row.toolCalls = nil; row.costUSD = nil; row.contextTokens = nil
@@ -825,6 +835,7 @@ enum AgentScan {
         row.sessionID = session.sessionID
         row.model = session.model
         row.note = nil // Diagnostics describe this observation, not an older failure.
+        row.awaitingHistory = session.sourceBacklogged == true
         if let issue = session.usageIssue {
             row.note = issue
             row.toolCalls = nil; row.turns = nil; row.subAgents = nil
