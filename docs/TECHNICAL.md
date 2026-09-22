@@ -531,7 +531,10 @@ noted below; nothing else differs.
 1. Find the vendor's own statement of the endpoint and the response shape. A
    field path taken from another monitoring tool's source is a guess about
    somebody else's product that happens to work today; `docs/ECOSYSTEM.md`
-   lists the services turned down for exactly that reason.
+   lists the services turned down for exactly that reason. Record its address
+   in `quota.documentation`: an unverified mapping can only be checked by
+   reading that page and comparing, and a reference nobody wrote down leaves
+   the check possible in principle and not in practice.
 2. Write the descriptor with `source.kind` of `none` and a `quota` block.
    `verified` stays `false` until somebody has seen the numbers against a
    live account, and the row says so.
@@ -842,6 +845,15 @@ no real account response is ever committed.
 Set `verified` only after comparing the mapping with the real service. A
 passing fixture proves the mapping resolves, not that the numbers are right.
 Unverified integrations stay visibly marked as such in Settings.
+
+Which is why `quota.documentation` matters most for the unverified ones. It
+is what makes an unverified mapping checkable by somebody with no account:
+open the cited page, read the response schema, and compare it field by field
+with the descriptor — endpoint, nesting, names, and whether an amount arrives
+as a JSON number or a string. DeepSeek and Vercel both publish theirs as
+strings, so a reader that took only numbers would report nothing for either
+and look exactly like an account with no credit. That is the class of error
+this catches without anyone signing up for anything.
 
 ## SDK, schema, and migration
 

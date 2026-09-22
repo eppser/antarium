@@ -469,6 +469,15 @@ public struct HarnessConfig: Codable {
         public var windows: Windows
         public var accountLabel: String?
         public var setupHint: String?
+        /// Where the response shape this maps was read from.
+        ///
+        /// A descriptor with `verified: false` has never been held against a live
+        /// account, so the only way to check it without one is to read the
+        /// vendor's own reference and compare. That reference was consulted when
+        /// each mapping was written and then not written down, which left the
+        /// check possible in principle and not in practice. An https URL to the
+        /// page that states the response schema.
+        public var documentation: String?
         public var signInCommand: String?
         public var verified: Bool?
 

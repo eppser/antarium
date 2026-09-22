@@ -332,6 +332,15 @@ struct HarnessDescriptor: Codable {
         let windows: Windows
         var accountLabel: String?
         var setupHint: String?
+    /// Where the response shape this maps was read from.
+    ///
+    /// A descriptor with `verified: false` has never been held against a live
+    /// account, so the only way to check it without one is to read the
+    /// vendor's own reference and compare. That reference was consulted when
+    /// each mapping was written and then not written down, which left the
+    /// check possible in principle and not in practice. An https URL to the
+    /// page that states the response schema.
+        var documentation: String?
         /// Shell command that signs this agent in again, offered in the menu
         /// when the credential is what failed.
         var signInCommand: String?

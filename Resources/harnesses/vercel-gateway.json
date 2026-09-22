@@ -36,6 +36,7 @@
       }
     },
     "setupHint": "Put your key in ~/.antarium/keys/vercel-gateway",
+    "documentation": "https://vercel.com/docs/ai-gateway/sdks-and-apis/rest-api",
     "verified": false
   }
 }

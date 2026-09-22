@@ -413,17 +413,22 @@ struct FixtureCleanupTests {
 
         // A distinct descriptor each time, so the report cache never answers
         // and every pass really runs a scan in a tree of its own.
+        // Counted for this box alone. The whole-cache count is a global that
+        // ten other suites write to as they parse the shipped descriptors, so
+        // asserting it was unchanged asserted that no other suite ran — which
+        // was true until one more was added. Scoped, the question is about
+        // this reader and cannot be answered by anything else.
         HarnessEngine.resetCaches()
-        let baseline = HarnessEngine.parsedFileCount
+        let baseline = HarnessEngine.parsedFileCount(under: box)
         for _ in 0..<8 {
             let report = HarnessCompatibility.verifyFixture(
                 try descriptor(), in: AppResources.bundle, beside: box)
             #expect(report.status == .fixtureVerified,
                     Comment(rawValue: "the fixture did not verify: \(report.detail)"))
         }
-        #expect(HarnessEngine.parsedFileCount == baseline,
+        #expect(HarnessEngine.parsedFileCount(under: box) == baseline,
                 Comment(rawValue: "eight verifications left "
-                        + "\(HarnessEngine.parsedFileCount - baseline) entries behind"))
+                        + "\(HarnessEngine.parsedFileCount(under: box) - baseline) entries behind"))
     }
 
     /// And it forgets only its own: a real harness's work survives, which is
@@ -443,12 +448,23 @@ struct FixtureCleanupTests {
         ])).descriptor
 
         _ = HarnessEngine.sessions(live)
-        let after = HarnessEngine.parsedFileCount
+        // Scoped, for the same reason as above: the global count is written
+        // to by every suite that parses a descriptor, and this asserted it
+        // stood still.
+        let after = HarnessEngine.parsedFileCount(under: real)
         #expect(after > 0, "the real harness cached nothing, so this proves nothing")
+
+        // And the scope discriminates. Without this the count above could be
+        // reading the whole cache through a prefix that matches everything,
+        // and every assertion here would hold with no scoping at all.
+        let elsewhere = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unread-\(UUID().uuidString)")
+        #expect(HarnessEngine.parsedFileCount(under: elsewhere) == 0,
+                "a directory nothing has read reported cached files")
 
         HarnessEngine.forget(under: FileManager.default.temporaryDirectory
             .appendingPathComponent("somewhere-else-\(UUID().uuidString)"), id: "other")
-        #expect(HarnessEngine.parsedFileCount == after,
+        #expect(HarnessEngine.parsedFileCount(under: real) == after,
                 "forgetting an unrelated tree dropped another harness's work")
     }
 }

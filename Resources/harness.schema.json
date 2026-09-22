@@ -874,6 +874,12 @@
             "type": "string"
           },
           "description": "Body sent with a POST, as flat string values. {token} is substituted."
+        },
+        "documentation": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "description": "URL of the vendor reference stating the response schema this maps."
         }
       }
     },

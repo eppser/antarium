@@ -357,6 +357,26 @@ enum HarnessEngine {
         return files.count
     }
 
+    /// The same count, for one directory only.
+    ///
+    /// The whole-cache count is a process-global, and the suites run beside
+    /// each other: ten of them parse the shipped descriptors, so any test
+    /// asserting the global number is unchanged is really asserting that
+    /// nothing else parsed anything while it ran. That held until an
+    /// eleventh suite was added, and then it did not — the failure named a
+    /// timezone, because the timezone pass is where the order happened to
+    /// put them together.
+    ///
+    /// A reader that works in a temporary tree can ask about that tree
+    /// instead, and then nothing another suite does can answer for it. The
+    /// prefix rule is `forget(under:id:)`'s, so the two agree about what
+    /// belongs to a directory.
+    static func parsedFileCount(under root: URL) -> Int {
+        let prefix = root.standardizedFileURL.path
+        lock.lock(); defer { lock.unlock() }
+        return files.keys.filter { $0.contains(prefix) }.count
+    }
+
     /// Forgets what was read from one directory, and nothing else.
     ///
     /// For a reader that works in a temporary tree and then deletes it: the

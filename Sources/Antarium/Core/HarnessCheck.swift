@@ -77,7 +77,7 @@ enum HarnessCheck {
                 "inputIncludesCacheRead"],
         "quota": ["endpoint", "method", "body", "command", "args",
                   "headers", "credential", "windows", "accountLabel",
-                  "setupHint", "signInCommand", "verified"],
+                  "setupHint", "signInCommand", "verified", "documentation"],
         "focus": ["command", "args"],
         "quota.credential": ["kind", "path", "field", "name", "command", "args", "requires",
                              "accountField"],

@@ -35,6 +35,7 @@
       }
     },
     "setupHint": "Management key in ~/.antarium/keys/openrouter",
+    "documentation": "https://openrouter.ai/docs/api-reference/get-credits",
     "verified": false
   }
 }

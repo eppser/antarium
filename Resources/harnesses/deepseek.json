@@ -33,6 +33,7 @@
       "currency": "currency"
     },
     "setupHint": "Put your key in ~/.antarium/keys/deepseek",
+    "documentation": "https://api-docs.deepseek.com/api/get-user-balance",
     "verified": false
   }
 }

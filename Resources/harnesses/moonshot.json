@@ -36,6 +36,7 @@
       }
     },
     "setupHint": "Put your key in ~/.antarium/keys/moonshot",
+    "documentation": "https://platform.kimi.ai/docs/api/balance",
     "verified": false
   }
 }
