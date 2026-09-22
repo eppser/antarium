@@ -834,3 +834,7 @@ the row is counted as having fewer children than it draws | Sources/Antarium/UI/
 the wide header leaves its controls at one end | Sources/Antarium/UI/Dashboard.swift | s|            if columns > 1 { Spacer(minLength: 4) }||
 the column divider takes part in the layout | Sources/Antarium/UI/Dashboard.swift | s|                    .overlay(alignment: .topLeading) {|                    .padding(0).background {|
 the divider is drawn down the middle of a column | Sources/Antarium/UI/Dashboard.swift | s|                                    + RowMetrics.gutter / 2)|                                    - RowMetrics.gutter / 2)|
+the label column is sized for a panel that is gone | Sources/Antarium/UI/SettingsView.swift | s|    static let labelColumn: CGFloat = 44|    static let labelColumn: CGFloat = 78|
+a label is cut off by its own column | Sources/Antarium/UI/SettingsView.swift | s|    static let labelColumn: CGFloat = 44|    static let labelColumn: CGFloat = 30|
+the settings header is a poster again | Sources/Antarium/UI/SettingsView.swift | s|                        .frame(width: 20, height: 20)|                        .frame(width: 56, height: 56)|
+labels start together instead of ending together | Sources/Antarium/UI/SettingsView.swift | s|alignment: .trailing)$|alignment: .leading)|

@@ -175,6 +175,100 @@ struct SettingsWidthTests {
                 "without this the second line has no height to wrap into")
     }
 
+    /// The label column in front of each control.
+    ///
+    /// Measured in both directions, like the dashboard's row: too narrow
+    /// truncates a label, and too wide puts an inch of nothing between a
+    /// label and the control it names. It was 78pt for a widest label of
+    /// 36.5 — more than half empty — because it was sized when the panel was
+    /// 420 and nobody measured it again.
+    @Test("The label column fits its labels and no more")
+    func labelColumnFitsItsLabels() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
+        // The labels the panel actually passes, read out of the source rather
+        // than listed here — a list of mine would agree with itself.
+        var labels: Set<String> = ["Accent"]
+        var search = source[...]
+        while let match = search.range(of: "title: \"") {
+            let rest = search[match.upperBound...]
+            if let end = rest.firstIndex(of: "\"") {
+                let text = String(rest[..<end])
+                if text.count <= 12, text.allSatisfy({ $0.isLetter }) { labels.insert(text) }
+            }
+            search = search[match.upperBound...]
+        }
+        #expect(labels.count >= 6,
+                Comment(rawValue: "only \(labels.count) labels were found: \(labels.sorted())"))
+
+        let font = NSFont.systemFont(ofSize: 11)
+        var widest = 0.0, worst = ""
+        for label in labels {
+            let w = (label as NSString).size(withAttributes: [.font: font]).width
+            if w > widest { widest = w; worst = label }
+        }
+        #expect(widest <= SettingsView.labelColumn,
+                Comment(rawValue: "\"\(worst)\" needs \(widest)pt of a "
+                        + "\(SettingsView.labelColumn)pt column"))
+        #expect(SettingsView.labelColumn - widest <= 12,
+                Comment(rawValue: "the column is \(SettingsView.labelColumn)pt for a widest "
+                        + "label of \(widest)pt"))
+    }
+
+    /// And the labels end where the controls begin, rather than starting
+    /// together and leaving a ragged gap of different widths.
+    @Test("Labels are right-aligned against their controls")
+    func labelsAreTrailingAligned() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
+        let trailing = source.components(
+            separatedBy: "frame(width: SettingsView.labelColumn, alignment: .trailing)").count - 1
+        #expect(trailing == 3,
+                Comment(rawValue: "\(trailing) of the three label columns are aligned to "
+                        + "their controls"))
+        #expect(!source.contains("width: 78"), "a label column carries its old number again")
+    }
+
+    /// The point of the tabs: the panel has to fit the display it opens on.
+    ///
+    /// Seven sections in one column came to about 1,600pt. A 13" MacBook has
+    /// roughly 715pt of visible height once the menu bar and the Dock are
+    /// accounted for, so two fifths of the panel was reachable at a time.
+    /// Measured against the real view rather than estimated.
+    @Test("The panel fits a 13\" display without scrolling")
+    func theOpenTabFitsASmallDisplay() {
+        let host = NSHostingView(rootView: SettingsView(model: SettingsModel()))
+        host.layoutSubtreeIfNeeded()
+        let height = host.fittingSize.height
+        #expect(height > 200, Comment(rawValue: "the panel came to \(height)pt, which is "
+                                      + "too small to be the whole of it"))
+        #expect(height <= 715,
+                Comment(rawValue: "the first tab is \(height)pt against the 715 a 13\" "
+                        + "display has — it scrolls before anything is even switched on"))
+    }
+
+    /// And the chrome above the first control is a title bar, not a poster.
+    /// The mark was 56pt over the name over the word "Settings", which was
+    /// the whole of the panel's navigation when it was one long scroll. The
+    /// tab bar carries that now.
+    @Test("The header is one row")
+    func headerIsOneRow() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
+        let start = try #require(source.range(of: "private var header: some View"))
+        let header = String(source[start.upperBound...].prefix(900))
+        #expect(!header.contains("width: 56, height: 56"),
+                "the header mark is back to poster size")
+        #expect(header.contains("HStack"),
+                "the header is a stack of rows again rather than one row")
+    }
+
     @Test("The panel is at least as wide as the dashboard's own column")
     func notNarrowerThanTheDashboard() {
         #expect(SettingsView.width >= RowMetrics.panelReduced,

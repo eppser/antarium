@@ -24,6 +24,16 @@ struct SettingsView: View {
     /// how to fix a provider that is not signed in. At 420 they truncated, so
     /// the panel was hiding its own instructions.
     static let width: CGFloat = 520
+
+    /// The label column in front of a segmented control or a stepper.
+    ///
+    /// It was 78pt and left-aligned, chosen when the panel was 420. The
+    /// widest label this panel has is "Agents" at 36.5pt, so more than half
+    /// of that column was empty and every control started an inch from its
+    /// own name. Sized to the widest label with a little air, and
+    /// right-aligned, which is what a macOS settings form does: the label
+    /// ends where the control begins, so the pair reads as one thing.
+    static let labelColumn: CGFloat = 44
     /// Settings arrived as seven sections in one scrolling column — about
     /// 1,600pt of content against a 13" display's 715, so two fifths of it
     /// was reachable at a time and the section you wanted was usually off
@@ -130,22 +140,27 @@ struct SettingsView: View {
         .flatMap { NSImage(contentsOf: $0) }
 
     private var header: some View {
-        // Centred, with the close button floated over the corner rather than
-        // sharing the row: in a row it would pull the mark and the name off
-        // centre by its own width.
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 1) {
+        // One row, the way a title bar is.
+        //
+        // This was a centred stack — a 56pt mark over the name over the word
+        // "Settings" — which came to about a hundred points. That was the
+        // whole of the panel's navigation when the panel was one long scroll.
+        // It is not any more: the tab bar below carries that now, and four
+        // levels of chrome stacked before the first control is a fifth of the
+        // General tab spent on saying where you already are.
+        //
+        // Roughly sixty points back, in a panel that has five hundred.
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 7) {
                 if let mark = Self.mark {
                     Image(nsImage: mark).resizable().interpolation(.high)
-                        .frame(width: 56, height: 56)
+                        .frame(width: 20, height: 20)
                         .accessibilityHidden(true)
                 }
-                Text("Antarium").font(.system(size: 17, weight: .semibold))
+                Text("Antarium").font(.system(size: 13, weight: .semibold))
                 Text("Settings").font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer(minLength: 30)
             }
-            // Centred as a unit, which is why it is a frame around the stack
-            // rather than alignment inside it.
-            .frame(maxWidth: .infinity)
 
             // Where a close button belongs. Quitting Antarium is a different
             // thing and stays in the footer.
@@ -153,7 +168,7 @@ struct SettingsView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 24, height: 24)
                     .background(Circle().fill(Color.primary.opacity(0.07)))
                     .contentShape(Rectangle())
             }
@@ -161,7 +176,7 @@ struct SettingsView: View {
             .help("Close settings")
             .accessibilityLabel("Close settings")
         }
-        .padding(.horizontal, 14).padding(.vertical, 5)
+        .padding(.horizontal, 14).padding(.vertical, 7)
     }
 
 
@@ -620,7 +635,7 @@ struct SettingsView: View {
     private var accentSwatches: some View {
         HStack(spacing: 6) {
             Text("Accent").font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: SettingsView.labelColumn, alignment: .trailing)
             ForEach(Accents.all, id: \.id) { accent in
                 let selected = accent.id == Settings.accent
                 Button { model.update { Settings.accent = accent.id } } label: {
@@ -846,7 +861,7 @@ private struct Segmented: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: SettingsView.labelColumn, alignment: .trailing)
             HStack(spacing: 1) {
                 ForEach(options, id: \.1) { option in
                     let selected = option.1 == current
@@ -880,7 +895,7 @@ private struct Stepper: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: SettingsView.labelColumn, alignment: .trailing)
             HStack(spacing: 1) {
                 ForEach(Array(range), id: \.self) { n in
                     let selected = n == value
