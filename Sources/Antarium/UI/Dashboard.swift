@@ -1,6 +1,23 @@
 import SwiftUI
 import AppKit
 
+/// The fixed column widths in a dashboard row.
+///
+/// They were literals inside three private views, which made them untestable
+/// and made "does the content fit?" a question nobody had asked. Named here
+/// so a test can measure the text that goes in them against the space they
+/// give it — in both directions, because a column far wider than its content
+/// is dead space repeated down every row, and that is most of why the panel
+/// is narrow and deep.
+enum RowMetrics {
+    /// Dot, gap, label and the capsule's padding. The widest state this app
+    /// names is "Unknown".
+    static let pill: CGFloat = 68
+    /// Every figure the money formatter can print, beside every duration
+    /// `Fmt.duration` can print.
+    static let cost: CGFloat = 78
+}
+
 /// Reports a measured height up through the view tree.
 private struct HeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
@@ -685,17 +702,35 @@ private struct StatePill: View {
         return HStack(spacing: 3) {
             Circle().fill(tint).frame(width: 5, height: 5)
                 .opacity(dim ? 0.25 : 1)
+            // One line, always — the same rule `LastReply` states above, and
+            // for the same reason: a pill that wraps makes its row taller than
+            // its neighbours and breaks the rhythm of the list.
+            //
+            // The six built-in labels all fit `width`. A cloud task's label is
+            // whatever the service calls its status, capitalised — "Completed"
+            // measures 67.8pt against a 68pt frame and "In_progress" 72.9pt —
+            // so this is not a theoretical case, and without a line limit
+            // those wrapped instead of truncating.
             Text(state.label).font(.system(size: 9, weight: isLive ? .semibold : .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 5).padding(.vertical, 1.5)
         .background(Capsule().fill(tint.opacity(0.18)))
-        .frame(width: 68, alignment: .trailing)
+        .frame(width: RowMetrics.pill, alignment: .trailing)
     }
 }
 
 /// Spend, with the window it accrued over — "$167" alone invites the question
 /// "since when?", and the answer is the session's own lifetime.
+///
+/// Every pair the two formatters can produce for a real session fits
+/// `RowMetrics.cost`; the widest is "$99.9 / 23.9h" at 64.0pt. The line limit
+/// is for the pair that is not real — a corrupt start date yields a duration
+/// in the millions of days, and that wrapped, making the row taller than its
+/// neighbours.
 private struct CostLabel: View {
     let cost: Double?
     let over: TimeInterval?
@@ -718,11 +753,16 @@ private struct CostLabel: View {
                         "Estimated list-price cost of this session's tokens, over "
                         + Fmt.duration($0))
                 } ?? DashboardView.pricedAt("Estimated list-price cost of this session's tokens"))
+                // Below the help, not above it: a cost figure has to have the
+                // word "estimated" within thirteen lines of it, and two
+                // modifiers in between pushed this one out by a line.
+                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("")
             }
         }
-        .frame(width: 78, alignment: .trailing)
+        .frame(width: RowMetrics.cost, alignment: .trailing)
     }
 }
 

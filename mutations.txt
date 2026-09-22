@@ -781,3 +781,8 @@ a cloud task's title reaches the row unbounded | Sources/Antarium/Core/CloudScan
 the clamp drops the value instead of shortening it | Sources/Antarium/Core/CloudScan.swift | s|return String((item\[k\] as! String).prefix(maxText))|return String((item[k] as! String).prefix(0))|
 the display clamp is applied to the identifier too | Sources/Antarium/Core/CloudScan.swift | s|guard let id = identifier(\["id", "task_id", "uuid"\])|guard let id = string(["id", "task_id", "uuid"])|
 the text bound is wide enough to be no bound | Sources/Antarium/Core/CloudScan.swift | s|    static let maxText = 64|    static let maxText = 100000|
+a cloud status wraps the pill onto a second line | Sources/Antarium/UI/Dashboard.swift | /^                .lineLimit(1)$/,+1d
+the pill is sized for a label it does not hold | Sources/Antarium/UI/Dashboard.swift | s|    static let pill: CGFloat = 68|    static let pill: CGFloat = 48|
+the pill column is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let pill: CGFloat = 68|    static let pill: CGFloat = 140|
+the cost column is too narrow for a real figure | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 44|
+the cost column is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 160|
