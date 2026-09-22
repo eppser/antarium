@@ -54,6 +54,22 @@ enum HarnessCheck {
         "path": ["env", "textFile", "jsonFile"],
     ]
 
+    /// The fields a session map understands.
+    ///
+    /// Named once because it is used twice: a manifest carries a map of the
+    /// same type, and the second copy was written out by hand and lost
+    /// `focusTarget`. The schema says a manifest's map is the map — it is a
+    /// `$ref` to the same definition — and the decoder agrees, because
+    /// `Manifest.map` is of type `Map`. Only this list disagreed, and what it
+    /// told an author was worse than a refusal: "not a field; it will be
+    /// ignored", of a field that is read.
+    static let mapKeys: Set<String> = [
+        "cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
+        "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
+        "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status",
+        "pid", "sessionID", "inputIncludesCacheRead",
+    ]
+
     /// Every key the loader understands. The schema's authority lives here, so
     /// anything else in a file is a typo or a leftover.
     static let known: [String: Set<String>] = [
@@ -71,10 +87,7 @@ enum HarnessCheck {
         "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
                    "journal"],
-        "map": ["cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
-                "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
-                "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status", "pid", "sessionID",
-                "inputIncludesCacheRead"],
+        "map": mapKeys,
         "quota": ["endpoint", "method", "body", "command", "args",
                   "headers", "credential", "windows", "accountLabel",
                   "setupHint", "signInCommand", "verified", "documentation"],
@@ -88,11 +101,7 @@ enum HarnessCheck {
         "selection": ["kind", "path", "glob", "records", "encodedJSON", "id", "filter",
                       "query", "column", "command", "args", "root"],
         "source.manifest": ["file", "map"],
-        "source.manifest.map": ["cwd", "title", "model", "contextWindow", "contextTokens",
-                                "timestamp", "inputTokens", "outputTokens", "totalTokens",
-                                "cacheRead", "cacheWrite", "cost", "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns",
-                                "subAgents", "status", "pid", "sessionID",
-                                "inputIncludesCacheRead"],
+        "source.manifest.map": mapKeys,
         "map.status": ["whileNotEmpty", "field", "working", "idle"],
         "map.turns": ["path", "match"],
         "map.toolCalls": ["path", "match"],

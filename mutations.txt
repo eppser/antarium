@@ -864,3 +864,7 @@ a sound is saved under a name nothing reads | Sources/Antarium/UI/Sounds.swift |
 the dashboard position is saved under a name nothing reads | Sources/Antarium/UI/Settings.swift | s|Config.set("dashboardOrigin", \[p.x, p.y\])|Config.set("dashboardPoint", [p.x, p.y])|
 a setting is read under a name nothing writes | Sources/Antarium/UI/Sounds.swift | s|Config.string("soundName.\\(rawValue)")|Config.string("soundPick.\\(rawValue)")|
 the sort order is saved under a name nothing reads | Sources/Antarium/UI/Settings.swift | s|Config.set("agentSort"|Config.set("agentOrder"|
+a manifest map drifts from the session map again | Sources/Antarium/Core/HarnessCheck.swift | s|        "source.manifest.map": mapKeys,|        "source.manifest.map": mapKeys.subtracting(["focusTarget"]),|
+the validator knows a field the schema forbids | Sources/Antarium/Core/HarnessCheck.swift | s|        "pid", "sessionID", "inputIncludesCacheRead",|        "pid", "sessionID", "inputIncludesCacheRead", "notAField",|
+the schema allows a field the validator calls a typo | Resources/harness.schema.json | s|"focusTarget": {|"focusTargetX": {|
+the validator drops a field the schema declares | Sources/Antarium/Core/HarnessCheck.swift | s|        "cwd", "title", "model", "focusTarget", "contextWindow"|        "cwd", "title", "model", "contextWindow"|
