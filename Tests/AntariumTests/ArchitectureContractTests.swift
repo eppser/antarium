@@ -249,6 +249,41 @@ struct ArchitectureContractTests {
 
         #expect(Set(merged.map(\.id)) == ["local", "shared", "cloud"])
         #expect(merged.count == 3)
+
+        // Which row survived, not merely which ids. A direct observation of
+        // this machine beats a report from somewhere else, and asserting the
+        // set of ids says nothing about that — flipping the precedence, so a
+        // cloud report replaced the local row it collided with, passed the
+        // two lines above unchanged.
+        let survivor = merged.first { $0.id == "shared" }
+        #expect(survivor?.state.isUnobserved == false)
+        if case .cloud = survivor?.state {
+            Issue.record("a cloud report replaced a local observation of the same session")
+        }
+    }
+
+    /// Why that collision cannot happen with real rows, which is what makes
+    /// dropping one of them safe rather than lossy.
+    ///
+    /// The three sources name their rows in disjoint spaces: a cloud task is
+    /// `codex-cloud-…`, a remote session is `tmux-remote:<host>:…` — the host
+    /// included, so two machines cannot collide either — and a local row
+    /// carries the harness's own session identity. Each prefix is pinned by a
+    /// test of its own; none of them says why all three matter together.
+    @Test("Rows from the three sources cannot collide")
+    func sourcesNameRowsApart() {
+        let local = row(id: "0199a1b2-c3d4-session")
+        let cloud = row(id: "codex-cloud-task-1", state: .cloud("running"))
+        let remote = row(id: "tmux-remote:quibus:s:@1.%1")
+
+        let merged = AgentScan.merge(local: [local], cloud: [cloud, remote])
+        #expect(merged.count == 3, "a row was dropped as a duplicate of another source's")
+        #expect(Set(merged.map(\.id)).count == 3)
+
+        // And the prefixes are the reason, so a second host is a second row.
+        let otherHost = row(id: "tmux-remote:alcyone:s:@1.%1")
+        #expect(AgentScan.merge(local: [], cloud: [remote, otherHost]).count == 2,
+                "two machines' sessions collapsed into one row")
     }
 
     @Test("Only the newest scan generation may publish")
