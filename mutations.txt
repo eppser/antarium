@@ -582,7 +582,7 @@ verify.sh stops gating on the benchmark | verify.sh | s|\[ "\$status" -eq 0 \] \
 verify.sh stops gating on idle cost | verify.sh | s|            \|\| bad "idle cost is \$spent s per 30 s — the shape of a runaway loop"|            \|\| true|
 the https-only claim comes back | docs/TECHNICAL.md | s|A usage endpoint must be https, or http to this machine.|A usage endpoint must be `https` with a host.|
 the get-only claim comes back | docs/TECHNICAL.md | s|An endpoint quota may declare `method: "POST"`|A descriptor makes one authenticated GET and|
-the walkthrough loses its verification step | docs/TECHNICAL.md | s|   `antarium --verify-harness-quota` for the mapping|   nothing for the mapping|
+the walkthrough loses its verification step | docs/TECHNICAL.md | s|`antarium --verify-harness-quota` replays all of|nothing replays all of|
 status stops reporting how many harnesses loaded | Sources/Antarium/Diagnostics.swift | s|harnesses \\(descriptors.count) loaded from|harnesses loaded from|
 a folder is revealed as a memory index | Sources/Antarium/Core/ProjectContext.swift | s|            guard info.st_mode \& S_IFMT == S_IFREG else { return false }||
 an empty index file is revealed | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|
@@ -683,3 +683,5 @@ any file counts as the fixture | Sources/Antarium/Core/QuotaFixture.swift | s|  
 a session fixture beside a descriptor is never found | Sources/Antarium/Core/HarnessCompatibility.swift | s|        guard let beside, !path.contains(".."), !path.hasPrefix("/") else { return nil }|        return nil; guard let beside = beside else { return nil }|
 a claim of fixtureVerified needs no fixture | Sources/Antarium/Core/HarnessCheck.swift | s|        } else if descriptor.compatibility?.level == .fixtureVerified {||
 differing fixture values are not named | Sources/Antarium/Core/HarnessCompatibility.swift | s|                return text(want) == text(got) ? nil : "\\(key) \\(text(got)) ≠ \\(text(want))"|                return nil|
+
+the walkthrough stops naming the fixture a reader must write | docs/TECHNICAL.md | s|`<id>.quota-fixture.json`, beside the descriptor|beside the descriptor|

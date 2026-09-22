@@ -522,32 +522,42 @@ left untouched when it is already right, so a launch is not a change of mtime.
 
 Five steps, none of which need the service installed or an account with it.
 
+Two places a harness can live, and the steps are the same in both. A harness
+of your own goes in `~/.antarium/harnesses/<id>.json`, with its fixture
+beside it; one that ships with the app goes in `Resources/harnesses/<id>.json`,
+with its fixture in `Resources/quota-fixtures/`. Where each file goes is
+noted below; nothing else differs.
+
 1. Find the vendor's own statement of the endpoint and the response shape. A
    field path taken from another monitoring tool's source is a guess about
    somebody else's product that happens to work today; `docs/ECOSYSTEM.md`
    lists the services turned down for exactly that reason.
-2. Write `Resources/harnesses/<id>.json` with `source.kind` of `none` and a
-   `quota` block. `verified` stays `false` until somebody has seen the
-   numbers against a live account, and the row says so.
-3. Write `Resources/quota-fixtures/<id>.json`: a `cases` array of recorded
-   payloads with the gauges each should produce. Include the shapes that must
-   *not* chart — an account with no plan, a reply missing the figures — with
-   `expectError`. Every value is invented; no real payload belongs in this
-   repository.
-4. `antarium --check Resources/harnesses/<id>.json` for the descriptor, and
-   `antarium --verify-harness-quota` for the mapping. The second runs the
-   fixture through the real provider code, which is what makes this testable
-   with nothing installed.
+2. Write the descriptor with `source.kind` of `none` and a `quota` block.
+   `verified` stays `false` until somebody has seen the numbers against a
+   live account, and the row says so.
+3. Write the fixture: a `cases` array of recorded payloads with the gauges
+   each should produce. Include the shapes that must *not* chart — an account
+   with no plan, a reply missing the figures — with `expectError`. Every
+   value is invented; no real payload belongs in a repository, and none is
+   needed.
 
-   Outside this repository — a harness of your own in `~/.antarium/harnesses`
-   — put the fixture beside the descriptor as `<id>.quota-fixture.json` and
-   `--check` replays it there. A session harness works the same way: declare
-   `compatibility.fixture` and put that file beside the descriptor. `--verify-harness-quota` reads the shipped
-   descriptors only, and said nothing about a file it had not looked at, so
-   its list of passes read as though it covered yours.
+   Your own harness: `<id>.quota-fixture.json`, beside the descriptor.
+   Shipped: `Resources/quota-fixtures/<id>.json`.
+4. `antarium --check <the descriptor>`. It reports the descriptor and
+   replays the fixture beside it through the real provider code, which is
+   what makes this testable with nothing installed.
+
+   For the shipped ones, `antarium --verify-harness-quota` replays all of
+   them at once. It reads the descriptors inside the app and no others, so
+   it will not mention a harness of yours — use `--check` for that.
 5. Add the mapping's load-bearing parts to `mutations.txt` and run
    `./mutate.sh` over just those lines. A fixture proves the mapping works
-   today; a mutation proves a test would notice when it stops.
+   today; a mutation proves a test would notice when it stops. This one is
+   for the shipped harnesses: the catalogue lives in the repository.
+
+A session harness is checked the same way — declare `compatibility.fixture`
+and put that file beside the descriptor, or in `Resources/harness-fixtures/`
+for a shipped one. `--check` replays it and names any field that differs.
 
 A source field that its `kind` never reads is reported by `--check`. A key
 list catches a typo; it cannot catch a field spelled correctly and ignored —

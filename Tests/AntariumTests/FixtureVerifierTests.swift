@@ -662,3 +662,49 @@ struct SessionFixtureBesideDescriptorTests {
         #expect(found.count == 2, Comment(rawValue: "\(found)"))
     }
 }
+
+/// The documentation is the contract for somebody outside this repository:
+/// it is the only place the filename is stated, and they cannot read the
+/// source to find out. A suffix changed in one and not the other leaves them
+/// with a fixture nothing looks at and no way to tell.
+@Suite("The documented fixture names are the ones the code looks for")
+struct DocumentedFixtureNameTests {
+
+    private var root: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    @Test("The quota fixture suffix in the docs is the one that resolves")
+    func quotaSuffixMatches() throws {
+        let doc = try String(contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"),
+                             encoding: .utf8)
+        #expect(doc.contains("<id>.quota-fixture.json"),
+                "the documentation no longer names the fixture a reader must write")
+
+        // The name the code actually resolves, asked of the code.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("doc-name-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let descriptor = dir.appendingPathComponent("mine.json")
+        try Data("{}".utf8).write(to: descriptor)
+        try Data("{}".utf8).write(to: dir.appendingPathComponent("mine.quota-fixture.json"))
+        #expect(QuotaFixture.fixtureURL(besideDescriptorAt: descriptor) != nil,
+                "the documented name is not the one the code looks for")
+    }
+
+    /// And the seeded README, which is the only instruction most people ever
+    /// read — it sits in the folder they are editing.
+    @Test("The seeded README names the same file")
+    func seededReadmeAgrees() throws {
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/Antarium/Core/HarnessDescriptor.swift"),
+            encoding: .utf8)
+        #expect(source.contains("quota-fixture.json"),
+                "the README beside a user's harnesses no longer mentions the fixture")
+        #expect(source.contains("--check"),
+                "the README no longer names the command that checks their work")
+    }
+}
