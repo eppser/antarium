@@ -696,3 +696,5 @@ the provider registry forgets its cache | Sources/Antarium/Core/UsageProvider.sw
 a fixture run returns the machine's own sessions | Sources/Antarium/Core/HarnessEngine.swift | s|        if let hit = cache\[descriptor.id\], hit.fingerprint == fingerprint,|        if let hit = cache[descriptor.id],|
 a fixture run leaves its parsed files behind | Sources/Antarium/Core/HarnessCompatibility.swift | s|                HarnessEngine.forget(under: root, id: descriptor.id)||
 forgetting one tree forgets every tree | Sources/Antarium/Core/HarnessEngine.swift | s|        files = files.filter { !\$0.key.contains(prefix) }|        files.removeAll()|
+the harness cache leaves its old versions behind | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json"\]|    static let supersededCacheFilenames: [String] = []|
+the harness cleanup deletes the live cache | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json"\]|    static let supersededCacheFilenames = ["harness-cache-v1.json", cacheFilename]|

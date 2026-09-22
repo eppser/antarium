@@ -188,8 +188,27 @@ enum HarnessEngine {
         let files: [String: Cached]
     }
 
+    /// The live cache. Bump this and the old name goes in the list below, or
+    /// it stays in the user's folder for ever.
+    static let cacheFilename = "harness-cache-v2.json"
     private static var cacheURL: URL {
-        Config.directory.appendingPathComponent("harness-cache-v2.json")
+        Config.directory.appendingPathComponent(cacheFilename)
+    }
+
+    /// Caches from earlier formats.
+    ///
+    /// `TranscriptStats` has had this since three of its own accumulated in
+    /// people's folders, and states the principle plainly: files the app
+    /// writes are the app's to clean up. It was never applied here, so the
+    /// v1 to v2 bump orphaned a file that is still sitting in this
+    /// developer's folder, larger than the one in use.
+    static let supersededCacheFilenames = ["harness-cache-v1.json"]
+
+    static func removeSupersededCaches() {
+        for name in supersededCacheFilenames {
+            try? FileManager.default.removeItem(
+                at: Config.directory.appendingPathComponent(name))
+        }
     }
 
     /// What the current descriptors would parse to. Cheap: they are already

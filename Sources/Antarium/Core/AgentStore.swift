@@ -296,6 +296,7 @@ final class AgentStore: ObservableObject {
         guard timer == nil else { return }
         TranscriptStats.loadCache()
         TranscriptStats.removeSupersededCaches()
+        HarnessEngine.removeSupersededCaches()
         HarnessEngine.loadCache()
         reschedule()
         // Warm the cache at launch — this is the one expensive pass.

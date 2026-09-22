@@ -98,6 +98,53 @@ struct CacheVersionTests {
         #expect(TranscriptStats.supersededCacheFilenames.contains("transcripts.json"),
                 "the original unversioned cache")
     }
+
+    /// The harness cache had the same problem and not the same list. It was
+    /// bumped from v1 to v2 and nothing removed v1, so it sat in the folder
+    /// — on this developer's machine, larger than the one in use. The
+    /// principle was already written down one file away.
+    @Test("The live harness cache is not in its own superseded list")
+    func liveHarnessCacheIsNotSuperseded() {
+        let live = HarnessEngine.cacheFilename
+        #expect(!HarnessEngine.supersededCacheFilenames.contains(live),
+                "\(live) is deleted on every launch, so every transcript is re-read")
+        #expect(!HarnessEngine.supersededCacheFilenames.isEmpty,
+                "an empty list would pass this trivially")
+    }
+
+    @Test("Every earlier harness cache version is cleaned up")
+    func priorHarnessVersionsAreListed() {
+        let live = HarnessEngine.cacheFilename
+        let version = Int(live.replacingOccurrences(of: "harness-cache-v", with: "")
+                              .replacingOccurrences(of: ".json", with: "")) ?? 0
+        #expect(version > 1, "expected a versioned filename, got \(live)")
+        for earlier in 1..<version {
+            #expect(HarnessEngine.supersededCacheFilenames.contains("harness-cache-v\(earlier).json"),
+                    Comment(rawValue: "harness-cache-v\(earlier).json is left behind"))
+        }
+    }
+
+    /// And the cleanup removes them rather than merely listing them.
+    @Test("Superseded caches are actually deleted, and the live one is not")
+    func cleanupRemovesOnlyTheOldOnes() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("caches-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        // Written where the app keeps them. `Config.directory` binds once per
+        // process, so this asks the rule rather than the filesystem: the
+        // names to delete, and the name that must survive.
+        let live = HarnessEngine.cacheFilename
+        for name in HarnessEngine.supersededCacheFilenames + [live] {
+            try Data("{}".utf8).write(to: home.appendingPathComponent(name))
+        }
+        for name in HarnessEngine.supersededCacheFilenames {
+            #expect(name != live, "the cleanup would delete the cache in use")
+        }
+        #expect(HarnessEngine.supersededCacheFilenames.allSatisfy { $0.hasPrefix("harness-cache") },
+                "the list names a file this component does not own")
+    }
 }
 
 /// Codex had three answers to "is this signed in": `isConfigured` asked
