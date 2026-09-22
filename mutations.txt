@@ -907,3 +907,4 @@ the reader takes a different budget than the guide states | Sources/Antarium/Cor
 the guide stops stating the read budget | docs/TECHNICAL.md | s|at most 4 MB of one file per scan|at most a few megabytes per file per scan|
 a measured figure stops saying where it came from | docs/TECHNICAL.md | s|the machine this was written on|a machine|
 the measured sizes stop being marked as an observation | docs/TECHNICAL.md | s|observation from one machine|note|
+the refusal is shared across threads on trust again | Sources/Antarium/Core/LaunchAtLogin.swift | s|    @MainActor private(set) static var refusal: String?|    nonisolated(unsafe) private(set) static var refusal: String?|

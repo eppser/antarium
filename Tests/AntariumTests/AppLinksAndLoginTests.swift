@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Antarium
 
+@MainActor
 struct AppLinksAndLoginTests {
 
     @Test("The bug link points at this project's issue tracker")

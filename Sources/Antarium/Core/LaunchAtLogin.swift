@@ -17,7 +17,16 @@ enum LaunchAtLogin {
     /// undoes itself in silence reads as broken — the agent toggles had the
     /// same problem, and the answer there was to say so where the user is
     /// looking rather than only in the log.
-    nonisolated(unsafe) private(set) static var refusal: String?
+    /// Why the last attempt did not take, or nothing.
+    ///
+    /// Held on the main actor rather than marked unsafe. Every surface that
+    /// writes it is a menu handler or a settings view, so it has only ever
+    /// been touched there — `nonisolated(unsafe)` asserted that, and the
+    /// compiler now checks it. The distinction matters here more than most:
+    /// this is the one place that remembers *why* a system call was refused,
+    /// and a torn read of it would mean a toggle springing back with the
+    /// wrong explanation beside it.
+    @MainActor private(set) static var refusal: String?
 
     /// What to tell the user, given what was asked for and what happened.
     ///
@@ -39,7 +48,7 @@ enum LaunchAtLogin {
     /// Returns whether the system ended up in the requested state, so a caller
     /// can show what actually happened rather than what it asked for.
     @discardableResult
-    static func set(_ enabled: Bool) -> Bool {
+    @MainActor static func set(_ enabled: Bool) -> Bool {
         guard enabled != isEnabled else { refusal = nil; return true }
         do {
             if enabled {
@@ -64,5 +73,5 @@ enum LaunchAtLogin {
     }
 
     @discardableResult
-    static func toggle() -> Bool { set(!isEnabled) }
+    @MainActor static func toggle() -> Bool { set(!isEnabled) }
 }
