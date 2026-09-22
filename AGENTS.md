@@ -217,6 +217,17 @@ official evidence.
   an installed agent with. Name the entries the check requires, then assert
   the declared list is a subset — the loop pins the contents, the literal
   pins that there are any.
+- Flag vendor text drawn in a surface of fixed size. Bounding a reader keeps
+  a response from costing unbounded work; it does not keep the response from
+  costing unbounded *space*. Four of these were found in one week: a cloud
+  task's status wrapping its row, a plan label pushing a row past its panel,
+  a state pill with no line limit, and a balance whose currency made one menu
+  bar item 540 points wide — 1,993 with the figure beside it. The reader's
+  limit is the wrong limit for a row and badly wrong for the menu bar, which
+  is shared with every other application on the machine. Ask what the widest
+  thing the field can hold measures where it is drawn, and hold the cell to
+  one line so an overflow truncates rather than wrapping — `fixedSize`
+  prevents a shrink, not a wrap.
 - Flag a set of tests that only ever compare one result against another. A
   budget was asserted to be smaller when a child was added, larger than a
   third of the panel, and different from its neighbour — all true of a

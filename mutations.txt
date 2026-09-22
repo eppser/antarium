@@ -850,3 +850,5 @@ the currency bound is no tighter than a sentence | Sources/Antarium/Core/UsageMo
 a balance of three hundred digits is printed in full | Sources/Antarium/Core/UsageModel.swift | s|        if magnitude >= Gauge.plainAmountLimit {|        if false {|
 an ordinary balance is printed in scientific notation | Sources/Antarium/Core/UsageModel.swift | s|    static let plainAmountLimit = 1e12|    static let plainAmountLimit = 10.0|
 a value that is not a number reaches the formatter | Sources/Antarium/Core/UsageModel.swift | s|            Amount(value: \$0.value.isFinite ? \$0.value : 0,|            Amount(value: \$0.value,|
+every extreme at once is not actually rendered | Sources/Antarium/UI/Renderer.swift | s|        return w + hPad|        return 0|
+the two-row item measures only its first row | Sources/Antarium/UI/Renderer.swift | s|        max(minPercentW, rows.map { measure(\$0.percentText, percentFont).width }.max() ?? 0)|        max(minPercentW, rows.first.map { measure(\$0.percentText, percentFont).width } ?? 0)|

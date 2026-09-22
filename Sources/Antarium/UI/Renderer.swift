@@ -61,7 +61,10 @@ enum Renderer {
     /// configurable: the setting outlived its control, and a stored 0 left the
     /// logo touching the numbers with no way to put it back.
     private static let glyphGap: CGFloat = 3
-    private static let glyphSize: CGFloat = 15.5
+    /// Internal rather than private so a test can state a lower bound on the
+    /// item's width: "narrower than a menu bar item" is satisfied by an item
+    /// of no width at all.
+    static let glyphSize: CGFloat = 15.5
 
     /// Narrow, tightly-spaced beams — the Little Snitch proportion. Beam count
     /// is configurable (`"beams"` in config.json) because density is taste.

@@ -85,6 +85,82 @@ struct StatusItemWidthTests {
         #expect(gauge.hasMeter == false, "the balance was dropped and a meter drawn instead")
     }
 
+    /// Every input the item draws, pushed as far as its reader allows, at
+    /// once.
+    ///
+    /// The four separate bounds this suite checks were each found and fixed
+    /// on its own. This is the invariant they add up to, stated once so that
+    /// a field added later has something to fail against rather than waiting
+    /// to be noticed in a menu bar.
+    ///
+    /// The renderer takes an agent id, up to two rows of percentage and
+    /// countdown, and a message. The id becomes a glyph of fixed size. The
+    /// message is one of seven words the app chooses itself. The countdown is
+    /// bounded by the reader that produces the date — `FieldPath.epoch`
+    /// refuses anything past the year 9999 — and the percentage by `Gauge`.
+    @Test("Nothing a service can send makes this item wider than a menu bar item")
+    func everyExtremeAtOnce() {
+        // The furthest reset a date reader will accept, so the countdown is
+        // the longest it can be.
+        let latest = Date(timeIntervalSince1970: 253_402_300_799)
+        func absurd(_ value: Double, _ currency: String) -> Gauge {
+            Gauge(id: String(repeating: "i", count: 5_000),
+                  badge: String(repeating: "B", count: 5_000),
+                  title: String(repeating: "T", count: 5_000),
+                  used: 1, resetsAt: latest, reportedSeverity: .critical,
+                  amount: .init(value: value, currency: currency))
+        }
+        // Two *different* rows, and the wider one second. The item takes the
+        // widest of its rows, so two identical ones cannot tell a renderer
+        // that measures all of them from one that measures only the first.
+        let rows = StatusRender.rows(for: Snapshot(
+            providerID: "deepseek",
+            gauges: [absurd(1, "$"), absurd(.greatestFiniteMagnitude,
+                                            String(repeating: "C", count: 5_000))],
+            extras: [], accountLabel: nil, fetchedAt: Date()))
+        #expect(rows.count == 2, "the renderer draws at most two rows and this exercises both")
+        #expect(rows[0].percentText != rows[1].percentText,
+                "the two rows measure the same, so this cannot see which were measured")
+        let w = Renderer.width(for: StatusRender(agentID: "deepseek", rows: rows,
+                                                 message: nil, stale: true))
+        #expect(w < ceiling,
+                Comment(rawValue: "an item of every extreme at once rendered \(w)pt wide"))
+        // A lower bound as well. "Narrower than a menu bar item" is satisfied
+        // by an item of no width at all, and a renderer returning zero passed
+        // every assertion here until this line was added.
+        #expect(w > Renderer.glyphSize,
+                Comment(rawValue: "the item rendered \(w)pt wide, which is not enough to "
+                        + "draw the glyph it starts with"))
+        // And the wider row is what set it.
+        let narrowOnly = Renderer.width(for: StatusRender(agentID: "deepseek",
+                                                          rows: [rows[0]],
+                                                          message: nil, stale: true))
+        #expect(w > narrowOnly,
+                Comment(rawValue: "the second row did not widen the item: \(w) against "
+                        + "\(narrowOnly)"))
+
+        // And the message path, which is the other shape the item can take.
+        for message in ["···", "set up", "sign in", "keychain", "offline", "error", "n/a"] {
+            let m = Renderer.width(for: StatusRender(agentID: "deepseek", rows: [],
+                                                     message: message, stale: false))
+            #expect(m < ceiling,
+                    Comment(rawValue: "the \"\(message)\" item rendered \(m)pt wide"))
+            #expect(m > Renderer.glyphSize,
+                    Comment(rawValue: "the \"\(message)\" item rendered \(m)pt wide"))
+        }
+    }
+
+    /// And the countdown itself, which is bounded by the date reader rather
+    /// than by anything in the renderer — so it is worth proving that bound
+    /// is what keeps this short.
+    @Test("The longest reset a reader will accept is still a short countdown")
+    func countdownIsShort() {
+        let latest = Date(timeIntervalSince1970: 253_402_300_799)
+        let text = Format.shortCountdown(to: latest, now: Date(timeIntervalSince1970: 0))
+        #expect(text.count <= 10, Comment(rawValue: "the countdown reads \(text)"))
+        #expect(text.hasSuffix("d"))
+    }
+
     /// A value that is not a number at all cannot reach the formatter.
     @Test("An unrepresentable value does not print as a word")
     func nonFiniteValues() {
