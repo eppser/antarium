@@ -84,9 +84,17 @@ struct CommandPathTests {
         let places = CommandPath.places(inheriting: "")
         #expect(places.contains { $0.hasSuffix("/.local/bin") },
                 "the native installer's directory")
-        for expected in CommandPath.fallbacks {
+        // Named here rather than read from `fallbacks`, because looping over
+        // that list asserts nothing about an empty one: deleting every entry
+        // left this test green while a Finder-launched app — which inherits a
+        // minimal PATH and so has only these to search — could no longer find
+        // an agent that is installed. That is the exact failure the note above
+        // describes, one list along.
+        for expected in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] {
             #expect(places.contains(expected), "\(expected) is missing")
         }
+        #expect(Set(CommandPath.fallbacks).isSubset(of: Set(places)),
+                "a fallback is declared but not searched")
         // And the inherited PATH still comes first, so a user who has put a
         // different copy ahead of these keeps it.
         let inherited = CommandPath.places(inheriting: "/first:/second")

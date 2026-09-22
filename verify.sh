@@ -12,9 +12,14 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 fails=0
+failed_checks=()
 step() { printf '\n== %s\n' "$1"; }
 ok()   { printf '   ok  %s\n' "$1"; }
-bad()  { printf '   FAIL %s\n' "$1"; fails=$((fails + 1)); }
+# The name is kept, not just the tally. A run that ends "1 check(s) failed."
+# says nothing about which one, and the FAIL line is four hundred lines up in
+# output nobody reads past the tail — so an intermittent failure was reported
+# in a form that could not be acted on without reproducing it.
+bad()  { printf '   FAIL %s\n' "$1"; fails=$((fails + 1)); failed_checks+=("$1"); }
 
 BIN=.build/debug/Antarium
 APP=dist/Antarium.app/Contents/MacOS/Antarium
@@ -411,4 +416,6 @@ rm -rf "$home"
 
 printf '\n'
 [ $fails -eq 0 ] && { echo "All checks passed."; exit 0; }
-echo "$fails check(s) failed."; exit 1
+echo "$fails check(s) failed:"
+for check in "${failed_checks[@]}"; do printf '   - %s\n' "$check"; done
+exit 1

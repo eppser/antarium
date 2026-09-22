@@ -51,18 +51,27 @@ struct PrivacyClaimsTests {
 
     /// And `terminate()` likewise: it is a method on a `Process` the app
     /// owns, so the check is that no other kind of object gets one.
+    /// Counted, like its two neighbours. This one was not: it asserted a
+    /// property of every `.terminate()` line it found and never checked that
+    /// it had found one. An empty `sources`, a renamed call, or a spelling
+    /// this scan does not match would all leave it examining nothing and
+    /// reporting that every termination is of the app's own child.
     @Test("Only a process this app started is asked to terminate")
     func terminateOnlyOwnChildren() throws {
+        var found = 0
         for url in sources {
             let text = try String(contentsOf: url, encoding: .utf8)
             for line in text.split(separator: "\n") where line.contains(".terminate()") {
                 let code = line.trimmingCharacters(in: .whitespaces)
-                guard !code.hasPrefix("//") else { continue }
+                guard !code.hasPrefix("//"), !code.hasPrefix("///") else { continue }
+                found += 1
                 #expect(code.contains("process.terminate()"),
                         Comment(rawValue: "\(url.lastPathComponent) terminates something "
                                 + "other than its own child: \(code)"))
             }
         }
+        #expect(found >= 2,
+                Comment(rawValue: "only \(found) termination(s) were seen, so this proved little"))
     }
 
     /// Where this app is able to connect. Every host is a vendor whose usage

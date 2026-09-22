@@ -767,3 +767,9 @@ an undated table leaves a dangling sentence | Sources/Antarium/UI/Dashboard.swif
 the pricing table is read for its rates and not its day | Sources/Antarium/Core/Pricing.swift | s|asOf: day(mine: myFile.asOf, bundled: bundledFile.asOf)|asOf: nil|
 a corrected table is dated to the day the app was built | Sources/Antarium/Core/Pricing.swift | s|^        mine ?? bundled$|        bundled ?? mine|
 a whitespace-only date still reads as a date | Sources/Antarium/UI/Dashboard.swift | s|guard let asOf, !asOf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty|guard let asOf|
+the termination scan looks for a spelling nothing uses | Tests/AntariumTests/PrivacyClaimsTests.swift | s|where line.contains(".terminate()") {|where line.contains(".terminateXX()") {|
+the credential watchdog terminates a process it did not start | Sources/Antarium/Providers/ClaudeCredentials.swift | s|if process.isRunning { process.terminate() }|if process.isRunning { Process().terminate() }|
+the shell timeout terminates a process it did not start | Sources/Antarium/Core/Shell.swift | s|^            process.terminate()$|            Process().terminate()|
+a Finder-launched app searches nowhere for an agent | Sources/Antarium/Core/CommandPath.swift | s|static let fallbacks = \["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"\]|static let fallbacks: [String] = []|
+homebrew is dropped from the search path | Sources/Antarium/Core/CommandPath.swift | s|\["/opt/homebrew/bin", "/usr/local/bin"|["/usr/local/bin"|
+a declared fallback is never actually searched | Sources/Antarium/Core/CommandPath.swift | s|+ fallbacks + \[home + "/.local/bin"\]|+ [home + "/.local/bin"]|
