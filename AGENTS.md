@@ -204,6 +204,12 @@ official evidence.
   network waits, or caches.
 - Flag a published numeric claim unless a reproducible command or exact fixture
   contract supports it.
+- Flag a source rule whose forbidden spellings are not the ones this project
+  writes with. A list assembled from memory forbids nothing: the first draft
+  of the read-only credential rule matched neither the settings store, which
+  writes through `open`/`Darwin.write`/`rename`, nor the seeder, which goes
+  through `PrivateFile.write`. Ask the rule of a file that certainly does the
+  thing, in the same test.
 - Flag a concurrency test that contends a warm cache. A memoising cache read
   from several threads races nothing once it is populated, so such a test
   passes with the lock removed and proves only that reading is safe. Contend

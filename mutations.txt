@@ -717,3 +717,4 @@ the menu decides the advice for itself again | Sources/Antarium/AgentItem.swift 
 a harness certifies itself by declaring it | Sources/Antarium/Core/HarnessCompatibility.swift | s|            let passed = actual == fixture.expected|            let passed = true|
 a claim of verification needs no fixture | Sources/Antarium/Core/HarnessDocument.swift | s|            try requireText("fixture", in: compatibility, at: "compatibility.")||
 a claim of verification needs no date | Sources/Antarium/Core/HarnessDocument.swift | s|            try requireText("verifiedAt", in: compatibility, at: "compatibility.")||
+a provider writes back the token it refreshed | Sources/Antarium/Providers/GrokProvider.swift | s|        hold(fresh)|        hold(fresh); try? Data().write(to: URL(fileURLWithPath: "/tmp/antarium-probe"))|
