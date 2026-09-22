@@ -260,7 +260,62 @@ struct RowColumnWidthTests {
                 "without this the path competes with the name for the same space")
     }
 
-    /// The row's *second* line, which nothing measured.
+    /// Which states count as busy.
+///
+/// `isBusy` decides two things and neither is cosmetic. It is the first key
+/// of the "last action" sort, so a busy agent sorts above idle ones whatever
+/// its transcript timestamp says — several harnesses write nothing until a
+/// turn ends, which put a working agent below a dozen finished ones. And a
+/// session whose goal file cannot be read is demoted to "unknown" only when
+/// it is *not* busy, so a wrong answer here hides a working agent behind a
+/// state that means nothing is known about it.
+///
+/// The property was exhaustive in shape and untested in substance: moving
+/// `looping` into the busy set changed both behaviours and failed nothing.
+@Suite("The busy states are the ones that are busy")
+struct BusyStateTests {
+
+    @Test("Working and shell are busy; nothing else is",
+          arguments: [(AgentRow.State.working, true), (.shell, true),
+                      (.waiting, false), (.ended, false), (.unobserved, false),
+                      (.looping, false), (.cloud("running"), false)])
+    func busyStates(state: AgentRow.State, busy: Bool) {
+        #expect(state.isBusy == busy,
+                Comment(rawValue: "\(state.label) reports isBusy = \(state.isBusy)"))
+    }
+
+    /// Looping in particular. It is green like working and sorts above shell,
+    /// so it reads as active — and it is deliberately not busy: an agent
+    /// between rounds of its own loop is not doing anything this moment, and
+    /// counting it busy would hold it at the top of the list for as long as
+    /// the loop runs.
+    @Test("A looping agent is active but not busy")
+    func loopingIsNotBusy() {
+        #expect(AgentRow.State.looping.isBusy == false)
+        #expect(AgentRow.State.looping.isLive)
+        #expect(AgentRow.State.looping.rank > AgentRow.State.shell.rank,
+                "looping no longer sorts above shell")
+    }
+
+    /// And the sort uses it, or the answers above are about nothing.
+    @Test("A busy row sorts above an idle one whatever their timestamps say")
+    func busySortsFirst() {
+        let old = Date(timeIntervalSince1970: 1_700_000_000)
+        let recent = Date(timeIntervalSince1970: 1_800_000_000)
+        func row(_ id: String, _ state: AgentRow.State, _ when: Date) -> AgentRow {
+            AgentRow(id: id, agentID: "claude-code", name: id, cwd: "/synthetic/\(id)",
+                     state: state, lastActivity: when)
+        }
+        // The idle row has the newer timestamp and still sorts second.
+        let sorted = AgentScan.sorted([row("idle", .waiting, recent),
+                                       row("busy", .working, old)], by: .activity)
+        #expect(sorted.first?.id == "busy",
+                Comment(rawValue: "sorted \(sorted.map(\.id)) — a working agent sorted "
+                        + "below an idle one with a newer file"))
+    }
+}
+
+/// The row's *second* line, which nothing measured.
     ///
     /// `RowMetrics` and the tests above are about the three fixed columns on
     /// line one. Line two carries the capability strip, the sparkline, up to

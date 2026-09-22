@@ -24,7 +24,12 @@ struct AgentRow: Identifiable {
         var isBusy: Bool {
             switch self {
             case .working, .shell: return true
-            default: return false
+            // Listed rather than defaulted. `rank` and `label` below are
+            // exhaustive, so a state added later is a compile error in both
+            // and has to be thought about; this one answered "not busy" for
+            // it silently, and a busy state read as idle drives the "an agent
+            // finished" notification and the sort.
+            case .waiting, .ended, .unobserved, .cloud, .looping: return false
             }
         }
 

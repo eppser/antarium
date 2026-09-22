@@ -56,6 +56,35 @@ struct SharedStateTests {
                         + "guard it: \(missing.sorted().joined(separator: ", "))"))
     }
 
+    /// A closed set the app defines answers every question for every case,
+    /// by listing them rather than by defaulting.
+    ///
+    /// `default:` in a switch over one of our own enums is a decision made in
+    /// advance for a case that does not exist yet. `AgentRow.State` had one:
+    /// `rank` and `label` were exhaustive, so adding a state was a compile
+    /// error in both and had to be thought about, while `isBusy` answered
+    /// "not busy" for it silently — and a busy state reading as idle drives
+    /// the "an agent finished" notification and the sort.
+    ///
+    /// A switch over somebody else's values — an HTTP status, a URLError
+    /// code, a SQLite result — is the opposite case and keeps its default.
+    @Test("The states and the errors answer for every case they have")
+    func closedSetsAreExhaustive() throws {
+        for (file, type) in [("Sources/Antarium/Core/AgentScan.swift", "enum State"),
+                             ("Sources/Antarium/Core/UsageModel.swift", "enum ProviderError")] {
+            let text = try SourceText.read(file)
+            let block = try SourceText.block(type, in: text)
+            let defaults = block.split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("default:") }
+            #expect(defaults.isEmpty,
+                    Comment(rawValue: "\(type) answers a question by default, so a case "
+                            + "added later gets that answer without anybody choosing it"))
+            // And it is a real block with real switches, not an empty read.
+            #expect(block.contains("switch self"),
+                    Comment(rawValue: "\(type) has no switch in it, so this proved nothing"))
+        }
+    }
+
     /// The one that was the other kind. `LaunchAtLogin.refusal` records why
     /// the system refused to register a login item, and every surface that
     /// touches it is a menu handler or a settings view. It was marked unsafe,
