@@ -254,29 +254,6 @@ enum RemoteTmux {
         return (out.stdout, nil)
     }
 
-    /// Used only by explicitly enabled trace observation. The bundled helper
-    /// and request are separate values; request data travels on stdin. Existing
-    /// host-key policy is preserved, and no interactive prompts are permitted.
-    static func executeReadOnly(host: String, command: String, input: String,
-                                cancellation: @Sendable () -> Bool) -> Shell.Result {
-        guard isSafeHost(host), input.utf8.count <= 32_768 else {
-            return .init(stdout: "", stderr: "", exitCode: nil, timedOut: false,
-                         launchError: "Invalid remote observation request.")
-        }
-        let options = ["-o", "ConnectTimeout=3", "-o", "ConnectionAttempts=1",
-                       "-o", "ServerAliveInterval=3", "-o", "ServerAliveCountMax=1"]
-        let keyed = Shell.execute("/usr/bin/ssh", ["-o", "BatchMode=yes"] + options + ["--", host, command],
-                                  timeout: 8, outputLimit: 131_072, input: input, cancellation: cancellation)
-        guard shouldRetryWithPassword(keyed),
-              let password = password(for: host,cancellation:cancellation), let sshpass = sshpassPath(), !cancellation() else { return keyed }
-        var result = Shell.execute(sshpass, ["-e", "/usr/bin/ssh"] + options + ["--", host, command],
-                                   timeout: 8, outputLimit: 131_072, environment: ["SSHPASS":password],
-                                   input: input, cancellation: cancellation)
-        if let first = keyed.childCPUSeconds, let second = result.childCPUSeconds { result.childCPUSeconds = first + second }
-        else { result.childCPUSeconds = nil }
-        return result
-    }
-
     /// Translate recognized diagnostics into fixed messages. Hostnames, account
     /// names, paths, banners and arbitrary remote stderr never become log text.
     static func sshReason(_ stderr: String) -> String? {

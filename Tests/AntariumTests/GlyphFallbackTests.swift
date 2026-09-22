@@ -20,22 +20,38 @@ struct GlyphFallbackTests {
 
     private var descriptors: [HarnessDescriptor] { HarnessCLI.bundledDescriptors() }
 
-    /// The ones that fall through to a drawn label.
+    /// Agents drawn from a vector rather than from a label. These two are
+    /// the whole of what this app ships as artwork.
+    ///
+    /// `Resources/marks/*.png` is in .gitignore. The README beside it says
+    /// why: third-party application artwork is not distributed, the PNGs are
+    /// for local development only, and the app falls back to a vector or a
+    /// letter when one is absent. So on anybody's install but a developer's,
+    /// twenty-three of the twenty-five harnesses draw a label.
+    ///
+    /// The first version of this suite asked the resource bundle which marks
+    /// existed, which on this machine answered "nine" and in a fresh checkout
+    /// answered "none" — so the suite passed here and failed everywhere else,
+    /// and every mutation run in a throwaway checkout was reported as caught
+    /// on the strength of it.
+    private let vectorDrawn: Set<String> = ["claude-code", "codex"]
+
+    /// Everything else, which is nearly everything.
     private var drawn: [HarnessDescriptor] {
-        descriptors.filter {
-            AppResources.bundle.url(forResource: Glyphs.markName($0.id, in: descriptors),
-                                    withExtension: "png", subdirectory: "marks") == nil
+        descriptors.filter { !vectorDrawn.contains($0.id) }
+    }
+
+    @Test("The two vector marks are the only artwork that ships")
+    func artworkIsNotDistributed() throws {
+        let ignore = try SourceText.read(".gitignore")
+        #expect(ignore.contains("Resources/marks/*.png"),
+                "agent artwork is being distributed, so this suite is about the wrong set")
+        for id in vectorDrawn {
+            #expect(descriptors.contains { $0.id == id },
+                    Comment(rawValue: "\(id) no longer ships, so its vector is unreachable"))
         }
     }
 
-    @Test("There are agents without artwork")
-    func thereAreSubjects() {
-        #expect(drawn.count >= 10,
-                Comment(rawValue: "only \(drawn.count) harnesses draw a label"))
-    }
-
-    /// A 14pt glyph holds two characters. Three would not help anyway —
-    /// Herdr and Hermes differ at their fourth letter.
     @Test("Every drawn label is one or two upper-case characters")
     func labelsAreShort() {
         for descriptor in drawn {
@@ -59,6 +75,39 @@ struct GlyphFallbackTests {
                         + "\(Glyphs.fallbackLabel(id, in: descriptors))"))
     }
 
+    /// Every label fits the box it is drawn in.
+    ///
+    /// A two-character label set at the single-letter size runs past the
+    /// glyph, into the figures beside it. The catalogue carried an entry for
+    /// that and it was not covered: reported as caught while the suite was
+    /// failing for an unrelated reason, and surviving once the baseline was
+    /// clean again.
+    @Test("Every drawn label fits inside the glyph")
+    func labelsFitTheGlyph() {
+        // The menu bar's own glyph box, which is the smallest this is drawn in.
+        let box = Renderer.glyphSize
+        for descriptor in drawn {
+            let label = Glyphs.fallbackLabel(descriptor.id, in: descriptors)
+            let font = Glyphs.labelFont(for: label, in: box)
+            let width = (label as NSString).size(withAttributes: [.font: font]).width
+            #expect(width <= box,
+                    Comment(rawValue: "\(descriptor.id) draws \(label) at \(width)pt in a "
+                            + "\(box)pt glyph"))
+        }
+    }
+
+    /// And the smaller face is only for the longer label, or every glyph
+    /// shrinks to fit the worst case.
+    @Test("A single letter is not shrunk to fit two")
+    func oneLetterKeepsItsSize() {
+        let one = Glyphs.labelFont(for: "O", in: Renderer.glyphSize).pointSize
+        let two = Glyphs.labelFont(for: "OR", in: Renderer.glyphSize).pointSize
+        #expect(two < one,
+                Comment(rawValue: "two characters are set at \(two)pt and one at \(one)pt"))
+        #expect(one > Renderer.glyphSize * 0.6,
+                "a single letter is being drawn smaller than it needs to be")
+    }
+
     /// What is left. Named exactly, so a new harness that lands on a taken
     /// label fails here instead of shipping as somebody else's twin — and so
     /// that fixing one of these is visible as a change rather than as a test
@@ -72,7 +121,7 @@ struct GlyphFallbackTests {
         }
         let shared = byLabel.filter { $0.value.count > 1 }
             .mapValues { $0.sorted() }
-        let recorded = ["CC": ["commandcode", "copilot-cli"],
+        let recorded = ["CC": ["commandcode", "copilot-cli", "cursor-cli"],
                         "HE": ["herdr", "hermes"],
                         "OR": ["openrouter", "orca"]]
         #expect(shared == recorded,

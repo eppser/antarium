@@ -878,7 +878,6 @@ every agent without artwork draws one letter again | Sources/Antarium/UI/Glyphs.
 a drawn label is taken from the id rather than the name | Sources/Antarium/UI/Glyphs.swift | s|        let name = descriptors.first { \$0.id == agentID }?.name ?? agentID|        let name = agentID|
 a drawn label grows past what the glyph holds | Sources/Antarium/UI/Glyphs.swift | s|        return String(letters.prefix(2)).uppercased()|        return String(letters.prefix(4)).uppercased()|
 the menu bar item stops naming itself to a screen reader | Sources/Antarium/AgentItem.swift | s|        statusItem.button?.setAccessibilityLabel(provider.displayName)||
-two letters are drawn at the size of one | Sources/Antarium/UI/Glyphs.swift | s|rect.height \* (letter.count > 1 ? 0.52 : 0.72)|rect.height * 0.72|
 a settings toggle stops saying whether it is on | Sources/Antarium/UI/SettingsView.swift | /^        .accessibilityValue(on ? "on" : "off")$/d
 a settings toggle announces as a plain button | Sources/Antarium/UI/SettingsView.swift | /^        .accessibilityAddTraits(on ? \[.isButton, .isSelected\] : .isButton)$/d
 a capability button opens a file under no name | Sources/Antarium/UI/Dashboard.swift | s|                    .accessibilityLabel("Open \\(capability.kind.label)")||
@@ -887,3 +886,11 @@ a sort option loses its name | Sources/Antarium/UI/Dashboard.swift | s|         
 the row name is pinned again, further down the chain | Sources/Antarium/UI/Dashboard.swift | s|^                    .layoutPriority(1)$|                    .layoutPriority(1)\n                    .fixedSize(horizontal: true, vertical: false)|
 the subtitle loses the height it wraps into | Sources/Antarium/UI/SettingsView.swift | /^                            .fixedSize(horizontal: false, vertical: true)$/d
 the settings header is a stack of rows again | Sources/Antarium/UI/SettingsView.swift | s|            HStack(spacing: 7) {|            VStack(spacing: 7) {|
+two letters are drawn at the size of one | Sources/Antarium/UI/Glyphs.swift | s|height \* (label.count > 1 ? 0.52 : 0.72)|height * 0.72|
+a single letter is shrunk to fit two | Sources/Antarium/UI/Glyphs.swift | s|height \* (label.count > 1 ? 0.52 : 0.72)|height * 0.52|
+an ssh call sends a command from somewhere else | Sources/Antarium/Core/RemoteTmux.swift | s|                                 "--", host, remoteCommand\],|                                 "--", host, remoteCommand + ""],|
+the argument list stops separating options from the host | Sources/Antarium/Core/RemoteTmux.swift | s|\["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "--", host, remoteCommand\]|["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, remoteCommand]|
+a host beginning with a dash is accepted | Sources/Antarium/Core/RemoteTmux.swift | s|!trimmed.hasPrefix("-"),|true,|
+the host list is normalised on only one side | Sources/Antarium/UI/Settings.swift | s|        get { RemoteTmux.normalizedHosts(Config.strings("remoteTmuxHosts") ?? \[\]) }|        get { Config.strings("remoteTmuxHosts") ?? [] }|
+a shell metacharacter is accepted in a host | Sources/Antarium/Core/RemoteTmux.swift | /^            && trimmed.rangeOfCharacter(from: CharacterSet(charactersIn:/d
+a host with whitespace in the middle is accepted | Sources/Antarium/Core/RemoteTmux.swift | s|        return !trimmed.contains(where: { \$0.isWhitespace })|        return true \&\& !false|

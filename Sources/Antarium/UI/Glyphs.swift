@@ -156,10 +156,17 @@ enum Glyphs {
         return String(letters.prefix(2)).uppercased()
     }
 
+    /// The face a drawn label is set in.
+    ///
+    /// Two characters need a smaller one than a single letter to sit in the
+    /// same box — at the one-letter size they run past it. Separate so the
+    /// fit can be measured rather than eyeballed.
+    static func labelFont(for label: String, in height: CGFloat) -> NSFont {
+        NSFont.systemFont(ofSize: height * (label.count > 1 ? 0.52 : 0.72), weight: .bold)
+    }
+
     private static func initialLetter(_ letter: String, in rect: NSRect, color: NSColor) {
-        // Two characters need a smaller face than one to sit in the same box.
-        let font = NSFont.systemFont(ofSize: rect.height * (letter.count > 1 ? 0.52 : 0.72),
-                                     weight: .bold)
+        let font = labelFont(for: letter, in: rect.height)
         let s = NSAttributedString(string: letter,
                                    attributes: [.font: font, .foregroundColor: color])
         let size = s.size()
