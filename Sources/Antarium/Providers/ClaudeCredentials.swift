@@ -149,14 +149,25 @@ enum ClaudeCredentials {
 
         do { try process.run() } catch { return nil }
 
+        // Asked to stop, then made to. `terminate()` is SIGTERM, which a
+        // process sitting on a modal authorisation dialog is free to ignore —
+        // and the read below blocks until the pipe closes, so ignoring it
+        // wedges exactly the loop this watchdog exists to protect. `Shell`
+        // has escalated for the same reason since it was written; this had
+        // the first half only.
         let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        let force = DispatchWorkItem {
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        }
         DispatchQueue.global().asyncAfter(deadline: .now() + 10, execute: watchdog)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10.5, execute: force)
 
         // Read before waiting: a full pipe buffer would otherwise deadlock.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         _ = errPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         watchdog.cancel()
+        force.cancel()
 
         let text = String(decoding: data, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
