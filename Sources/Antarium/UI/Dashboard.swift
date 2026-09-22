@@ -68,12 +68,29 @@ enum RowMetrics {
     /// have, nor on how long a vendor's name for its plan is.
     static let planLabel: CGFloat = 62
 
+    /// Views on a row's first line that are always there, in full mode: the
+    /// harness glyph, the name, the path, the spacer, the cost, the meter and
+    /// the state pill.
+    static let lineOneChildren = 7
+
     /// What is left for the name and the path once everything of fixed width
     /// has taken its share. Stated so that widening a column is checked
     /// against the space there is, rather than discovered on somebody's Mac.
-    static func nameBudget(panel: CGFloat = panelFull) -> CGFloat {
-        panel - 2 * listInset - 2 * rowInset
-            - (glyph + cost + meter + pill + spacerFloor + 5 * gap)
+    ///
+    /// `extras` is for the three children that are conditional — the host
+    /// capsule, the tmux glyph and the one marking a remote or cloud session.
+    /// The first version of this charged five gaps for a line that has six
+    /// even when nothing optional is present, and nine when everything is,
+    /// and ignored the width of the optional children entirely. So it
+    /// overstated the budget by 6pt on the plainest row and by rather more
+    /// than that on a tmux session running on another machine — which is
+    /// precisely the row whose name has least room.
+    static func nameBudget(panel: CGFloat = panelFull,
+                           extraChildren: Int = 0, extraWidth: CGFloat = 0) -> CGFloat {
+        let gaps = CGFloat(lineOneChildren - 1 + max(0, extraChildren))
+        return panel - 2 * listInset - 2 * rowInset
+            - (glyph + cost + meter + pill + spacerFloor)
+            - gap * gaps - max(0, extraWidth)
     }
 }
 
@@ -134,11 +151,21 @@ struct DashboardView: View {
         reduced ? RowMetrics.panelReduced : RowMetrics.panelFull
     }
 
+    /// Renders one column whatever the list holds.
+    ///
+    /// The same escape `SettingsView.unbounded` is, and for the same reason
+    /// it was written: the column count consults `NSScreen`, so a sheet
+    /// rendered for comparison would be one column on a laptop and two on a
+    /// desk, and two runs on two machines would produce different images.
+    /// A preview nobody can compare is not a preview.
+    var singleColumn = false
+
     /// Decided from the row count, which is known before any layout happens.
     /// Deriving it from the width available would close a loop with the
     /// height this panel measures and reports back up.
     private var columns: Int {
-        PanelPlacement.columns(
+        guard !singleColumn else { return 1 }
+        return PanelPlacement.columns(
             rowCount: store.rows.count, previous: columnCount, panel: columnWidth,
             visibleWidth: NSScreen.main?.visibleFrame.width ?? columnWidth)
     }

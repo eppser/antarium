@@ -826,3 +826,8 @@ the gutter is not taken out of the columns | Sources/Antarium/UI/Dashboard.swift
 a column count of zero divides by zero | Sources/Antarium/UI/Dashboard.swift | s|        let count = CGFloat(max(1, columns))|        let count = CGFloat(columns)|
 the agent subtitle is cut off instead of wrapping | Sources/Antarium/UI/SettingsView.swift | s|                            .lineLimit(2)|                            .lineLimit(1)|
 the wrapped subtitle has no height to wrap into | Sources/Antarium/UI/SettingsView.swift | /^                            .fixedSize(horizontal: false, vertical: true)$/d
+a rendered sheet widens with the display it is taken on | Sources/Antarium/Diagnostics.swift | s|                                               singleColumn: true),|),|
+the single-column escape does nothing | Sources/Antarium/UI/Dashboard.swift | s|        guard !singleColumn else { return 1 }||
+the budget charges one gap too few | Sources/Antarium/UI/Dashboard.swift | s|        let gaps = CGFloat(lineOneChildren - 1 + max(0, extraChildren))|        let gaps = CGFloat(lineOneChildren - 2 + max(0, extraChildren))|
+the optional children cost the name nothing | Sources/Antarium/UI/Dashboard.swift | s|            - gap \* gaps - max(0, extraWidth)|            - gap \* gaps|
+the row is counted as having fewer children than it draws | Sources/Antarium/UI/Dashboard.swift | s|    static let lineOneChildren = 7|    static let lineOneChildren = 6|

@@ -187,7 +187,11 @@ enum Diagnostics {
         Task { @MainActor in
             let store = AgentStore.shared
             store.adoptForPreview(scanOrExit())
-            exit(writeThemeSheet(DashboardView(store: store, onSettings: {}, onTogglePin: {}),
+            // One column, so the sheet does not depend on the display that
+            // happened to be attached — the rule `SettingsView.unbounded`
+            // already states for the other panel.
+            exit(writeThemeSheet(DashboardView(store: store, onSettings: {}, onTogglePin: {},
+                                               singleColumn: true),
                                  to: path) ? 0 : 1)
         }
         RunLoop.main.run()

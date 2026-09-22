@@ -216,6 +216,35 @@ struct ColumnLayoutRenderTests {
                 Comment(rawValue: "twenty rows produced a \(width)pt panel, not \(expected)"))
     }
 
+    /// A sheet rendered for comparison must not depend on the display that
+    /// happened to be attached. `SettingsView` has carried that rule since it
+    /// was written; the column count reads `NSScreen`, so the dashboard
+    /// needed the same escape and did not have one.
+    @Test("A rendered sheet is one column whatever the list holds")
+    func renderedSheetsAreDeterministic() {
+        let store = AgentStore.shared
+        store.adoptForPreview(rows(40))
+        let host = NSHostingView(rootView: DashboardView(store: store, onSettings: {},
+                                                          onTogglePin: {}, singleColumn: true))
+        host.layoutSubtreeIfNeeded()
+        #expect(abs(host.fittingSize.width - RowMetrics.panelFull) < 1,
+                Comment(rawValue: "forty rows rendered \(host.fittingSize.width)pt wide"))
+    }
+
+    /// And the escape is used where the sheet is written, or the parameter
+    /// exists and the image still depends on the machine.
+    @Test("The diagnostic renderer asks for one column")
+    func theRendererUsesIt() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/Diagnostics.swift"), encoding: .utf8)
+        let call = try #require(source.range(of: "DashboardView(store: store"),
+                                "the dashboard sheet is no longer rendered here")
+        #expect(String(source[call.lowerBound...].prefix(240)).contains("singleColumn: true"),
+                "the rendered sheet still widens with the display it is taken on")
+    }
+
     /// And the second column earns its width: twenty rows in two columns must
     /// be shorter than twenty in one, or the panel got wider for nothing —
     /// which is the whole complaint this answers.

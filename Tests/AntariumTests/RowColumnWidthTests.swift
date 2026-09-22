@@ -157,6 +157,73 @@ struct RowColumnWidthTests {
                 Comment(rawValue: "an ordinary name leaves \(budget - ordinary)pt for the path"))
     }
 
+    /// The crowded row: a tmux session on another machine, which draws the
+    /// host capsule and two glyphs on top of everything else — and is the row
+    /// whose name has least space, since the host is what tells two sessions
+    /// of the same project apart.
+    @Test("The crowded row still has room for a name and a path")
+    func crowdedRowHasABudget() {
+        // The capsule is the host text at 8.5 medium with 4pt either side.
+        let capsule = width("Ghostty", size: 8.5, weight: .medium) + 8
+        // Two SF Symbols at 7.5pt.
+        let glyphs: CGFloat = 2 * 9
+        let crowded = RowMetrics.nameBudget(extraChildren: 3, extraWidth: capsule + glyphs)
+        let plain = RowMetrics.nameBudget()
+
+        #expect(crowded < plain,
+                "the optional children cost the name nothing, which cannot be right")
+        let ordinary = width("claude-code-usage-bar", size: 11.5, weight: .semibold)
+        #expect(crowded - ordinary >= 60,
+                Comment(rawValue: "on a remote tmux row an ordinary name leaves "
+                        + "\(crowded - ordinary)pt for the path"))
+    }
+
+    /// The gap count is the children's, not a number. Six on the plainest
+    /// full row, nine when all three optional children are drawn.
+    @Test("The budget charges one gap for every space between children")
+    func gapsMatchTheChildren() {
+        let plain = RowMetrics.nameBudget()
+        let oneMore = RowMetrics.nameBudget(extraChildren: 1)
+        #expect(abs((plain - oneMore) - RowMetrics.gap) < 0.01,
+                Comment(rawValue: "one more child cost \(plain - oneMore)pt, "
+                        + "not \(RowMetrics.gap)"))
+        #expect(RowMetrics.lineOneChildren == 7,
+                "the glyph, name, path, spacer, cost, meter and pill are seven views")
+    }
+
+    /// The absolute figure, not the difference between two of them.
+    ///
+    /// The tests above compare one budget against another, so a formula that
+    /// is wrong by the same amount everywhere satisfies all of them — which
+    /// is what let a missing gap and an ignored `extraWidth` survive. The
+    /// six is counted from the view rather than read back out of the source:
+    /// seven children on a plain full row leave six spaces between them.
+    @Test("The budget is exactly what the rest of the row does not spend")
+    func budgetIsExact() {
+        let sixGaps = 6 * RowMetrics.gap
+        let fixed = RowMetrics.glyph + RowMetrics.cost + RowMetrics.meter
+            + RowMetrics.pill + RowMetrics.spacerFloor
+        let expected = RowMetrics.panelFull
+            - 2 * RowMetrics.listInset - 2 * RowMetrics.rowInset - fixed - sixGaps
+        #expect(abs(RowMetrics.nameBudget() - expected) < 0.01,
+                Comment(rawValue: "the budget is \(RowMetrics.nameBudget())pt where the row "
+                        + "leaves \(expected)pt"))
+    }
+
+    /// And an optional child's own width comes off the budget, not just the
+    /// gap beside it. A host capsule is fifty-odd points of name that is no
+    /// longer available for the name.
+    @Test("An optional child costs the name its width as well as its gap")
+    func extraWidthIsCharged() {
+        let plain = RowMetrics.nameBudget()
+        #expect(abs(RowMetrics.nameBudget(extraWidth: 50) - (plain - 50)) < 0.01,
+                Comment(rawValue: "fifty points of extra child cost the budget "
+                        + "\(plain - RowMetrics.nameBudget(extraWidth: 50))pt"))
+        #expect(abs(RowMetrics.nameBudget(extraChildren: 3, extraWidth: 50)
+                    - (plain - 3 * RowMetrics.gap - 50)) < 0.01,
+                "three extra children and fifty points did not cost both")
+    }
+
     /// The name is a directory's last path component, which macOS allows up
     /// to 255 bytes. It cannot be given a fixed size, or it cannot truncate,
     /// and a long one then asks for a row wider than the panel.
