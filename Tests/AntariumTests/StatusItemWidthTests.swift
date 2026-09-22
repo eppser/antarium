@@ -173,3 +173,91 @@ struct StatusItemWidthTests {
         }
     }
 }
+
+/// The per-provider menu, which is the other surface a window's name reaches.
+///
+/// `NSMenu` does not truncate: a menu is as wide as its widest item. A title
+/// at `Gauge`'s backstop of 4,096 characters produces a menu 33,470 points
+/// wide — ten screens — and five hundred characters already overflows one.
+///
+/// Cut at the menu rather than in the model. A descriptor's label is trusted
+/// local configuration and deliberately passes through unclamped, and the
+/// same string appears in tooltips and diagnostic output where its length
+/// costs nothing. This is the one place it is laid out.
+@Suite("A provider's menu is as wide as a menu", .serialized)
+@MainActor
+struct MenuTitleWidthTests {
+
+    private func menuWidth(_ title: String) -> CGFloat {
+        let menu = NSMenu()
+        let item = NSMenuItem()
+        item.attributedTitle = NSAttributedString(
+            string: title, attributes: [.font: NSFont.menuFont(ofSize: 0)])
+        menu.addItem(item)
+        return menu.size.width
+    }
+
+    /// The narrowest display this app supports, which is what a menu has to
+    /// fit inside.
+    private let smallestScreen: CGFloat = 1_280
+
+    @Test("A title at the model's backstop still draws a usable menu")
+    func backstopTitleFitsAScreen() {
+        let atBackstop = String(repeating: "T", count: Gauge.maxTitle)
+        let drawn = AgentItem.menuTitle(atBackstop)
+        #expect(menuWidth(drawn) < smallestScreen,
+                Comment(rawValue: "a \(atBackstop.count)-character title drew a "
+                        + "\(menuWidth(drawn))pt menu"))
+        // And the cut is visible rather than silent.
+        #expect(drawn.hasSuffix("…"), "the title was cut with nothing to say so")
+    }
+
+    /// Without the cut the menu is unusable, which is what makes the cut
+    /// worth having — stated so the bound is not mistaken for caution.
+    @Test("The same title uncut does not fit any screen")
+    func uncutTitleDoesNotFit() {
+        let atBackstop = String(repeating: "T", count: Gauge.maxTitle)
+        #expect(menuWidth(atBackstop) > 10_000,
+                Comment(rawValue: "an uncut title drew a \(menuWidth(atBackstop))pt menu, "
+                        + "so this suite is not measuring what it claims"))
+    }
+
+    /// Every name anybody writes passes through untouched. The longest the
+    /// shipped harnesses declare is "Session (5 hours)".
+    @Test("An authored window name is not cut",
+          arguments: ["Session (5 hours)", "Weekly", "Monthly", "Code review", "Gateway credits",
+                      "A window name long enough that nobody would write a longer one"])
+    func authoredNamesSurvive(title: String) {
+        #expect(AgentItem.menuTitle(title) == title,
+                Comment(rawValue: "\"\(title)\" was cut at \(AgentItem.maxMenuTitle)"))
+    }
+
+    /// And the cut reaches the menu. The tests above call `menuTitle`
+    /// directly, so they hold whether or not the item that draws a window's
+    /// name passes through it — which is the same gap that let a plan label
+    /// ship with its ceiling declared and unapplied.
+    @Test("The item that draws a window's name is the one that cuts it")
+    func theMenuItemUsesIt() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/AgentItem.swift"), encoding: .utf8)
+        // The gauge row's own item, which is the one whose title is a
+        // window's name.
+        #expect(source.contains("string: Self.menuTitle(g.title)"),
+                "a window's name reaches its menu item without being cut")
+        // And nothing else hands a gauge title to a menu item raw.
+        #expect(!source.contains("string: g.title"),
+                "a gauge title is drawn somewhere without going through the cut")
+    }
+
+    /// And the cut lands between characters. A title cut through a
+    /// multi-byte scalar puts a replacement glyph in a menu.
+    @Test("An emoji title is cut between characters")
+    func cutIsGraphemeSafe() {
+        let title = String(repeating: "👩‍💻", count: 400)
+        let drawn = AgentItem.menuTitle(title)
+        #expect(drawn.count <= AgentItem.maxMenuTitle)
+        #expect(!drawn.unicodeScalars.contains("\u{FFFD}"), "a character was cut in half")
+    }
+}

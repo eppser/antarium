@@ -472,7 +472,7 @@ final class AgentItem: NSObject, NSMenuDelegate {
                                        appearance: NSApp.effectiveAppearance, scale: scale)
         }
         let title = NSMutableAttributedString(
-            string: g.title + "\n",
+            string: Self.menuTitle(g.title) + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
                          .foregroundColor: stale ? NSColor.secondaryLabelColor : NSColor.labelColor])
         // Both framings, always — this is where "is 75% good or bad?" gets settled.
@@ -529,6 +529,24 @@ final class AgentItem: NSObject, NSMenuDelegate {
                          .foregroundColor: NSColor.secondaryLabelColor]))
         item.attributedTitle = s
         return item
+    }
+
+    /// A window's name, cut to what a menu can draw.
+    ///
+    /// `NSMenu` does not truncate. A menu is as wide as its widest item, and
+    /// measured: a 4,096-character title — the backstop `Gauge` allows —
+    /// produces a menu 33,470 points wide against a 3,440 point display, and
+    /// five hundred characters already overflows one.
+    ///
+    /// Cut here rather than in `Gauge`, because the model is deliberately not
+    /// the place for it: a descriptor's label is trusted local configuration
+    /// and passes through unclamped, and the same string is used in tooltips
+    /// and in diagnostic output where its length costs nothing. This is the
+    /// one place it is laid out.
+    static let maxMenuTitle = 120
+    static func menuTitle(_ title: String) -> String {
+        guard title.count > maxMenuTitle else { return title }
+        return String(title.prefix(maxMenuTitle - 1)) + "…"
     }
 
     private func submenu(_ title: String, items: [NSMenuItem]) -> NSMenuItem {
