@@ -395,3 +395,65 @@ struct SupportedToolsListTests {
                 Comment(rawValue: "listed and not shipped: \(phantom.joined(separator: ", "))"))
     }
 }
+
+/// The instructions a contributor follows name the gate this project
+/// actually requires.
+///
+/// AGENTS.md has said "Required verification: ./verify.sh" for as long as
+/// verify.sh has existed. The README offered `./test.sh` as "the full
+/// project checks" and CONTRIBUTING listed the three commands verify.sh
+/// wraps — so somebody following either ran the suite and a build and
+/// skipped the rest: the run on a machine that has never had Antarium, the
+/// one outside UTC, the mutation catalogue's applicability, every harness
+/// through --check, the assembled app's resources, the first-run paths and
+/// the benchmark. Instructions that ask for less than the gate are how a
+/// change arrives having passed everything its author was told to run.
+@Suite("The contributor instructions name the required gate")
+struct VerificationInstructionsTests {
+
+    private func document(_ name: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
+    }
+
+    @Test("Both documents name verify.sh where they describe checking a change",
+          arguments: ["README.md", "CONTRIBUTING.md"])
+    func documentsNameTheGate(file: String) throws {
+        let text = try document(file)
+        #expect(text.contains("./verify.sh"),
+                Comment(rawValue: "\(file) does not tell a reader to run the gate"))
+
+        // In a block somebody copies, not only in a sentence. Mentioning it
+        // in prose and offering the old command in the block leaves a reader
+        // running the old command, and the first version of this test held
+        // on the sentence alone.
+        let blocks = text.components(separatedBy: "```").enumerated()
+            .filter { $0.offset % 2 == 1 }.map(\.element)
+        #expect(blocks.contains { $0.contains("./verify.sh") },
+                Comment(rawValue: "\(file) mentions the gate only in prose; the commands "
+                        + "it offers to copy are the old ones"))
+    }
+
+    /// And AGENTS.md still calls it required, so the three documents agree
+    /// rather than one of them having drifted quietly.
+    @Test("The repository guide still requires it")
+    func guideRequiresIt() throws {
+        let text = try document("AGENTS.md")
+        #expect(text.contains("## Required verification"))
+        #expect(text.contains("./verify.sh"))
+    }
+
+    /// The script exists and is executable, which is the part a reader finds
+    /// out the hard way.
+    @Test("The gate is a script that can be run")
+    func theGateExists() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let script = root.appendingPathComponent("verify.sh")
+        #expect(FileManager.default.isExecutableFile(atPath: script.path),
+                "verify.sh is named by every document and is not executable")
+    }
+}

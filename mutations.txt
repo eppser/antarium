@@ -733,3 +733,6 @@ the readme invents a tool | README.md | s|^- Zed$|- Zed\n- Emacs Agent|
 the readme miscounts what ships | README.md | s|ships harnesses for 25 tools|ships harnesses for 11 tools|
 the app signals an agent it discovered | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func stopAgent(_ pid: Int32) { kill(pid, SIGTERM) }\n    static func sorted(|
 the app reaches a host nobody asked for | Sources/Antarium/Core/AppLinks.swift | s|    static let repository = URL(string: "https://github.com/eppser/antarium")!|    static let repository = URL(string: "https://telemetry.example.net/collect")!|
+the readme stops naming the gate | README.md | s|^./verify.sh$|./test.sh|
+contributing stops naming the gate | CONTRIBUTING.md | s|^./verify.sh$|./test.sh|
+the guide stops requiring verification | AGENTS.md | s|^## Required verification$|## Suggested verification|

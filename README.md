@@ -141,8 +141,14 @@ The script builds, signs, verifies, installs, and launches
 To run the full project checks:
 
 ```bash
-./test.sh
+./verify.sh
 ```
+
+That is the gate the project requires: the suite three times over — as-is,
+on a machine that has never run Antarium, and outside UTC — plus every
+shipped harness checked, the assembled app inspected, and the scan
+benchmark. `./test.sh` runs the suite alone and is the faster loop while
+you work.
 
 Signed and notarized downloadable releases are on the [roadmap](Roadmap.md).
 
