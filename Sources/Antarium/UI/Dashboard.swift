@@ -435,7 +435,11 @@ private struct AgentRowView: View {
         }
         if let tools = row.toolCalls { values.append("\(tools) tool calls") }
         if let turns = row.turns { values.append("\(turns) turns") }
-        if let cost = row.costUSD { values.append("cost \(Pricing.money(cost))") }
+        // "Estimated", spoken. The figure carries that word in its help
+        // everywhere it is drawn, and this summary is the help — a reader
+        // who hears the row has no tooltip to fall back on, so a bare
+        // figure is the one place the estimate reads as a measurement.
+        if let cost = row.costUSD { values.append("estimated cost \(Pricing.money(cost))") }
         return values.joined(separator: ", ")
     }
 }

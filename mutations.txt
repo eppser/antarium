@@ -736,3 +736,6 @@ the app reaches a host nobody asked for | Sources/Antarium/Core/AppLinks.swift |
 the readme stops naming the gate | README.md | s|^./verify.sh$|./test.sh|
 contributing stops naming the gate | CONTRIBUTING.md | s|^./verify.sh$|./test.sh|
 the guide stops requiring verification | AGENTS.md | s|^## Required verification$|## Suggested verification|
+a spoken cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|values.append("estimated cost \\(Pricing.money(cost))")|values.append("cost \\(Pricing.money(cost))")|
+a drawn cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|                    .help("Estimated list-price cost of every session's tokens. "|                    .help("Cost of every session's tokens. "|
+the readme stops calling cost an estimate | README.md | s|clearly presented as an estimate|presented plainly|

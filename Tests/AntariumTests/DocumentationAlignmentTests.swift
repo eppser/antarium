@@ -457,3 +457,75 @@ struct VerificationInstructionsTests {
                 "verify.sh is named by every document and is not executable")
     }
 }
+
+/// "Cost is clearly presented as an estimate" — the README, under
+/// Trustworthy numbers.
+///
+/// It is list-price arithmetic over token counts, not a bill, and a reader
+/// who takes it for one will be wrong by whatever discount, credit or
+/// enterprise agreement they have. The word was in the help text wherever a
+/// figure is drawn and nothing held it there; and the accessibility summary,
+/// which *is* the help for anybody hearing the row rather than seeing it,
+/// said "cost $1.23" with no qualifier at all.
+@Suite("A cost is presented as an estimate wherever it appears")
+struct CostIsAnEstimateTests {
+
+    private func dashboard() throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+    }
+
+    /// Every drawn figure carries the word in the text beside it.
+    @Test("Each cost the dashboard draws is described as estimated")
+    func drawnCostsSayEstimated() throws {
+        let text = try dashboard()
+        // Each figure, not a tally. Counting "Estimated" against the number
+        // of figures had slack in it — one help text carries the word twice,
+        // for its two branches, so removing another one still satisfied the
+        // count. Every drawn figure is asked for itself.
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+        var bare: [Int] = []
+        var drawn = 0
+        for (index, line) in lines.enumerated() where line.contains("Pricing.money") {
+            drawn += 1
+            // Wide enough to reach a `.help` attached below the view that
+            // draws the figure, which is ten lines away in one case and was
+            // reported as bare by a tighter window.
+            let from = max(0, index - 4), to = min(lines.count, index + 13)
+            let near = lines[from..<to].joined(separator: "\n").lowercased()
+            if !near.contains("estimated") { bare.append(index + 1) }
+        }
+        #expect(drawn >= 3, "only \(drawn) cost figures were found")
+        #expect(bare.isEmpty,
+                Comment(rawValue: "a cost is drawn with nothing calling it an estimate, "
+                        + "at line(s) \(bare.map(String.init).joined(separator: ", "))"))
+    }
+
+    /// The spoken one especially: there is no tooltip to hear.
+    @Test("The spoken summary says estimated")
+    func spokenCostSaysEstimated() throws {
+        let text = try dashboard()
+        #expect(text.contains("estimated cost \\(Pricing.money(cost))"),
+                "a reader hearing the row is told a cost with no qualifier")
+    }
+
+    /// And the README still makes the promise, so this is holding something
+    /// somebody was told rather than a preference of mine.
+    @Test("The README still promises it")
+    func readmePromisesIt() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"),
+                                encoding: .utf8)
+        // Matched on the phrase rather than the sentence: the line wraps in
+        // the file, so the full sentence never appears on one line and the
+        // first version of this looked for something that is not there.
+        #expect(readme.contains("clearly presented as an estimate"),
+                "the promise this suite holds is no longer made")
+    }
+}
