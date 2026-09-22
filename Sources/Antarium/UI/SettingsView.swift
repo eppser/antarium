@@ -14,6 +14,49 @@ struct SettingsView: View {
     @State private var passwordHost: String?
     @State private var passwordEntry = ""
     @State private var showRemoteHelp = false
+    @State private var tab: Tab = .general
+
+    /// The panel's width.
+    ///
+    /// It was 420, which is narrower than the dashboard it configures, and a
+    /// `Toggle`'s subtitle here is held to one line — those subtitles carry
+    /// each provider's `setupHint`, which is the one string that tells a user
+    /// how to fix a provider that is not signed in. At 420 they truncated, so
+    /// the panel was hiding its own instructions.
+    static let width: CGFloat = 520
+
+    /// Settings arrived as seven sections in one scrolling column — about
+    /// 1,600pt of content against a 13" display's 715, so two fifths of it
+    /// was reachable at a time and the section you wanted was usually off
+    /// screen. Four tabs is the shape macOS uses for this, in Safari, in
+    /// Terminal, in Xcode: a sidebar starts earning its keep at about eight
+    /// panes, and here it would spend a third of the width on four words.
+    ///
+    /// The pairs are not arbitrary. Menu Bar and Refresh both answer "what
+    /// does this do while I am not looking". Dashboard and Sounds both
+    /// configure the panel and what it announces. Remote tmux and Harnesses
+    /// are both "teach it to see something new", and both are the sections
+    /// that grow without bound.
+    enum Tab: String, CaseIterable, Identifiable {
+        case general, agents, dashboard, advanced
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .general:   return "General"
+            case .agents:    return "Agents"
+            case .dashboard: return "Dashboard"
+            case .advanced:  return "Advanced"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .general:   return "gearshape"
+            case .agents:    return "person.2"
+            case .dashboard: return "rectangle.grid.1x2"
+            case .advanced:  return "slider.horizontal.3"
+            }
+        }
+    }
 
     /// Renders every section at full height instead of scrolling.
     ///
@@ -28,6 +71,12 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
+            // Every section at once when rendering a sheet: a preview that
+            // shows one tab is a preview of one tab.
+            if !unbounded {
+                tabBar
+                Divider().opacity(0.4)
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -41,14 +90,22 @@ struct SettingsView: View {
                             .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                             .accessibilityLabel("Settings need attention. \(issue)")
                     }
-                    section("Menu Bar") { menuBarControls }
-                    section("Agents") { agentControls }
-                    section("Dashboard") { dashboardControls }
-                    section("Remote tmux", help: Self.remoteHelp,
-                            showing: $showRemoteHelp) { remoteTmuxControls }
-                    section("Refresh") { refreshControls }
-                    section("Sounds") { soundControls }
-                    section("Harnesses") { harnessControls }
+                    if tab == .general || unbounded {
+                        section("Menu Bar") { menuBarControls }
+                        section("Refresh") { refreshControls }
+                    }
+                    if tab == .agents || unbounded {
+                        section("Agents") { agentControls }
+                    }
+                    if tab == .dashboard || unbounded {
+                        section("Dashboard") { dashboardControls }
+                        section("Sounds") { soundControls }
+                    }
+                    if tab == .advanced || unbounded {
+                        section("Remote tmux", help: Self.remoteHelp,
+                                showing: $showRemoteHelp) { remoteTmuxControls }
+                        section("Harnesses") { harnessControls }
+                    }
                 }
                 .padding(14)
             }
@@ -60,7 +117,7 @@ struct SettingsView: View {
             Divider().opacity(0.4)
             footer
         }
-        .frame(width: 420)
+        .frame(width: SettingsView.width)
         .fixedSize(horizontal: false, vertical: true)
         // Rebuild when a setting changes, wherever it was changed.
         .id("\(model.revision)-\(settingsBus.revision)")
@@ -276,6 +333,34 @@ struct SettingsView: View {
     }
 
     // MARK: - Sections
+
+    /// The tab strip. Each tab is a button rather than a segmented `Picker`
+    /// so the icon and the word sit together, which is how the system's own
+    /// preference windows read — and so the selected one can carry a filled
+    /// background instead of a segment border.
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(Tab.allCases) { item in
+                let selected = tab == item
+                Button { tab = item } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: item.symbol).font(.system(size: 14))
+                        Text(item.title).font(.system(size: 10, weight: selected ? .semibold : .regular))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(selected ? 0.1 : 0)))
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+    }
 
     private func section<Content: View>(_ title: String,
                                         @ViewBuilder _ content: () -> Content) -> some View {

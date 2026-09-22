@@ -807,3 +807,9 @@ the columns are filled across instead of down | Sources/Antarium/UI/PanelPlaceme
 the boundary flaps between one column and two | Sources/Antarium/UI/PanelPlacement.swift | s|        return previous == 2 ? 2 : 1|        return 2|
 a panel wider than the screen is allowed | Sources/Antarium/UI/PanelPlacement.swift | s|        guard visibleWidth \* maxScreenShare >= 2 \* panel + 2 \* margin else { return 1 }||
 the uneven column leans right | Sources/Antarium/UI/PanelPlacement.swift | s|        let length = base + (index < extra ? 1 : 0)|        let length = base + (index >= count - extra ? 1 : 0)|
+a settings section reaches no tab at all | Sources/Antarium/UI/SettingsView.swift | s|                    if tab == .dashboard \|\| unbounded {|                    if false \&\& tab == .dashboard {|
+the sounds section is lost between two tabs | Sources/Antarium/UI/SettingsView.swift | /^                        section("Sounds") { soundControls }$/d
+a rendered sheet shows only the open tab | Sources/Antarium/UI/SettingsView.swift | s|                    if tab == .advanced \|\| unbounded {|                    if tab == .advanced {|
+the panel is too narrow for its own instructions | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 400|
+a tab carries an icon that does not exist | Sources/Antarium/UI/SettingsView.swift | s|            case .advanced:  return "slider.horizontal.3"|            case .advanced:  return "slider.horizontal.9"|
+two tabs share the same icon | Sources/Antarium/UI/SettingsView.swift | s|            case .dashboard: return "rectangle.grid.1x2"|            case .dashboard: return "gearshape"|
