@@ -755,3 +755,5 @@ the remote row cap moves and the reference does not | Sources/Antarium/Core/Remo
 the command session cap moves and the reference does not | Sources/Antarium/Core/HarnessEngine.swift | s|    static let maxCommandSessions = 256|    static let maxCommandSessions = 2560|
 the reference stops listing the caps | docs/TECHNICAL.md | s|The caps are|The limits include|
 a harness reads nothing and reports nothing | Resources/harnesses/zed.json | s|"kind": "sqlite"|"kind": "none"|
+the quota fixture rule checks one mapping | Tests/AntariumTests/AutoEnableAndQuotaFixtureTests.swift | s|    let descriptors = HarnessCLI.bundledDescriptors().filter { \$0.quota != nil }|    let descriptors = HarnessCLI.bundledDescriptors().filter { $0.quota != nil \&\& $0.id == "zai" }|
+the probe evidence rule examines no probes | Tests/AntariumTests/HarnessInstallationEvaluationTests.swift | s|            for probe in descriptor.processRule.installationProbes.orEmpty {|            for probe in descriptor.processRule.installationProbes.orEmpty.prefix(0) {|

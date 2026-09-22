@@ -121,7 +121,9 @@ func configuredProbeMemoises() {
 @Test("Every shipped quota descriptor has a fixture and that fixture passes")
 func bundledQuotaFixturesPass() {
     let descriptors = HarnessCLI.bundledDescriptors().filter { $0.quota != nil }
-    #expect(!descriptors.isEmpty, "no descriptor declares a quota block")
+    #expect(descriptors.count >= 9,
+            Comment(rawValue: "only \(descriptors.count) descriptors declare a quota, so the "
+                    + "loop below checks fewer mappings than ship"))
     for descriptor in descriptors {
         let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
         #expect(report != nil)

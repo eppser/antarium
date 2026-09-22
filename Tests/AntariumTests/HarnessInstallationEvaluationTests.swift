@@ -41,8 +41,12 @@ struct HarnessInstallationEvaluationTests {
 
     @Test("Installation probes are evidence, not undocumented assumptions")
     func probesCarryFreshOfficialEvidenceAndSyntheticDataOnly() throws {
+        // Counted: every assertion here is two loops deep, so a day with no
+        // probes at all would pass having examined none of them.
+        var examined = 0
         for descriptor in try bundledDescriptors() {
             for probe in descriptor.processRule.installationProbes.orEmpty {
+                examined += 1
                 let evidence = try #require(URL(string: probe.evidence))
                 #expect(evidence.scheme == "https")
                 #expect(evidence.host != nil)
@@ -52,6 +56,8 @@ struct HarnessInstallationEvaluationTests {
                         "Probe paths must be portable fixtures, not local machine data")
             }
         }
+        #expect(examined >= 30,
+                "only \(examined) probes were examined, and sixteen harnesses carry several each")
     }
 
     @Test("The evaluator uses the production matcher for all process evidence")

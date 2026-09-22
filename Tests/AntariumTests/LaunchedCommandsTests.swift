@@ -97,16 +97,21 @@ struct LaunchedCommandsTests {
             .deletingLastPathComponent().appendingPathComponent("Sources")
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
-        var absolute: [String] = []
+        var absolute: [String] = [], resolved = 0
         for url in files {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             for line in text.split(separator: "\n")
             where line.contains("CommandPath.resolve(\"") {
                 guard let open = line.range(of: "CommandPath.resolve(\"") else { continue }
                 let name = String(line[open.upperBound...].prefix { $0 != "\"" })
+                resolved += 1
                 if name.hasPrefix("/") { absolute.append("\(url.lastPathComponent): \(name)") }
             }
         }
+        // Counted, or a rename of `CommandPath.resolve` would leave this
+        // finding nothing and saying so cheerfully.
+        #expect(resolved >= 3,
+                Comment(rawValue: "only \(resolved) resolve calls were found"))
         #expect(absolute.isEmpty,
                 Comment(rawValue: "resolved as an absolute path, which misses a normal "
                         + "install: \(absolute.joined(separator: ", "))"))
