@@ -796,3 +796,8 @@ the meter slot is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s| 
 the blank reserve carries its own width again | Sources/Antarium/UI/Dashboard.swift | s|Color.clear.frame(width: RowMetrics.meter, height: 1)|Color.clear.frame(width: 61, height: 1)|
 the context bar stops aligning to the slot | Sources/Antarium/UI/Dashboard.swift | /^        .frame(minWidth: RowMetrics.meter, alignment: .trailing)$/d
 a balance is truncated to the slot rather than growing | Sources/Antarium/UI/Dashboard.swift | s|.frame(minWidth: RowMetrics.meter, alignment: .trailing)|.frame(width: RowMetrics.meter, alignment: .trailing)|
+the row name is pinned to its ideal width again | Sources/Antarium/UI/Dashboard.swift | s|                Text(row.coreName).font(.system(size: 11.5, weight: .semibold))|                Text(row.coreName).font(.system(size: 11.5, weight: .semibold)).fixedSize(horizontal: true, vertical: false)|
+the name stops being served before the path | Sources/Antarium/UI/Dashboard.swift | s|                    .layoutPriority(1)|                    .layoutPriority(0)|
+the row is furniture with a gap left for the name | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 200|
+the panel no longer states its own width | Sources/Antarium/UI/Dashboard.swift | s|    static let panelFull: CGFloat = 600|    static let panelFull: CGFloat = 320|
+a long name is cut from the wrong end | Sources/Antarium/UI/Dashboard.swift | s|^                    .truncationMode(.tail)$|                    .truncationMode(.head)|

@@ -31,6 +31,28 @@ enum RowMetrics {
     /// balance wider than this must grow rather than truncate, since a
     /// shortened figure is a wrong figure. 65 covers every realistic one.
     static let meter: CGFloat = 65
+
+    /// The panel's own width, in each mode. Reduced drops the whole second
+    /// line, so the full width would be a gap down the middle of every row.
+    static let panelFull: CGFloat = 600
+    static let panelReduced: CGFloat = 400
+
+    /// The rest of a row's first line that is not the name or the path: the
+    /// harness glyph, the gaps between the five items, the spacer's floor,
+    /// and the insets the list and the row each add.
+    static let glyph: CGFloat = 12
+    static let gap: CGFloat = 6
+    static let spacerFloor: CGFloat = 4
+    static let rowInset: CGFloat = 7
+    static let listInset: CGFloat = 6
+
+    /// What is left for the name and the path once everything of fixed width
+    /// has taken its share. Stated so that widening a column is checked
+    /// against the space there is, rather than discovered on somebody's Mac.
+    static func nameBudget(panel: CGFloat = panelFull) -> CGFloat {
+        panel - 2 * listInset - 2 * rowInset
+            - (glyph + cost + meter + pill + spacerFloor + 5 * gap)
+    }
 }
 
 /// Reports a measured height up through the view tree.
@@ -81,7 +103,7 @@ struct DashboardView: View {
 
     /// Reduced mode drops the whole second line, so the full width would just
     /// be a gap in the middle of every row. Narrow the panel to match.
-    private var panelWidth: CGFloat { reduced ? 400 : 600 }
+    private var panelWidth: CGFloat { reduced ? RowMetrics.panelReduced : RowMetrics.panelFull }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -347,9 +369,20 @@ private struct AgentRowView: View {
                                             appearance: NSApp.effectiveAppearance))
                     .resizable().frame(width: 12, height: 12)
 
+                // No `fixedSize` here. It was `horizontal: !reduced`, which
+                // in full mode pins the name to its ideal width and overrides
+                // the two modifiers above it — so the name could not truncate
+                // however long it was. `coreName` is a directory's last path
+                // component, which macOS allows up to 255 bytes, and past
+                // roughly fifty characters the row demanded more than the
+                // 600pt panel it sits in.
+                //
+                // `layoutPriority(1)` already expresses the intent the fixed
+                // size was reaching for: the name is served before the path,
+                // so it only gives way once there is nothing else left to
+                // give. Reduced mode has always worked this way.
                 Text(row.coreName).font(.system(size: 11.5, weight: .semibold))
                     .lineLimit(1)
-                    .fixedSize(horizontal: !reduced, vertical: false)
                     .truncationMode(.tail)
                     .layoutPriority(1)
                 // Where it is running, before the path: it is the thing that

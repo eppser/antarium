@@ -135,6 +135,61 @@ struct RowColumnWidthTests {
                 Comment(rawValue: "\(pinned) of the two meter views size themselves to the slot"))
     }
 
+    /// The row has to fit the panel it is drawn in.
+    ///
+    /// Nothing said so. Three columns of fixed width, a glyph, five gaps and
+    /// two sets of insets take their share first, and whatever is left is for
+    /// the project name and its path. Widening any one of them narrows that
+    /// remainder, and the only way to find out used to be to look at a Mac.
+    @Test("What is left for the name and path is enough to show both")
+    func theNameBudgetIsEnough() {
+        let budget = RowMetrics.nameBudget()
+        // Two thirds of the panel is furniture if this drops much below a
+        // third of it — which is the shape the whole row is being revisited
+        // for, so it is worth a number rather than an opinion.
+        #expect(budget >= RowMetrics.panelFull / 3,
+                Comment(rawValue: "only \(budget)pt of \(RowMetrics.panelFull) is left "
+                        + "for the name and the path"))
+        // And a name of ordinary length leaves room for a useful amount of
+        // path beside it.
+        let ordinary = width("claude-code-usage-bar", size: 11.5, weight: .semibold)
+        #expect(budget - ordinary >= 120,
+                Comment(rawValue: "an ordinary name leaves \(budget - ordinary)pt for the path"))
+    }
+
+    /// The name is a directory's last path component, which macOS allows up
+    /// to 255 bytes. It cannot be given a fixed size, or it cannot truncate,
+    /// and a long one then asks for a row wider than the panel.
+    @Test("A long project name is wider than the row can give it")
+    func longNamesExceedTheBudget() {
+        let budget = RowMetrics.nameBudget()
+        let long = String(repeating: "project-", count: 8)   // 64 characters
+        let measured = width(long, size: 11.5, weight: .semibold)
+        #expect(measured > budget,
+                Comment(rawValue: "a 64-character name measures \(measured)pt against a "
+                        + "\(budget)pt budget — if this ever fits, the case below is untested"))
+    }
+
+    /// So it must be allowed to give way. `layoutPriority` keeps it served
+    /// before the path; a fixed size made it unshrinkable instead, and
+    /// overrode the line limit and truncation written directly above it.
+    @Test("The row name can truncate, and is still served before the path")
+    func nameTruncatesButKeepsPriority() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        let start = try #require(source.range(of: "Text(row.coreName)"),
+                                 "the row name is no longer drawn from coreName")
+        let declaration = String(source[start.lowerBound...].prefix(400))
+        #expect(!declaration.contains(".fixedSize("),
+                "the name is pinned to its ideal width again, so it cannot truncate")
+        #expect(declaration.contains(".truncationMode(.tail)"))
+        #expect(declaration.contains(".lineLimit(1)"))
+        #expect(declaration.contains(".layoutPriority(1)"),
+                "without this the path competes with the name for the same space")
+    }
+
     /// Both are single-line by declaration. A wrapped cell makes its row
     /// taller than its neighbours, which is the defect `LastReply` already
     /// names — and the pill, whose content comes from a cloud service, had
