@@ -190,6 +190,44 @@ keys=$(stat -f "%Sp" "$home/keys")
     || bad "keys directory left as $keys by a command-line run"
 rm -rf "$home"
 
+# Every resource the code asks its bundle for, present in the assembled app.
+#
+# AppResources prefers Bundle.main so an installed build never depends on the
+# build machine. Nothing checked that it can: build.sh copies each resource
+# behind an `if [[ -f ]]`, so a rename or a moved file is a silent skip.
+#
+# Tried it. With Resources/pricing.json moved aside the app builds, launches
+# and reports usage exactly as before, exit zero — because Bundle.module
+# falls back to the absolute path of .build on this machine, which is the
+# dependency the comment in AppResources exists to rule out. On anybody
+# else's Mac that path does not exist. A failure that is invisible here and
+# total there is the one worth a gate.
+step "The assembled app carries every resource it asks for"
+missing=0
+res=dist/Antarium.app/Contents/Resources
+for name in $(grep -rhoE 'forResource: ?"[^"]+", ?withExtension: ?"[^"]+"' Sources/ \
+              | sed -E 's/.*forResource: ?"([^"]+)".*withExtension: ?"([^"]+)".*/\1.\2/' | sort -u); do
+    # Anywhere under Resources: the same call often names a subdirectory too,
+    # and the first version of this check reported the logo missing when it
+    # was one folder down.
+    find "$res" -name "$name" | grep -q . || { bad "the app has no $name"; missing=1; }
+done
+for dir in $(grep -rhoE 'subdirectory: ?"[^"]+"' Sources/ \
+             | sed -E 's/.*"([^"]+)".*/\1/' | sort -u); do
+    [ -d "$res/$dir" ] || { bad "the app has no $dir/"; missing=1; }
+done
+# Read at runtime for the compatibility rows, through a path this grep cannot
+# see: the fixture name comes out of the descriptor.
+[ -d "$res/harness-fixtures" ] || { bad "the app has no harness-fixtures/"; missing=1; }
+[ $missing -eq 0 ] && ok "every resource the code names is in the app"
+# And the fallback really is absent, which is what makes a miss fatal rather
+# than quiet.
+if find dist/Antarium.app -name "*.bundle" | grep -q .; then
+    bad "a SwiftPM resource bundle is inside the app — a missing resource would be hidden"
+else
+    ok "no SwiftPM bundle to fall back to"
+fi
+
 step "A first run leaves its settings directory private"
 home=$(mktemp -d)
 chmod 755 "$home"
