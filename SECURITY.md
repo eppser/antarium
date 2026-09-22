@@ -22,7 +22,13 @@ evidence and may use credentials already stored by supported providers to make
 their quota requests. It does not need credentials committed to this repository.
 
 The built-in dashboard has no action that terminates an external process or
-tmux session. Bundled harness commands are covered by an explicit test allowlist.
+tmux session; every signal this app sends goes to a process it started itself.
+
+Every command it can launch is covered by a test allowlist, with a reason
+each: the three a bundled harness may run, the vendors' own CLIs that report
+their usage through a command rather than an endpoint, and the keychain and
+ssh tools the remote feature needs. Adding one is a decision rather than a
+side effect.
 
 Harness descriptors are trusted local configuration, not a sandbox boundary.
 Depending on their declared source, they can read files or SQLite databases,

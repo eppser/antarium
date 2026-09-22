@@ -739,3 +739,5 @@ the guide stops requiring verification | AGENTS.md | s|^## Required verification
 a spoken cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|values.append("estimated cost \\(Pricing.money(cost))")|values.append("cost \\(Pricing.money(cost))")|
 a drawn cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|                    .help("Estimated list-price cost of every session's tokens. "|                    .help("Cost of every session's tokens. "|
 the readme stops calling cost an estimate | README.md | s|clearly presented as an estimate|presented plainly|
+a new command is launched from nowhere | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func sweep() { _ = Shell.execute("/usr/bin/curl", ["-s", "https://example.invalid"]) }\n    static func sorted(|
+a vendor cli becomes an absolute path | Sources/Antarium/Providers/AmpProvider.swift | s|CommandPath.resolve("amp")|CommandPath.resolve("/opt/homebrew/bin/amp")|
