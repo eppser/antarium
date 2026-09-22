@@ -166,9 +166,11 @@ struct SettingsWidthTests {
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
-        let start = try #require(source.range(of: "Text(subtitle)"),
-                                 "the toggle no longer draws a subtitle")
-        let declaration = String(source[start.lowerBound...].prefix(220))
+        // Bounded by the expression. As 220 characters it was reaching 182
+        // for the modifier it asserts is present — eighty-three per cent of
+        // the window, so one more line of comment above it would have failed
+        // the gate for a reason that has nothing to do with the panel.
+        let declaration = try SourceText.chain("Text(subtitle)", in: source)
         #expect(declaration.contains(".lineLimit(2)"),
                 Comment(rawValue: "the subtitle is held to one line: \(declaration)"))
         #expect(declaration.contains("fixedSize(horizontal: false, vertical: true)"),
@@ -261,8 +263,10 @@ struct SettingsWidthTests {
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/Antarium/UI/SettingsView.swift"), encoding: .utf8)
-        let start = try #require(source.range(of: "private var header: some View"))
-        let header = String(source[start.upperBound...].prefix(900))
+        // The whole declaration. At 900 characters it was reaching 676 for
+        // the `HStack` it looks for, and a header is exactly the sort of
+        // thing that grows a comment.
+        let header = try SourceText.block("private var header: some View", in: source)
         #expect(!header.contains("width: 56, height: 56"),
                 "the header mark is back to poster size")
         #expect(header.contains("HStack"),

@@ -884,3 +884,6 @@ a settings toggle announces as a plain button | Sources/Antarium/UI/SettingsView
 a capability button opens a file under no name | Sources/Antarium/UI/Dashboard.swift | s|                    .accessibilityLabel("Open \\(capability.kind.label)")||
 a sort option stops saying whether it is chosen | Sources/Antarium/UI/Dashboard.swift | s|                .accessibilityValue(selected ? "Selected" : "Not selected")||
 a sort option loses its name | Sources/Antarium/UI/Dashboard.swift | s|                .accessibilityLabel("Sort by \\(option.title)")||
+the row name is pinned again, further down the chain | Sources/Antarium/UI/Dashboard.swift | s|^                    .layoutPriority(1)$|                    .layoutPriority(1)\n                    .fixedSize(horizontal: true, vertical: false)|
+the subtitle loses the height it wraps into | Sources/Antarium/UI/SettingsView.swift | /^                            .fixedSize(horizontal: false, vertical: true)$/d
+the settings header is a stack of rows again | Sources/Antarium/UI/SettingsView.swift | s|            HStack(spacing: 7) {|            VStack(spacing: 7) {|

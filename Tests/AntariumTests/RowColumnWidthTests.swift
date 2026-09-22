@@ -246,9 +246,12 @@ struct RowColumnWidthTests {
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
-        let start = try #require(source.range(of: "Text(row.coreName)"),
-                                 "the row name is no longer drawn from coreName")
-        let declaration = String(source[start.lowerBound...].prefix(400))
+        // The `Text`'s own chain, rather than four hundred characters after
+        // it. The outcome was already right — the nearest `.fixedSize(` is
+        // 776 characters away and belongs to the host capsule, so nothing
+        // spurious fell inside the old window — but the bound was a guess
+        // about distance where what is meant is "this expression".
+        let declaration = try SourceText.chain("Text(row.coreName)", in: source)
         #expect(!declaration.contains(".fixedSize("),
                 "the name is pinned to its ideal width again, so it cannot truncate")
         #expect(declaration.contains(".truncationMode(.tail)"))
