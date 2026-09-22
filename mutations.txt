@@ -714,3 +714,6 @@ every host is asked twice | Sources/Antarium/Core/RemoteSweep.swift | s|        
 an unchartable answer is told to sign in again | Sources/Antarium/Core/UsageModel.swift | s|        if suggestsSignIn { return setupHint }|        if suggestsSignIn \|\| true { return setupHint }|
 the unchartable hint stops saying why | Sources/Antarium/Core/UsageModel.swift | s|                 + "Signing in again will not change it."|                 + ""|
 the menu decides the advice for itself again | Sources/Antarium/AgentItem.swift | s|        let hint = err.hint(setupHint: provider.setupHint)|        let hint = provider.setupHint|
+a harness certifies itself by declaring it | Sources/Antarium/Core/HarnessCompatibility.swift | s|            let passed = actual == fixture.expected|            let passed = true|
+a claim of verification needs no fixture | Sources/Antarium/Core/HarnessDocument.swift | s|            try requireText("fixture", in: compatibility, at: "compatibility.")||
+a claim of verification needs no date | Sources/Antarium/Core/HarnessDocument.swift | s|            try requireText("verifiedAt", in: compatibility, at: "compatibility.")||
