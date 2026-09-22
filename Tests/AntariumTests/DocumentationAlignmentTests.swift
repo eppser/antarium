@@ -529,3 +529,56 @@ struct CostIsAnEstimateTests {
                 "the promise this suite holds is no longer made")
     }
 }
+
+/// Every field a descriptor may declare is described where authors read.
+///
+/// docs/TECHNICAL.md is the reference somebody writing a harness works from;
+/// the schema tells their editor what is allowed, and the doc tells them what
+/// it means. A field the decoder accepts and the reference never mentions is
+/// one nobody can use — it exists for whoever added it and for nobody else.
+///
+/// Two were added during this work, `map.totalTokens` and
+/// `quota.credential.accountField`, and both were documented at the time.
+/// That was diligence rather than a rule, and diligence is what this replaces.
+@Suite("Every descriptor field is in the reference")
+struct DescriptorFieldsAreDocumentedTests {
+
+    private var reference: String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return (try? String(contentsOf: root.appendingPathComponent("docs/TECHNICAL.md"),
+                            encoding: .utf8)) ?? ""
+    }
+
+    /// `--check` carries the authoritative list: a field absent from it is
+    /// reported to the author as unknown, so these are exactly the names a
+    /// descriptor may use.
+    @Test("Every mapped field the checker knows is described",
+          arguments: ["map", "source", "quota", "quota.credential"])
+    func fieldsAreDescribed(object: String) throws {
+        let known = try #require(HarnessCheck.known[object],
+                                 Comment(rawValue: "\(object) is no longer a checked object"))
+        #expect(known.count >= 4, "only \(known.count) fields listed for \(object)")
+        let text = reference
+        var missing: [String] = []
+        for field in known where !text.contains(field) { missing.append(field) }
+        #expect(missing.isEmpty,
+                Comment(rawValue: "\(object) accepts these and the reference never mentions "
+                        + "them: \(missing.sorted().joined(separator: ", "))"))
+    }
+
+    /// The source kinds and credential kinds an author chooses between.
+    @Test("Every kind a descriptor may declare is described")
+    func kindsAreDescribed() {
+        let text = reference
+        for kind in ["jsonl", "json", "sqlite", "command", "none"] {
+            #expect(text.contains(kind),
+                    Comment(rawValue: "source kind \(kind) is undocumented"))
+        }
+        for kind in ["jsonFile", "textFile", "env", "command"] {
+            #expect(text.contains(kind),
+                    Comment(rawValue: "credential kind \(kind) is undocumented"))
+        }
+    }
+}

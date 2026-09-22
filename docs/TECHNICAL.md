@@ -637,6 +637,36 @@ above, and flat. Record whichever yours returns as
 `litellm.quota-fixture.json` beside the descriptor and run `--check`; that
 is what the fixture is for, and it takes one reply and no account.
 
+### What a row can show
+
+`map` names where each figure lives in a record. Everything below is
+optional: a field left out is absent rather than zero, and the row simply
+does not show it.
+
+| Field | What it is |
+| --- | --- |
+| `cwd` | the working directory, which is how a session is matched to a process |
+| `title`, `model`, `timestamp` | what the row is called, which model answered, when |
+| `sessionID` | the harness's own id, for matching state held elsewhere |
+| `pid` | the process a session belongs to, when the source names it — a session binds to that pid directly instead of being matched by directory |
+| `inputTokens`, `outputTokens` | sent and received, accumulated across records |
+| `cacheRead`, `cacheWrite` | the cached halves, kept apart because a cache read is re-used server-side rather than uploaded |
+| `inputIncludesCacheRead` | `true` when the service already counts the cached part inside `inputTokens`, so it is not added twice |
+| `totalTokens` | one combined figure, for a harness that reports no split. Refused alongside the four above |
+| `contextTokens` | what the harness says is in the context window now. A list, summed; a context is measured rather than accumulated, so the newest record wins |
+| `contextWindow` | the size of that window, which is the denominator for the context bar |
+| `cost` | money, accumulated. Shown as an estimate everywhere it appears |
+| `toolMarker` | a substring that marks a tool call, counted per record |
+| `toolWhere` | one tool call when every named field equals its value |
+| `toolCalls` | tool calls held as a nested array or object, counted |
+| `turnWhere` | which records count as conversation turns |
+| `turns`, `subAgents` | counted the same way, from a path and an optional filter |
+| `status` | where the harness records working or waiting, when it says so |
+
+A `quota` block adds two of its own: `accountLabel`, a path to the plan or
+account name the row shows beside the figures, and `signInCommand`, the
+command the row offers when the credential is missing.
+
 ### Quota transport
 
 A `balance` must declare a `currency` — a path into the response where the
