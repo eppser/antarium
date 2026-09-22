@@ -64,38 +64,35 @@ enum PanelPlacement {
 
     /// How many columns the agent list should use.
     ///
-    /// The complaint this answers is that the panel is a tall thin ribbon: a
-    /// single column that grows to the height of the screen while the display
-    /// it hangs on is landscape. Two columns halve that.
+    /// One, for as long as one fits. The list splits only when a single
+    /// column would not fit the screen it hangs on — at which point the
+    /// choice is between two columns and a scrollbar, and two columns show
+    /// more of the list at once.
     ///
-    /// Decided from the row count, which is a scalar known before any layout
-    /// happens. Deriving it from the available width instead would close a
-    /// loop — the content's height depends on the column count, the panel's
-    /// size depends on its content, and the width available depends on the
-    /// panel — and the measured height this panel already reports through a
-    /// preference would oscillate inside it.
+    /// This was a row count: nine rows became two columns whether or not one
+    /// column had room. On an ordinary display one column holds about thirty
+    /// rows, so the panel was splitting long before it needed to and the
+    /// common case — a handful of agents — was being shown in a layout meant
+    /// for a long list.
     ///
-    /// The screen is consulted, but only as a ceiling: two columns need twice
-    /// the panel and the margins, and a display that cannot give that keeps
-    /// one column rather than being clipped. `NSScreen` is read before layout
-    /// too, so it is a scalar as well.
+    /// Decided from the row count and two constants, so it is still settled
+    /// before any layout happens. Measuring the rendered height instead would
+    /// close a loop: the height depends on the column count, and the column
+    /// count would depend on the height.
     ///
-    /// `previous` gives the switch hysteresis. Without it a list hovering at
-    /// the boundary — which a list of live agents does, as sessions come and
-    /// go — changes the panel's width every time it crosses, and the window
-    /// jumps under the pointer.
-    static func columns(rowCount: Int, previous: Int, panel: CGFloat,
-                        visibleWidth: CGFloat, margin: CGFloat = margin) -> Int {
+    /// `previous` gives the switch hysteresis. Without it a list sitting on
+    /// the boundary — which a list of live agents does — changes the panel's
+    /// shape every time a session starts or ends.
+    static func columns(rowCount: Int, previous: Int, contentHeight: CGFloat,
+                        panel: CGFloat, visibleWidth: CGFloat, visibleHeight: CGFloat,
+                        margin: CGFloat = margin) -> Int {
+        let room = visibleHeight - verticalAllowance
+        // One column, whenever one will do.
+        if contentHeight <= room { return 1 }
         guard visibleWidth * maxScreenShare >= 2 * panel + 2 * margin else { return 1 }
-        if rowCount >= twoColumnsAbove { return 2 }
-        if rowCount <= oneColumnBelow { return 1 }
-        return previous == 2 ? 2 : 1
+        guard rowCount > 1 else { return 1 }
+        return 2
     }
-
-    /// Nine rows becomes two columns; seven goes back to one. Eight keeps
-    /// whatever it had, which is the gap that stops the flapping.
-    static let twoColumnsAbove = 9
-    static let oneColumnBelow = 7
 
     /// How much of the screen's width a panel may occupy before a second
     /// column stops being an improvement.
@@ -107,6 +104,11 @@ enum PanelPlacement {
     /// keeps a tenth of the screen clear, which still admits the 13" and
     /// refuses the genuinely small displays below it.
     static let maxScreenShare: CGFloat = 0.9
+
+    /// The menu bar, the panel's own margin and the space a panel is not
+    /// allowed to fill. The same figure the list uses to cap its height, so
+    /// "would not fit" here and "starts to scroll" there are one question.
+    static let verticalAllowance: CGFloat = 130
 
     /// The rows of one column, filled column-major.
     ///

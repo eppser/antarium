@@ -47,6 +47,18 @@ enum RowMetrics {
     static let listInset: CGFloat = 6
     /// Between two columns of rows.
     static let gutter: CGFloat = 12
+
+    /// What one more row adds to the panel's height, and what the panel costs
+    /// before any rows at all. Measured against the real view rather than
+    /// estimated, and there is a test that re-measures them.
+    static let rowPitch: CGFloat = 40
+    static let rowPitchReduced: CGFloat = 23
+    static let chrome: CGFloat = 63
+
+    /// The height a single column of `count` rows would want.
+    static func singleColumnHeight(rows count: Int, reduced: Bool) -> CGFloat {
+        chrome + CGFloat(max(0, count)) * (reduced ? rowPitchReduced : rowPitch)
+    }
     /// One column's inner width — what a row actually gets.
     ///
     /// The list's horizontal inset is applied once, to the stack of columns,
@@ -165,9 +177,14 @@ struct DashboardView: View {
     /// height this panel measures and reports back up.
     private var columns: Int {
         guard !singleColumn else { return 1 }
+        let screen = NSScreen.main?.visibleFrame
         return PanelPlacement.columns(
-            rowCount: store.rows.count, previous: columnCount, panel: columnWidth,
-            visibleWidth: NSScreen.main?.visibleFrame.width ?? columnWidth)
+            rowCount: store.rows.count, previous: columnCount,
+            contentHeight: RowMetrics.singleColumnHeight(rows: store.rows.count,
+                                                         reduced: reduced),
+            panel: columnWidth,
+            visibleWidth: screen?.width ?? columnWidth,
+            visibleHeight: screen?.height ?? .greatestFiniteMagnitude)
     }
 
     private var panelWidth: CGFloat {

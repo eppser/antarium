@@ -801,10 +801,8 @@ the name stops being served before the path | Sources/Antarium/UI/Dashboard.swif
 the row is furniture with a gap left for the name | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 200|
 the panel no longer states its own width | Sources/Antarium/UI/Dashboard.swift | s|    static let panelFull: CGFloat = 600|    static let panelFull: CGFloat = 320|
 a long name is cut from the wrong end | Sources/Antarium/UI/Dashboard.swift | s|^                    .truncationMode(.tail)$|                    .truncationMode(.head)|
-the panel never uses a second column | Sources/Antarium/UI/PanelPlacement.swift | s|        if rowCount >= twoColumnsAbove { return 2 }|        if rowCount >= twoColumnsAbove { return 1 }|
 a long list widens the panel without splitting the rows | Sources/Antarium/UI/Dashboard.swift | s|ForEach(PanelPlacement.column(column, of: columns,|ForEach(PanelPlacement.column(0, of: 1,|
 the columns are filled across instead of down | Sources/Antarium/UI/PanelPlacement.swift | s|        let start = index \* base + min(index, extra)|        let start = index|
-the boundary flaps between one column and two | Sources/Antarium/UI/PanelPlacement.swift | s|        return previous == 2 ? 2 : 1|        return 2|
 a panel wider than the screen is allowed | Sources/Antarium/UI/PanelPlacement.swift | s|        guard visibleWidth \* maxScreenShare >= 2 \* panel + 2 \* margin else { return 1 }||
 the uneven column leans right | Sources/Antarium/UI/PanelPlacement.swift | s|        let length = base + (index < extra ? 1 : 0)|        let length = base + (index >= count - extra ? 1 : 0)|
 a settings section reaches no tab at all | Sources/Antarium/UI/SettingsView.swift | s|                    if tab == .dashboard \|\| unbounded {|                    if false \&\& tab == .dashboard {|
@@ -897,3 +895,8 @@ a host with whitespace in the middle is accepted | Sources/Antarium/Core/RemoteT
 a second resource directory is excluded unremarked | .gitignore | s|^Resources/marks/\*.png$|Resources/marks/*.png\nResources/quota-fixtures/*.json|
 the artwork stops explaining why it is absent | Resources/marks/README.md | s|ignored by Git|managed separately|
 the artwork readme stops naming the fallback | Resources/marks/README.md | s|vector or initial-letter fallbacks|other marks|
+the list splits while one column still fits | Sources/Antarium/UI/PanelPlacement.swift | s|        if contentHeight <= room { return 1 }|        if contentHeight <= 0 { return 1 }|
+the list never splits however long it gets | Sources/Antarium/UI/PanelPlacement.swift | s|        guard rowCount > 1 else { return 1 }|        return 1; guard rowCount > 1 else { return 1 }|
+a row is costed at the wrong height | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitch: CGFloat = 40|    static let rowPitch: CGFloat = 20|
+the panel chrome is not counted against the screen | Sources/Antarium/UI/Dashboard.swift | s|        chrome + CGFloat(max(0, count))|        CGFloat(max(0, count))|
+a compact row is costed as a full one | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitchReduced: CGFloat = 23|    static let rowPitchReduced: CGFloat = 40|

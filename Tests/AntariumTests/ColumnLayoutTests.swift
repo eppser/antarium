@@ -15,56 +15,93 @@ import Testing
 struct ColumnDecisionTests {
 
     private let panel: CGFloat = 600
-    /// A 1920-wide display, comfortably able to hold two 600pt columns.
+    /// A 1920x1080 display, which holds two columns side by side.
     private let wide: CGFloat = 1_920
+    private let tall: CGFloat = 1_055
     /// Narrow enough that two columns and their margins would leave less
-    /// than a tenth of the screen clear. A 13" MacBook's 1440 is *not* this
-    /// case — 1216pt of panel fits it, at 84% — which is why the ceiling is
-    /// a share of the screen and not a plain fit.
+    /// than a tenth of the screen clear.
     private let narrow: CGFloat = 1_280
 
-    private func columns(_ rows: Int, previous: Int = 1, width: CGFloat? = nil) -> Int {
-        PanelPlacement.columns(rowCount: rows, previous: previous,
-                               panel: panel, visibleWidth: width ?? wide)
+    private func columns(_ rows: Int, previous: Int = 1,
+                         width: CGFloat? = nil, height: CGFloat? = nil,
+                         reduced: Bool = false) -> Int {
+        PanelPlacement.columns(
+            rowCount: rows, previous: previous,
+            contentHeight: RowMetrics.singleColumnHeight(rows: rows, reduced: reduced),
+            panel: panel, visibleWidth: width ?? wide, visibleHeight: height ?? tall)
     }
 
-    @Test("A short list stays in one column")
-    func shortListsAreOneColumn() {
-        for rows in 0...7 { #expect(columns(rows) == 1, Comment(rawValue: "\(rows) rows")) }
+    /// How many rows one column holds on a given display, from the same
+    /// arithmetic the decision uses.
+    private func fits(_ height: CGFloat, reduced: Bool = false) -> Int {
+        var n = 0
+        while RowMetrics.singleColumnHeight(rows: n + 1, reduced: reduced)
+                <= height - PanelPlacement.verticalAllowance { n += 1 }
+        return n
     }
 
-    @Test("A long list uses two")
-    func longListsAreTwoColumns() {
-        for rows in [9, 12, 40, 200] { #expect(columns(rows) == 2, Comment(rawValue: "\(rows) rows")) }
+    /// The rule, and the thing that was wrong before it: the list used to
+    /// split at nine rows whether or not one column had room, and one column
+    /// holds about twenty-three on a 1080p display.
+    @Test("One column, for as long as one column fits")
+    func oneColumnWhileItFits() {
+        let capacity = fits(tall)
+        #expect(capacity > 15,
+                Comment(rawValue: "one column holds only \(capacity) rows, so this display "
+                        + "cannot show the rule"))
+        for rows in [0, 1, 4, 9, 12, capacity] {
+            #expect(columns(rows) == 1,
+                    Comment(rawValue: "\(rows) rows split into two columns with room for "
+                            + "\(capacity) in one"))
+        }
     }
 
-    /// The boundary keeps what it had. A list of live agents crosses it
-    /// constantly as sessions start and finish, and without this the panel
-    /// changes width under the pointer every time.
-    @Test("The boundary row count keeps whatever layout it had")
-    func theBoundaryIsSticky() {
-        #expect(columns(8, previous: 1) == 1, "eight rows widened the panel")
-        #expect(columns(8, previous: 2) == 2, "eight rows narrowed the panel")
-        // And the hysteresis is a band, not a single sticky value: coming down
-        // from a long list, two columns survive until the list is properly short.
-        #expect(columns(9, previous: 1) == 2)
-        #expect(columns(7, previous: 2) == 1)
+    @Test("Two columns only once one will not fit")
+    func twoColumnsWhenItDoesNot() {
+        let capacity = fits(tall)
+        #expect(columns(capacity + 1) == 2,
+                Comment(rawValue: "\(capacity + 1) rows stayed in one column on a display "
+                        + "holding \(capacity)"))
+        #expect(columns(capacity * 3) == 2)
     }
 
-    /// A screen that cannot hold two columns gets one, however long the list.
+    /// A shorter display splits sooner, which is the point: the question is
+    /// whether it fits, not how many there are.
+    @Test("The same list splits on a short display and not on a tall one")
+    func theDisplayDecides() {
+        let short: CGFloat = 700
+        let rows = fits(short) + 2
+        #expect(columns(rows, height: short) == 2,
+                Comment(rawValue: "\(rows) rows fitted a \(short)pt display in one column"))
+        #expect(columns(rows, height: 1_800) == 1,
+                Comment(rawValue: "\(rows) rows split on an 1800pt display"))
+    }
+
+    /// The compact list is half the height, so it fits about twice as many.
+    @Test("A reduced row is shorter, so more of them fit before splitting")
+    func reducedFitsMore() {
+        #expect(fits(tall, reduced: true) > fits(tall),
+                "the compact list does not hold more rows than the full one")
+        let justOverFull = fits(tall) + 1
+        #expect(columns(justOverFull) == 2)
+        #expect(columns(justOverFull, reduced: true) == 1,
+                "a list that fits when compact was split anyway")
+    }
+
+    /// A display too narrow for two columns keeps one, however long the list.
     /// Being clipped is worse than scrolling.
     @Test("A display too narrow for two columns keeps one")
     func narrowDisplaysKeepOneColumn() {
-        #expect(columns(40, width: narrow) == 1)
-        #expect(columns(40, previous: 2, width: narrow) == 1,
-                "a panel dragged to a smaller display stayed two columns wide")
-        // Exactly enough is enough.
-        let exact = (2 * panel + 2 * PanelPlacement.margin) / PanelPlacement.maxScreenShare
-        #expect(columns(40, width: exact.rounded(.up)) == 2)
-        #expect(columns(40, width: exact - 1) == 1)
-        // A 13" MacBook does hold two columns; the ceiling is what decides,
-        // not whether they merely fit.
-        #expect(columns(40, width: 1_440) == 2, "a 13\" display was refused two columns")
+        #expect(columns(200, width: narrow) == 1)
+        #expect(columns(200, previous: 2, width: narrow) == 1)
+        #expect(columns(200, width: 1_440) == 2, "a 13\" display was refused two columns")
+    }
+
+    /// One row cannot be split, whatever the arithmetic says about height.
+    @Test("A single row is never two columns")
+    func oneRowIsOneColumn() {
+        #expect(columns(1, height: 200) == 1)
+        #expect(columns(0, height: 200) == 1)
     }
 }
 
@@ -183,6 +220,15 @@ struct ColumnLayoutRenderTests {
         }
     }
 
+    private func fittingHeight(rowCount: Int) -> CGFloat {
+        let store = AgentStore.shared
+        store.adoptForPreview(rows(rowCount))
+        let host = NSHostingView(rootView: DashboardView(store: store, onSettings: {},
+                                                          onTogglePin: {}, singleColumn: true))
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize.height
+    }
+
     private func fittingWidth(rowCount: Int) -> CGFloat {
         let store = AgentStore.shared
         store.adoptForPreview(rows(rowCount))
@@ -192,12 +238,49 @@ struct ColumnLayoutRenderTests {
         return host.fittingSize.width
     }
 
+    /// Enough rows that one column will not fit this display, so the render
+    /// tests are about the decision rather than about the screen.
+    /// The most rows one column holds on this display, and one more.
+    private var rowsThatFit: Int {
+        let room = (NSScreen.main?.visibleFrame.height ?? 900)
+            - PanelPlacement.verticalAllowance
+        var n = 0
+        while RowMetrics.singleColumnHeight(rows: n + 1, reduced: false) <= room { n += 1 }
+        return n
+    }
+    private var rowsThatDoNotFit: Int { rowsThatFit + 1 }
+
     /// Wide enough to be allowed two columns at all, or this measures the
     /// ceiling instead of the decision.
     private var screenIsWideEnough: Bool {
-        PanelPlacement.columns(rowCount: 40, previous: 1, panel: RowMetrics.panelFull,
-                               visibleWidth: NSScreen.main?.visibleFrame.width
-                                   ?? RowMetrics.panelFull) == 2
+        let screen = NSScreen.main?.visibleFrame
+        return PanelPlacement.columns(
+            rowCount: rowsThatDoNotFit, previous: 1,
+            contentHeight: RowMetrics.singleColumnHeight(rows: rowsThatDoNotFit,
+                                                         reduced: false),
+            panel: RowMetrics.panelFull,
+            visibleWidth: screen?.width ?? RowMetrics.panelFull,
+            visibleHeight: screen?.height ?? 900) == 2
+    }
+
+    /// The two constants the split decision rests on, re-measured against
+    /// the real view. They are what turns a row count into a height, so if
+    /// they drift the panel splits at the wrong moment — and nothing about
+    /// the result would look wrong.
+    @Test("A row costs what the metrics say it costs")
+    func pitchAndChromeAreReal() {
+        let one = fittingHeight(rowCount: 1)
+        let two = fittingHeight(rowCount: 2)
+        let nine = fittingHeight(rowCount: 9)
+        #expect(abs((two - one) - RowMetrics.rowPitch) < 0.5,
+                Comment(rawValue: "a row adds \(two - one)pt, not \(RowMetrics.rowPitch)"))
+        #expect(abs((one - RowMetrics.rowPitch) - RowMetrics.chrome) < 0.5,
+                Comment(rawValue: "the chrome is \(one - RowMetrics.rowPitch)pt, not "
+                        + "\(RowMetrics.chrome)"))
+        // And the arithmetic predicts a longer list, not just two short ones.
+        #expect(abs(RowMetrics.singleColumnHeight(rows: 9, reduced: false) - nine) < 0.5,
+                Comment(rawValue: "nine rows measure \(nine)pt and the metrics predict "
+                        + "\(RowMetrics.singleColumnHeight(rows: 9, reduced: false))"))
     }
 
     @Test("A short list is one column wide")
@@ -211,9 +294,10 @@ struct ColumnLayoutRenderTests {
     func longListIsTwoColumns() throws {
         try #require(screenIsWideEnough, "this display cannot hold two columns")
         let expected = RowMetrics.panelFull * 2 + RowMetrics.gutter
-        let width = fittingWidth(rowCount: 20)
+        let width = fittingWidth(rowCount: rowsThatDoNotFit)
         #expect(abs(width - expected) < 1,
-                Comment(rawValue: "twenty rows produced a \(width)pt panel, not \(expected)"))
+                Comment(rawValue: "\(rowsThatDoNotFit) rows produced a \(width)pt panel, "
+                        + "not \(expected)"))
     }
 
     /// Widening the panel must not widen its content past it. The divider
@@ -252,7 +336,7 @@ struct ColumnLayoutRenderTests {
     @Test("A rendered sheet is one column whatever the list holds")
     func renderedSheetsAreDeterministic() {
         let store = AgentStore.shared
-        store.adoptForPreview(rows(40))
+        store.adoptForPreview(rows(rowsThatDoNotFit * 2))
         let host = NSHostingView(rootView: DashboardView(store: store, onSettings: {},
                                                           onTogglePin: {}, singleColumn: true))
         host.layoutSubtreeIfNeeded()
@@ -288,10 +372,14 @@ struct ColumnLayoutRenderTests {
             host.layoutSubtreeIfNeeded()
             return host.fittingSize.height
         }
-        let short = height(6)            // one column, six rows
-        let long = height(12)            // two columns, six rows each
-        #expect(long < short * 1.35,
-                Comment(rawValue: "twelve rows in two columns came to \(long)pt against "
-                        + "\(short)pt for six in one — the split did not halve the height"))
+        // The largest list one column holds, against twice that list. The
+        // second is split, so it shows twice as many rows in about the same
+        // height — which is the whole reason to split.
+        let short = height(rowsThatFit)
+        let long = height(rowsThatFit * 2)
+        #expect(long <= short * 1.05,
+                Comment(rawValue: "\(rowsThatFit * 2) rows in two columns came to \(long)pt "
+                        + "against \(short)pt for \(rowsThatFit) in one — twice the rows "
+                        + "should cost about the same height"))
     }
 }
