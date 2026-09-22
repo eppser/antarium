@@ -231,3 +231,51 @@ struct AgentToggleTests {
         #expect(Settings.toggling("zai", on: false, in: ["codex"]) == .apply(["codex"]))
     }
 }
+
+/// The first-run screen keeps the promise it makes.
+///
+/// It reports what was detected, and the session count is not ready when it
+/// is drawn: the first scan is dispatched rather than awaited, so the screen
+/// says "Counting sessions…" and used to say it for as long as the panel was
+/// open. An ellipsis is a promise; nothing was keeping it.
+///
+/// A source rule, because the screen is an AppKit panel hosting a SwiftUI
+/// view and nothing here can open one. It cannot show the count arrives —
+/// only that the wiring which delivers it is still present, and that the
+/// callback it borrows is handed back.
+@Suite("The first-run screen is redrawn when the count arrives")
+struct OnboardingCountContractTests {
+
+    private func controller() throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/AppController.swift"), encoding: .utf8)
+    }
+
+    @Test("The panel is redrawn from the rows callback")
+    func redrawsOnRows() throws {
+        let text = try controller()
+        let start = try #require(text.range(of: "func showOnboardingIfNeeded()"),
+                                 "the first-run screen was renamed")
+        let body = String(text[start.lowerBound...].prefix(1_800))
+        #expect(body.contains("onRowsChanged"),
+                "the screen is drawn once and never told the count")
+        #expect(body.contains("rootView"),
+                "nothing redraws the screen when the rows arrive")
+    }
+
+    /// The callback belongs to the count item. Taking it and not giving it
+    /// back would leave the menu bar's own count frozen for the session.
+    @Test("The borrowed callback is called and handed back")
+    func callbackIsRestored() throws {
+        let text = try controller()
+        let start = try #require(text.range(of: "func showOnboardingIfNeeded()"))
+        let body = String(text[start.lowerBound...].prefix(1_800))
+        #expect(body.contains("previousRowsChanged?(rows)"),
+                "the count item stops updating while the first-run screen is open")
+        #expect(body.contains("onRowsChanged = previousRowsChanged"),
+                "the callback is never handed back")
+    }
+}

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// Coordinates one `AgentItem` per enabled agent.
 ///
@@ -66,22 +67,44 @@ final class AppController: NSObject {
 
     /// First launch only: show what was detected, ask nothing.
     private var onboardingPanel: NSPanel?
+    private var onboardingHosting: NSHostingView<OnboardingView>?
 
     func showOnboardingIfNeeded() {
         guard !Onboarding.hasRun else { return }
         let panel = PanelChrome.makePanel()
         onboardingPanel = panel
         let providers = items.map(\.provider)
-        let view = OnboardingView(
-            harnesses: Onboarding.harnesses(),
-            accounts: Onboarding.accounts(providers),
-            sessions: AgentStore.shared.rows.isEmpty ? nil : AgentStore.shared.rows.count,
-            onDone: { [weak self] in
-                Onboarding.complete()
-                self?.onboardingPanel?.orderOut(nil)
-                self?.onboardingPanel = nil
-            })
+        let harnesses = Onboarding.harnesses()
+        let accounts = Onboarding.accounts(providers)
+        func screen(sessions: Int?) -> OnboardingView {
+            OnboardingView(
+                harnesses: harnesses, accounts: accounts, sessions: sessions,
+                onDone: { [weak self] in
+                    Onboarding.complete()
+                    self?.onboardingPanel?.orderOut(nil)
+                    self?.onboardingPanel = nil
+                    self?.onboardingHosting = nil
+                })
+        }
+        // The first scan is dispatched, not awaited, so at this moment there
+        // are no rows and the screen says "Counting sessions…". It said that
+        // for as long as the panel was open: an ellipsis is a promise, and
+        // nothing was keeping it. The count arrives a few hundred
+        // milliseconds later and the screen is redrawn with it.
+        let view = screen(sessions: AgentStore.shared.rows.isEmpty
+                              ? nil : AgentStore.shared.rows.count)
+        let previousRowsChanged = AgentStore.shared.onRowsChanged
+        AgentStore.shared.onRowsChanged = { [weak self] rows in
+            previousRowsChanged?(rows)
+            guard let self, self.onboardingPanel != nil else {
+                // The panel is gone; hand the callback back to whoever had it.
+                AgentStore.shared.onRowsChanged = previousRowsChanged
+                return
+            }
+            self.onboardingHosting?.rootView = screen(sessions: rows.count)
+        }
         let hosting = PanelChrome.host(view, in: panel)
+        onboardingHosting = hosting
         hosting.layoutSubtreeIfNeeded()
         panel.setContentSize(hosting.fittingSize)
         panel.center()
