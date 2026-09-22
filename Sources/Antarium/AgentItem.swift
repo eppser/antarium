@@ -520,15 +520,9 @@ final class AgentItem: NSObject, NSMenuDelegate {
             string: (err.errorDescription ?? "Couldn't read usage.") + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium),
                          .foregroundColor: NSColor.systemRed])
-        let hint: String
-        switch err {
-        case .needsAuth, .notConfigured, .unsupported: hint = provider.setupHint
-        case .accessDenied:
-            hint = "Open Keychain Access, select the agent's credential item, "
-                 + "and allow Antarium under Access Control."
-        case .transport:   hint = "Will retry automatically."
-        case .badResponse: hint = "The usage API returned something unexpected."
-        }
+        // Asked of the error rather than decided here, so the advice cannot
+        // drift from `suggestsSignIn` again.
+        let hint = err.hint(setupHint: provider.setupHint)
         s.append(NSAttributedString(
             string: hint,
             attributes: [.font: NSFont.systemFont(ofSize: 11),

@@ -180,6 +180,41 @@ enum ProviderError: LocalizedError, Equatable {
         }
     }
 
+    /// What to tell the user underneath the message, given what this agent's
+    /// own setup instructions are.
+    ///
+    /// Beside `suggestsSignIn` because the two had drifted: the rule above
+    /// says an unparseable or unsupported answer is not the user's to fix and
+    /// that offering a login for it wastes their time, and the menu offered
+    /// one anyway. A free Cursor account with no plan, or a 404 from a host
+    /// that moved its endpoint, was told to sign in to Cursor again. Asking
+    /// the rule rather than re-listing the cases is what keeps them together.
+    func hint(setupHint: String) -> String {
+        if suggestsSignIn { return setupHint }
+        switch self {
+        case .accessDenied:
+            return "Open Keychain Access, select the agent's credential item, "
+                 + "and allow Antarium under Access Control."
+        case .transport:
+            return "Will retry automatically."
+        case .badResponse:
+            return "The usage API returned something unexpected."
+        case .unsupported:
+            return "This account reports no usage figures this app can chart. "
+                 + "Signing in again will not change it."
+        case .needsAuth, .notConfigured:
+            // Unreachable: both suggest signing in, so the guard above has
+            // already returned. Written out because Swift wants the switch
+            // exhaustive and because a new case should be a decision rather
+            // than a fallthrough — and noted as inert, since it makes the
+            // guard redundant: removing that guard leaves this returning the
+            // same answer, so no mutation of it can be caught. The guard
+            // stays because it is what ties this to `suggestsSignIn`; this
+            // arm would tie it to nothing.
+            return setupHint
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .notConfigured(let m), .needsAuth(let m), .accessDenied(let m),

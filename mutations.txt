@@ -711,3 +711,6 @@ the borrowed callback is never handed back | Sources/Antarium/AppController.swif
 the redrawn first-run screen is not resized | Sources/Antarium/AppController.swift | s|            self.onboardingPanel?.setContentSize(hosting.fittingSize)||
 a host's answer is filed under whoever replied first | Sources/Antarium/Core/RemoteSweep.swift | s|            lock.lock(); values\[index\] = result; lock.unlock()|            lock.lock(); values[values.count] = result; lock.unlock()|
 every host is asked twice | Sources/Antarium/Core/RemoteSweep.swift | s|            guard taken < count else { return nil }|            guard taken < count * 2 else { return nil }|
+an unchartable answer is told to sign in again | Sources/Antarium/Core/UsageModel.swift | s|        if suggestsSignIn { return setupHint }|        if suggestsSignIn \|\| true { return setupHint }|
+the unchartable hint stops saying why | Sources/Antarium/Core/UsageModel.swift | s|                 + "Signing in again will not change it."|                 + ""|
+the menu decides the advice for itself again | Sources/Antarium/AgentItem.swift | s|        let hint = err.hint(setupHint: provider.setupHint)|        let hint = provider.setupHint|
