@@ -208,6 +208,24 @@ struct DashboardView: View {
                         }
                     }
                     .padding(.horizontal, reduced ? 5 : 6).padding(.vertical, 5)
+                    // A hairline down the gutter, drawn over the stack rather
+                    // than inside it: a divider between the columns would
+                    // take a gutter's spacing on each side, which would widen
+                    // the content past the panel and break the arithmetic
+                    // that says the two agree. Two 588pt columns twelve
+                    // points apart otherwise read as one very wide row with a
+                    // seam in it.
+                    .overlay(alignment: .topLeading) {
+                        if columns > 1 {
+                            let inset = reduced ? RowMetrics.listInset - 1 : RowMetrics.listInset
+                            Rectangle().fill(Color.primary.opacity(0.08))
+                                .frame(width: 1)
+                                .offset(x: inset + RowMetrics.columnInner(
+                                    panel: panelWidth, columns: columns, inset: inset)
+                                    + RowMetrics.gutter / 2)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .modifier(MeasureHeight())
                 }
                 .onPreferenceChange(HeightKey.self) { listHeight = $0 }
@@ -259,6 +277,14 @@ struct DashboardView: View {
                 .foregroundStyle(reduced ? .secondary : .tertiary)
                 .fixedSize()
 
+            // At two columns the header is twice as wide and its contents
+            // are not: the identity on the left and the actions on the right
+            // left seven hundred points of nothing between them, in a strip
+            // twenty-eight points tall. A second spacer moves the controls
+            // that belong to the *list* into that space, so the bar reads as
+            // leading identity, centred controls, trailing actions — rather
+            // than two small islands at opposite ends.
+            if columns > 1 { Spacer(minLength: 4) }
             SortControl(sort: sort, iconsOnly: reduced) { store.setSort($0) }
                 .padding(.leading, 2)
 

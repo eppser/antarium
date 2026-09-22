@@ -216,6 +216,35 @@ struct ColumnLayoutRenderTests {
                 Comment(rawValue: "twenty rows produced a \(width)pt panel, not \(expected)"))
     }
 
+    /// Widening the panel must not widen its content past it. The divider
+    /// between the columns is drawn over the stack rather than placed in it,
+    /// because a view between two columns takes a gutter's spacing on each
+    /// side — which would push the content 12pt past the frame and undo the
+    /// identity the arithmetic test asserts.
+    @Test("The column divider does not take part in the layout")
+    func dividerIsAnOverlay() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/Dashboard.swift"), encoding: .utf8)
+        let stack = try #require(source.range(of: "HStack(alignment: .top, spacing: RowMetrics.gutter)"),
+                                 "the columns are no longer an HStack")
+        // To the end of the list's own view, which is where the height it
+        // reports is measured — a window chosen by counting rather than by
+        // picking a round number that happened to reach.
+        let rest = source[stack.upperBound...]
+        let end = try #require(rest.range(of: ".modifier(MeasureHeight())"),
+                               "the list no longer measures its own height")
+        let body = String(rest[..<end.lowerBound])
+        #expect(body.contains(".overlay(alignment: .topLeading)"),
+                "the divider is not an overlay, so it is taking layout space")
+        #expect(!body.contains("Divider()"),
+                "a Divider between the columns adds a gutter on each side of itself")
+        // And the two columns still come to the panel's width with it there.
+        let inner = RowMetrics.columnInner(panel: 1_212, columns: 2, inset: 6)
+        #expect(abs((2 * inner + RowMetrics.gutter + 12) - 1_212) < 0.01)
+    }
+
     /// A sheet rendered for comparison must not depend on the display that
     /// happened to be attached. `SettingsView` has carried that rule since it
     /// was written; the column count reads `NSScreen`, so the dashboard

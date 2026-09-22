@@ -831,3 +831,6 @@ the single-column escape does nothing | Sources/Antarium/UI/Dashboard.swift | s|
 the budget charges one gap too few | Sources/Antarium/UI/Dashboard.swift | s|        let gaps = CGFloat(lineOneChildren - 1 + max(0, extraChildren))|        let gaps = CGFloat(lineOneChildren - 2 + max(0, extraChildren))|
 the optional children cost the name nothing | Sources/Antarium/UI/Dashboard.swift | s|            - gap \* gaps - max(0, extraWidth)|            - gap \* gaps|
 the row is counted as having fewer children than it draws | Sources/Antarium/UI/Dashboard.swift | s|    static let lineOneChildren = 7|    static let lineOneChildren = 6|
+the wide header leaves its controls at one end | Sources/Antarium/UI/Dashboard.swift | s|            if columns > 1 { Spacer(minLength: 4) }||
+the column divider takes part in the layout | Sources/Antarium/UI/Dashboard.swift | s|                    .overlay(alignment: .topLeading) {|                    .padding(0).background {|
+the divider is drawn down the middle of a column | Sources/Antarium/UI/Dashboard.swift | s|                                    + RowMetrics.gutter / 2)|                                    - RowMetrics.gutter / 2)|

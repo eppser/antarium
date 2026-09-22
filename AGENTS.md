@@ -217,6 +217,14 @@ official evidence.
   an installed agent with. Name the entries the check requires, then assert
   the declared list is a subset — the loop pins the contents, the literal
   pins that there are any.
+- Flag a set of tests that only ever compare one result against another. A
+  budget was asserted to be smaller when a child was added, larger than a
+  third of the panel, and different from its neighbour — all true of a
+  formula wrong by the same amount everywhere, and two mutations lived
+  through it. A difference test says the shape is right; something has to
+  say the number is. Pin one absolute figure against a fact established
+  outside the code under test — counted from the view, measured from the
+  font — and let the differences cover the rest.
 - Flag a test that names a branch its inputs cannot reach. "With no day
   stated, the sentence is unchanged" called a function that reads the bundled
   pricing table, and that table always states a day, so it checked the dated
