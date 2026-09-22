@@ -747,3 +747,5 @@ the reference drops a credential kind | docs/TECHNICAL.md | s|jsonFile|a file|g
 the footer counts sentences again | Sources/Antarium/UI/Dashboard.swift | s|        let waiting = rows.filter(\\.awaitingHistory).count|        let waiting = rows.filter { ($0.note ?? "").contains("still being read") }.count|
 a backlogged row is not marked | Sources/Antarium/Core/AgentScan.swift | s|        row.awaitingHistory = session.sourceBacklogged == true|        row.awaitingHistory = false|
 a transcript backlog is not marked | Sources/Antarium/Core/AgentScan.swift | s|        row.awaitingHistory = stats.isBacklogged|        row.awaitingHistory = false|
+the remote verifier reads a state's label again | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|         "allStatesUnknown":rows.allSatisfy(\\.state.isUnobserved),|         "allStatesUnknown":rows.allSatisfy { $0.state.label == "Unknown" },|
+any state counts as unobserved | Sources/Antarium/Core/AgentScan.swift | s|            if case .unobserved = self { return true }|            return true; if case .unobserved = self { return true }|

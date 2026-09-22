@@ -13,7 +13,7 @@ enum RemoteDiscoveryEvaluation {
     static func report(accepted:Bool,rows:[AgentRow]) -> [String:Any] {
         ["accepted":accepted,"rows":rows.count,
          "verified":accepted && !rows.isEmpty,
-         "allStatesUnknown":rows.allSatisfy { $0.state.label == "Unknown" },
+         "allStatesUnknown":rows.allSatisfy(\.state.isUnobserved),
          "allRowsRemote":rows.allSatisfy(\.isRemote),
          "localFocusDisabled":rows.allSatisfy { !Focus.canRevealLocally($0) }]
     }

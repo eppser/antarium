@@ -95,6 +95,24 @@ struct RemoteDiscoveryEvaluationTests {
                 as? Bool == false, "a refused reply reported itself verified")
     }
 
+    /// The state is read as a case, not as the word the row displays.
+    /// Asking `label == "Unknown"` matched a cloud state whose own text is
+    /// "unknown" — it capitalises to exactly that — and would have reported
+    /// a false failure the moment somebody reworded the label.
+    @Test("A cloud row labelled unknown is not an unobserved row")
+    func cloudLabelIsNotAState() {
+        let cloud = AgentRow.State.cloud("unknown")
+        #expect(cloud.label == "Unknown", "the label no longer collides, so this proves nothing")
+        #expect(!cloud.isUnobserved, "a cloud row was counted as unobserved")
+        #expect(AgentRow.State.unobserved.isUnobserved)
+
+        var row = AgentRow(id: "r", agentID: "a", name: "n", cwd: "/p", state: cloud)
+        row.isRemote = true
+        #expect(RemoteDiscoveryEvaluation.report(accepted: true, rows: [row])["allStatesUnknown"]
+                as? Bool == false,
+                "a reply of cloud rows reported every state unknown")
+    }
+
     @Test("A file that is not there is a failure, not a pass")
     func missingFileFails() {
         #expect(RemoteDiscoveryEvaluation.verify(

@@ -52,6 +52,17 @@ struct AgentRow: Identifiable {
             case .cloud(let s): return s.isEmpty ? "Cloud" : s.capitalized
             }
         }
+        /// Nothing is known about this session's current state.
+        ///
+        /// A case rather than its label. The remote verifier asked
+        /// `label == "Unknown"`, which is the display string — reword it and
+        /// the check reports a false failure, and a cloud state whose own
+        /// text is "unknown" capitalises to exactly that and was counted as
+        /// unobserved.
+        var isUnobserved: Bool {
+            if case .unobserved = self { return true }
+            return false
+        }
         var isLive: Bool {
             if case .ended = self { return false }
             return true

@@ -204,6 +204,12 @@ official evidence.
   network waits, or caches.
 - Flag a published numeric claim unless a reproducible command or exact fixture
   contract supports it.
+- Flag logic keyed on a string the user reads. The dashboard's "N still
+  reading" counted rows whose note contained "still being read", a sentence
+  written in two other files; the remote verifier asked whether a state's
+  label was "Unknown", which a cloud state whose own text is "unknown"
+  matches. Both should share a cause with what they describe — a flag on the
+  row, a case on the enum — not a phrase.
 - Flag a source rule whose forbidden spellings are not the ones this project
   writes with. A list assembled from memory forbids nothing: the first draft
   of the read-only credential rule matched neither the settings store, which
