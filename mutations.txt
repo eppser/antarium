@@ -870,3 +870,5 @@ the schema allows a field the validator calls a typo | Resources/harness.schema.
 the validator drops a field the schema declares | Sources/Antarium/Core/HarnessCheck.swift | s|        "cwd", "title", "model", "focusTarget", "contextWindow"|        "cwd", "title", "model", "contextWindow"|
 a section the schema does not describe is accepted | Sources/Antarium/Core/HarnessCheck.swift | s|        "source.manifest": \["file", "map"\],|        "source.manifest": ["file", "map"],\n        "activity": ["rules", "tools"],|
 a section is left out of the comparison | Sources/Antarium/Core/HarnessCheck.swift | s|        "map": mapKeys,|        "map": mapKeys, "notInSchema.at.all": ["x"],|
+the app stops launching a command the allowlist still permits | Sources/Antarium/Core/RemoteTmux.swift | s|for path in \["/opt/homebrew/bin/sshpass", "/usr/local/bin/sshpass", "/usr/bin/sshpass"\]|for path in ["/opt/homebrew/bin/nothing", "/usr/local/bin/nothing", "/usr/bin/nothing"]|
+a CLI is no longer launched but is still allowed | Sources/Antarium/Providers/KiroProvider.swift | s|"kiro-cli"|"kiro-cli-gone"|

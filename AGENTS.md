@@ -228,6 +228,15 @@ official evidence.
   thing the field can hold measures where it is drawn, and hold the cell to
   one line so an overflow truncates rather than wrapping — `fixedSize`
   prevents a shrink, not a wrap.
+- Flag a completeness guard that is a floor rather than a total. `pairs.count
+  >= 10` is satisfied by ten other entries while the eleventh — the one that
+  drifted — is simply not in the list. Three of these were found in one
+  afternoon, and one of them was written while fixing another: a check that
+  resolved its subjects by a shortcut, found eight of nineteen, and guarded
+  that with "at least eight". Where the set is knowable, assert the whole of
+  it: every section compared, every mapping cited or excused, every allowed
+  command still launched. Counting your subjects does not tell you whether
+  one is missing.
 - Flag a set of tests that only ever compare one result against another. A
   budget was asserted to be smaller when a child was added, larger than a
   third of the panel, and different from its neighbour — all true of a

@@ -126,4 +126,37 @@ struct LaunchedCommandsTests {
             #expect(!reason.isEmpty, Comment(rawValue: "\(command) is allowed with no reason"))
         }
     }
+
+    /// And the other direction, which was missing.
+    ///
+    /// The suite proves that nothing is launched from outside this list. It
+    /// did not prove that everything in the list is still launched, and a
+    /// stale entry is a security document claiming this app may run
+    /// something it no longer runs — the sort of claim that is read once,
+    /// believed, and never checked again. SECURITY.md's trust model rests on
+    /// this list being exactly what it says it is.
+    @Test("Every allowed command is one this app still launches")
+    func allowlistHasNoStaleEntries() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources")
+        var sources = ""
+        for url in FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap({ $0 as? URL }).filter({ $0.pathExtension == "swift" }) ?? [] {
+            sources += (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        }
+        #expect(sources.count > 10_000, "the sources were not read, so this proves nothing")
+
+        for (command, _) in Self.allowed {
+            // Either the command as written, or the tail of an absolute path
+            // the app probes for directly — `sshpass` is found by trying
+            // three known locations rather than through `CommandPath`.
+            let name = command.split(separator: "/").last.map(String.init) ?? command
+            let launched = sources.contains("\"\(command)\"")
+                || sources.contains("/\(name)\"")
+            #expect(launched,
+                    Comment(rawValue: "\(command) is allowed and nothing launches it, so the "
+                            + "allowlist claims a power this app no longer has"))
+        }
+    }
 }
