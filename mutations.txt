@@ -903,3 +903,7 @@ a compact row is costed as a full one | Sources/Antarium/UI/Dashboard.swift | s|
 a turned-down provider stops being accounted for | docs/ECOSYSTEM.md | s|Chutes publishes|Something publishes|
 the nearest miss is no longer identified | docs/ECOSYSTEM.md | s|most worth revisiting|interesting|
 a verdict loses the day it was established | docs/ECOSYSTEM.md | s|Chutes was re-checked on 2026-09-22|Chutes was re-checked recently|
+the reader takes a different budget than the guide states | Sources/Antarium/Core/BoundedTraceReader.swift | s|    static let bytesPerScan = 4 \* 1_024 \* 1_024|    static let bytesPerScan = 8 * 1_024 * 1_024|
+the guide stops stating the read budget | docs/TECHNICAL.md | s|at most 4 MB of one file per scan|at most a few megabytes per file per scan|
+a measured figure stops saying where it came from | docs/TECHNICAL.md | s|the machine this was written on|a machine|
+the measured sizes stop being marked as an observation | docs/TECHNICAL.md | s|observation from one machine|note|

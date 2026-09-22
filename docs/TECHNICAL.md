@@ -986,10 +986,13 @@ and adopts nothing, since it cannot tell the two apart.
 
 ### Reading a large transcript history
 
-`BoundedTraceReader` reads at most a few megabytes per file per scan, so no
-single scan can block on a long history. A session's transcript is append-only
-and can reach hundreds of megabytes: two on the development machine measured
-193 MB and 105 MB. Absorbing those takes tens of scans rather than one.
+`BoundedTraceReader` reads at most 4 MB of one file per scan, so no single
+scan can block on a long history. A session's transcript is append-only and
+can reach hundreds of megabytes — two on the machine this was written on
+measured 193 MB and 105 MB in September 2026 — so absorbing one takes about
+fifty scans rather than one. The bound is the part that matters and the part
+that is checked: those two sizes are an observation from one machine, and
+the arithmetic follows from the constant rather than from them.
 
 While a file is behind, its stats carry `backlog` and the session reports
 that its usage figures are not yet available — deliberately, since a partial

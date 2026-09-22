@@ -21,8 +21,17 @@ enum BoundedTraceReader {
     }
     enum ReadError: Error { case unavailable, notRegular, readFailed }
 
+    /// How much of one file this reader will take in one scan.
+    ///
+    /// Named rather than written inline because the documentation states it
+    /// and the arithmetic that follows from it — a 193 MB transcript takes
+    /// about fifty scans to absorb — is the whole reason the behaviour is
+    /// acceptable. A number stated in prose and a number in the code are two
+    /// numbers unless something compares them.
+    static let bytesPerScan = 4 * 1_024 * 1_024
+
     static func read(_ url: URL, state previous: State,
-                     maxRead: Int = 4 * 1_024 * 1_024,
+                     maxRead: Int = BoundedTraceReader.bytesPerScan,
                      // Measured rather than guessed: the longest records in
                      // this machine's large transcripts are about 1.36 MB,
                      // and four of eight had one. At 1 MiB every one of those

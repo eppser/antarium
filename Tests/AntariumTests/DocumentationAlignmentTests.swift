@@ -162,6 +162,44 @@ struct QuotaDocumentationTests {
 
     /// Stated as an absence, because the failure was a stale sentence left
     /// standing beside a new one rather than a missing explanation.
+    /// A figure in prose and a figure in the code are two figures unless
+    /// something compares them.
+    ///
+    /// The guide says this reader takes 4 MB of one file per scan, and the
+    /// sentence after it — that a 193 MB transcript needs about fifty scans
+    /// — is arithmetic on that number. Change the constant and the guide is
+    /// quietly wrong about how the app behaves on a long history, which is
+    /// the one thing that paragraph exists to explain.
+    @Test("The documented read budget is the one the reader uses")
+    func readBudgetMatchesTheDocument() throws {
+        let text = try SourceText.read("docs/TECHNICAL.md")
+        let megabytes = BoundedTraceReader.bytesPerScan / (1_024 * 1_024)
+        #expect(text.contains("at most \(megabytes) MB of one file per scan"),
+                Comment(rawValue: "the reader takes \(megabytes) MB per scan and the guide "
+                        + "does not say so"))
+        // And the consequence it draws from it.
+        let scans = 193 / megabytes
+        #expect(text.contains("about\nfifty scans") || text.contains("about fifty scans"),
+                "the guide no longer says how many scans a long transcript takes")
+        #expect(abs(scans - 48) <= 5,
+                Comment(rawValue: "a 193 MB transcript now takes \(scans) scans, so "
+                        + "\"about fifty\" is no longer the right figure"))
+    }
+
+    /// And the observation it rests on is marked as one: two file sizes from
+    /// a single machine are not a property of the software.
+    @Test("A measurement from one machine says so")
+    func observationsAreAttributed() throws {
+        let text = try SourceText.read("docs/TECHNICAL.md")
+        let start = try #require(text.range(of: "193 MB"))
+        let paragraph = String(text[..<start.upperBound].suffix(400))
+        #expect(paragraph.contains("machine this was written on")
+                || paragraph.contains("development machine"),
+                "a measured figure is stated without saying where it came from")
+        #expect(text.contains("observation from one machine"),
+                "nothing distinguishes the measured sizes from the checked bound")
+    }
+
     @Test("Nothing claims a quota endpoint must be https")
     func noHttpsOnlyClaim() throws {
         let text = try technical()
