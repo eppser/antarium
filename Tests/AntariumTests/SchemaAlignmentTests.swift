@@ -30,37 +30,71 @@ struct SchemaAlignmentTests {
         try #require(schema["$defs"] as? [String: Any], "the schema declares no definitions")
     }
 
-    /// Properties of one definition, following a `$ref` to another.
-    private func properties(of name: String, in defs: [String: Any]) -> Set<String>? {
-        guard var node = defs[name] as? [String: Any] else { return nil }
-        if let ref = node["$ref"] as? String,
-           let target = ref.split(separator: "/").last.map(String.init),
-           let resolved = defs[target] as? [String: Any] { node = resolved }
-        guard let props = node["properties"] as? [String: Any] else { return nil }
-        return Set(props.keys)
+    /// Follows a `$ref` until it reaches a real node.
+    private func deref(_ node: Any?, _ defs: [String: Any]) -> [String: Any]? {
+        var current = node as? [String: Any]
+        for _ in 0..<10 {
+            guard let ref = current?["$ref"] as? String,
+                  let name = ref.split(separator: "/").last.map(String.init) else { break }
+            current = defs[name] as? [String: Any]
+        }
+        return current
     }
 
-    @Test("There are definitions and key lists to compare")
-    func thereIsSomethingToCompare() throws {
-        let defs = try definitions(try schema())
-        #expect(defs.count >= 10, Comment(rawValue: "only \(defs.count) definitions"))
-        #expect(HarnessCheck.known.count >= 15,
-                Comment(rawValue: "only \(HarnessCheck.known.count) key lists"))
+    /// The fields the schema allows at one of the validator's paths, walked
+    /// from the root rather than looked up by its last component.
+    ///
+    /// By leaf name, eight of the nineteen sections did not resolve — they
+    /// are nested objects, not definitions of their own — and a section that
+    /// does not resolve is a section not compared. That is how the drift got
+    /// in: the check before this one took its subjects from a list somebody
+    /// maintained by hand, and its completeness guard counted the entries
+    /// rather than asking whether any were missing.
+    private func schemaFields(at path: String, _ schema: [String: Any],
+                              _ defs: [String: Any]) -> Set<String>? {
+        var node = deref(schema, defs)
+        if !path.isEmpty {
+            for part in path.split(separator: ".") {
+                guard let properties = node?["properties"] as? [String: Any],
+                      var next = deref(properties[String(part)], defs) else { return nil }
+                if next["properties"] == nil, let items = deref(next["items"], defs) {
+                    next = items
+                }
+                node = next
+            }
+        }
+        guard let properties = node?["properties"] as? [String: Any] else { return nil }
+        return Set(properties.keys)
     }
 
-    /// For every section the schema defines under its own name, the two
-    /// lists agree exactly. A key in one and not the other is either a field
-    /// the validator will reject and the loader accepts, or one the schema
-    /// forbids and the validator waves through.
-    @Test("Each section the schema names holds the keys the validator expects")
+    /// Every section the validator knows about is compared. Not a count of
+    /// them — a count is satisfied by a list that is long enough and still
+    /// missing the one that matters.
+    @Test("Every section the validator knows is described by the schema")
+    func everySectionResolves() throws {
+        let schema = try schema()
+        let defs = try definitions(schema)
+        var unresolved: [String] = []
+        for section in HarnessCheck.known.keys.sorted()
+        where schemaFields(at: section, schema, defs) == nil {
+            unresolved.append(section)
+        }
+        #expect(unresolved.isEmpty,
+                Comment(rawValue: "the schema describes no such section, so --check is the "
+                        + "only thing that has an opinion about it: "
+                        + unresolved.joined(separator: ", ")))
+    }
+
+    /// For every section, in both directions. A key in one and not the other
+    /// is either a field the validator will reject and the loader accepts, or
+    /// one the schema forbids and the validator waves through.
+    @Test("Each section holds the keys the validator expects")
     func listsAgreeWithTheSchema() throws {
-        let defs = try definitions(try schema())
+        let schema = try schema()
+        let defs = try definitions(schema)
         var compared = 0
         for (section, keys) in HarnessCheck.known {
-            // The validator names nested sections with dots; the schema names
-            // each definition once. Compare the leaf.
-            let name = section.split(separator: ".").last.map(String.init) ?? section
-            guard !name.isEmpty, let declared = properties(of: name, in: defs) else { continue }
+            guard let declared = schemaFields(at: section, schema, defs) else { continue }
             compared += 1
             let validatorOnly = keys.subtracting(declared).sorted()
             let schemaOnly = declared.subtracting(keys).sorted()
@@ -72,20 +106,22 @@ struct SchemaAlignmentTests {
                             + "\(schemaOnly.joined(separator: ", ")) and the validator calls it "
                             + "a typo"))
         }
-        #expect(compared >= 8,
-                Comment(rawValue: "only \(compared) sections could be compared, so this "
-                        + "proved little"))
+        #expect(compared == HarnessCheck.known.count,
+                Comment(rawValue: "\(compared) of \(HarnessCheck.known.count) sections were "
+                        + "compared"))
     }
 
     /// The specific pair that drifted, named so it cannot quietly stop being
     /// compared if the section is renamed.
     @Test("A manifest's map is the session map, in both lists")
     func manifestMapIsTheMap() throws {
-        let defs = try definitions(try schema())
+        let schema = try schema()
+        let defs = try definitions(schema)
         #expect(HarnessCheck.known["source.manifest.map"] == HarnessCheck.known["map"],
                 "a manifest's map and the session map are different lists again")
         #expect(HarnessCheck.known["map"]?.contains("focusTarget") == true)
-        #expect(properties(of: "map", in: defs)?.contains("focusTarget") == true,
-                "the schema no longer allows a focus target in a map")
+        #expect(schemaFields(at: "source.manifest.map", schema, defs)?.contains("focusTarget")
+                == true,
+                "the schema no longer allows a focus target in a manifest's map")
     }
 }

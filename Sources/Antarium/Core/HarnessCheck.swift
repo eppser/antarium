@@ -77,9 +77,7 @@ enum HarnessCheck {
              "capabilities", "selection", "focus", "contributes",
              "idleAfter", "staleAfter", "fallbackName", "mark", "note", "detached",
              "multiSession", "openTabsOnly",
-             "enabled", "presentation", "compatibility", "activity"],
-        "activity": ["rules", "tools", "remoteTrace"],
-        "activity.remoteTrace": ["roots", "glob"],
+             "enabled", "presentation", "compatibility"],
         "process": ["pathContains", "names", "argv0Contains", "sessionBinding",
                     "installationProbes"],
         "presentation": ["mark", "fallbackName", "sourceLabel"],
@@ -140,15 +138,6 @@ enum HarnessCheck {
 
         for (path, allowed) in known {
             if let value = container(path) { check(path, value, allowed: allowed) }
-        }
-
-        if let activity = object["activity"] as? [String: Any] {
-            for (index, rule) in ((activity["rules"] as? [[String: Any]]) ?? []).enumerated() {
-                check("activity.rules[\(index)]", rule, allowed: ["kind", "match", "recordMatch", "items", "tool", "arguments", "callID", "text", "timestamp", "error", "durationMS"])
-            }
-            for (name, tool) in (activity["tools"] as? [String: [String: Any]]) ?? [:] {
-                check("activity.tools.\(name)", tool, allowed: ["operation", "pathField", "commandField", "argumentFormat", "patchField"])
-            }
         }
 
         let installationProbeFields: Set<String> = [

@@ -868,3 +868,5 @@ a manifest map drifts from the session map again | Sources/Antarium/Core/Harness
 the validator knows a field the schema forbids | Sources/Antarium/Core/HarnessCheck.swift | s|        "pid", "sessionID", "inputIncludesCacheRead",|        "pid", "sessionID", "inputIncludesCacheRead", "notAField",|
 the schema allows a field the validator calls a typo | Resources/harness.schema.json | s|"focusTarget": {|"focusTargetX": {|
 the validator drops a field the schema declares | Sources/Antarium/Core/HarnessCheck.swift | s|        "cwd", "title", "model", "focusTarget", "contextWindow"|        "cwd", "title", "model", "contextWindow"|
+a section the schema does not describe is accepted | Sources/Antarium/Core/HarnessCheck.swift | s|        "source.manifest": \["file", "map"\],|        "source.manifest": ["file", "map"],\n        "activity": ["rules", "tools"],|
+a section is left out of the comparison | Sources/Antarium/Core/HarnessCheck.swift | s|        "map": mapKeys,|        "map": mapKeys, "notInSchema.at.all": ["x"],|
