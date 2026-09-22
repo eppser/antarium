@@ -76,12 +76,18 @@ struct DocumentedCommandsExistTests {
         return Array(Set(found)).sorted()
     }
 
+    /// Handled inside the validator itself, which this check excludes so it
+    /// cannot agree with itself. `requestsHelp` answers these before any mode
+    /// is matched, so no other file names them.
+    private static let handledByTheValidator: Set<String> = ["--help", "-h"]
+
     @Test("Each flag in the help text is handled somewhere")
     func documentedFlagsAreHandled() {
         #expect(documented.count > 15, "only \(documented.count) flags were read from the help")
         let code = sources
         var orphaned: [String] = []
-        for flag in documented where !code.contains("\"\(flag)\"") {
+        for flag in documented where !code.contains("\"\(flag)\"")
+            && !Self.handledByTheValidator.contains(flag) {
             orphaned.append(flag)
         }
         #expect(orphaned.isEmpty,
@@ -97,5 +103,93 @@ struct DocumentedCommandsExistTests {
                 "the probe flag exists, so this proves nothing")
         #expect(sources.contains("\"--status\""),
                 "a flag that is certainly implemented was not found, so the check is blind")
+    }
+}
+
+/// A mode the validator accepts is either documented or deliberately not.
+///
+/// Eight were accepted and absent from `--help` with nothing recording which
+/// they were. Six are design harnesses that render a view to a file — useful
+/// when working on this app, meaningless to anybody else — and two were
+/// simply undocumented: the remote pair, one of which is now part of the
+/// release gate. Left untracked, the next mode added quietly joins whichever
+/// group nobody notices.
+@Suite("Undocumented modes are a decision, not an oversight")
+struct InternalModesAreListedTests {
+
+    /// Accepted, deliberately absent from the help, and why.
+    private static let internalModes: [String: String] = [
+        "--preview": "renders a menu bar item to a file, for working on the drawing",
+        "--dashboard": "renders the dashboard to a file, same",
+        "--alert": "renders a notification banner to a file, same",
+        "--settings": "renders the settings panel to a file, same",
+        "--onboarding": "renders the first-run screen to a file, same",
+        "--focus": "clicks a row from the terminal and reports what the click did",
+    ]
+
+    /// Flags named anywhere in the help text.
+    private var documentedFlags: Set<String> {
+        var found: Set<String> = []
+        for line in LaunchArguments.help.split(separator: "\n") {
+            for word in line.split(whereSeparator: { " |[]<>".contains($0) })
+            where word.hasPrefix("--") {
+                found.insert(String(word))
+            }
+        }
+        return found
+    }
+
+    /// Every mode the validator accepts, read out of the validator.
+    ///
+    /// The first version drew its candidates from the help text and the
+    /// internal list, which made it blind to exactly what it was looking
+    /// for: a mode in neither was never probed, so adding one survived, and
+    /// so did deleting a help line. A check that only looks where it already
+    /// knows finds nothing new.
+    private func acceptedModes() throws -> Set<String> {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Core/LaunchArguments.swift"), encoding: .utf8)
+        let body = String(source[(source.range(of: "static func validate")?.lowerBound
+                                  ?? source.startIndex)...])
+        var found: Set<String> = []
+        // `modes["--x"] = …` and the two sets it is seeded from.
+        for pattern in [#"modes\["(--[a-z-]+)"\]"#, #""(--[a-z-]+)""#] {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            for match in regex.matches(in: body, range: NSRange(body.startIndex..., in: body)) {
+                guard let range = Range(match.range(at: 1), in: body) else { continue }
+                let flag = String(body[range])
+                // Options belong to a mode rather than being one, so ask.
+                if LaunchArguments.validate([flag]) == nil
+                    || LaunchArguments.validate([flag, "fixture"]) == nil {
+                    found.insert(flag)
+                }
+            }
+        }
+        return found
+    }
+
+    @Test("Every accepted mode is documented or listed as internal")
+    func modesAreAccountedFor() throws {
+        let accepted = try acceptedModes()
+        #expect(accepted.count > 15, "only \(accepted.count) modes were accepted")
+        let unaccounted = accepted.subtracting(documentedFlags)
+            .subtracting(Self.internalModes.keys)
+        #expect(unaccounted.isEmpty,
+                Comment(rawValue: "accepted, undocumented and unexplained: "
+                        + unaccounted.sorted().joined(separator: ", ")))
+    }
+
+    /// And the list does not excuse modes that no longer exist.
+    @Test("Every internal mode is still accepted")
+    func internalModesStillExist() {
+        for (mode, reason) in Self.internalModes {
+            #expect(!reason.isEmpty)
+            #expect(LaunchArguments.validate([mode]) == nil
+                    || LaunchArguments.validate([mode, "fixture"]) == nil,
+                    Comment(rawValue: "\(mode) is listed as internal and is not accepted"))
+        }
     }
 }

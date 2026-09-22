@@ -13,6 +13,7 @@ enum LaunchArguments {
     static let help = """
     Antarium: run without arguments to start the menu-bar application.
     Diagnostics:
+      --help | -h                     This list
       --agents [--cloud]              Observe agents
       --status | --bench | --tmux     Inspect status, scan timing, or tmux
       --remote-tmux [host ...]        Inspect configured or named hosts
@@ -25,6 +26,10 @@ enum LaunchArguments {
       --verify-harness-installations Verify installation probes
       --verify-harness-quota         Verify quota mappings against recorded shapes
       --detect-agents [--apply]      Report what a first run would switch on
+      --print-remote-discovery-command
+                                      Print the command a remote host is asked to run
+      --verify-remote-discovery-reply <file>
+                                      Replay a recorded remote reply through the parser
     Terminal wrapper:
       run -- <command> [arguments...]
     """
