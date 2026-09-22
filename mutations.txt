@@ -709,3 +709,5 @@ the first-run screen is never redrawn | Sources/Antarium/AppController.swift | s
 the first-run screen keeps the count item's callback | Sources/Antarium/AppController.swift | s|            previousRowsChanged?(rows)||
 the borrowed callback is never handed back | Sources/Antarium/AppController.swift | s|                AgentStore.shared.onRowsChanged = previousRowsChanged||
 the redrawn first-run screen is not resized | Sources/Antarium/AppController.swift | s|            self.onboardingPanel?.setContentSize(hosting.fittingSize)||
+a host's answer is filed under whoever replied first | Sources/Antarium/Core/RemoteSweep.swift | s|            lock.lock(); values\[index\] = result; lock.unlock()|            lock.lock(); values[values.count] = result; lock.unlock()|
+every host is asked twice | Sources/Antarium/Core/RemoteSweep.swift | s|            guard taken < count else { return nil }|            guard taken < count * 2 else { return nil }|

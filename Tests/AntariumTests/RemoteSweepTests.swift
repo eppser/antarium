@@ -221,3 +221,96 @@ private final class Ticker: @unchecked Sendable {
         return value
     }
 }
+
+/// The claim the whole design rests on, and the one thing the suite above
+/// never asked: "Network calls run outside the lock; completion order cannot
+/// reorder the published fleet."
+///
+/// The lock inside the queue is not demonstrated by any of this and says so
+/// here rather than in a catalogue entry that would sit as a permanent
+/// survivor: eight hosts across four workers is too little contention for a
+/// dictionary to come apart, and inflating the fleet to force it would be a
+/// test of how many threads a machine has. What is held is the property —
+/// the right answer under the right name, once each.
+///
+/// Every test there uses one worker and a scanner that returns at once, so
+/// the hosts come back in the order they were asked and would do so whether
+/// the results were keyed by index or simply appended. Four SSH round trips
+/// to four machines do not finish in the order they started — that is the
+/// point of running them at once — and a fleet that reorders itself puts one
+/// machine's agents under another machine's name.
+@Suite("Hosts keep their own answers whatever order the network replies in")
+struct RemoteSweepOrderingTests {
+
+    /// Answers in reverse: the last host asked replies first. Sleeps are
+    /// short and the assertion does not depend on them landing in any exact
+    /// order — only on them not landing in the order they were asked.
+    /// Counts what each host was actually asked, which the results cannot
+    /// show: handing one index to two workers overwrites the answer with an
+    /// identical one, so the fleet looks right and the machine was asked
+    /// twice. An SSH round trip per host is the cost this exists to bound.
+    private final class Asks: @unchecked Sendable {
+        private let lock = NSLock()
+        private var counts: [String: Int] = [:]
+        func record(_ host: String) { lock.lock(); counts[host, default: 0] += 1; lock.unlock() }
+        var total: Int { lock.lock(); defer { lock.unlock() }; return counts.values.reduce(0, +) }
+        var most: Int { lock.lock(); defer { lock.unlock() }; return counts.values.max() ?? 0 }
+    }
+
+    private func scrambled(_ hosts: [String], maxConcurrent: Int,
+                           asks: Asks = Asks()) -> RemoteTmux.Sweep {
+        let order = Dictionary(uniqueKeysWithValues: hosts.enumerated().map { ($1, $0) })
+        return RemoteTmux.scanSweep(
+            hosts: hosts, startIndex: 0, duration: 30, maxConcurrent: maxConcurrent,
+            clock: { 0 }, cancellation: { false },
+            scanner: { host, _ in
+                asks.record(host)
+                let index = order[host] ?? 0
+                usleep(UInt32((hosts.count - index) * 2_000))
+                // The row names the host it came from, so a result landing
+                // under the wrong name is visible rather than merely
+                // suspected.
+                return RemoteTmux.Result(
+                    rows: [AgentRow(id: "\(host)-row", agentID: "claude-code",
+                                    name: host, cwd: "/synthetic/\(host)",
+                                    state: .waiting)],
+                    issue: nil)
+            })
+    }
+
+    @Test("Answers arriving backwards are still filed under the right host",
+          arguments: [1, 2, 4])
+    func outOfOrderRepliesKeepTheirHost(maxConcurrent: Int) {
+        let hosts = (1...8).map { "host-\($0)" }
+        let sweep = scrambled(hosts, maxConcurrent: maxConcurrent)
+
+        #expect(sweep.results.map(\.host) == hosts,
+                Comment(rawValue: "the fleet came back as \(sweep.results.map(\.host))"))
+        for result in sweep.results {
+            #expect(result.rows.first?.name == result.host,
+                    Comment(rawValue: "\(result.host) is showing "
+                            + "\(result.rows.first?.name ?? "nothing")'s agents"))
+        }
+    }
+
+    /// And every host is asked exactly once, however many workers there are.
+    /// Handing the same index to two workers would show one machine twice
+    /// and another not at all.
+    @Test("Each host is asked once, whatever the concurrency",
+          arguments: [1, 2, 4])
+    func everyHostAskedOnce(maxConcurrent: Int) {
+        let hosts = (1...8).map { "host-\($0)" }
+        let asks = Asks()
+        let sweep = scrambled(hosts, maxConcurrent: maxConcurrent, asks: asks)
+        #expect(Set(sweep.results.map(\.host)).count == hosts.count,
+                "a host appears more than once")
+        #expect(sweep.results.allSatisfy { $0.issue == nil },
+                "a host was never asked")
+        // Counted, not inferred from the results: asking one machine twice
+        // overwrites its answer with the same answer, so the fleet looks
+        // perfect and the round trip happened anyway.
+        #expect(asks.total == hosts.count,
+                Comment(rawValue: "\(asks.total) round trips for \(hosts.count) hosts"))
+        #expect(asks.most == 1, Comment(rawValue: "a host was asked \(asks.most) times"))
+    }
+}
