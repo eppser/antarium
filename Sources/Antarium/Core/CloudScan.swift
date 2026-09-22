@@ -13,6 +13,11 @@ enum CloudScan {
         case missingItems, malformedItem, duplicateIdentity, incompleteInventory, invalidDate, capacityExceeded
     }
 
+    /// Longest vendor string that reaches a row. The same 64 the descriptor
+    /// providers, Codex and Gemini all bound their response text to, for the
+    /// same reason: it is drawn in a menu, not stored.
+    static let maxText = 64
+
     private static let session = UsageHTTP.makeSession(headers: [
         "User-Agent": "Antarium/1.0 (macOS menu bar)",
         "Accept": "application/json",
@@ -71,8 +76,23 @@ enum CloudScan {
         }
         var seen = Set<String>()
         return try items.map { item in
+            // Bounded, like every other reader of vendor text here.
+            //
+            // `id` below is capped at 256 bytes and its control characters
+            // refused; the strings that reach the *screen* were not capped at
+            // all. Each of these is rendered in the menu bar's dropdown: the
+            // status becomes the state pill's label, which sits in a 68pt
+            // frame, and the title becomes the row name — which in full mode
+            // carries `.fixedSize(horizontal: true)` and so cannot truncate,
+            // whatever `.lineLimit(1)` says above it. A cloud task with a long
+            // title therefore asked for a row wider than the panel.
+            //
+            // 64 is the providers' `maxText`, for the same reason and with
+            // the same grapheme-safe truncation.
             func string(_ keys: [String]) -> String? {
-                for k in keys { if let v = item[k] as? String, !v.isEmpty { return v } }
+                for k in keys where !((item[k] as? String) ?? "").isEmpty {
+                    return String((item[k] as! String).prefix(maxText))
+                }
                 return nil
             }
             func date(_ keys: [String]) throws -> Date? {
@@ -87,7 +107,14 @@ enum CloudScan {
                 }
                 return nil
             }
-            guard let id = string(["id", "task_id", "uuid"]), id.utf8.count <= 256,
+            // The identifier is read unclamped: it is matched against, not
+            // drawn, and silently truncating it would merge two tasks whose
+            // ids share a prefix. Its own bound is below.
+            func identifier(_ keys: [String]) -> String? {
+                for k in keys { if let v = item[k] as? String, !v.isEmpty { return v } }
+                return nil
+            }
+            guard let id = identifier(["id", "task_id", "uuid"]), id.utf8.count <= 256,
                   !id.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
                   !id.unicodeScalars.contains(where:CharacterSet.controlCharacters.contains) else { throw ParseError.malformedItem }
             guard seen.insert(id).inserted else { throw ParseError.duplicateIdentity }

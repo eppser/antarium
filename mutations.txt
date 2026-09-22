@@ -777,3 +777,7 @@ a long fractional second is accumulated until it traps | Sources/Antarium/Core/U
 digits past the ninth are never looked at | Sources/Antarium/Core/UsageHTTP.swift | s|guard let raw = digits(20..<significant), allDigits(significant..<end)|guard let raw = digits(20..<significant)|
 the fraction is scaled by the digits present, not the digits read | Sources/Antarium/Core/UsageHTTP.swift | s|fraction = Double(raw) / pow(10, Double(significant - 20))|fraction = Double(raw) / pow(10, Double(end - 20))|
 a long fraction is refused rather than read | Sources/Antarium/Core/UsageHTTP.swift | s|guard end > 20 else { return nil }|guard end > 20, end <= 20 + maxFractionDigits else { return nil }|
+a cloud task's title reaches the row unbounded | Sources/Antarium/Core/CloudScan.swift | s|                    return String((item\[k\] as! String).prefix(maxText))|                    return (item[k] as! String)|
+the clamp drops the value instead of shortening it | Sources/Antarium/Core/CloudScan.swift | s|return String((item\[k\] as! String).prefix(maxText))|return String((item[k] as! String).prefix(0))|
+the display clamp is applied to the identifier too | Sources/Antarium/Core/CloudScan.swift | s|guard let id = identifier(\["id", "task_id", "uuid"\])|guard let id = string(["id", "task_id", "uuid"])|
+the text bound is wide enough to be no bound | Sources/Antarium/Core/CloudScan.swift | s|    static let maxText = 64|    static let maxText = 100000|
