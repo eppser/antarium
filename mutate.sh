@@ -138,8 +138,15 @@ while IFS='|' read -r name file expression; do
         # A descriptor change reaches the build only when resources are
         # re-copied, which needs the manifest to look newer than them.
         touch Package.swift
-        swift build >"$BACKUP/build" 2>&1
-        if grep -q 'error:' "$BACKUP/build"; then
+        # The build's own exit status, not a word in its output. Grepping for
+        # `error:` reported a mutation as "does not compile" — and counted it
+        # as inapplicable rather than caught — when `swift build` had exited
+        # zero and the mutation was in fact caught by ten failing tests. Any
+        # line carrying that substring for any reason took a real catch out of
+        # the tally, and would as easily have taken out a survivor. This is
+        # the third misreport in this file to come from matching text where a
+        # status was available; the two above it are the same lesson.
+        if ! swift build >"$BACKUP/build" 2>&1; then
             printf '  %-46s does not compile\n' "$name"
             broken=$((broken+1))
         elif run_tests "$BACKUP/out"; status=$?
