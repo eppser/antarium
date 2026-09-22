@@ -173,6 +173,23 @@ done
 # The settings directory holds API keys now, and on macOS every local account
 # is in `staff`. A home directory at 0750 is traversable by all of them, so a
 # key in a 0755 folder is readable by any other user of the Mac.
+# A folder that already exists is the case a first run cannot show. One made
+# by a version that predates the securing — or by hand — stayed exactly as it
+# was, because only the menu bar app tightened it and the command line never
+# did. The setup hints send people to put keys in there.
+step "An existing settings directory is tightened, not just a new one"
+home=$(mktemp -d)/loose
+mkdir -p "$home/keys"
+chmod 755 "$home" "$home/keys"
+ANTARIUM_HOME="$home" "$BIN" --status >/dev/null 2>&1
+mode=$(stat -f "%Sp" "$home")
+keys=$(stat -f "%Sp" "$home/keys")
+[ "$mode" = "drwx------" ] && ok "a loose settings directory is tightened" \
+    || bad "settings directory left as $mode by a command-line run"
+[ "$keys" = "drwx------" ] && ok "a loose keys directory is tightened" \
+    || bad "keys directory left as $keys by a command-line run"
+rm -rf "$home"
+
 step "A first run leaves its settings directory private"
 home=$(mktemp -d)
 chmod 755 "$home"

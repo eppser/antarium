@@ -26,6 +26,18 @@ if LaunchArguments.requestsHelp(Array(CommandLine.arguments.dropFirst())) {
     print(LaunchArguments.help); exit(0)
 }
 
+// Before anything reads or writes the settings folder, whichever entry point
+// this is.
+//
+// These two calls used to live in `AppController.start`, so only the menu bar
+// app made the folder private. A fresh folder is created 0700 and so looked
+// right, but one that already existed — made by a version that predates the
+// securing, or by hand — stayed exactly as it was through every command. The
+// setup hints tell people to put keys in `~/.antarium/keys`, and the folder
+// they land in is the one the last thing to touch it left behind.
+Config.secure(Config.directory)
+Config.secure(Config.keysDirectory)
+
 // Top-level code is nonisolated; everything below is main-thread-only AppKit.
 // `antarium run -- claude` runs before any AppKit exists: it is a terminal
 // program, not the menu bar app.

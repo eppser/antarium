@@ -21,8 +21,9 @@ final class AppController: NSObject {
         // launch is when it starts mattering, and a log is what somebody
         // reads afterwards to work out why nothing was being saved.
         if let issue = Config.issue { Log.warn("config", issue) }
-        Config.secure(Config.directory)
-        Config.secure(Config.keysDirectory)
+        // Secured in main.swift now, before any entry point reads the
+        // folder — the app was the only one doing it, and a folder that
+        // already existed stayed open through every command.
         // Ship the harnesses into the folder people actually edit, and keep
         // untouched ones current. Runs before anything reads them.
         HarnessDescriptor.seed()

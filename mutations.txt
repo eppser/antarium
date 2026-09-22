@@ -449,7 +449,7 @@ moonshot charts a half instead of the gated figure | Resources/harnesses/moonsho
 moonshot numbers claim to be verified | Resources/harnesses/moonshot.json | s|"verified": false|"verified": true|
 the settings directory is created open | Sources/Antarium/Core/Config.swift | s|attributes: \[.posixPermissions: 0o700\])|attributes: nil)|
 an existing open settings directory is left open | Sources/Antarium/Core/Config.swift | s|guard current \& 0o077 != 0 else { return true }|guard current \& 0o077 == 0 else { return true }|
-the startup never secures the keys directory | Sources/Antarium/AppController.swift | s|        Config.secure(Config.keysDirectory)||
+the startup never secures the keys directory | Sources/Antarium/main.swift | s|^Config.secure(Config.keysDirectory)$||
 tightening locks the owner out | Sources/Antarium/Core/Config.swift | s|current \& ~0o077|current \& ~0o177|
 a note tells the user to paste a key into the descriptor | Resources/harnesses/deepseek.json | s|The key is read from DEEPSEEK_API_KEY|Paste the key straight into this file, or read it from DEEPSEEK_API_KEY|
 a note points at a key file nothing reads | Resources/harnesses/minimax.json | s|~/.antarium/keys/minimax otherwise|~/.antarium/keys/minimax-api otherwise|
@@ -698,3 +698,5 @@ a fixture run leaves its parsed files behind | Sources/Antarium/Core/HarnessComp
 forgetting one tree forgets every tree | Sources/Antarium/Core/HarnessEngine.swift | s|        files = files.filter { !\$0.key.contains(prefix) }|        files.removeAll()|
 the harness cache leaves its old versions behind | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json"\]|    static let supersededCacheFilenames: [String] = []|
 the harness cleanup deletes the live cache | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json"\]|    static let supersededCacheFilenames = ["harness-cache-v1.json", cacheFilename]|
+only the app secures the settings folder | Sources/Antarium/main.swift | s|^Config.secure(Config.directory)$||
+an open folder is left open | Sources/Antarium/Core/Config.swift | s|            guard current \& 0o077 != 0 else { return true }|            guard false else { return true }|

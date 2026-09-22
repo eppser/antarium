@@ -106,35 +106,53 @@ struct SettingsDirectoryPermissionTests {
     }
 }
 
-/// Securing the directories happens at startup, before anything is seeded
-/// into them.
+/// Securing the directories happens before any entry point uses them.
 ///
-/// Checked in the source because `start()` builds menu bar items and a run
-/// loop. The rule above says what a private directory is; this says it is
-/// applied at all, and to both — the settings directory and the keys
-/// directory inside it, which a fresh install has neither of.
-@Suite("Startup secures the directories before it fills them")
+/// It used to happen in `start()`, which is the menu bar app and nothing
+/// else. A folder that did not exist yet was created private and so looked
+/// right; one that already existed — made by a version predating the
+/// securing, or by hand — stayed exactly as it was through every command
+/// line run, and the setup hints send people to put keys in it.
+///
+/// Checked in the source because the alternative is launching the app. The
+/// rule above says what a private directory is; this says it is applied at
+/// all, to both, and before anything dispatches.
+@Suite("Every entry point secures the directories before using them")
 struct SecureAtStartupContractTests {
 
-    @Test("start() secures both directories, and does it before seeding")
-    func startSecuresBoth() throws {
-        let root = URL(fileURLWithPath: #filePath)
+    private var root: URL {
+        URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
+    }
+
+    @Test("Both directories are secured before any command is dispatched")
+    func mainSecuresBoth() throws {
+        let text = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/main.swift"), encoding: .utf8)
+        let settings = try #require(text.range(of: "Config.secure(Config.directory)"),
+                                    "the settings directory is left however it was made")
+        let keys = try #require(text.range(of: "Config.secure(Config.keysDirectory)"),
+                                "keys are written into a directory nobody made private")
+
+        // Before the first thing that reads or writes the folder. `--run` is
+        // the earliest dispatch and writes its own records in there.
+        let firstCommand = try #require(text.range(of: "RunWrapper.run("),
+                                        "the first command dispatch is gone")
+        #expect(settings.lowerBound < firstCommand.lowerBound,
+                "a command runs before the directory is made private")
+        #expect(keys.lowerBound < firstCommand.lowerBound)
+    }
+
+    /// And it is not left behind in the app as well, where it would be the
+    /// only copy that ever ran for somebody who uses the menu bar and a
+    /// second copy that never runs for anybody else.
+    @Test("The app no longer keeps its own copy of the rule")
+    func appDoesNotDuplicateIt() throws {
         let text = try String(contentsOf: root.appendingPathComponent(
             "Sources/Antarium/AppController.swift"), encoding: .utf8)
-        let start = try #require(text.range(of: "func start() {"))
-        let body = text[start.lowerBound...].prefix(900)
-
-        let settings = try #require(body.range(of: "Config.secure(Config.directory)"),
-                                    "the settings directory is left however it was made")
-        let keys = try #require(body.range(of: "Config.secure(Config.keysDirectory)"),
-                                "keys are written into a directory nobody made private")
-        let seed = try #require(body.range(of: "HarnessDescriptor.seed()"),
-                                "start() no longer seeds")
-        #expect(settings.lowerBound < seed.lowerBound,
-                "the directory is filled before it is made private")
-        #expect(keys.lowerBound < seed.lowerBound)
+        #expect(!text.contains("Config.secure("),
+                "the securing is in two places, and only one of them runs for a command")
     }
 }
 
