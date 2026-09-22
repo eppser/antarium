@@ -203,10 +203,11 @@ rm -rf "$home"
 # else's Mac that path does not exist. A failure that is invisible here and
 # total there is the one worth a gate.
 step "The assembled app carries every resource it asks for"
-missing=0
+missing=0 named=0
 res=dist/Antarium.app/Contents/Resources
 for name in $(grep -rhoE 'forResource: ?"[^"]+", ?withExtension: ?"[^"]+"' Sources/ \
               | sed -E 's/.*forResource: ?"([^"]+)".*withExtension: ?"([^"]+)".*/\1.\2/' | sort -u); do
+    named=$((named+1))
     # Anywhere under Resources: the same call often names a subdirectory too,
     # and the first version of this check reported the logo missing when it
     # was one folder down.
@@ -214,8 +215,16 @@ for name in $(grep -rhoE 'forResource: ?"[^"]+", ?withExtension: ?"[^"]+"' Sourc
 done
 for dir in $(grep -rhoE 'subdirectory: ?"[^"]+"' Sources/ \
              | sed -E 's/.*"([^"]+)".*/\1/' | sort -u); do
+    named=$((named+1))
     [ -d "$res/$dir" ] || { bad "the app has no $dir/"; missing=1; }
 done
+# Counted, because both loops above read their subjects out of the sources: a
+# renamed call leaves them with nothing to iterate, and a step that checked no
+# resources would otherwise report that every resource is present.
+if [ "$named" -lt 6 ]; then
+    bad "only $named resource names were found in the sources — the check read nothing"
+    missing=1
+fi
 # Read at runtime for the compatibility rows, through a path this grep cannot
 # see: the fixture name comes out of the descriptor.
 [ -d "$res/harness-fixtures" ] || { bad "the app has no harness-fixtures/"; missing=1; }
@@ -307,7 +316,13 @@ printf '%s' "$out" | grep -q "^wrote      enabledAgents = " \
 # nobody made.
 shown=$(printf '%s' "$out" | sed -n 's/^● \([^ ]*\).*/\1/p' | sort | tr '\n' ',' | sed 's/,$//')
 wrote=$(printf '%s' "$out" | sed -n 's/^wrote      enabledAgents = //p' | tr -d ' ' | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')
-if [ "$shown" = "$wrote" ]; then
+# Both are extracted from the same output, so both being empty compares equal
+# — a changed output format would report agreement between two things it
+# failed to find. The first run enables something on any machine that has an
+# agent on it, so an empty pair is a broken check rather than a bare Mac.
+if [ -z "$shown" ] || [ -z "$wrote" ]; then
+    bad "read no choice from --detect-agents (shown=[$shown] wrote=[$wrote])"
+elif [ "$shown" = "$wrote" ]; then
     ok "it wrote the choice it explained"
 else
     bad "explained [$shown] and wrote [$wrote]"
