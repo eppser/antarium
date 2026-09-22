@@ -693,3 +693,4 @@ the configured probe recomputes under contention | Sources/Antarium/Core/Configu
 the session engine drops its lock on read | Sources/Antarium/Core/HarnessEngine.swift | /static func sessions/,/^    }/ s|        lock.lock()||; /static func sessions/,/^    }/ s|        lock.unlock()||
 the provider registry drops its lock | Sources/Antarium/Core/UsageProvider.swift | /static func providers/,/^    }/ s|            lock.lock()||; /static func providers/,/^    }/ s|            lock.unlock()||
 the provider registry forgets its cache | Sources/Antarium/Core/UsageProvider.swift | s|            if let cached = fromDescriptors\[descriptor.id\],|            if let cached: (signature: String, provider: DescriptorProvider) = nil,|
+a fixture run returns the machine's own sessions | Sources/Antarium/Core/HarnessEngine.swift | s|        if let hit = cache\[descriptor.id\], hit.fingerprint == fingerprint,|        if let hit = cache[descriptor.id],|

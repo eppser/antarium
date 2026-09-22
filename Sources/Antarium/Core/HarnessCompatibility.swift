@@ -191,7 +191,21 @@ enum HarnessCompatibility {
             object["id"] = "\(descriptor.id)-fixture-\(UUID().uuidString)"
             let configured = try HarnessDocument.decode(
                 JSONSerialization.data(withJSONObject: object)).descriptor
-            HarnessEngine.resetCaches(includingParsedFiles: true)
+            // No cache reset here. It cleared every harness's sessions and
+            // every parsed file, and the settings panel verifies one fixture
+            // per harness row — so opening Settings emptied the scan cache
+            // once per row and made the next scan cold, on a machine with
+            // twenty-five of them.
+            //
+            // It was standing in for a collision that cannot happen. The
+            // engine keys its cache by descriptor id, and the fixture run
+            // uses the id of the harness it is checking, which looks like
+            // exactly that collision — but the entry is guarded by a
+            // fingerprint that includes the descriptor, and the fixture run
+            // rewrites `source.path` to a temporary tree of its own. The
+            // fingerprints differ, so the real entry is never returned here
+            // and nothing written here is ever returned to a real scan. A
+            // test holds that directly now.
             let actual = Snapshot.capture(HarnessEngine.sessions(configured))
             let passed = actual == fixture.expected
             // Which fields differ, not merely that some do. "fixture values

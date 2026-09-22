@@ -14,8 +14,8 @@ struct ConcurrentCacheTests {
     /// A set that does not itself need the thing under test to work.
     private final class IdentitySet: @unchecked Sendable {
         private let lock = NSLock()
-        private var values: Set<ObjectIdentifier> = []
-        func insert(_ value: ObjectIdentifier) { lock.lock(); values.insert(value); lock.unlock() }
+        private var values: Set<AnyHashable> = []
+        func insert(_ value: some Hashable) { lock.lock(); values.insert(value); lock.unlock() }
         var count: Int { lock.lock(); defer { lock.unlock() }; return values.count }
     }
 
@@ -234,6 +234,121 @@ struct ConcurrentCacheTests {
         }
         #expect(wrong.count == 0,
                 Comment(rawValue: "\(wrong.count) of 32 builds disagreed"))
+    }
+
+    /// Verifying a fixture is the one cache here that deliberately does its
+    /// work outside the lock — it creates a temporary tree and runs a scan,
+    /// which is too long to hold one for. That makes duplicate work possible
+    /// and correctness the only thing left to hold.
+    ///
+    /// It also resets the engine's caches mid-flight, which is global state
+    /// two verifications share. One thread clearing what another is part-way
+    /// through reading is the hazard, and the settings panel draws a row per
+    /// harness, so several verifications at once is the ordinary case rather
+    /// than a contrived one.
+    @Test("Verifying one fixture from many threads gives one verdict")
+    func fixtureVerificationIsConsistent() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("verify-race-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let record = #"{"cwd":"/synthetic/p","usage":{"in":10,"out":5}}"# + "\n"
+        try JSONSerialization.data(withJSONObject: [
+            "files": ["a.jsonl": record],
+            "expected": ["sessions": 1, "cwd": "/synthetic/p",
+                         "inputTokens": 10, "outputTokens": 5,
+                         "cacheRead": 0, "cacheWrite": 0, "toolCalls": 0,
+                         "turns": 0, "subAgents": 0, "costUSD": 0],
+        ]).write(to: root.appendingPathComponent("race.fixture.json"))
+
+        // A descriptor nothing has verified before, so every thread misses
+        // the report cache and does the work.
+        let descriptor = try HarnessDocument.decode(JSONSerialization.data(withJSONObject: [
+            "formatVersion": 1, "id": "race-\(UUID().uuidString)", "name": "Race",
+            "process": ["names": ["race"]],
+            "source": ["kind": "jsonl", "path": "~/.race/sessions", "glob": "*.jsonl"],
+            "map": ["cwd": "cwd", "inputTokens": "usage.in", "outputTokens": "usage.out"],
+            "compatibility": ["level": "fixtureVerified", "fixture": "race.fixture.json",
+                              "verifiedAt": "2026-09-22"],
+        ])).descriptor
+
+        let verdicts = IdentitySet()
+        let failures = Counter()
+        DispatchQueue.concurrentPerform(iterations: 16) { _ in
+            let report = HarnessCompatibility.verifyFixture(
+                descriptor, in: AppResources.bundle, beside: root)
+            if report.status != .fixtureVerified { failures.increment() }
+            verdicts.insert(report.status)
+        }
+        #expect(failures.count == 0,
+                Comment(rawValue: "\(failures.count) of 16 verifications disagreed with the "
+                        + "fixture they all read"))
+        #expect(verdicts.count == 1, "the same descriptor produced more than one verdict")
+    }
+
+    /// Verifying a fixture must not disturb what a real scan has cached.
+    ///
+    /// The two share the engine, and the fixture run uses the same descriptor
+    /// id as the harness it is checking — which is the collision worth
+    /// ruling out. It cannot happen: the cache is keyed by id but guarded by
+    /// a fingerprint that includes the descriptor, and the fixture run
+    /// rewrites `source.path` to a temporary tree, so the fingerprints
+    /// differ. This holds that, rather than the reset that was standing in
+    /// for it.
+    @Test("Verifying a fixture leaves a real scan's answer alone")
+    func verifyingDoesNotDisturbAScan() throws {
+        let real = FileManager.default.temporaryDirectory
+            .appendingPathComponent("real-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: real) }
+        try Data((#"{"cwd":"/synthetic/real","usage":{"in":77,"out":7}}"# + "\n").utf8)
+            .write(to: real.appendingPathComponent("r.jsonl"))
+
+        let id = "shared-\(UUID().uuidString)"
+        func descriptor(path: String, fixture: String?) throws -> HarnessDescriptor {
+            var object: [String: Any] = [
+                "formatVersion": 1, "id": id, "name": "Shared", "process": [:],
+                "source": ["kind": "jsonl", "path": path, "glob": "*.jsonl"],
+                "map": ["cwd": "cwd", "inputTokens": "usage.in", "outputTokens": "usage.out"],
+            ]
+            if let fixture {
+                object["compatibility"] = ["level": "fixtureVerified", "fixture": fixture,
+                                           "verifiedAt": "2026-09-22"]
+            }
+            return try HarnessDocument.decode(
+                JSONSerialization.data(withJSONObject: object)).descriptor
+        }
+
+        let live = try descriptor(path: real.path, fixture: nil)
+        let before = HarnessEngine.sessions(live)
+        #expect(before.first?.inputTokens == 77, "the real harness did not read")
+
+        // A fixture for the same id, with entirely different figures.
+        let box = FileManager.default.temporaryDirectory
+            .appendingPathComponent("box-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: box, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: box) }
+        try JSONSerialization.data(withJSONObject: [
+            "files": ["a.jsonl": #"{"cwd":"/synthetic/fixture","usage":{"in":10,"out":5}}"# + "\n"],
+            "expected": ["sessions": 1, "cwd": "/synthetic/fixture",
+                         "inputTokens": 10, "outputTokens": 5,
+                         "cacheRead": 0, "cacheWrite": 0, "toolCalls": 0,
+                         "turns": 0, "subAgents": 0, "costUSD": 0],
+        ]).write(to: box.appendingPathComponent("shared.fixture.json"))
+
+        let report = HarnessCompatibility.verifyFixture(
+            try descriptor(path: "~/.nowhere", fixture: "shared.fixture.json"),
+            in: AppResources.bundle, beside: box)
+        #expect(report.status == .fixtureVerified,
+                Comment(rawValue: "the fixture did not verify: \(report.detail)"))
+
+        // And the real harness still reads as itself, not as the fixture.
+        let after = HarnessEngine.sessions(live)
+        #expect(after.first?.inputTokens == 77,
+                Comment(rawValue: "the scan now reports \(after.first?.inputTokens ?? -1), "
+                        + "which is the fixture's figure"))
+        #expect(after.first?.cwd == "/synthetic/real")
     }
 
     /// The transcript cache is read by every scan and written by the same
