@@ -860,3 +860,7 @@ the cut lands in the middle of a character | Sources/Antarium/AgentItem.swift | 
 first run chooses without recording what it offered | Sources/Antarium/Core/AgentAutoEnable.swift | /^        known = record.known$/d
 a later launch records only when it adopted something | Sources/Antarium/Core/AgentAutoEnable.swift | s|^        known = record.known$|        if !record.adopted.isEmpty { known = record.known }|
 a later launch records only when it adopted something | Sources/Antarium/Core/AgentAutoEnable.swift | /if !record.adopted.isEmpty/{n;s|^        known = record.known$|        if !record.adopted.isEmpty { known = record.known }|;}
+a sound is saved under a name nothing reads | Sources/Antarium/UI/Sounds.swift | s|Config.set("soundName.\\(event.rawValue)", name)|Config.set("soundChoice.\\(event.rawValue)", name)|
+the dashboard position is saved under a name nothing reads | Sources/Antarium/UI/Settings.swift | s|Config.set("dashboardOrigin", \[p.x, p.y\])|Config.set("dashboardPoint", [p.x, p.y])|
+a setting is read under a name nothing writes | Sources/Antarium/UI/Sounds.swift | s|Config.string("soundName.\\(rawValue)")|Config.string("soundPick.\\(rawValue)")|
+the sort order is saved under a name nothing reads | Sources/Antarium/UI/Settings.swift | s|Config.set("agentSort"|Config.set("agentOrder"|
