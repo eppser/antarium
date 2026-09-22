@@ -705,6 +705,7 @@ the login refusal always reads as switching on | Sources/Antarium/Core/LaunchAtL
 the login refusal drops the system's reason | Sources/Antarium/Core/LaunchAtLogin.swift | s|        let reason = error.map { "macOS refused: \\($0)" }|        let reason: String? = nil ?? Optional("macOS refused.")|
 a refused login switch says nothing | Sources/Antarium/Core/LaunchAtLogin.swift | s|        guard requested != achieved else { return nil }|        if true { return nil }|
 the settings panel hides the refusal | Sources/Antarium/UI/SettingsView.swift | s|                   subtitle: LaunchAtLogin.refusal|                   subtitle: Optional<String>.none|
-the first-run screen is never redrawn | Sources/Antarium/AppController.swift | s|            self.onboardingHosting?.rootView = screen(sessions: rows.count)||
+the first-run screen is never redrawn | Sources/Antarium/AppController.swift | s|            hosting.rootView = screen(sessions: rows.count)||
 the first-run screen keeps the count item's callback | Sources/Antarium/AppController.swift | s|            previousRowsChanged?(rows)||
 the borrowed callback is never handed back | Sources/Antarium/AppController.swift | s|                AgentStore.shared.onRowsChanged = previousRowsChanged||
+the redrawn first-run screen is not resized | Sources/Antarium/AppController.swift | s|            self.onboardingPanel?.setContentSize(hosting.fittingSize)||

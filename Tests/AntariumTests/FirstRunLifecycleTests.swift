@@ -259,11 +259,21 @@ struct OnboardingCountContractTests {
         let text = try controller()
         let start = try #require(text.range(of: "func showOnboardingIfNeeded()"),
                                  "the first-run screen was renamed")
-        let body = String(text[start.lowerBound...].prefix(1_800))
+        let body = String(text[start.lowerBound...].prefix(2_600))
         #expect(body.contains("onRowsChanged"),
                 "the screen is drawn once and never told the count")
         #expect(body.contains("rootView"),
                 "nothing redraws the screen when the rows arrive")
+
+        // The redraw's own resize, named apart from the one that happens when
+        // the panel is built. Both call setContentSize, so looking for the
+        // word anywhere would be satisfied by creation and say nothing about
+        // the redraw — and the replacement line is longer than the
+        // placeholder, so a panel still sized for the shorter one clips it.
+        // A character window between the two was measured and rejected: they
+        // sit close enough together that it would hold by luck.
+        #expect(body.contains("onboardingPanel?.setContentSize"),
+                "the panel is not resized for the line that arrives")
     }
 
     /// The callback belongs to the count item. Taking it and not giving it
@@ -272,7 +282,7 @@ struct OnboardingCountContractTests {
     func callbackIsRestored() throws {
         let text = try controller()
         let start = try #require(text.range(of: "func showOnboardingIfNeeded()"))
-        let body = String(text[start.lowerBound...].prefix(1_800))
+        let body = String(text[start.lowerBound...].prefix(2_600))
         #expect(body.contains("previousRowsChanged?(rows)"),
                 "the count item stops updating while the first-run screen is open")
         #expect(body.contains("onRowsChanged = previousRowsChanged"),

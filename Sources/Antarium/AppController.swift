@@ -101,7 +101,14 @@ final class AppController: NSObject {
                 AgentStore.shared.onRowsChanged = previousRowsChanged
                 return
             }
-            self.onboardingHosting?.rootView = screen(sessions: rows.count)
+            guard let hosting = self.onboardingHosting else { return }
+            hosting.rootView = screen(sessions: rows.count)
+            // Resized with it. The line that arrives is longer than the one
+            // it replaces — "Counting sessions…" becomes a sentence with a
+            // number and a clause in it — and a panel sized for the shorter
+            // text clips the taller one.
+            hosting.layoutSubtreeIfNeeded()
+            self.onboardingPanel?.setContentSize(hosting.fittingSize)
         }
         let hosting = PanelChrome.host(view, in: panel)
         onboardingHosting = hosting
