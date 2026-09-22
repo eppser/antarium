@@ -25,14 +25,6 @@ enum LaunchArguments {
       --verify-harness-installations Verify installation probes
       --verify-harness-quota         Verify quota mappings against recorded shapes
       --detect-agents [--apply]      Report what a first run would switch on
-    Synthetic activity validation:
-      --activity-demo
-      --activity-preview <png> [--explorer|--insights|--analysis] [--selected] [--empty] [--compact]
-      --activity-report-preview <html|json>
-      --soak-activity <60...28800 seconds>
-      --soak-activity-ui <60...28800 seconds> [--model] [--background] [--patches]
-      --benchmark-activity [--semantic] [--ambiguous]
-      --evaluate-activity-model [--holdout|--structured] [--case <id>] [--criteria-v1|--criteria-v2]
     Terminal wrapper:
       run -- <command> [arguments...]
     """
@@ -53,9 +45,9 @@ enum LaunchArguments {
            ["YES","NO","true","false"].contains(arguments[1]) { return nil }
         guard let first = arguments.first else { return nil }
         if first == "run" { return arguments.count > 1 ? nil : "The run wrapper requires a command." }
-        let single:Set<String> = ["--help","-h","--activity-demo","--status","--bench","--tmux",
-            "--activity-model-worker","--print-remote-discovery-command","--verify-harness-fixtures","--verify-harness-installations","--verify-harness-quota"]
-        let file:Set<String> = ["--verify-remote-discovery-reply","--activity-report-preview","--preview",
+        let single:Set<String> = ["--help","-h","--status","--bench","--tmux",
+            "--print-remote-discovery-command","--verify-harness-fixtures","--verify-harness-installations","--verify-harness-quota"]
+        let file:Set<String> = ["--verify-remote-discovery-reply","--preview",
             "--dashboard","--alert","--check","--evaluate-harness","--settings","--focus","--onboarding"]
         var modes = Dictionary(uniqueKeysWithValues:single.map { ($0,Mode()) })
         for name in file { modes[name] = Mode(minimum:1,maximum:1) }
@@ -65,12 +57,6 @@ enum LaunchArguments {
         modes["--log"] = Mode(maximum:1)
         modes["--agents"] = Mode(options:["--cloud"])
         modes["--detect-agents"] = Mode(options:["--apply"])
-        modes["--activity-preview"] = Mode(minimum:1,maximum:1,options:["--explorer","--analysis","--insights","--empty","--selected","--compact"])
-        modes["--soak-activity"] = Mode(minimum:1,maximum:1)
-        modes["--soak-activity-ui"] = Mode(minimum:1,maximum:1,options:["--model","--background","--patches"])
-        modes["--benchmark-activity"] = Mode(options:["--semantic","--ambiguous"])
-        modes["--evaluate-activity-model"] = Mode(options:["--holdout","--structured","--criteria-v1","--criteria-v2",
-            "--current-event-only","--content-tagging","--omit-schema","--case"],valued:["--case"])
         guard let mode = modes[first] else { return "Unknown command. Use --help for supported modes." }
         let rest = Array(arguments.dropFirst())
         var index = 0, positionals:[String] = [], seen:Set<String> = []
@@ -88,11 +74,10 @@ enum LaunchArguments {
                 index += 1
             }
         }
-        for group:Set<String> in [["--explorer","--analysis","--insights"],["--criteria-v1","--criteria-v2"],["--holdout","--structured"]] {
+        // The groups belong to modes that still exist; the activity ones went
+        // with the commands that never did.
+        for group:Set<String> in [["--explorer","--analysis","--insights"]] {
             if seen.intersection(group).count > 1 { return "Mutually exclusive options were supplied together." }
-        }
-        if first == "--soak-activity" || first == "--soak-activity-ui" {
-            guard let seconds = Int(positionals[0]), (60...28_800).contains(seconds) else { return "Soak duration must be 60 through 28800 seconds." }
         }
         if first == "--log", let value = positionals.first {
             guard let count = Int(value), (0...1_000).contains(count) else { return "Log line count must be 0 through 1000." }
