@@ -223,8 +223,14 @@ extension DashboardView {
     /// change theirs. Saying which day is the difference between "this is
     /// approximate" and "this is approximate, and here is what it is
     /// approximating".
-    static func pricedAt(_ text: String) -> String {
-        guard let asOf = Pricing.asOf else { return text }
+    /// The day is a parameter so the undated case is reachable from a test.
+    /// It was not: the bundled table always carries a day, so a test calling
+    /// `pricedAt(plain)` exercised only the dated branch, and its assertion
+    /// that the result held no dangling "as of ." was true of the dated
+    /// sentence too. Deleting the guard left every test passing.
+    static func pricedAt(_ text: String, asOf: String? = Pricing.asOf) -> String {
+        guard let asOf, !asOf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return text }
         return text + " Rates as of \(asOf)."
     }
 

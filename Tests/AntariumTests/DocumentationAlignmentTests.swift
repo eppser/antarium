@@ -693,14 +693,40 @@ struct PricingDateTests {
     /// A table with no day still produces a usable sentence — somebody's own
     /// pricing.json need not carry one, and a dangling "Rates as of ." would
     /// be worse than saying nothing.
-    @Test("With no day stated, the sentence is unchanged")
-    func undatedTableSaysNothingExtra() {
-        // Exercised through the same function with the real table absent is
-        // not reachable here, so this holds the shape the guard produces.
+    ///
+    /// This asserted the same thing through `pricedAt(plain)`, which reads the
+    /// bundled table — and that one always states a day. So it checked the
+    /// *dated* sentence for a dangling "as of .", which it never has, and
+    /// deleting the guard entirely left the test green. The day is a parameter
+    /// now, so the branch this names is the branch it runs.
+    @Test("With no day stated, the sentence is unchanged", arguments: [nil, "", "   "])
+    func undatedTableSaysNothingExtra(day: String?) {
         let plain = "Estimated list-price cost."
-        #expect(DashboardView.pricedAt(plain).hasPrefix(plain))
-        #expect(!DashboardView.pricedAt(plain).contains("as of ."),
-                "an undated table would leave a dangling sentence")
+        #expect(DashboardView.pricedAt(plain, asOf: day) == plain,
+                Comment(rawValue: "a day of \(day.map { "\"\($0)\"" } ?? "none") "
+                                + "changed the sentence"))
+    }
+
+    /// The user's table wins for its day as it does for its rates. Somebody
+    /// who corrected a rate this morning is looking at prices from this
+    /// morning, and dating them to the day the app was built would be a
+    /// confident statement of the wrong thing.
+    @Test("A corrected table supplies its own date, not the bundled one")
+    func myDayWins() {
+        #expect(Pricing.day(mine: "2026-09-01", bundled: "2026-01-31") == "2026-09-01")
+        #expect(Pricing.day(mine: nil, bundled: "2026-01-31") == "2026-01-31",
+                "an uncorrected install lost the bundled date")
+        #expect(Pricing.day(mine: "2026-09-01", bundled: nil) == "2026-09-01")
+        #expect(Pricing.day(mine: nil, bundled: nil) == nil,
+                "a date was invented where neither table states one")
+    }
+
+    /// And the other side of the same guard, so "say nothing" cannot be the
+    /// whole implementation.
+    @Test("A stated day is appended once, after the original sentence")
+    func datedTableStatesTheDay() {
+        let text = DashboardView.pricedAt("Estimated list-price cost.", asOf: "2026-01-31")
+        #expect(text == "Estimated list-price cost. Rates as of 2026-01-31.")
     }
 
     /// And every place a cost is drawn goes through it, or one tooltip says

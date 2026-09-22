@@ -32,15 +32,25 @@ enum Pricing {
         let contextWindow: Int
     }
 
+    /// The rates and the day they were taken, built together.
+    ///
+    /// `asOf` used to read both files itself on every call, and it is called
+    /// from a tooltip inside a SwiftUI body — once per row, on every render.
+    /// Reading it here costs one parse that was already happening.
+    struct Table {
+        let rates: [(prefix: String, rate: Rate)]
+        let asOf: String?
+    }
+
     private static let lock = NSLock()
     nonisolated(unsafe) private static var cached:
-        (stamp: String, checked: Date, table: [(prefix: String, rate: Rate)])?
+        (stamp: String, checked: Date, table: Table)?
 
     /// Rebuilt when `~/.antarium/pricing.json` changes, so a corrected rate
     /// applies at the next scan instead of at the next launch. The bundled
     /// table cannot change without a new build, so only the user's file is
     /// stamped.
-    private static var table: [(prefix: String, rate: Rate)] {
+    private static var table: Table {
         let mine = Config.directory.appendingPathComponent("pricing.json")
         lock.lock()
         if let cached, cached.checked.timeIntervalSinceNow > -1 {
@@ -68,39 +78,44 @@ enum Pricing {
     /// theirs, every figure here is quietly wrong and the row says only that
     /// it was an estimate, never of when. The user's own table wins, as it
     /// does for the rates themselves.
-    static var asOf: String? {
-        func day(_ url: URL?) -> String? {
-            guard let url, let data = try? Data(contentsOf: url),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { return nil }
-            let value = (object["asOf"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return (value?.isEmpty == false) ? value : nil
+    static var asOf: String? { table.asOf }
+
+    /// One table file, parsed once for both the rates and the day.
+    ///
+    /// Bounded like every other file this app reads: the user's copy is
+    /// hand-edited local configuration, and a reader with no ceiling is a
+    /// reader that a mistyped path can hand a very large file to.
+    private static func load(_ url: URL?) -> (entries: [Entry], asOf: String?) {
+        guard let url, let data = try? BoundedFile.read(url, maxBytes: 4 * 1_024 * 1_024),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return ([], nil) }
+        let day = (object["asOf"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let entries: [Entry]
+        if let models = object["models"],
+           let raw = try? JSONSerialization.data(withJSONObject: models),
+           let decoded = try? JSONDecoder().decode([Entry].self, from: raw) {
+            entries = decoded
+        } else {
+            entries = []
         }
-        return day(Config.directory.appendingPathComponent("pricing.json"))
-            ?? day(AppResources.bundle.url(forResource: "pricing", withExtension: "json"))
+        return (entries, day?.isEmpty == false ? day : nil)
     }
 
-    private static func build() -> [(prefix: String, rate: Rate)] {
-        func load(_ url: URL?) -> [Entry] {
-            guard let url, let data = try? Data(contentsOf: url),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let models = object["models"],
-                  let raw = try? JSONSerialization.data(withJSONObject: models),
-                  let entries = try? JSONDecoder().decode([Entry].self, from: raw)
-            else { return [] }
-            return entries
-        }
-        let bundled = load(AppResources.bundle.url(
+    private static func build() -> Table {
+        let bundledFile = load(AppResources.bundle.url(
             forResource: "pricing", withExtension: "json"))
-        let mine = load(Config.directory.appendingPathComponent("pricing.json"))
+        let myFile = load(Config.directory.appendingPathComponent("pricing.json"))
+        let bundled = bundledFile.entries, mine = myFile.entries
         if bundled.isEmpty && mine.isEmpty {
             NSLog("Antarium: no pricing table found; spend will be blank")
         }
         // The user's entries are consulted first, then the longest prefix wins.
-        return (mine + bundled)
+        // The user's day wins for the same reason their rates do — if they
+        // corrected the table, the correction's date is the honest one.
+        let rates = (mine + bundled)
             .sorted { $0.prefix.count > $1.prefix.count }
-            .compactMap { entry in
+            .compactMap { entry -> (prefix: String, rate: Rate)? in
                 guard let cacheWrite = entry.cacheWrite5m,
                       let cacheWrite1h = entry.cacheWrite1h,
                       let cacheRead = entry.cacheRead else {
@@ -113,11 +128,22 @@ enum Pricing {
                                            cacheRead: cacheRead,
                                            contextWindow: entry.contextWindow))
             }
+        return Table(rates: rates, asOf: day(mine: myFile.asOf, bundled: bundledFile.asOf))
+    }
+
+    /// Which day a figure was priced on, when both tables state one.
+    ///
+    /// Separated out because `Config.directory` binds at first touch, so no
+    /// test in this process can put a real second table on disk — and a
+    /// precedence nothing can reach is a precedence nothing checks. Reversing
+    /// it here would date every corrected rate to the day the app was built.
+    static func day(mine: String?, bundled: String?) -> String? {
+        mine ?? bundled
     }
 
     static func rate(for model: String?) -> Rate? {
         guard let model = model?.lowercased() else { return nil }
-        return table.first { model.hasPrefix($0.prefix) }?.rate
+        return table.rates.first { model.hasPrefix($0.prefix) }?.rate
     }
 
     static func reload() {

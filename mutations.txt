@@ -762,3 +762,8 @@ a balance help says used rather than left | Sources/Antarium/UI/Dashboard.swift 
 a stale reading hides its age | Sources/Antarium/UI/Dashboard.swift | s|        return figure + " — as of " + Format.age(fetchedAt)|        return figure|
 a cloud report replaces a local observation | Sources/Antarium/Core/AgentScan.swift | s|        for row in local + cloud where seen.insert(row.id).inserted {|        for row in cloud + local where seen.insert(row.id).inserted {|
 a remote row forgets which host it came from | Sources/Antarium/Core/RemoteTmux.swift | s|            var row = AgentRow(id: "\\(tag):\\(host):\\(pane.target)",|            var row = AgentRow(id: "\\(tag):\\(pane.target)",|
+a cost no longer says which prices it used | Sources/Antarium/UI/Dashboard.swift | s|        return text + " Rates as of \\(asOf)."|        return text|
+an undated table leaves a dangling sentence | Sources/Antarium/UI/Dashboard.swift | /^        guard let asOf, !asOf.trimmingCharacters/,+1d
+the pricing table is read for its rates and not its day | Sources/Antarium/Core/Pricing.swift | s|asOf: day(mine: myFile.asOf, bundled: bundledFile.asOf)|asOf: nil|
+a corrected table is dated to the day the app was built | Sources/Antarium/Core/Pricing.swift | s|^        mine ?? bundled$|        bundled ?? mine|
+a whitespace-only date still reads as a date | Sources/Antarium/UI/Dashboard.swift | s|guard let asOf, !asOf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty|guard let asOf|
