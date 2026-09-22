@@ -20,7 +20,7 @@ struct HarnessZeroValueTests {
         return root
     }
     private func row(_ descriptor:HarnessDescriptor) throws -> AgentRow {
-        HarnessEngine.resetCaches(includingParsedFiles:true)
+        HarnessEngine.resetCaches()
         let session = try #require(HarnessEngine.sessions(descriptor).first)
         var row = AgentRow(id:"fixture",agentID:"fixture",name:"Fixture",cwd:"/fixture",state:.waiting)
         AgentScan.apply(session,to:&row,descriptor,processAlive:true)

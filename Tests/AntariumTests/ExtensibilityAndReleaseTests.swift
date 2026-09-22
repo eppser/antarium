@@ -175,7 +175,7 @@ struct ExtensibilityAndReleaseTests {
             }
         #expect(observedOpenFiles.contains(workingFile.resolvingSymlinksInPath().path))
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let working = HarnessEngine.session(descriptor,
                                             boundToOpenFiles: [workingFile.path])
         let waiting = HarnessEngine.session(descriptor,
@@ -266,7 +266,7 @@ struct HarnessEvaluationTests {
         try Data(initial.utf8).write(to: file)
         let value = try descriptor(root: root, id: "metrics-\(UUID().uuidString)")
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let cold = HarnessEngine.evaluate(value)
         #expect(cold.sessions.first?.inputTokens == 1_000)
         #expect(cold.sessions.first?.outputTokens == 2_000)
@@ -306,7 +306,7 @@ struct HarnessEvaluationTests {
         try Data(String(repeating: line, count: count).utf8).write(to: file)
         let value = try descriptor(root: root, id: "budget-\(UUID().uuidString)")
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let result = HarnessEngine.evaluate(value)
         #expect(result.metrics.recordsParsed == count)
         #expect(result.metrics.elapsedMilliseconds < HarnessPerformanceBudget.coldJSONLMilliseconds,

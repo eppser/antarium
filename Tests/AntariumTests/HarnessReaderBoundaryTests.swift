@@ -18,7 +18,7 @@ struct HarnessReaderBoundaryTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("trace.jsonl"), config = try descriptor(root)
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         try Data("{\"cwd\":\"/fixture\",\"model\":\"model-a\",\"tokens\":1}\n".utf8).write(to: file)
         #expect(HarnessEngine.sessions(config).first?.model == "model-a")
         try Data("{\"cwd\":\"/fixture\",\"model\":\"model-b\",\"tokens\":2}\n".utf8).write(to: file, options: .atomic)
@@ -35,7 +35,7 @@ struct HarnessReaderBoundaryTests {
         let file = root.appendingPathComponent("trace.jsonl"), config = try descriptor(root)
         let line = "{\"cwd\":\"/fixture\",\"tokens\":1,\"padding\":\"" + String(repeating: "x", count: 1_000) + "\"}\n"
         try Data(String(repeating: line, count: 5_000).utf8).write(to: file)
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let first = HarnessEngine.evaluate(config)
         #expect(first.metrics.bytesRead <= 4 * 1_024 * 1_024)
         #expect(first.sessions.first?.usageIssue != nil)
@@ -78,7 +78,7 @@ struct HarnessFieldMappingTests {
             "map": ["cwd": "cwd", "model": "model", "title": "title"]]
         let descriptor = try HarnessDocument.decode(
             JSONSerialization.data(withJSONObject: object)).descriptor
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         return try #require(HarnessEngine.sessions(descriptor).first)
     }
 
@@ -157,7 +157,7 @@ struct PathNormalisationTests {
         try Data((#"{"cwd":"\#(decomposed)","input":42}"# + "\n").utf8)
             .write(to: root.appendingPathComponent("trace.jsonl"))
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let descriptor = try descriptor(root)
         let found = HarnessEngine.session(descriptor, forCwd: composed)
         #expect(found?.inputTokens == 42, "an accented project directory lost its session")
@@ -176,7 +176,7 @@ struct PathNormalisationTests {
         try Data((#"{"cwd":"\#(decomposed)","input":42}"# + "\n").utf8)
             .write(to: root.appendingPathComponent("trace.jsonl"))
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         #expect(HarnessEngine.session(try descriptor(root),
                                       forCwd: "/synthetic/Other/project") == nil)
     }

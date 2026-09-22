@@ -29,7 +29,7 @@ struct HarnessNegativeUsageTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Data(records.joined(separator: "\n").appending("\n").utf8)
             .write(to: root.appendingPathComponent("trace.jsonl"))
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         return try #require(HarnessEngine.sessions(try descriptor(root)).first)
     }
 
@@ -109,7 +109,7 @@ struct SQLiteNegativeUsageTests {
         #expect(sqlite3_open(root.appendingPathComponent("fixture.sqlite").path,
                              &database) == SQLITE_OK)
         sqlite3_close(database)
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         return try #require(HarnessEngine.sessions(try descriptor(root, sql: sql)).first)
     }
 

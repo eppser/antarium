@@ -27,7 +27,7 @@ struct DiscoveryBoundaryTests {
                 try FileManager.default.createDirectory(at:file.deletingLastPathComponent(),withIntermediateDirectories:true)
                 try JSONSerialization.data(withJSONObject:["id":"session-\(index)","cwd":"/fixture"]).write(to:file)
             }
-            HarnessEngine.resetCaches(includingParsedFiles:true)
+            HarnessEngine.resetCaches()
             #expect(HarnessEngine.sessions(try descriptor(root,glob:"**/*.json")).count == 3)
         }
     }
@@ -36,7 +36,7 @@ struct DiscoveryBoundaryTests {
         HarnessEngineTestIsolation.lock.lock(); defer { HarnessEngineTestIsolation.lock.unlock() }
         try fixture { root in
             try Data(#"{"id":"one","cwd":"/fixture"}"#.utf8).write(to:root.appendingPathComponent("trace-one.json"))
-            HarnessEngine.resetCaches(includingParsedFiles:true)
+            HarnessEngine.resetCaches()
             #expect(HarnessEngine.sessions(try descriptor(root,glob:"trace-*.json")).count == 1)
         }
     }
@@ -87,7 +87,7 @@ struct DiscoveryBoundaryTests {
         try fixture { root in
             let file = root.appendingPathComponent("session.json")
             let config = try descriptor(root,glob:"*.json")
-            HarnessEngine.resetCaches(includingParsedFiles:true)
+            HarnessEngine.resetCaches()
             try Data("invalid".utf8).write(to:file)
             #expect(HarnessEngine.sessions(config).isEmpty)
             #expect(HarnessEngine.health(for:config.id) != nil)

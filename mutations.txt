@@ -694,3 +694,5 @@ the session engine drops its lock on read | Sources/Antarium/Core/HarnessEngine.
 the provider registry drops its lock | Sources/Antarium/Core/UsageProvider.swift | /static func providers/,/^    }/ s|            lock.lock()||; /static func providers/,/^    }/ s|            lock.unlock()||
 the provider registry forgets its cache | Sources/Antarium/Core/UsageProvider.swift | s|            if let cached = fromDescriptors\[descriptor.id\],|            if let cached: (signature: String, provider: DescriptorProvider) = nil,|
 a fixture run returns the machine's own sessions | Sources/Antarium/Core/HarnessEngine.swift | s|        if let hit = cache\[descriptor.id\], hit.fingerprint == fingerprint,|        if let hit = cache[descriptor.id],|
+a fixture run leaves its parsed files behind | Sources/Antarium/Core/HarnessCompatibility.swift | s|                HarnessEngine.forget(under: root, id: descriptor.id)||
+forgetting one tree forgets every tree | Sources/Antarium/Core/HarnessEngine.swift | s|        files = files.filter { !\$0.key.contains(prefix) }|        files.removeAll()|

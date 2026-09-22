@@ -176,7 +176,7 @@ struct ConcurrentCacheTests {
         // that only read passed with the lock removed.
         let mismatches = Counter()
         DispatchQueue.concurrentPerform(iterations: 16) { _ in
-            HarnessEngine.resetCaches(includingParsedFiles: true)
+            HarnessEngine.resetCaches()
             let got = HarnessEngine.sessions(descriptor).map(\.cwd)
                 .sorted { ($0 ?? "") < ($1 ?? "") }
             if got != first { mismatches.increment() }
@@ -373,5 +373,82 @@ struct ConcurrentCacheTests {
         #expect(results.count == 32)
         #expect(mismatches.count == 0,
                 Comment(rawValue: "\(mismatches.count) of 32 reads disagreed"))
+    }
+}
+
+/// What a reader working in a temporary tree leaves behind.
+///
+/// The parsed-file cache is keyed partly by path and has no eviction, so a
+/// reader that creates a directory, reads it and deletes it would hold a
+/// session per file for the life of the process. The fixture verifier is
+/// the one such reader; it used to clear the whole cache, which cost every
+/// other harness its work, and now clears only its own.
+@Suite("A fixture run leaves nothing behind", .serialized)
+struct FixtureCleanupTests {
+
+    @Test("Verifying a fixture does not grow the parsed-file cache")
+    func verificationLeavesNoEntries() throws {
+        let box = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cleanup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: box, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: box) }
+        try JSONSerialization.data(withJSONObject: [
+            "files": ["a.jsonl": #"{"cwd":"/synthetic/p","usage":{"in":10,"out":5}}"# + "\n"],
+            "expected": ["sessions": 1, "cwd": "/synthetic/p",
+                         "inputTokens": 10, "outputTokens": 5,
+                         "cacheRead": 0, "cacheWrite": 0, "toolCalls": 0,
+                         "turns": 0, "subAgents": 0, "costUSD": 0],
+        ]).write(to: box.appendingPathComponent("c.fixture.json"))
+
+        func descriptor() throws -> HarnessDescriptor {
+            try HarnessDocument.decode(JSONSerialization.data(withJSONObject: [
+                "formatVersion": 1, "id": "cleanup-\(UUID().uuidString)", "name": "Cleanup",
+                "process": [:],
+                "source": ["kind": "jsonl", "path": "~/.nowhere", "glob": "*.jsonl"],
+                "map": ["cwd": "cwd", "inputTokens": "usage.in", "outputTokens": "usage.out"],
+                "compatibility": ["level": "fixtureVerified", "fixture": "c.fixture.json",
+                                  "verifiedAt": "2026-09-22"],
+            ])).descriptor
+        }
+
+        // A distinct descriptor each time, so the report cache never answers
+        // and every pass really runs a scan in a tree of its own.
+        HarnessEngine.resetCaches()
+        let baseline = HarnessEngine.parsedFileCount
+        for _ in 0..<8 {
+            let report = HarnessCompatibility.verifyFixture(
+                try descriptor(), in: AppResources.bundle, beside: box)
+            #expect(report.status == .fixtureVerified,
+                    Comment(rawValue: "the fixture did not verify: \(report.detail)"))
+        }
+        #expect(HarnessEngine.parsedFileCount == baseline,
+                Comment(rawValue: "eight verifications left "
+                        + "\(HarnessEngine.parsedFileCount - baseline) entries behind"))
+    }
+
+    /// And it forgets only its own: a real harness's work survives, which is
+    /// the whole reason the blanket reset went.
+    @Test("Forgetting one tree leaves another harness's work alone")
+    func forgettingIsScoped() throws {
+        let real = FileManager.default.temporaryDirectory
+            .appendingPathComponent("keep-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: real) }
+        try Data((#"{"cwd":"/synthetic/keep","usage":{"in":5,"out":1}}"# + "\n").utf8)
+            .write(to: real.appendingPathComponent("k.jsonl"))
+        let live = try HarnessDocument.decode(JSONSerialization.data(withJSONObject: [
+            "formatVersion": 1, "id": "keep", "name": "Keep", "process": [:],
+            "source": ["kind": "jsonl", "path": real.path, "glob": "*.jsonl"],
+            "map": ["cwd": "cwd", "inputTokens": "usage.in", "outputTokens": "usage.out"],
+        ])).descriptor
+
+        _ = HarnessEngine.sessions(live)
+        let after = HarnessEngine.parsedFileCount
+        #expect(after > 0, "the real harness cached nothing, so this proves nothing")
+
+        HarnessEngine.forget(under: FileManager.default.temporaryDirectory
+            .appendingPathComponent("somewhere-else-\(UUID().uuidString)"), id: "other")
+        #expect(HarnessEngine.parsedFileCount == after,
+                "forgetting an unrelated tree dropped another harness's work")
     }
 }

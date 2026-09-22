@@ -333,7 +333,7 @@ struct DeclaredStatusTests {
         ]
         let descriptor = try HarnessDocument.decode(
             JSONSerialization.data(withJSONObject: document)).descriptor
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         return HarnessEngine.sessions(descriptor).first
     }
 

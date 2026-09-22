@@ -145,7 +145,14 @@ enum HarnessCompatibility {
             .appendingPathComponent("antarium-fixture-\(descriptor.id)-\(UUID().uuidString)")
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: root) }
+            defer {
+                try? FileManager.default.removeItem(at: root)
+                // The tree is gone; what was read from it must go too. The
+                // parsed-file cache is keyed partly by path and never evicts,
+                // so leaving these behind would hold a session per fixture
+                // file for the life of the process.
+                HarnessEngine.forget(under: root, id: descriptor.id)
+            }
             for (relative, contents) in fixture.files ?? [:] {
                 let file = root.appendingPathComponent(relative)
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(),

@@ -317,12 +317,52 @@ enum HarnessEngine {
 
     /// Test/evaluation reset. Production reloads preserve parsed offsets; an
     /// explicit cold evaluation must be able to prove what a first read costs.
-    static func resetCaches(includingParsedFiles: Bool) {
+    /// Forgets everything the engine has read, so the next scan is cold.
+    ///
+    /// Test support. It had one caller in the app — the fixture verifier,
+    /// which wiped the whole cache before every verification to avoid a
+    /// collision that a fingerprint already prevents — and that caller is
+    /// gone. Kept because a couple of dozen tests need a cold engine and
+    /// there is no other way to ask for one; named plainly so nobody
+    /// concludes the app depends on it.
+    ///
+    /// It took an `includingParsedFiles` flag that all twenty-two callers
+    /// passed as `true`, so the branch that kept parsed files had never once
+    /// been taken. A parameter with one possible value is a choice nobody
+    /// made.
+    /// How many parsed files are held. For tests that assert a reader
+    /// cleaned up after itself; the cache has no eviction, so "it grew" and
+    /// "it leaked" are the same sentence.
+    static var parsedFileCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return files.count
+    }
+
+    /// Forgets what was read from one directory, and nothing else.
+    ///
+    /// For a reader that works in a temporary tree and then deletes it: the
+    /// parsed-file cache is keyed partly by path and has no eviction, so
+    /// entries for a directory that no longer exists would sit there for the
+    /// life of the process. The fixture verifier is the one such reader, and
+    /// it used to clear the entire cache instead — which was a far larger
+    /// hammer and cost every other harness its work.
+    ///
+    /// The descriptor's own entry goes too: it was computed from files under
+    /// that root and describes nothing once they are gone.
+    static func forget(under root: URL, id: String) {
+        let prefix = root.standardizedFileURL.path
+        lock.lock()
+        files = files.filter { !$0.key.contains(prefix) }
+        cache.removeValue(forKey: id)
+        lock.unlock()
+    }
+
+    static func resetCaches() {
         lock.lock()
         cache.removeAll()
         commandCache.removeAll()
         rejected.removeAll()
-        if includingParsedFiles { files.removeAll() }
+        files.removeAll()
         lock.unlock()
     }
 

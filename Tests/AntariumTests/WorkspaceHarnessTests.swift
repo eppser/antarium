@@ -242,11 +242,11 @@ struct WorkspaceDetectionTests {
             return try HarnessDocument.decode(
                 JSONSerialization.data(withJSONObject: document)).descriptor
         }
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let emitting = AgentScan.rows(for: try descriptor(contributingFocus: false),
                                       processes: [:])
         #expect(emitting.count == 1, "the control case produced no rows, so the check is empty")
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         #expect(AgentScan.rows(for: try descriptor(contributingFocus: true),
                                processes: [:]).isEmpty)
     }

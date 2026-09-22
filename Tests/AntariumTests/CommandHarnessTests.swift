@@ -33,7 +33,7 @@ struct CommandHarnessTests {
     private func sessions(_ descriptor: HarnessDescriptor) -> [HarnessEngine.Session] {
         HarnessEngineTestIsolation.lock.lock()
         defer { HarnessEngineTestIsolation.lock.unlock() }
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         return HarnessEngine.sessions(descriptor)
     }
 
@@ -86,7 +86,7 @@ struct CommandHarnessTests {
             refreshEvery: 3_600)
         defer { try? FileManager.default.removeItem(at: dir) }
         HarnessEngineTestIsolation.lock.lock()
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         _ = HarnessEngine.sessions(descriptor)
         _ = HarnessEngine.sessions(descriptor)
         _ = HarnessEngine.sessions(descriptor)

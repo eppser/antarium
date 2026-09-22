@@ -17,7 +17,7 @@ struct HarnessNumericProvenanceTests {
          "source":{"kind":"jsonl","path":"\(root.path)","glob":"*.jsonl"},
          "map":{"cwd":"cwd","inputTokens":"input"}}
         """.utf8)).descriptor
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let session = try #require(HarnessEngine.sessions(descriptor).first)
         #expect(session.usageIssue != nil)
         var row = AgentRow(id: "fixture", agentID: "fixture", name: "Fixture", cwd: "/fixture", state: .waiting)
