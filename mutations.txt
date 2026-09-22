@@ -913,3 +913,6 @@ an error answers a question by default | Sources/Antarium/Core/UsageModel.swift 
 a looping agent is counted as busy | Sources/Antarium/Core/AgentScan.swift | s|            case .working, .shell: return true|            case .working, .shell, .looping: return true|
 the sort stops putting busy rows first | Sources/Antarium/Core/AgentScan.swift | s|                if \$0.state.isBusy != \$1.state.isBusy { return \$0.state.isBusy }||
 a shell is no longer counted as busy | Sources/Antarium/Core/AgentScan.swift | s|            case .working, .shell: return true|            case .working: return true; case .shell: return false|
+being used here stops outranking being merely signed in | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (true, true):  return 3|            case (true, true):  return 2|
+sessions alone stop counting as evidence | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (false, true): return 1|            case (false, true): return 0|
+the ranking collapses to two rungs | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (true, false): return 2|            case (true, false): return 1|

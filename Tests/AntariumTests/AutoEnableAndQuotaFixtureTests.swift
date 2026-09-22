@@ -53,6 +53,64 @@ func autoEnableCapsTheBar() {
     #expect(chosen.contains("yyy-credential"))
 }
 
+/// Each rung of the ranking, on its own.
+///
+/// The cap test above proves the two strongest beat eight weak ones. It
+/// cannot tell 3 from 2, because both of them are chosen either way — there
+/// are only two. So whether "signed in and used here" outranks "signed in
+/// only", and whether sessions alone outrank nothing, were both free to
+/// change. On a Mac carrying traces of more than four agents, which the cap
+/// exists for, that is the difference between the right four and some four.
+///
+/// Ids are chosen so alphabetical order contradicts evidence order in every
+/// case: the tie-break is id, so a ranking that collapsed would hand the
+/// slots to the `aa-` group.
+@Test("Being used here outranks being merely signed in")
+func usedOutranksSignedIn() {
+    let evidence = (1...4).map {
+        AgentAutoEnable.Evidence(id: "zz-both-\($0)", signedIn: true, hasSessions: true)
+    } + (1...4).map {
+        AgentAutoEnable.Evidence(id: "aa-credential-\($0)", signedIn: true, hasSessions: false)
+    }
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(chosen.count == AgentAutoEnable.limit)
+    #expect(chosen.allSatisfy { $0.hasPrefix("zz-both") },
+            Comment(rawValue: "the bar went to \(chosen.sorted()) — an agent that is signed "
+                    + "in and used here did not outrank one that is only signed in"))
+}
+
+@Test("Being signed in outranks having left sessions")
+func signedInOutranksSessions() {
+    let evidence = (1...4).map {
+        AgentAutoEnable.Evidence(id: "zz-credential-\($0)", signedIn: true, hasSessions: false)
+    } + (1...4).map {
+        AgentAutoEnable.Evidence(id: "aa-sessions-\($0)", signedIn: false, hasSessions: true)
+    }
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(chosen.allSatisfy { $0.hasPrefix("zz-credential") },
+            Comment(rawValue: "the bar went to \(chosen.sorted()) — an agent whose item can "
+                    + "only say \"sign in\" took a slot from one that can show a figure"))
+}
+
+/// And the rungs themselves, stated. Four values, each meaning something:
+/// signed in and used here is the clearest case, a credential with no
+/// sessions next, sessions with no credential last — that item can only say
+/// "sign in" until the user does something about it — and nothing at all
+/// scores nothing and is not present.
+@Test("The ranking has four rungs and they are in this order")
+func rungsAreOrdered() {
+    func strength(_ signedIn: Bool, _ sessions: Bool) -> Int {
+        AgentAutoEnable.Evidence(id: "x", signedIn: signedIn, hasSessions: sessions).strength
+    }
+    #expect(strength(true, true) > strength(true, false))
+    #expect(strength(true, false) > strength(false, true))
+    #expect(strength(false, true) > strength(false, false))
+    #expect(strength(false, false) == 0)
+    // And nothing at all is not present, so it never reaches the ranking.
+    #expect(AgentAutoEnable.Evidence(id: "x", signedIn: false, hasSessions: false).present
+            == false)
+}
+
 @Test("Two Macs with the same agents installed get the same bar")
 func autoEnableIsDeterministic() {
     let evidence = (1...6).map {
