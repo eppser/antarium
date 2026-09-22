@@ -127,6 +127,19 @@ only that the guess is self-consistent. One real payload each is the whole
 of what is missing, and it is worth more than any amount of reading around
 it.
 
+Checked again on 2026-09-22, against the vendors' own references rather than
+against this list. DeepInfra's API reference documents its OpenAI-compatible
+and native inference endpoints and no account, billing or balance endpoint
+of any kind; the balance path that circulates does so in other projects'
+pull requests, which is the whole of the objection. Poe's own API
+documentation describes chat completions and responses and no endpoint for
+reading a compute-point balance. Both verdicts stand, and stand on evidence
+now rather than on this paragraph.
+
+Chutes was not re-checked: the documentation site served a landing page
+rather than the API reference, so the entry above is still what it was —
+worth repeating rather than treated as confirmed.
+
 A whole class was blocked by our own scheme check rather than by anything a
 vendor does. A self-hosted proxy in front of an agent — LiteLLM, and the
 several like it — documents its spend endpoint properly and serves it over
