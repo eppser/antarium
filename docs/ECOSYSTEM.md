@@ -136,9 +136,17 @@ documentation describes chat completions and responses and no endpoint for
 reading a compute-point balance. Both verdicts stand, and stand on evidence
 now rather than on this paragraph.
 
-Chutes was not re-checked: the documentation site served a landing page
-rather than the API reference, so the entry above is still what it was —
-worth repeating rather than treated as confirmed.
+Chutes was re-checked on 2026-09-22 and the entry above holds, now for a
+reason that is established rather than repeated. The users reference does
+document `GET /users/me/quotas`, with a Bearer token, and the machine-
+readable index beside it lists the same path as "account limits and usage".
+Neither states a single field the response contains. So the endpoint is
+published and its shape is not, which is precisely the case this section is
+about: a descriptor is field paths, and there are none to read.
+
+This is the entry most worth revisiting, because it is one page away from
+being writable. A published example response — or one real reply from an
+account — is the whole of what is missing.
 
 A whole class was blocked by our own scheme check rather than by anything a
 vendor does. A self-hosted proxy in front of an agent — LiteLLM, and the

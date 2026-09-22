@@ -900,3 +900,6 @@ the list never splits however long it gets | Sources/Antarium/UI/PanelPlacement.
 a row is costed at the wrong height | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitch: CGFloat = 40|    static let rowPitch: CGFloat = 20|
 the panel chrome is not counted against the screen | Sources/Antarium/UI/Dashboard.swift | s|        chrome + CGFloat(max(0, count))|        CGFloat(max(0, count))|
 a compact row is costed as a full one | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitchReduced: CGFloat = 23|    static let rowPitchReduced: CGFloat = 40|
+a turned-down provider stops being accounted for | docs/ECOSYSTEM.md | s|Chutes publishes|Something publishes|
+the nearest miss is no longer identified | docs/ECOSYSTEM.md | s|most worth revisiting|interesting|
+a verdict loses the day it was established | docs/ECOSYSTEM.md | s|Chutes was re-checked on 2026-09-22|Chutes was re-checked recently|
