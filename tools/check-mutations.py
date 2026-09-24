@@ -12,11 +12,27 @@ way — a corrected mutation was appended after a failed attempt, and the
 deduplication kept the first.
 """
 import os
+import re
 import subprocess
 import sys
 
+def plain_substitution(expression: str) -> bool:
+    """True for a bare `s|a|b|` with no address and no second command.
+
+    Such an expression is applied to every line, so a pattern that occurs
+    twice is mutated twice. That is sometimes meant — Dashboard.swift carries
+    two near-identical `help` builders and a rule broken in one should be
+    broken in both — and sometimes it is an entry quietly covering more than
+    its name claims.
+    """
+    return bool(re.match(r'^s([|/#,])', expression)) and ';' not in expression
+
+
 def main(path: str) -> int:
     dead = []
+    broad = []
+    seen = {}
+    duplicates = []
     live = 0
     for raw in open(path, encoding='utf-8'):
         line = raw.strip()
@@ -39,11 +55,32 @@ def main(path: str) -> int:
             dead.append((name, 'pattern no longer matches'))
         else:
             live += 1
+            # A name is how a catch is reported and how an entry is found
+            # again. Two entries sharing one made a corrected mutation look
+            # like a duplicate of the thing it replaced, and both stayed —
+            # the older one substituting on every matching line, the newer
+            # addressed to the single site its name described.
+            if name in seen and seen[name] != expression:
+                duplicates.append(name)
+            seen[name] = expression
+            if plain_substitution(expression):
+                b, a = before.splitlines(), result.stdout.splitlines()
+                if len(b) == len(a):
+                    hits = sum(1 for x, y in zip(b, a) if x != y)
+                    if hits > 1:
+                        broad.append((name, hits))
     for name, why in dead:
         print(f'   FAIL mutation "{name}" {why}')
+    for name in sorted(set(duplicates)):
+        print(f'   FAIL mutation "{name}" shares its name with a different expression')
+    # Advisory, not a failure: matching twice is often correct, and a check
+    # that cried wolf on the twenty-odd entries that mean it would be turned
+    # off rather than read.
+    for name, hits in sorted(broad, key=lambda row: -row[1]):
+        print(f'   note  mutation "{name}" substitutes on {hits} lines')
     print(f'   {live} mutations still apply'
-          + (f', {len(dead)} do not' if dead else ''))
-    return 1 if dead else 0
+          + (f', {len(dead) + len(set(duplicates))} do not' if dead or duplicates else ''))
+    return 1 if dead or duplicates else 0
 
 
 if __name__ == '__main__':
