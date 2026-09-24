@@ -730,7 +730,7 @@ a mode is accepted with neither documentation nor a reason | Sources/Antarium/Co
 the remote pair stops being documented | Sources/Antarium/Core/LaunchArguments.swift | s|      --verify-remote-discovery-reply <file>||
 the readme drops a shipped tool | README.md | s|^- Gemini CLI$||
 the readme invents a tool | README.md | s|^- Zed$|- Zed\n- Emacs Agent|
-the readme miscounts what ships | README.md | s|ships harnesses for 25 tools|ships harnesses for 11 tools|
+the readme miscounts what ships | README.md | s|ships harnesses for 26 tools|ships harnesses for 11 tools|
 the app signals an agent it discovered | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func stopAgent(_ pid: Int32) { kill(pid, SIGTERM) }\n    static func sorted(|
 the app reaches a host nobody asked for | Sources/Antarium/Core/AppLinks.swift | s|    static let repository = URL(string: "https://github.com/eppser/antarium")!|    static let repository = URL(string: "https://telemetry.example.net/collect")!|
 the readme stops naming the gate | README.md | s|^./verify.sh$|./test.sh|
@@ -944,7 +944,7 @@ a session falls back to no identity at all | Sources/Antarium/Core/HarnessEngine
 a rostered provider quietly stops reading its usage api | Resources/harnesses/zai.json | s/"quota"/"quotaWithheld"/
 the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/14 of the 20 are read for usage here/13 of the 20 are read for usage here/
 the document stops naming the roster it is measured against | docs/ECOSYSTEM.md | s/ClaudeBar/that other app/g
-the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/11 of the 25 never appear in it/9 of the 22 never appear in it/
+the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/11 of the 26 never appear in it/9 of the 22 never appear in it/
 a shipped quota drops the credential that proves an account exists | Resources/harnesses/zai.json | s/"credential"/"credentialWithheld"/
 the sessions half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains(\$0.id))|                     hasSessions: false)|
 the signed-in half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     signedIn: \$0.signedIn,|                     signedIn: false,|
@@ -954,10 +954,14 @@ a provider is dropped before it can be weighed | Sources/Antarium/Core/AgentAuto
 a probe stamps its answer after the caller that asked for it | Sources/Antarium/Core/ConfiguredProbe.swift | s|entries\[key\] = Entry(value: value, at: now)|entries[key] = Entry(value: value, at: now + 1)|
 a credential kind the token reader cannot use is blessed | Resources/harnesses/deepseek.json | s/"kind": "env"/"kind": "keychain"/
 the first-run cap is one agent | Sources/Antarium/Core/AgentAutoEnable.swift | s|    static let limit = 4|    static let limit = 1|
-a provider recorded as a gap ships after all | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s|Entry("Mistral", nil, .absent),|Entry("Z.ai", nil, .absent),|
+a provider recorded as a gap ships after all | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s|Entry("Alibaba", nil, .absent, documentedAs: "Alibaba Model Studio"),|Entry("Moonshot", nil, .absent),|
 a covered provider stops replaying its fixture | Resources/harnesses/moonshot.json | s|"quota"|"quotaGone"|
 a test file loses its contents and the suite stays green | Tests/AntariumTests/TildeExpansionTests.swift | s/.*//
 an env credential names no variable and no fallback file | Resources/harnesses/deepseek.json | s|"name": "DEEPSEEK_API_KEY"|"nameGone": "DEEPSEEK_API_KEY"|; s|"path": "~/.antarium/keys/deepseek"|"pathGone": "~/.antarium/keys/deepseek"|
 a json credential names no field to read | Resources/harnesses/zai.json | s|"field": "env.ANTHROPIC_AUTH_TOKEN"|"fieldGone": "env.ANTHROPIC_AUTH_TOKEN"|
 a json credential names no file to read | Resources/harnesses/opencode.json | s|"path": "~/.local/share/opencode/auth.json"|"pathGone": "~/.local/share/opencode/auth.json"|
 a command credential names no command | Resources/harnesses/copilot.json | s|"command": "gh"|"commandGone": "gh"|
+the vibe session cost is read from the wrong field | Resources/harnesses/mistral.json | s|"cost": "stats.session_cost"|"cost": "stats.cost"|
+the vibe token count is read from the wrong field | Resources/harnesses/mistral.json | s|"totalTokens": "stats.session_total_llm_tokens"|"totalTokens": "stats.total_tokens"|
+the vibe log reader looks for the name the vendor comment uses | Resources/harnesses/mistral.json | s|"glob": "\*/meta.json"|"glob": "*/metadata.json"|
+the fixture stops checking the running total it now records | Resources/harness-fixtures/mistral.json | s|"totalTokens": 4096|"totalTokens": null|

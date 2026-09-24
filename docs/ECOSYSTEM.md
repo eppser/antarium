@@ -216,7 +216,7 @@ credential rather than the response.
 | Antigravity | the reason moved. Its embedded language server began refusing every tokenless request once the `agy` CLI stopped publishing the CSRF token it generates, so the port-probing route other tools used is closed to them too; the working path is now `agy -p /usage --output-format json`. A descriptor can express that — `quota.command` reads its figures from a program's stdout — so the blocker is no longer the access. What is missing is the mapping: the field paths are reverse-engineered from the binary by the tools that carry them, and their own documentation says the shape may change without notice. One real payload would be enough to write the descriptor and its fixture, and nothing short of that should be written. Re-checked 2026-09-24 against ClaudeBar's own provider documentation, which still describes two sources — a local language server on 127.0.0.1 while Antigravity or `agy` is running, and cached sign-in credentials in the Keychain when neither is — across two pools and two windows each, and names no field at all. The reason stands, and the missing thing is the same missing thing |
 | Amazon Bedrock | requests must be SigV4-signed |
 | Alibaba Model Studio | authentication is a browser cookie |
-| Mistral | Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`, which the `json` source kind could glob — so this is a session reader, not a quota one. The combined-figure half of this is no longer a reason: `map.totalTokens` exists now, drawn under its own icon rather than under the sent arrow, so a harness reporting one running count no longer has to choose between a wrong number and no number. That was a gap here rather than a fact about this agent, and it was recorded as the latter. The payload is no longer the missing part. Read from ClaudeBar's source on 2026-09-24 — `Sources/Infrastructure/Mistral/VibeSessionLogAnalyzer.swift`, not its prose — each session is a folder under `~/.vibe/logs/session/` named `session_<date>_<time>_<id>`, the date and time come from the folder name rather than from any field, and the file read inside it is `meta.json`. Its decoder declares one member, `stats`, holding `session_cost` and `session_total_llm_tokens` under a snake-case conversion; a folder whose file is missing or will not decode is skipped rather than counted as zero, which is a distinction this app would have to keep as well. Worth noting that the probe's own doc comment says `metadata.json` and its code reads `meta.json`, which is the argument for reading the code. That declaring only `stats` does not establish the file has nothing else in it — only that ClaudeBar reads nothing else — so whether a working directory is in there is still unknown. What blocks a descriptor now is different and smaller: rows here hang off a running process, and ClaudeBar never looks for one because it only reads logs, so the Vibe binary's name and install path have no evidence behind them yet. Figures without a process would be a number with no row to sit on |
+| Mistral | shipped 2026-09-24 as a session reader, not a quota one. Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`; the descriptor globs it, maps `stats.session_cost` and `stats.session_total_llm_tokens`, and takes the session time from the file rather than the folder name, which is the one place it differs from ClaudeBar. Account-wide spend still needs the Mistral console: only Vibe writes these logs |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
 | Kimi | browser cookie by default. The POST half of this is no longer a reason: `quota.method` describes one now, and `roots` already reaches windows that nest. The cookie is what remains, and it is the whole of it |
 
@@ -242,9 +242,9 @@ providers ClaudeBar monitors and checks each against what ships here. When
 ClaudeBar adds one, that list is what has to change, and until it does the
 difference between "declined" and "never heard of" is a real difference again.
 
-14 of the 20 are read for usage here. 2 more — Kimi and Oh My Pi — are
-recognised and given rows without a usage API, for the reasons in the table
-above; the remaining 4 are in that table too. This app also reads usage APIs
+14 of the 20 are read for usage here. 3 more — Kimi, Mistral and Oh My Pi —
+are recognised and given rows without a usage API, for the reasons in the table
+above; the remaining 3 are in that table too. This app also reads usage APIs
 ClaudeBar does not, so the roster is a floor rather than a ceiling.
 
 ## Project context each agent understands
@@ -262,7 +262,7 @@ declare no capabilities, and requires this marker to name exactly that set,
 so adding a harness without capabilities fails until the marker admits it —
 and closing the last gap could not be announced here without being true.
 
-11 of the 25 never appear in it. Project context hangs off a row, and none of
+11 of the 26 never appear in it. Project context hangs off a row, and none of
 those makes one: a quota-only harness like `copilot` or `zai` reads no session
 source, and a focus-only one like `herdr` or `orca` reports panes that are
 already somebody else's rows. A capability rule on either is

@@ -1,0 +1,17 @@
+{
+  "files": {
+    "session_20260924_101500_abc123/meta.json": "{\"stats\":{\"session_cost\":0.125,\"session_total_llm_tokens\":4096}}"
+  },
+  "expected": {
+    "sessions": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0.125,
+    "totalTokens": 4096
+  }
+}

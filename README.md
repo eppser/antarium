@@ -85,7 +85,7 @@ pipeline.
 
 ## Supported tools
 
-Antarium ships harnesses for 25 tools.
+Antarium ships harnesses for 26 tools.
 
 Agents whose sessions appear in the dashboard:
 
@@ -97,6 +97,7 @@ Agents whose sessions appear in the dashboard:
 - Herdr
 - Hermes
 - Kimi
+- Mistral Vibe
 - OpenClaw
 - opencode
 - Orca

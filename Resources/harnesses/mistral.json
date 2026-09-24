@@ -1,0 +1,71 @@
+{
+  "formatVersion": 1,
+  "id": "mistral",
+  "name": "Mistral Vibe",
+  "process": {
+    "pathContains": [
+      "/mistral-vibe",
+      "/.vibe/"
+    ],
+    "names": [
+      "vibe"
+    ],
+    "argv0Contains": [
+      "/bin/vibe"
+    ],
+    "installationProbes": [
+      {
+        "method": "uv-tool",
+        "path": "/fixture/home/.local/bin/vibe",
+        "name": "vibe",
+        "argv0": "vibe",
+        "expected": true,
+        "evidence": "https://github.com/mistralai/mistral-vibe/blob/main/pyproject.toml",
+        "verifiedAt": "2026-09-24"
+      },
+      {
+        "method": "console-script-under-python",
+        "path": "/fixture/home/.local/share/uv/python/bin/python3.13",
+        "name": "python3.13",
+        "argv0": "/fixture/home/.local/bin/vibe",
+        "expected": true,
+        "evidence": "https://github.com/mistralai/mistral-vibe/blob/main/pyproject.toml",
+        "verifiedAt": "2026-09-24"
+      },
+      {
+        "method": "name-collision",
+        "path": "/fixture/tools/vibectl",
+        "name": "vibectl",
+        "argv0": "vibectl",
+        "expected": false,
+        "evidence": "https://github.com/mistralai/mistral-vibe/blob/main/pyproject.toml",
+        "verifiedAt": "2026-09-24"
+      }
+    ]
+  },
+  "compatibility": {
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-09-24",
+    "fixture": "harness-fixtures/mistral.json"
+  },
+  "source": {
+    "kind": "json",
+    "path": "~/.vibe/logs/session",
+    "glob": "*/meta.json"
+  },
+  "map": {
+    "cost": "stats.session_cost",
+    "totalTokens": "stats.session_total_llm_tokens"
+  },
+  "presentation": {
+    "fallbackName": "Mistral Vibe"
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        "AGENTS.md"
+      ]
+    }
+  }
+}

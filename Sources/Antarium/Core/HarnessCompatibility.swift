@@ -52,6 +52,16 @@ enum HarnessCompatibility {
         var cacheRead: Int
         var cacheWrite: Int
         var contextTokens: Int?
+        /// A harness that reports one running count rather than a breakdown.
+        ///
+        /// `map.totalTokens` has been a descriptor key since the day a
+        /// harness needed it, and until Mistral no shipped descriptor used
+        /// one — so nothing ever put a figure in this field, and the fixture
+        /// snapshot never grew a place to check it. A mutation that pointed
+        /// the key at a field the payload does not have survived, because
+        /// there was nothing in the expectation to disagree with. Optional so
+        /// every existing fixture still decodes with it absent.
+        var totalTokens: Int?
         var contextWindow: Int?
         var toolCalls: Int
         var turns: Int
@@ -71,6 +81,7 @@ enum HarnessCompatibility {
                             cacheRead: first?.cacheRead ?? 0,
                             cacheWrite: first?.cacheWrite ?? 0,
                             contextTokens: first?.contextTokens ?? nil,
+                            totalTokens: first?.totalTokens,
                             contextWindow: first?.contextWindow,
                             toolCalls: first?.toolCalls ?? 0,
                             turns: first?.turns ?? 0,
