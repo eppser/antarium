@@ -927,3 +927,7 @@ the percentage trusts its argument | Sources/Antarium/Core/UsageModel.swift | s|
 the shared fraction clamp lets a non-finite figure through | Sources/Antarium/Core/UsageModel.swift | s|value.isFinite ? Swift.min(Swift.max(value, 0), 1) : 0|Swift.min(Swift.max(value, 0), 1)|
 a sliver used reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
 a sliver left reads as none left | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||
+a path is shortened on a bare string prefix | Sources/Antarium/Core/AgentScan.swift | s|guard cwd.hasPrefix(home + "/") else { return cwd }|guard cwd.hasPrefix(home) else { return cwd }|
+an unusable home still shortens paths | Sources/Antarium/Core/AgentScan.swift | s|guard !home.isEmpty, home != "/" else { return cwd }||
+the home itself is shown as an empty tilde path | Sources/Antarium/Core/AgentScan.swift | s|if cwd == home { return "~" }||
+a path outside the home is shortened anyway | Sources/Antarium/Core/AgentScan.swift | s|guard cwd.hasPrefix(home + "/") else { return cwd }||
