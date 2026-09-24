@@ -979,3 +979,6 @@ a spent window flag is read with the wrong sense | Resources/harnesses/deepseek.
 a flag stated once for the response is not seen by its windows | Sources/Antarium/Providers/DescriptorProvider.swift | s|        (window\[key\] as? Bool) ?? (root\[key\] as? Bool) ?? false|        (window[key] as? Bool) ?? false|
 an empty critical rule marks every window spent | Sources/Antarium/Providers/DescriptorProvider.swift | s|                !\$0.isEmpty \&\& \$0.allSatisfy|                $0.allSatisfy|
 the fixture stops checking what a provider reported | Sources/Antarium/Core/QuotaFixture.swift | s|            if reported != (row.severity ?? "normal") {|            if false {|
+an empty balance says nothing about itself | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }||
+a balance with money in it is judged as empty | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 {|        if let amount, amount.value <= 1000 {|
+an empty balance is merely low | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }|        if let amount, amount.value <= 0 { return .low }|

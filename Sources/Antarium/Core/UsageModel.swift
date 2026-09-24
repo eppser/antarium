@@ -125,8 +125,21 @@ struct Gauge: Equatable {
     var remaining: Double { Gauge.fraction(1 - used) }
     /// A balance has no headroom to judge, so it never colours itself urgent
     /// off its own figure — only a severity the provider actually reported.
+    ///
+    /// Nought is the exception, and it is not a judgement. The argument
+    /// against colouring a balance is that five hundred dollars and two cents
+    /// cannot be told apart without knowing what the account spends; nothing
+    /// has to be known to tell that nothing is left. Moonshot documents it
+    /// outright — an available balance at or below nought means the inference
+    /// API cannot be called — and it is true of every balance here, so it
+    /// belongs in the type rather than in each descriptor. A negative one is
+    /// the same fact with a debt attached.
     var severity: Severity {
-        hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity
+        // Critical outright, not the worse of the two: it is the top of
+        // the scale, so nothing a provider reported can exceed it and a
+        // `max` here would read as though it could.
+        if let amount, amount.value <= 0 { return .critical }
+        return hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity
     }
 
     /// The balance, formatted for a menu bar: no decimals once it is large

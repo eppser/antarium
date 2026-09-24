@@ -116,3 +116,51 @@ struct PercentTextTests {
                 Comment(rawValue: "\(mode) drew \(drawn ?? "nothing")"))
     }
 }
+
+/// What an empty balance says about itself.
+///
+/// A balance normally declines to colour itself: five hundred dollars and two
+/// cents look the same without knowing what an account spends, so only a
+/// severity the provider reported can make one urgent. Nought is not that
+/// judgement. Nothing has to be known to tell that nothing is left, and
+/// Moonshot documents the consequence outright — an available balance at or
+/// below nought means the inference API cannot be called.
+@Suite("An empty balance says so")
+struct EmptyBalanceSeverityTests {
+
+    private func balance(_ value: Double, reported: Severity = .normal) -> Gauge {
+        Gauge(id: "b", badge: "BAL", title: "Balance", used: 0,
+              reportedSeverity: reported,
+              amount: Gauge.Amount(value: value, currency: "USD"))
+    }
+
+    @Test("Nothing left is critical", arguments: [0.0, -0.01, -12.5])
+    func emptyIsCritical(value: Double) {
+        #expect(balance(value).severity == .critical,
+                Comment(rawValue: "a balance of \(value) reported \(balance(value).severity)"))
+    }
+
+    /// And the rule it does not overturn: a balance with money in it is still
+    /// not judged, however small, because small is the thing this cannot know.
+    @Test("Money left is not judged", arguments: [0.01, 2.0, 500.0])
+    func moneyIsNotJudged(value: Double) {
+        #expect(balance(value).severity == .normal,
+                Comment(rawValue: "a balance of \(value) coloured itself"))
+    }
+
+    /// A provider's own verdict still wins where it is worse.
+    @Test("A reported severity is not lowered by having money")
+    func reportedSeverityStands() {
+        #expect(balance(500, reported: .critical).severity == .critical)
+        #expect(balance(0, reported: .low).severity == .critical)
+    }
+
+    /// A meter is unaffected: it has a denominator and judges itself from it.
+    @Test("A meter still colours from its own headroom")
+    func metersAreUnchanged() {
+        let nearlyOut = Gauge(id: "m", badge: "5H", title: "Session", used: 0.99)
+        #expect(nearlyOut.severity == .critical)
+        let fresh = Gauge(id: "m", badge: "5H", title: "Session", used: 0.1)
+        #expect(fresh.severity == .normal)
+    }
+}
