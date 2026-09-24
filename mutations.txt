@@ -549,13 +549,13 @@ a quota-only harness claims a session reader | Sources/Antarium/UI/HarnessRowPre
 a session harness is called quota only | Sources/Antarium/UI/HarnessRowPresentation.swift | s|let quotaOnly = descriptor.source.kind == .none \&\& descriptor.quota != nil|let quotaOnly = descriptor.quota != nil|
 an edited harness reads as bundled | Sources/Antarium/UI/HarnessRowPresentation.swift | s|edited ? "edited" : "bundled"|"bundled"|
 the spoken row omits its compatibility | Sources/Antarium/UI/HarnessRowPresentation.swift | s|\[descriptor.name, sourceLabel, compatibilityLabel,|[descriptor.name, sourceLabel,|
-the configured probe never expires | Sources/Antarium/Core/ConfiguredProbe.swift | s|now - entry.at < ttl|true|
-the configured probe trusts a clock that went backwards | Sources/Antarium/Core/ConfiguredProbe.swift | s|now >= entry.at, now - entry.at < ttl|now - entry.at < ttl|
+the configured probe never expires | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        now >= stamped|
+the configured probe trusts a clock that went backwards | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        now - stamped < window|
 the configured probe ttl is a day | Sources/Antarium/Core/ConfiguredProbe.swift | s|static let ttl: TimeInterval = 30|static let ttl: TimeInterval = 86_400|
 invalidating one key clears everything | Sources/Antarium/Core/ConfiguredProbe.swift | s|if let key { entries.removeValue(forKey: key) } else { entries.removeAll() }|entries.removeAll()|
 a declared source label is overruled | Sources/Antarium/UI/HarnessRowPresentation.swift | s|sourceLabel = descriptor.presentation?.sourceLabel|sourceLabel = nil ?? String?.none|
 a failed quota mapping reads as verified | Sources/Antarium/UI/HarnessRowPresentation.swift | s|report.map { \$0.passed ? "Quota fixture verified"|report.map { (\$0.passed \|\| true) ? "Quota fixture verified"|
-the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swift | s|now - entry.at < ttl|false|
+the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        false|
 a harness with no fixture is called broken | Sources/Antarium/UI/HarnessRowPresentation.swift | s|if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {|if false {|
 the validator forgets the quota command | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "method", "body",|
 the validator forgets the quota method | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "command", "args",|
@@ -689,7 +689,7 @@ the worked example stops saying when it charts nothing | docs/TECHNICAL.md | s|`
 the worked example maps the wrong field | docs/TECHNICAL.md | s|      "used": "info.spend",|      "used": "info.token",|
 the configured probe drops its lock | Sources/Antarium/Core/ConfiguredProbe.swift | /static func value/,/^        return value$/ s|        lock.lock()||; /static func value/,/^        return value$/ s|        defer { lock.unlock() }||
 the transcript cache drops its lock on read | Sources/Antarium/Core/TranscriptStats.swift | /static func of/,/^        if stats.readerState == nil/ s|        lock.lock()||; /static func of/,/^        if stats.readerState == nil/ s|        lock.unlock()||
-the configured probe recomputes under contention | Sources/Antarium/Core/ConfiguredProbe.swift | s|        if let entry = entries\[key\], now >= entry.at, now - entry.at < ttl {|        if false, let entry = entries[key] {|
+the configured probe recomputes under contention | Sources/Antarium/Core/ConfiguredProbe.swift | s|        if let entry = entries\[key\],|        if false, let entry = entries[key],|
 the session engine drops its lock on read | Sources/Antarium/Core/HarnessEngine.swift | /static func sessions/,/^    }/ s|        lock.lock()||; /static func sessions/,/^    }/ s|        lock.unlock()||
 the provider registry drops its lock | Sources/Antarium/Core/UsageProvider.swift | /static func providers/,/^    }/ s|            lock.lock()||; /static func providers/,/^    }/ s|            lock.unlock()||
 the provider registry forgets its cache | Sources/Antarium/Core/UsageProvider.swift | s|            if let cached = fromDescriptors\[descriptor.id\],|            if let cached: (signature: String, provider: DescriptorProvider) = nil,|
@@ -953,3 +953,8 @@ a first run fills one slot instead of the cap | Sources/Antarium/Core/AgentAutoE
 a provider is dropped before it can be weighed | Sources/Antarium/Core/AgentAutoEnable.swift | s|        providers.map {|        providers.dropLast().map {|
 
 a probe stamps its answer after the caller that asked for it | Sources/Antarium/Core/ConfiguredProbe.swift | s|entries\[key\] = Entry(value: value, at: now)|entries[key] = Entry(value: value, at: now + 1)|
+a credential kind the token reader cannot use is blessed | Resources/harnesses/deepseek.json | s/"kind": "env"/"kind": "keychain"/
+the first-run cap is one agent | Sources/Antarium/Core/AgentAutoEnable.swift | s|    static let limit = 4|    static let limit = 1|
+a provider recorded as a gap ships after all | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s|Entry("Mistral", nil, .absent),|Entry("Z.ai", nil, .absent),|
+a covered provider stops replaying its fixture | Resources/harnesses/moonshot.json | s|"quota"|"quotaGone"|
+a test file loses its contents and the suite stays green | Tests/AntariumTests/TildeExpansionTests.swift | s/.*//

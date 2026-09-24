@@ -125,3 +125,79 @@ struct SchemaAlignmentTests {
                 "the schema no longer allows a focus target in a manifest's map")
     }
 }
+
+/// The suite notices when a test file stops containing tests.
+///
+/// Written because it happened. A script rewrote a test file, `open(path,
+/// "w")` truncated it, the write raised before producing anything, and the
+/// file was left at zero bytes. An empty Swift file compiles, so the suite
+/// ran green with seven tests gone — 1,566 became 1,559 and nothing said so.
+/// The count is printed on every run and is exactly the kind of number a
+/// person reads as "still passing".
+///
+/// This is the same rule the rest of the repository already applies to
+/// fixtures and descriptors — coverage is asserted as set equality in both
+/// directions, so a thing that quietly disappears fails rather than shrinks
+/// the total. The test files themselves were the one collection nothing
+/// counted.
+@Suite("Every test file still contains tests")
+struct TestFilePresenceTests {
+
+    /// Files that legitimately declare no test: shared helpers and the
+    /// isolation hook. Named individually, so a third one has to be admitted
+    /// deliberately rather than by matching a pattern.
+    static let helpers: Set<String> = ["SourceText.swift", "HarnessEngineTestIsolation.swift"]
+
+    private var files: [URL] {
+        get throws {
+            let dir = URL(fileURLWithPath: "Tests/AntariumTests")
+            return try FileManager.default
+                .contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+                .filter { $0.pathExtension == "swift" }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        }
+    }
+
+    @Test("There are test files to check, and this is reading the right folder")
+    func theFolderIsFound() throws {
+        let found = try files
+        #expect(found.count >= 80,
+                Comment(rawValue: "only \(found.count) test files were found"))
+    }
+
+    @Test("No test file is empty")
+    func noneIsEmpty() throws {
+        for file in try files {
+            let size = try Data(contentsOf: file).count
+            #expect(size > 0,
+                    Comment(rawValue: "\(file.lastPathComponent) is empty"))
+        }
+    }
+
+    @Test("Every test file declares a test, or is a named helper")
+    func everyFileDeclaresTests() throws {
+        for file in try files {
+            let name = file.lastPathComponent
+            guard !Self.helpers.contains(name) else { continue }
+            let text = try String(contentsOf: file, encoding: .utf8)
+            #expect(text.contains("@Test"),
+                    Comment(rawValue: "\(name) declares no test and is not a named helper — "
+                            + "if it lost its contents the suite would still pass"))
+        }
+    }
+
+    /// And the helper list does not quietly grow to cover a file that lost
+    /// its tests: each named helper must still exist and still declare none.
+    @Test("Each named helper is real and still a helper")
+    func helpersAreHelpers() throws {
+        let present = Set(try files.map(\.lastPathComponent))
+        for helper in Self.helpers {
+            #expect(present.contains(helper),
+                    Comment(rawValue: "\(helper) is listed as a helper and does not exist"))
+            let text = try String(contentsOf: URL(fileURLWithPath: "Tests/AntariumTests/\(helper)"),
+                                  encoding: .utf8)
+            #expect(!text.contains("@Test"),
+                    Comment(rawValue: "\(helper) declares tests and should not be exempt"))
+        }
+    }
+}

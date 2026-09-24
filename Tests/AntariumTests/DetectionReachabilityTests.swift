@@ -30,7 +30,10 @@ struct DetectionReachabilityTests {
 
     @Test("Something ships, so the assertions below are about a real set")
     func somethingShips() {
-        #expect(shippedIDs.count >= 14,
+        // Seventeen ship. The floor was fourteen, which left three free to
+        // disappear unnoticed — and moonshot, openrouter and synthetic are
+        // exactly three.
+        #expect(shippedIDs.count >= 17,
                 Comment(rawValue: "only \(shippedIDs.count) providers ship"))
     }
 
@@ -97,19 +100,30 @@ struct DetectionReachabilityTests {
         }
     }
 
-    /// A credential that is a command is evidence that the program is
-    /// installed; one that is a file or an environment variable is evidence
-    /// the account exists. Either is a real reading of the machine — an
-    /// unrecognised kind would not be, and would fall through to `token()`.
-    @Test("Every shipped credential is a kind detection understands")
+    /// The credential kinds `DescriptorProvider.token()` actually implements.
+    ///
+    /// This list was written from what sounded reasonable and included
+    /// "keychain", which `token()` does not implement: its switch handles
+    /// env, command, textFile and jsonFile, and everything else falls to
+    /// `default: return nil`. A descriptor using an unimplemented kind
+    /// reports `isConfigured == false` on every Mac, so it could never be
+    /// auto-enabled — the precise failure this suite exists to prevent — and
+    /// the test blessed it. A set the test invents is a second opinion;
+    /// these four are the ones the code has branches for.
+    @Test("Every shipped credential is a kind the token reader implements")
     func credentialKindsAreKnown() {
-        let known: Set<String> = ["command", "jsonFile", "textFile", "env", "keychain"]
+        let implemented: Set<String> = ["env", "command", "textFile", "jsonFile"]
+        var seen = 0
         for descriptor in bundled {
             guard let kind = descriptor.quota?.credential?.kind else { continue }
-            #expect(known.contains(kind),
-                    Comment(rawValue: "\(descriptor.id) uses credential kind \(kind), "
-                            + "which detection does not recognise"))
+            seen += 1
+            #expect(implemented.contains(kind),
+                    Comment(rawValue: "\(descriptor.id) uses credential kind \(kind), which "
+                            + "token() does not implement — it would read as not configured "
+                            + "on every Mac and could never be auto-enabled"))
         }
+        // Or the loop above skipped everything and asserted nothing.
+        #expect(seen >= 10, Comment(rawValue: "only \(seen) credentials were examined"))
     }
 
     /// The cap is a policy about crowding, not a reason an agent is missing:
@@ -124,6 +138,12 @@ struct DetectionReachabilityTests {
         #expect(enabled.count == AgentAutoEnable.limit,
                 Comment(rawValue: "\(enabled.count) enabled against a cap of "
                         + "\(AgentAutoEnable.limit)"))
-        #expect(enabled.isSubset(of: Set(ids)))
+        // The cap's value, which nothing pinned. Six assertions across four
+        // files compare against `AgentAutoEnable.limit` symbolically, so a
+        // cap of one satisfied every one of them: a first run enabling a
+        // single agent on a Mac with eight installed would have passed.
+        #expect(AgentAutoEnable.limit == 4,
+                Comment(rawValue: "the first-run cap is \(AgentAutoEnable.limit)"))
+        #expect(enabled.count < ids.count, "every agent was enabled, so the cap did nothing")
     }
 }

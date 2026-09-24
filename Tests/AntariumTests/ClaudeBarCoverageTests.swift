@@ -136,19 +136,66 @@ struct ClaudeBarCoverageTests {
         }
     }
 
+    /// A name reduced to the letters in it, for matching a provider against
+    /// an id. "AWS Bedrock" and "Z.ai" are not ids; "bedrock" and "zai" are.
+    private func key(_ name: String) -> String {
+        name.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
     /// A gap has to be argued, not merely left. Each absent provider is named
     /// in ECOSYSTEM.md, which is where the reason lives.
-    @Test("Every gap is named in the document that explains the gaps")
+    ///
+    /// And — the half that was missing — it has to still be absent. The
+    /// sessions-only entries assert they still have no usage API; the absent
+    /// ones asserted only `id == nil`, which is the roster's own data saying
+    /// what the roster already said. Ship `mistral.json` with a quota block
+    /// tomorrow and every assertion here still held: the name is in the
+    /// document (in the rejection table), the roster still says absent, and
+    /// the new provider counted as a bonus *beyond* ClaudeBar's roster rather
+    /// than as one of it. The scoreboard would have understated coverage and
+    /// called it a surplus.
+    @Test("Every gap is named in the document, and is still a gap")
     func gapsAreExplained() throws {
         let doc = try String(contentsOf: URL(fileURLWithPath: "docs/ECOSYSTEM.md"),
                              encoding: .utf8)
+        let shipped = descriptorIDs.union(usageIDs).map(key)
         for entry in Self.roster where entry.coverage == .absent {
             #expect(entry.id == nil,
                     Comment(rawValue: "\(entry.claudeBar) is recorded as absent and names an id"))
             #expect(doc.localizedCaseInsensitiveContains(entry.documentName),
-                    Comment(rawValue: "\(entry.claudeBar) is not covered and ECOSYSTEM.md "
-                            + "does not say why (looked for \"\(entry.documentName)\")"))
+                    Comment(rawValue: "\(entry.claudeBar) is not covered and ECOSYSTEM.md does "
+                            + "not say why (looked for \"\(entry.documentName)\")"))
+            let name = key(entry.claudeBar)
+            #expect(!shipped.contains(where: { $0.contains(name) || name.contains($0) }),
+                    Comment(rawValue: "\(entry.claudeBar) now ships, and the roster still "
+                            + "records it as a gap — coverage is understated"))
         }
+    }
+
+    /// The other direction for the covered entries: a provider recorded as
+    /// read for usage must return a reading a fixture can replay, not merely
+    /// declare a `quota` block. `providers(from:)` filters on `quota != nil`,
+    /// so a descriptor with a dead endpoint or wrong field paths counted as
+    /// covered until this asked the fixture.
+    ///
+    /// Native providers have no descriptor fixture — their figures come from
+    /// Swift and are covered by mapping tests — so there is nothing to ask
+    /// them here, and the count below keeps that from emptying the test.
+    @Test("A provider recorded as covered returns a reading, not just a block")
+    func usageProvidersReturnReadings() throws {
+        let byID = Dictionary(uniqueKeysWithValues:
+            HarnessCLI.bundledDescriptors().map { ($0.id, $0) })
+        var checked = 0
+        for entry in Self.roster where entry.coverage == .usage {
+            guard let id = entry.id, let descriptor = byID[id], descriptor.quota != nil
+            else { continue }
+            let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+            #expect(report?.passed == true,
+                    Comment(rawValue: "\(entry.claudeBar): \(report?.detail ?? "no fixture report")"))
+            checked += 1
+        }
+        #expect(checked >= 7,
+                Comment(rawValue: "only \(checked) covered providers had a fixture to replay"))
     }
 
     /// The document is anchored to the roster, which was the whole defect:
@@ -163,8 +210,12 @@ struct ClaudeBarCoverageTests {
                 "ECOSYSTEM.md never names ClaudeBar, so nothing ties its gaps to a roster")
     }
 
-    /// The counts, stated once so a change to the roster has to be a
-    /// deliberate edit here rather than a silent drift.
+    /// A tripwire on the roster, not evidence of coverage.
+    ///
+    /// These count `Self.roster` and compare against literals, so they prove
+    /// only that nobody edited the table above without meaning to. The
+    /// assertions that touch reality are the three before this one. Worth
+    /// keeping and worth not mistaking for a measurement.
     @Test("Coverage stands at fourteen usage, two recognised, four open")
     func coverageCounts() {
         let usage = Self.roster.filter { $0.coverage == .usage }.count
@@ -176,8 +227,8 @@ struct ClaudeBarCoverageTests {
         #expect(usage + sessions + absent == Self.roster.count)
     }
 
-    /// And the document says the same numbers, in digits so there is
-    /// something to compare. The sentence one section earlier said "Nine of
+    /// And the document agrees with the roster — again roster-to-document,
+    /// not document-to-reality; the reality check is `usageProvidersExist`. The sentence one section earlier said "Nine of
     /// the twenty-two" for two years' worth of descriptors ago.
     @Test("The document states the coverage it is measured at")
     func documentedCounts() throws {
