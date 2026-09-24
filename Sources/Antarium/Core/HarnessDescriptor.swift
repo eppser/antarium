@@ -706,4 +706,38 @@ extension String {
         if hasPrefix("~/") { return home + dropFirst() }
         return self
     }
+
+    /// The inverse: a path shortened to `~/…` for display.
+    ///
+    /// Beside its inverse because they were written apart and made the same
+    /// mistake apart. This one tested `hasPrefix(home)` — a plain string
+    /// prefix, where what it meant was "inside this directory". A home whose
+    /// last component is `se` matched a checkout under a sibling account
+    /// named `sebastian`, and the row showed `~bastian/project`: not a short
+    /// form of anything, and not a path. Sibling accounts whose names extend
+    /// one another are ordinary — a home beside its own `-backup` is enough.
+    ///
+    /// For a while the two mistakes cancelled, and `~bastian/project`
+    /// expanded back to the right path by going wrong in the other
+    /// direction. Neither was right, and the expansion was fixed first.
+    ///
+    /// There were three copies: the dashboard row, the first-run panel, and
+    /// this. They agreed on the bug. Only a whole leading component is
+    /// replaced now, so the tilde means what a shell would take it to mean
+    /// and the result reads back through `expandingTilde` unchanged.
+    ///
+    /// Takes the home rather than reading it, because the case that was
+    /// wrong cannot be built from whatever home the test machine has: it
+    /// needs a second account whose name extends this one's, and naming a
+    /// real account is what this repository's fixtures may not do.
+    func abbreviatingHome(_ home: String) -> String {
+        guard !isEmpty else { return "" }
+        // A home of `/` would make every absolute path a tilde path, and an
+        // empty one would make the prefix test match everything. Neither is
+        // ordinary, and both are cheaper to refuse than to reason about.
+        guard !home.isEmpty, home != "/" else { return self }
+        if self == home { return "~" }
+        guard hasPrefix(home + "/") else { return self }
+        return "~" + dropFirst(home.count)
+    }
 }

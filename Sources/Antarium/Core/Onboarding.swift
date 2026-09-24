@@ -154,8 +154,9 @@ enum Onboarding {
         (accounts.filter(\.found), accounts.filter { !$0.found })
     }
 
+    /// Was a third copy of the same prefix mistake, on the panel that runs
+    /// once and is the first thing anyone sees.
     private static func shorten(_ path: String) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+        path.abbreviatingHome(FileManager.default.homeDirectoryForCurrentUser.path)
     }
 }

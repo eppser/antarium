@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import Antarium
 
-/// Shortening a working directory to `~/…` for the row and the alert.
+/// Shortening a path to `~/…` for the row, the alert and the first-run
+/// panel — one function now, where there were three that agreed on a bug.
 ///
 /// The counterpart to [TildeExpansionTests]: that one covers turning a tilde
 /// back into a path, this one covers making the tilde in the first place.
@@ -18,7 +19,7 @@ struct DisplayPathTests {
     private let home = "/synthetic/users/se"
 
     private func shown(_ cwd: String, home: String? = nil) -> String {
-        AgentRow.displayPath(cwd, home: home ?? self.home)
+        (cwd).abbreviatingHome(home ?? self.home)
     }
 
     @Test("A directory inside this home is shortened")
@@ -76,7 +77,7 @@ struct DisplayPathTests {
     func roundTrip(suffix: String) {
         let real = FileManager.default.homeDirectoryForCurrentUser.path
         let cwd = real + suffix
-        let short = AgentRow.displayPath(cwd, home: real)
+        let short = cwd.abbreviatingHome(real)
         #expect(short.hasPrefix("~"),
                 Comment(rawValue: "a path in this home was not shortened"))
         #expect(short.expandingTilde == cwd,
@@ -92,5 +93,20 @@ struct DisplayPathTests {
                            cwd: real + "/work", state: .waiting, lastActivity: nil,
                            costUSD: nil, hostApp: nil)
         #expect(row.displayPath == "~/work")
+    }
+
+    /// The first-run panel shortened paths with its own copy of this. It is
+    /// the one screen every user sees exactly once, and it names the file
+    /// each detected agent was found through — a path that is wrong there is
+    /// the app's first claim about the machine.
+    @Test("The first-run panel shortens the same way")
+    func onboardingShortensTheSameWay() {
+        let real = FileManager.default.homeDirectoryForCurrentUser.path
+        for suffix in ["/.claude.json", "/.codex/auth.json", "/x"] {
+            #expect((real + suffix).abbreviatingHome(real) == "~" + suffix)
+        }
+        // And a path outside it is left alone rather than clipped.
+        #expect("/opt/homebrew/bin/claude".abbreviatingHome(real)
+                == "/opt/homebrew/bin/claude")
     }
 }

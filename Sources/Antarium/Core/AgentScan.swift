@@ -185,39 +185,7 @@ struct AgentRow: Identifiable {
 
     /// `~/shared/spicy`
     var displayPath: String {
-        AgentRow.displayPath(cwd, home: FileManager.default.homeDirectoryForCurrentUser.path)
-    }
-
-    /// Shortening a path for display, given the home to shorten against.
-    ///
-    /// Takes the home rather than reading it, because the case that was wrong
-    /// cannot be built out of the home this account actually has: it needs a
-    /// second account whose name begins with this one's.
-    ///
-    /// The test was a plain string prefix, and directory names are not
-    /// prefixes of each other in any meaningful sense. A home whose last
-    /// component is `se` matched a checkout under a sibling account named
-    /// `sebastian` — and the row showed `~bastian/project`, which is not a
-    /// short form of anything. It is the same mistake as the tilde expansion at the other
-    /// end of this journey, in the other direction: that one glued this
-    /// account's home onto a tilde that named a different one, this one
-    /// clipped a different account's home down to a tilde that names this.
-    /// Sibling accounts whose names extend one another are ordinary —
-    /// `se` and `sebastian`, `dev` and `developer`, a home beside its
-    /// `-backup` — and so are shared machines and mounted volumes.
-    ///
-    /// Only a whole leading component is replaced, so the tilde always means
-    /// what a shell would take it to mean, and the result round-trips back
-    /// through `expandingTilde` to the path it came from.
-    static func displayPath(_ cwd: String, home: String) -> String {
-        guard !cwd.isEmpty else { return "" }
-        // A home of `/` would make every absolute path a tilde path, and an
-        // empty one would make the prefix test match everything. Neither is
-        // ordinary, and both are cheaper to refuse than to reason about.
-        guard !home.isEmpty, home != "/" else { return cwd }
-        if cwd == home { return "~" }
-        guard cwd.hasPrefix(home + "/") else { return cwd }
-        return "~" + cwd.dropFirst(home.count)
+        cwd.abbreviatingHome(FileManager.default.homeDirectoryForCurrentUser.path)
     }
 
     var duration: TimeInterval? {
