@@ -159,6 +159,36 @@ struct MenuBarMembershipTests {
         let ordered = AppController.ordered(["ghost", "codex"], by: ["claude-code", "codex"])
         #expect(ordered.count == 2)
     }
+
+    /// Where it goes, which the test above only counted.
+    ///
+    /// `ProviderRegistry.all` is a computed property that re-reads the
+    /// descriptor folder, and `rebuildItems` calls it twice — once for the
+    /// items it wants and once for the order. A harness file edited between
+    /// those two reads leaves an item whose id the second read no longer
+    /// knows, which is the state this covers.
+    @Test("An unrecognised id goes last, not first")
+    func unknownIdSortsLast() {
+        #expect(AppController.ordered(["ghost", "codex"], by: ["claude-code", "codex"])
+                == ["codex", "ghost"])
+        #expect(AppController.ordered(["ghost", "claude-code"], by: ["claude-code", "codex"])
+                == ["claude-code", "ghost"])
+    }
+
+    /// Two ids the registry does not know tie on the only key the order has,
+    /// and Swift's sort is not stable — so the menu bar rearranges itself
+    /// between launches with nothing about the machine having changed, which
+    /// is the one thing this function exists to prevent.
+    @Test("Ids that tie still come back in one order")
+    func tiesAreTotal() {
+        let registry = ["claude-code", "codex"]
+        let ids = ["ghost", "phantom", "wraith", "spectre", "shade", "revenant"]
+        let wanted = AppController.ordered(ids, by: registry)
+        for _ in 0..<25 {
+            #expect(AppController.ordered(ids.shuffled(), by: registry) == wanted,
+                    "unknown ids came back in a different order")
+        }
+    }
 }
 
 /// A reading outlives its item unless something removes it. Disposing a

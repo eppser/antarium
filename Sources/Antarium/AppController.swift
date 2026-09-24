@@ -166,8 +166,28 @@ final class AppController: NSObject {
     /// Menu bar order follows the registry, so items keep the same
     /// left-to-right positions between launches rather than the order the
     /// user happened to switch them on in.
+    ///
+    /// An id the registry does not know used to fall back to index 0, which
+    /// put it at the *front* — ahead of every agent the registry does know.
+    /// It also tied there with the first provider and with every other
+    /// unknown id, and Swift's sort is not stable, so a tie is an order that
+    /// changes between launches with nothing about the machine having
+    /// changed. That is the one thing this function exists to prevent.
+    ///
+    /// Reachable because `ProviderRegistry.all` is computed and re-reads the
+    /// descriptor folder, and `rebuildItems` reads it twice — once for the
+    /// items it wants, once for this order. A harness file edited between the
+    /// two leaves an item the second read no longer knows.
+    ///
+    /// Unknown goes last, and the id breaks the remaining ties so the order
+    /// is total. Same shape as the dashboard's sorts, which fell through to
+    /// status and recency for exactly this reason.
     static func ordered(_ ids: [String], by registry: [String]) -> [String] {
-        ids.sorted { (registry.firstIndex(of: $0) ?? 0) < (registry.firstIndex(of: $1) ?? 0) }
+        ids.sorted {
+            let a = registry.firstIndex(of: $0) ?? registry.count
+            let b = registry.firstIndex(of: $1) ?? registry.count
+            return a == b ? $0 < $1 : a < b
+        }
     }
 
     private func rebuildItems() {
@@ -184,8 +204,8 @@ final class AppController: NSObject {
             items.append(AgentItem(provider: provider, coordinator: self))
         }
         let order = Self.ordered(items.map(\.provider.id), by: ProviderRegistry.all.map(\.id))
-        items.sort { (order.firstIndex(of: $0.provider.id) ?? 0)
-                   < (order.firstIndex(of: $1.provider.id) ?? 0) }
+        items.sort { (order.firstIndex(of: $0.provider.id) ?? order.count)
+                   < (order.firstIndex(of: $1.provider.id) ?? order.count) }
     }
 
 

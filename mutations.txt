@@ -283,7 +283,7 @@ remote results applied after the last host is removed | Sources/Antarium/Core/Ag
 a disabled provider keeps polling invisibly | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return ([],|
 a newly enabled provider is never added | Sources/Antarium/AppController.swift | s|wanted.filter { !currentSet.contains(\$0) })|[])|
 an unchanged provider is torn down and rebuilt | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return (current,|
-menu bar order is not the registry order | Sources/Antarium/AppController.swift | s|ids.sorted { (registry.firstIndex(of: \$0) ?? 0) < (registry.firstIndex(of: \$1) ?? 0) }|ids|
+menu bar order is not the registry order | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return false|
 remote scanning defaults to on | Sources/Antarium/UI/Settings.swift | s|get { Config.bool("includeRemoteTmux") ?? false }|get { Config.bool("includeRemoteTmux") ?? true }|
 alerts default to on | Sources/Antarium/UI/Settings.swift | s|get { Config.bool("notifyOnIdle") ?? false }|get { Config.bool("notifyOnIdle") ?? true }|
 sounds default to on | Sources/Antarium/UI/Sounds.swift | s|Config.bool(event.settingsKey) ?? false|Config.bool(event.settingsKey) ?? true|
@@ -936,3 +936,6 @@ a reset at an unreadable time is charted | Sources/Antarium/UI/Format.swift | s|
 an activity time too far back is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "unknown" }||
 an unreadable duration is charted | Sources/Antarium/UI/Fmt.swift | s|        guard Format.canDisplay(seconds) else { return "—" }||
 the interval bound only checks the sign | Sources/Antarium/UI/Format.swift | s|        seconds.isFinite \&\& abs(seconds) <= maxInterval|        seconds.isFinite|
+an unrecognised menu bar item jumps to the front | Sources/Antarium/AppController.swift | s|            let a = registry.firstIndex(of: \$0) ?? registry.count|            let a = registry.firstIndex(of: $0) ?? 0|
+menu bar items that tie are left to reshuffle | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return a < b|
+the menu bar order ignores the registry | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return $0 < $1|
