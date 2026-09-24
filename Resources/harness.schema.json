@@ -983,6 +983,10 @@
         "used": {
           "type": "string"
         },
+        "remaining": {
+          "type": "string",
+          "description": "Counts left, against the same limit. Use where a service reports what is left rather than what is spent."
+        },
         "limit": {
           "type": "string"
         },

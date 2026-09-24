@@ -526,6 +526,10 @@ public struct HarnessConfig: Codable {
             public var keys: [String]?
             public var usedPercent: String?
             public var percentRemaining: String?
+            /// Counts left, against the same `limit`. See the note on the
+            /// app-side descriptor: a field named for usage does not always
+            /// carry it.
+            public var remaining: String?
             /// Path to a credit balance — a figure with no denominator.
             public var balance: String?
             /// Currency of `balance`: a path into the window, or a literal code.

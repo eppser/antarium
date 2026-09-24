@@ -968,3 +968,7 @@ the fixture stops checking the running total it now records | Resources/harness-
 a credit-billed plan shows an empty bar again | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-3",||
 a credit window borrows the wrong label | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-3": "Session (5 hours)"|"CREDIT_LIMIT-3": "Weekly"|
 a credit window borrows the wrong badge | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-6": "7D"|"CREDIT_LIMIT-6": "5H"|
+minimax counts left are read as counts spent again | Resources/harnesses/minimax.json | s|"remaining": "current_interval_usage_count"|"used": "current_interval_usage_count"|
+a remaining count is not subtracted from its limit | Sources/Antarium/Providers/DescriptorProvider.swift | s|                percent = (limit - min(max(remaining, 0), limit)) / limit \* 100|                percent = min(max(remaining, 0), limit) / limit * 100|
+a window declaring only a remaining count is called figureless | Sources/Antarium/Core/HarnessCheck.swift | s|                \|\| (map.remaining != nil \&\& map.limit != nil)||
+the schema refuses a remaining count | Resources/harness.schema.json | s|"remaining": {|"remainingWithheld": {|

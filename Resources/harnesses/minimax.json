@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "minimax",
   "name": "MiniMax",
-  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name. The key is read from MINIMAX_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/minimax otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works. The endpoint is published nowhere; checked 2026-09-22, platform.minimax.io/docs/token-plan says only that the quota \"is shown as a usage bar in the console\". The fixture is the whole of the check.",
+  "note": "Quota only. MiniMax reports one window per model in a list rather than a keyed object, so the window key is the model name. The international endpoint is used; a China-region account should override `quota.endpoint` with api.minimaxi.com in ~/.antarium/harnesses/minimax.json. Model names come back verbatim, so badges/labels are declared for the models MiniMax ships today; an unlisted model still charts, abbreviated from its name. The key is read from MINIMAX_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/minimax otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works. The endpoint is published nowhere; checked 2026-09-22, platform.minimax.io/docs/token-plan says only that the quota \"is shown as a usage bar in the console\". The fixture is the whole of the check. `current_interval_usage_count` is read as what REMAINS, not what was spent, which is the opposite of what the name says and was got wrong here until 2026-09-24. The endpoint is `coding_plan/remains` and the list is `model_remains`; three independent readings agree \u2014 ClaudeBar's probe records a dashboard cross-check (a console showing 3% used against usage_count 1459 of 1500), an openclaw issue reports the same inversion, and a third tool derives used = total - remaining from it. Read as consumption the bar was inverted in the direction that matters: it stayed green while the quota ran out.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -29,7 +29,6 @@
       "key": [
         "model_name"
       ],
-      "used": "current_interval_usage_count",
       "limit": "current_interval_total_count",
       "resetsAt": "end_time",
       "badges": {
@@ -43,7 +42,8 @@
         "minimax-m1": "M1",
         "MiniMax-M2": "M2",
         "MiniMax-M1": "M1"
-      }
+      },
+      "remaining": "current_interval_usage_count"
     },
     "setupHint": "Put your key in ~/.antarium/keys/minimax",
     "verified": false

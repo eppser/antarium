@@ -379,6 +379,17 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                       let used = FieldPath.number(window, usedPath),
                       let limit = FieldPath.number(window, limitPath), limit > 0 {
                 percent = used / limit * 100
+            } else if let remainingPath = map.remaining, let limitPath = map.limit,
+                      let remaining = FieldPath.number(window, remainingPath),
+                      let limit = FieldPath.number(window, limitPath), limit > 0 {
+                // Clamped before subtracting, for a service reporting more
+                // left than its own cap. This has no catalogue entry and is
+                // not load-bearing: `Gauge` clamps the fraction it is given,
+                // so an unclamped subtraction would reach the same empty bar
+                // by going negative first. Kept because the arithmetic here
+                // should be meaningful on its own, and because the clamp in
+                // the gauge is a guard on a different question.
+                percent = (limit - min(max(remaining, 0), limit)) / limit * 100
             } else { continue }
             let span = FieldPath.seconds(map.windowSeconds.flatMap { FieldPath.number(window, $0) })
             let named = map.labels?[key]

@@ -277,6 +277,17 @@ struct HarnessDescriptor: Codable {
             /// the ratio is worked out — a window whose limit is missing is
             /// skipped, because "0 of nothing" is not 0%.
             var used: String?
+            /// Counts left rather than counts spent, against the same
+            /// `limit`.
+            ///
+            /// Needed because a service can report either, and one of them
+            /// reports the wrong one under the other's name: MiniMax's
+            /// `current_interval_usage_count` is what remains, which the
+            /// endpoint's own name — `coding_plan/remains` — says more
+            /// plainly than the field does. Read as consumption it inverts
+            /// the bar, and inverts it in the direction that matters: the
+            /// meter reads comfortable while the quota runs out.
+            var remaining: String?
             var limit: String?
             /// Windows to skip unless every pair matches — Copilot lists a
             /// premium tier that a free plan simply does not have.

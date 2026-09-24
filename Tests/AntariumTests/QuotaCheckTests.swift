@@ -58,6 +58,9 @@ struct QuotaCheckTests {
         #expect(try check { $0["windows"] = ["root": "usage"] } != 0)
         // `used` without `limit` is a ratio with no denominator.
         #expect(try check { $0["windows"] = ["root": "usage", "used": "n"] } != 0)
+        // And so is `remaining` without one — the same ratio from the other
+        // side, missing the same denominator.
+        #expect(try check { $0["windows"] = ["root": "usage", "remaining": "n"] } != 0)
         // And a balance without a currency is money of unknown denomination.
         #expect(try check { $0["windows"] = ["single": "c", "balance": "amount"] } != 0)
         #expect(try check {
@@ -65,6 +68,11 @@ struct QuotaCheckTests {
         } != 0, "whitespace is not a currency")
         for shape in [["root": "usage", "percentRemaining": "left"],
                       ["root": "usage", "used": "n", "limit": "cap"],
+                      // A service that reports what is left rather than what
+                      // was spent. MiniMax is one, and until the validator
+                      // knew the shape it would have called a correct
+                      // descriptor figureless.
+                      ["root": "usage", "remaining": "n", "limit": "cap"],
                       ["single": "credits", "balance": "amount", "currency": "USD"]] {
             #expect(try check { $0["windows"] = shape } == 0, "rejected a valid shape: \(shape)")
         }

@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic. Shape follows MiniMax's coding_plan/remains payload, including the epoch-millisecond end_time. Every value is invented.",
+  "note": "Synthetic. Shape follows MiniMax's coding_plan/remains payload, including the epoch-millisecond end_time. Every value is invented. current_interval_usage_count is what remains, so a window with 255 of 1500 left is 83% used, not 17%.",
   "verifiedAt": "2026-09-20",
   "cases": [
     {
@@ -36,14 +36,14 @@
             "id": "minimax-m2",
             "badge": "M2",
             "title": "M2",
-            "usedPercent": 17,
+            "usedPercent": 83,
             "resetsAt": "2026-09-21T14:13:20Z"
           },
           {
             "id": "minimax-m1",
             "badge": "M1",
             "title": "M1",
-            "usedPercent": 80,
+            "usedPercent": 20,
             "resetsAt": "2026-09-21T14:13:20Z"
           }
         ]

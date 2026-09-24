@@ -94,7 +94,7 @@ enum HarnessCheck {
                              "accountField"],
         "quota.windows": ["root", "roots", "list", "key", "keys", "single", "balance",
                           "currency", "usedPercent", "percentRemaining",
-                          "used", "limit", "require", "labels", "badges", "windowSeconds", "resetsAt",
+                          "used", "remaining", "limit", "require", "labels", "badges", "windowSeconds", "resetsAt",
                           "title"],
         "selection": ["kind", "path", "glob", "records", "encodedJSON", "id", "filter",
                       "query", "column", "command", "args", "root"],
@@ -405,12 +405,13 @@ enum HarnessCheck {
             let map = quota.windows
             let figure = [map.usedPercent, map.percentRemaining, map.balance].contains { $0 != nil }
                 || (map.used != nil && map.limit != nil)
+                || (map.remaining != nil && map.limit != nil)
             if figure {
                 let shape = map.list != nil ? "a list" : (map.single != nil ? "one flat window" : "an object")
                 ok("quota windows read from \(shape)")
             } else {
                 fail("quota.windows declares no figure: give usedPercent, percentRemaining, "
-                     + "used and limit, or balance")
+                     + "used and limit, remaining and limit, or balance")
             }
             if map.list != nil && map.key == nil {
                 warn("quota.windows.list without key — windows will be numbered 0, 1, 2")
