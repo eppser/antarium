@@ -193,20 +193,41 @@ struct UnreadableWindowMessageTests {
                             Comment(rawValue: "\(id) no longer builds a provider"))
     }
 
+    /// `CREDIT_LIMIT` stood here until its unit semantics were established
+    /// and the mapping learned to read it. The window that exercises this now
+    /// is one nothing claims to know, which is what the test was always
+    /// about — a name being repeated back, not that particular name.
     @Test("Window names the mapping does not know are reported back")
     func unknownWindowsAreNamed() throws {
         let zai = try provider("zai")
         let reply: [String: Any] = ["data": ["limits": [
-            ["type": "CREDIT_LIMIT", "unit": 3, "percentage": 40],
-            ["type": "CREDIT_LIMIT", "unit": 6, "percentage": 12]]]]
+            ["type": "MYSTERY_LIMIT", "unit": 3, "percentage": 40],
+            ["type": "MYSTERY_LIMIT", "unit": 6, "percentage": 12]]]]
         do {
             _ = try zai.makeSnapshot(reply)
             Issue.record("a reply with no readable window produced a snapshot")
         } catch let error as ProviderError {
             let text = "\(error)"
-            #expect(text.contains("CREDIT_LIMIT"),
+            #expect(text.contains("MYSTERY_LIMIT"),
                     Comment(rawValue: "the message does not say what it saw: \(text)"))
         }
+    }
+
+    /// And the window that used to stand for "unknown" is read now, because
+    /// a plan billing in credits reports the same three rolling windows under
+    /// a different type. A Z.ai GLM Coding Lite account saw an empty bar.
+    @Test("A plan that bills in credits reports the same windows")
+    func creditPlansAreRead() throws {
+        let zai = try provider("zai")
+        let reply: [String: Any] = ["data": ["limits": [
+            ["type": "CREDIT_LIMIT", "unit": 3, "percentage": 40],
+            ["type": "CREDIT_LIMIT", "unit": 6, "percentage": 12]]]]
+        let snapshot = try zai.makeSnapshot(reply)
+        #expect(snapshot.gauges.map(\.id) == ["CREDIT_LIMIT-3", "CREDIT_LIMIT-6"],
+                Comment(rawValue: "a credit plan produced \(snapshot.gauges.map(\.id))"))
+        // The same windows, so the same labels a token plan would show.
+        #expect(snapshot.gauges.map(\.title) == ["Session (5 hours)", "Weekly"])
+        #expect(snapshot.gauges.map(\.badge) == ["5H", "7D"])
     }
 
     /// And a reply that genuinely carries nothing says that instead, or the

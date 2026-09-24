@@ -965,3 +965,6 @@ the vibe session cost is read from the wrong field | Resources/harnesses/mistral
 the vibe token count is read from the wrong field | Resources/harnesses/mistral.json | s|"totalTokens": "stats.session_total_llm_tokens"|"totalTokens": "stats.total_tokens"|
 the vibe log reader looks for the name the vendor comment uses | Resources/harnesses/mistral.json | s|"glob": "\*/meta.json"|"glob": "*/metadata.json"|
 the fixture stops checking the running total it now records | Resources/harness-fixtures/mistral.json | s|"totalTokens": 4096|"totalTokens": null|
+a credit-billed plan shows an empty bar again | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-3",||
+a credit window borrows the wrong label | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-3": "Session (5 hours)"|"CREDIT_LIMIT-3": "Weekly"|
+a credit window borrows the wrong badge | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-6": "7D"|"CREDIT_LIMIT-6": "5H"|

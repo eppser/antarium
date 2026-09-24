@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "zai",
   "name": "Z.ai GLM",
-  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it \u2014 but that field is shared with every other Anthropic-compatible vendor, so the base URL is checked too before the token is treated as Z.ai's. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most. The endpoint is published nowhere; checked 2026-09-22, docs.z.ai documents the plan and not this call. The window keys are the part to doubt: other tools report accounts whose replies carry limit kinds this mapping does not name, and such a reply is reported as unreadable rather than drawn as zero \u2014 there is a fixture case for it. The mapping is not changed on that evidence, because a field path taken from another tool is a guess about somebody else's product.",
+  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it \u2014 but that field is shared with every other Anthropic-compatible vendor, so the base URL is checked too before the token is treated as Z.ai's. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most. The endpoint is published nowhere; checked 2026-09-22, docs.z.ai documents the plan and not this call. The window keys were the part to doubt, and one of them is no longer doubtful. This used to say the mapping would not be changed on another tool's field paths, because that is a guess about somebody else's product, and an account reporting only CREDIT_LIMIT was reported unreadable rather than drawn as zero. Revisited 2026-09-24: ClaudeBar's ZaiUsageProbe does not merely use those paths, it says what they are \u2014 credit-billed tiers report CREDIT_LIMIT with the same `unit` semantics as TOKENS_LIMIT, naming GLM Coding Lite as the tier that does. That is specific enough to act on, and it is the same standard the Gemini mapping was written to. Units 3, 6 and 7 are read as the same three rolling windows; a Lite subscriber saw an empty bar until they were. What has not changed is the caution: this is still somebody else's observation and `verified` is still false, so a kind neither tool names is still reported as unreadable rather than guessed at, and there is still a fixture case for that.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -37,7 +37,10 @@
         "TOKENS_LIMIT-3",
         "TOKENS_LIMIT-6",
         "TOKENS_LIMIT-7",
-        "TIME_LIMIT-5"
+        "TIME_LIMIT-5",
+        "CREDIT_LIMIT-3",
+        "CREDIT_LIMIT-6",
+        "CREDIT_LIMIT-7"
       ],
       "usedPercent": "percentage",
       "resetsAt": "nextResetTime",
@@ -45,13 +48,19 @@
         "TOKENS_LIMIT-3": "Session (5 hours)",
         "TOKENS_LIMIT-6": "Weekly",
         "TOKENS_LIMIT-7": "Monthly",
-        "TIME_LIMIT-5": "Tools"
+        "TIME_LIMIT-5": "Tools",
+        "CREDIT_LIMIT-3": "Session (5 hours)",
+        "CREDIT_LIMIT-6": "Weekly",
+        "CREDIT_LIMIT-7": "Monthly"
       },
       "badges": {
         "TOKENS_LIMIT-3": "5H",
         "TOKENS_LIMIT-6": "7D",
         "TOKENS_LIMIT-7": "30D",
-        "TIME_LIMIT-5": "TOOL"
+        "TIME_LIMIT-5": "TOOL",
+        "CREDIT_LIMIT-3": "5H",
+        "CREDIT_LIMIT-6": "7D",
+        "CREDIT_LIMIT-7": "30D"
       }
     },
     "setupHint": "Point Claude Code at Z.ai and sign in.",

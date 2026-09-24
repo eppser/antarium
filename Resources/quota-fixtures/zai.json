@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic. Shape follows Z.ai's documented quota/limit payload, including the two TOKENS_LIMIT rows that differ only by unit. Every value is invented.",
+  "note": "Synthetic. Shape follows Z.ai's documented quota/limit payload, including the two TOKENS_LIMIT rows that differ only by unit. Every value is invented. The credit-tier case follows ClaudeBar's ZaiUsageProbe, which maps CREDIT_LIMIT to the same windows as TOKENS_LIMIT for plans that bill in credits. Every value is invented.",
   "verifiedAt": "2026-09-20",
   "cases": [
     {
@@ -89,19 +89,19 @@
       "expectError": "unsupported"
     },
     {
-      "name": "a plan whose limits are all of a kind this mapping does not name",
+      "name": "a plan whose limits are all of a kind this mapping does not name \u2014 CREDIT_LIMIT was this case until its unit semantics were known",
       "response": {
         "data": {
           "level": "lite",
           "limits": [
             {
-              "type": "CREDIT_LIMIT",
+              "type": "MYSTERY_LIMIT",
               "unit": 3,
               "percentage": 40,
               "nextResetTime": 1789330000000
             },
             {
-              "type": "CREDIT_LIMIT",
+              "type": "MYSTERY_LIMIT",
               "unit": 6,
               "percentage": 12,
               "nextResetTime": 1789930000000
@@ -110,6 +110,45 @@
         }
       },
       "expectError": "unsupported"
+    },
+    {
+      "name": "a credit-based plan tier",
+      "response": {
+        "data": {
+          "limits": [
+            {
+              "type": "CREDIT_LIMIT",
+              "unit": 3,
+              "percentage": 30,
+              "nextResetTime": "2026-09-20T20:00:00Z"
+            },
+            {
+              "type": "CREDIT_LIMIT",
+              "unit": 6,
+              "percentage": 72.5,
+              "nextResetTime": "2026-09-24T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "CREDIT_LIMIT-3",
+            "badge": "5H",
+            "title": "Session (5 hours)",
+            "usedPercent": 30,
+            "resetsAt": "2026-09-20T20:00:00Z"
+          },
+          {
+            "id": "CREDIT_LIMIT-6",
+            "badge": "7D",
+            "title": "Weekly",
+            "usedPercent": 72.5,
+            "resetsAt": "2026-09-24T00:00:00Z"
+          }
+        ]
+      }
     }
   ]
 }
