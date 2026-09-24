@@ -256,7 +256,7 @@ enum Diagnostics {
                 let hosts = named.isEmpty ? Settings.remoteTmuxHosts : Array(named)
                 if hosts.isEmpty {
                     print("No hosts. Add one in Settings › Remote tmux, "
-                        + "or pass them: --remote-tmux quibus")
+                        + "or pass them: --remote-tmux build-box")
                     exit(1)
                 }
                 // The same concurrent sweep the app runs, so what this

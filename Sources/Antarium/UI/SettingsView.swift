@@ -314,7 +314,7 @@ struct SettingsView: View {
         picked up automatically and does not need repeating here.
 
         2. Add the host below, written exactly as you would type it after \
-        `ssh` — "quibus", "10.0.0.4", or "deploy@quibus". That is the only \
+        `ssh` — "build-box", "10.0.0.4", or "deploy@build-box". That is the only \
         thing you have to configure.
 
         3. Key authentication needs nothing further. This is the normal case, \
@@ -371,8 +371,8 @@ struct SettingsView: View {
                 if !typed.isEmpty, !RemoteTmux.isSafeHost(typed) {
                     // Otherwise Add simply greys out and the reason is a
                     // guessing game.
-                    Text("A host is a name or address — \"quibus\", \"10.0.0.4\", "
-                         + "\"deploy@quibus\". No spaces, and it cannot begin with \"-\".")
+                    Text("A host is a name or address — \"build-box\", \"10.0.0.4\", "
+                         + "\"deploy@build-box\". No spaces, and it cannot begin with \"-\".")
                         .font(.system(size: 10)).foregroundStyle(Color.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 } else if Settings.remoteTmuxHosts.isEmpty {

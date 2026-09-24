@@ -147,7 +147,7 @@ Adding a machine costs one line — the string you would type after `ssh`:
 ```json
 {
   "includeRemoteTmux": true,
-  "remoteTmuxHosts": ["quibus", "10.0.0.4", "deploy@build-box"]
+  "remoteTmuxHosts": ["build-box", "10.0.0.4", "deploy@build-box"]
 }
 ```
 
@@ -184,7 +184,7 @@ To see what each host actually answered:
 
 ```bash
 Antarium --remote-tmux            # every configured host
-Antarium --remote-tmux quibus     # just this one
+Antarium --remote-tmux build-box     # just this one
 ```
 
 ## Private by design

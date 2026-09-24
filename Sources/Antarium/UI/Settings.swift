@@ -122,7 +122,7 @@ enum Settings {
     }
 
     /// The machines to look on, each written exactly as you would type it
-    /// after `ssh` — "quibus", "10.0.0.4", "deploy@quibus". That is the whole
+    /// after `ssh` — "build-box", "10.0.0.4", "deploy@build-box". That is the whole
     /// configuration: `~/.ssh/config` already holds the port, the key and the
     /// real hostname, and restating any of it here would only be a second
     /// place for it to go stale. A password, when one is needed, is kept in
