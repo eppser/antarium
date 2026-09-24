@@ -54,13 +54,18 @@ enum CodexGoals {
         let fingerprint = ["", "-wal", "-shm"].map {
             FileStamp.of(URL(fileURLWithPath:url.path + $0))
         }.joined(separator:"|")
-        let now = ProcessInfo.processInfo.systemUptime
         lock.lock()
+        // Read under the lock, not before it. Outside, a caller that waited
+        // while another thread queried came back with a reading older than
+        // the entry it found and judged a fresh failure stale — retrying a
+        // SQLite open that had just failed, which is the whole of what this
+        // five-second window exists to stop.
+        let now = ProcessInfo.processInfo.systemUptime
         if let hit = cache[url.path], hit.fingerprint == fingerprint {
             let reusable:Bool
             switch hit.result {
             case .success: reusable = true
-            case .failure: reusable = now >= hit.checked && now - hit.checked < 5
+            case .failure: reusable = CacheWindow.isFresh(now: now, stamped: hit.checked, within: 5)
             }
             if reusable { lock.unlock(); return try hit.result.get() }
         }
@@ -85,7 +90,11 @@ enum CodexGoals {
         catch { result = .failure(.invalidInventory) }
         lock.lock()
         if cache[url.path] == nil, let victim = Self.victim(in:cache,limit:32) { cache.removeValue(forKey:victim) }
-        cache[url.path] = Cached(fingerprint:fingerprint,checked:now,result:result)
+        // Stamped when stored rather than when the read began: the query is
+        // the slow part, and dating the answer before it makes the window
+        // shorter than it says it is.
+        cache[url.path] = Cached(fingerprint:fingerprint,
+                                 checked:ProcessInfo.processInfo.systemUptime,result:result)
         lock.unlock()
         return try result.get()
     }

@@ -16,6 +16,28 @@ import Foundation
 /// restores the contract without making the value stale enough to notice.
 /// `invalidate()` exists so an in-app sign-in is reflected at once rather than
 /// up to `ttl` later.
+/// Whether a reading taken at `stamped` is still current for a caller whose
+/// clock says `now`.
+///
+/// Written once because three caches wrote it out and all three wrote it the
+/// same way: fresh when the reading is not older than `window`, and not fresh
+/// when it is stamped *after* the caller's own reading, which on a monotonic
+/// clock can only mean time went backwards.
+///
+/// That second clause is only sound if the clock is read under the same lock
+/// that guards the reading. Read outside it — as a default argument, which is
+/// how all three did it — a caller that waits for the lock while another
+/// thread computes comes back holding an older reading than the entry it
+/// finds, decides a fresh answer is stale, and does the work again. That is
+/// the thundering herd these caches exist to prevent, arriving only under the
+/// contention that nothing exercised.
+enum CacheWindow {
+    static func isFresh(now: TimeInterval, stamped: TimeInterval,
+                        within window: TimeInterval) -> Bool {
+        now >= stamped && now - stamped < window
+    }
+}
+
 enum ConfiguredProbe {
     /// Long enough that a burst of view updates costs one probe, short enough
     /// that a sign-in performed in a terminal shows up while the user is still
@@ -51,7 +73,8 @@ enum ConfiguredProbe {
         lock.lock()
         defer { lock.unlock() }
         let now = injected ?? ProcessInfo.processInfo.systemUptime
-        if let entry = entries[key], now >= entry.at, now - entry.at < ttl {
+        if let entry = entries[key],
+           CacheWindow.isFresh(now: now, stamped: entry.at, within: ttl) {
             return entry.value
         }
         let value = compute()

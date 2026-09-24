@@ -64,14 +64,30 @@ final class HarnessCatalog: @unchecked Sendable {
         guard files.count <= 256, before == FileStamp.of(directory) else { throw BoundedDirectory.ReadError.limit }
         return (files, before + "|" + files.map { $0.lastPathComponent + "=" + FileStamp.of($0) }.joined(separator:"|"))
     }
-    func snapshot(now:TimeInterval = ProcessInfo.processInfo.systemUptime,force:Bool = false) -> Snapshot {
+    /// The clock is read under the lock. As a default argument it was read
+    /// before the lock was taken, and this is the busiest cache in the app —
+    /// eighteen call sites, one of them a default argument in the glyph
+    /// renderer and so reached once per draw, another `ProviderRegistry.all`,
+    /// which `rebuildItems` reads twice. A menu bar refresh, the settings
+    /// panel and the background scan contend for it routinely.
+    ///
+    /// The cost was worse than a missed cache. `checked` is assigned
+    /// unconditionally below, so a thread holding a reading older than the
+    /// entry it found did not merely re-read the folder — it wound `checked`
+    /// backwards, leaving the next caller likelier to miss as well. Under
+    /// sustained contention the one-second throttle degraded rather than
+    /// occasionally slipping, and what it throttles is reading and parsing
+    /// every descriptor file.
+    func snapshot(now injected:TimeInterval? = nil,force:Bool = false) -> Snapshot {
         lock.lock(); defer { lock.unlock() }
-        if !force, now >= checked, now - checked < 1 { return current }
+        let now = injected ?? ProcessInfo.processInfo.systemUptime
+        if !force, CacheWindow.isFresh(now: now, stamped: checked, within: 1) { return current }
         checked = now
         do {
             let inventory = try inventory()
             if !force, inventory.stamp == fingerprint,
-               current.issues.isEmpty || (now >= loaded && now - loaded < 5) { return current }
+               current.issues.isEmpty
+                   || CacheWindow.isFresh(now: now, stamped: loaded, within: 5) { return current }
             var next:[String:HarnessDescriptor] = [:], problems:[String] = [], bytes = 0
             for file in inventory.files {
                 guard bytes < 8 * 1_024 * 1_024 else { throw BoundedFile.ReadError.tooLarge }
