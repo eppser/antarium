@@ -931,3 +931,8 @@ a path is shortened on a bare string prefix | Sources/Antarium/Core/HarnessDescr
 an unusable home still shortens paths | Sources/Antarium/Core/HarnessDescriptor.swift| s|guard !home.isEmpty, home != "/" else { return self }||
 the home itself is shown as an empty tilde path | Sources/Antarium/Core/HarnessDescriptor.swift| s|if self == home { return "~" }||
 a path outside the home is shortened anyway | Sources/Antarium/Core/HarnessDescriptor.swift| s|guard hasPrefix(home + "/") else { return self }||
+a countdown to an unreadable time is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "—" }||
+a reset at an unreadable time is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "reset time unknown" }||
+an activity time too far back is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "unknown" }||
+an unreadable duration is charted | Sources/Antarium/UI/Fmt.swift | s|        guard Format.canDisplay(seconds) else { return "—" }||
+the interval bound only checks the sign | Sources/Antarium/UI/Format.swift | s|        seconds.isFinite \&\& abs(seconds) <= maxInterval|        seconds.isFinite|
