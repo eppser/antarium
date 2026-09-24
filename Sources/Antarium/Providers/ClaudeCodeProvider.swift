@@ -130,12 +130,31 @@ final class ClaudeCodeProvider: UsageProvider, @unchecked Sendable {
             self.resetsAt = resetsAt; self.severity = severity
         }
 
+        /// The group an entry belongs to when it does not name one.
+        ///
+        /// `group` and `kind` say the same thing at different resolutions,
+        /// which this class already assumed by falling back from one to the
+        /// other. The fallback only ran in that direction, so an entry
+        /// carrying `kind` and no `group` was refused outright — and every
+        /// entry being refused is not an error here, it is an empty `limits`
+        /// array and a quiet drop to the flat windows below, which carry no
+        /// severity and no per-model scope at all. A reply that had more to
+        /// say would have been read as one that had less.
+        static func group(forKind kind: String?) -> String? {
+            switch kind {
+            case "session": return "session"
+            case "weekly_all", "weekly_scoped": return "weekly"
+            default: return nil
+            }
+        }
+
         /// From a `limits[]` entry.
         convenience init?(_ dict: [String: Any]) {
-            guard let group = dict["group"] as? String,
+            let named = dict["kind"] as? String
+            guard let group = dict["group"] as? String ?? ParsedLimit.group(forKind: named),
                   let percent = dict["percent"] as? Double ?? (dict["percent"] as? Int).map(Double.init)
             else { return nil }
-            let kind = dict["kind"] as? String ?? group
+            let kind = named ?? group
             self.init(group: group,
                       title: ParsedLimit.title(kind: kind, scope: dict["scope"] as? [String: Any]),
                       percent: percent,

@@ -982,3 +982,6 @@ the fixture stops checking what a provider reported | Sources/Antarium/Core/Quot
 an empty balance says nothing about itself | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }||
 a balance with money in it is judged as empty | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 {|        if let amount, amount.value <= 1000 {|
 an empty balance is merely low | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }|        if let amount, amount.value <= 0 { return .low }|
+a limits entry naming only its kind is refused again | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|guard let group = dict\["group"\] as? String ?? ParsedLimit.group(forKind: named),|guard let group = dict["group"] as? String,|
+a scoped week is filed under the session group | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|            case "weekly_all", "weekly_scoped": return "weekly"|            case "weekly_all", "weekly_scoped": return "session"|
+a session window is filed under the weekly group | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|            case "session": return "session"|            case "session": return "weekly"|

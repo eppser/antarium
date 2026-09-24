@@ -105,3 +105,74 @@ struct ClaudeSnapshotTests {
         #expect(found.accountLabel == "max plan")
     }
 }
+
+/// A `limits` reply that names `kind` and not `group`.
+///
+/// The two say the same thing at different resolutions, and this parser
+/// already fell back from `kind` to `group`. It did not fall back the other
+/// way, so an entry carrying only `kind` was refused — and refusing every
+/// entry is not an error here. It is an empty `limits` array, which drops
+/// silently to the flat `five_hour` / `seven_day` windows: no severity, no
+/// per-model scope, and no sign that anything was lost.
+///
+/// Worth holding because the one other implementation of this endpoint that
+/// can be read decodes `kind`, `percent`, `resets_at` and `scope`, and
+/// declares no `group` at all.
+@Suite("A limits entry is read whether or not it names a group")
+struct ClaudeLimitsGroupTests {
+
+    private func token() -> ClaudeToken {
+        ClaudeToken(accessToken: "synthetic", expiresAt: nil,
+                    subscriptionType: "max", source: .file)
+    }
+
+    private func reply(groupNamed: Bool) -> [String: Any] {
+        func entry(_ kind: String, _ percent: Double, scope: [String: Any]? = nil)
+            -> [String: Any] {
+            var e: [String: Any] = ["kind": kind, "percent": percent,
+                                    "resets_at": "2026-09-25T12:00:00Z"]
+            if groupNamed { e["group"] = kind == "session" ? "session" : "weekly" }
+            if let scope { e["scope"] = scope }
+            return e
+        }
+        return ["limits": [
+            entry("session", 40),
+            entry("weekly_all", 25),
+            entry("weekly_scoped", 60,
+                  scope: ["model": ["display_name": "Opus"]]),
+        ]]
+    }
+
+    @Test("The same reply reads the same with a group and without one")
+    func groupIsOptional() throws {
+        let with = try ClaudeCodeProvider.makeSnapshot(reply(groupNamed: true), token: token())
+        let without = try ClaudeCodeProvider.makeSnapshot(reply(groupNamed: false), token: token())
+        #expect(with.gauges.map(\.id) == without.gauges.map(\.id))
+        #expect(with.gauges.map(\.used) == without.gauges.map(\.used))
+        #expect(with.extras.map(\.title) == without.extras.map(\.title))
+    }
+
+    /// And what would have been lost: the scoped week is the binding one at
+    /// 60%, so a reply read through the flat fallback would not have had it
+    /// at all.
+    @Test("A kind-only reply still finds the week that binds")
+    func scopedWeekSurvives() throws {
+        let snapshot = try ClaudeCodeProvider.makeSnapshot(reply(groupNamed: false),
+                                                           token: token())
+        let week = try #require(snapshot.gauges.first { $0.id == "weekly" })
+        #expect(week.title == "Weekly · Opus",
+                Comment(rawValue: "the binding week is \(week.title)"))
+        #expect(abs(week.used - 0.60) < 0.0001)
+    }
+
+    /// A kind nothing recognises still names no group, so an entry that is
+    /// neither a session nor a week is skipped rather than guessed into one.
+    @Test("An unrecognised kind implies no group")
+    func unknownKindImpliesNothing() {
+        #expect(ClaudeCodeProvider.ParsedLimit.group(forKind: "monthly_experiment") == nil)
+        #expect(ClaudeCodeProvider.ParsedLimit.group(forKind: nil) == nil)
+        #expect(ClaudeCodeProvider.ParsedLimit.group(forKind: "session") == "session")
+        #expect(ClaudeCodeProvider.ParsedLimit.group(forKind: "weekly_all") == "weekly")
+        #expect(ClaudeCodeProvider.ParsedLimit.group(forKind: "weekly_scoped") == "weekly")
+    }
+}
