@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "openrouter",
   "name": "OpenRouter",
-  "note": "Quota only. OpenRouter's credits endpoint reports two lifetime figures \u2014 data.total_credits, everything ever added to the account, and data.total_usage, everything ever spent \u2014 so the meter is spend against purchases: empty after a top-up, full when the credits are gone. There is no balance field to chart instead, and the mapping cannot subtract, which is why this is a meter rather than the amount a balance-only provider draws. The key is read from a file and never from OPENROUTER_API_KEY: the endpoint requires a management key and answers 403 to an ordinary inference key, so reading the conventional variable would take the key most people have and fail with it for ever.",
+  "note": "Quota only. OpenRouter's credits endpoint reports two lifetime figures \u2014 data.total_credits, everything ever added to the account, and data.total_usage, everything ever spent \u2014 so the meter is spend against purchases: empty after a top-up, full when the credits are gone. There is no balance field to chart instead, and the mapping cannot subtract, which is why this is a meter rather than the amount a balance-only provider draws. The key is read from a file and never from OPENROUTER_API_KEY: the endpoint requires a management key and answers 403 to an ordinary inference key, so reading the conventional variable would take the key most people have and fail with it for ever. Read against that reference on 2026-09-25 for meaning rather than shape: `total_usage` is documented as credits used and `total_credits` as credits purchased, which is the direction this maps them.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -36,6 +36,7 @@
     },
     "setupHint": "Management key in ~/.antarium/keys/openrouter",
     "documentation": "https://openrouter.ai/docs/api-reference/get-credits",
-    "verified": false
+    "verified": false,
+    "checkedAt": "2026-09-25"
   }
 }

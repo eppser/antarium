@@ -64,6 +64,7 @@
       }
     },
     "setupHint": "Point Claude Code at Z.ai and sign in.",
-    "verified": false
+    "verified": false,
+    "checkedAt": "2026-09-24"
   }
 }

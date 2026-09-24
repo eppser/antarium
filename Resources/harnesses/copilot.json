@@ -57,6 +57,7 @@
     "accountLabel": "copilot_plan",
     "setupHint": "Sign in with `gh auth login`.",
     "verified": false,
-    "signInCommand": "gh auth login"
+    "signInCommand": "gh auth login",
+    "checkedAt": "2026-09-24"
   }
 }

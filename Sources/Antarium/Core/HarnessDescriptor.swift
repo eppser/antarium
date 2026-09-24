@@ -367,6 +367,17 @@ struct HarnessDescriptor: Codable {
     /// check possible in principle and not in practice. An https URL to the
     /// page that states the response schema.
         var documentation: String?
+        /// The day this mapping's figures were last read against something
+        /// outside this repository, as `yyyy-MM-dd`.
+        ///
+        /// Not the same question as `compatibility.verifiedAt`, which dates a
+        /// fixture. A fixture is written from the mapping it tests, so it
+        /// proves the mapping is applied and says nothing about whether it is
+        /// right — five of the seventeen mappings here were wrong behind a
+        /// green one, and MiniMax's expectations were the exact mirror of the
+        /// truth for months. This dates the other check: a vendor reference,
+        /// or somebody else's implementation of the same API.
+        var checkedAt: String?
         /// Shell command that signs this agent in again, offered in the menu
         /// when the credential is what failed.
         var signInCommand: String?

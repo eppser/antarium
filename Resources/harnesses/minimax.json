@@ -46,6 +46,7 @@
       "remaining": "current_interval_usage_count"
     },
     "setupHint": "Put your key in ~/.antarium/keys/minimax",
-    "verified": false
+    "verified": false,
+    "checkedAt": "2026-09-24"
   }
 }

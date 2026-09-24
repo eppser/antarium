@@ -880,6 +880,11 @@
           "format": "uri",
           "pattern": "^https://",
           "description": "URL of the vendor reference stating the response schema this maps."
+        },
+        "checkedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Day these figures were last read against a source outside this repository. Not the fixture's date: a fixture is written from the mapping it tests."
         }
       }
     },

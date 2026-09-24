@@ -67,6 +67,27 @@ struct SchemaAlignmentTests {
         return Set(properties.keys)
     }
 
+    /// A date field the schema will not constrain is a date field nobody
+    /// outside this repository is told the shape of.
+    ///
+    /// Nothing here runs a JSON-schema validator — the schema is what someone
+    /// writing their own harness reads, and the app checks descriptors its
+    /// own way. So the constraint has to be asserted as text, the way this
+    /// file already compares the validator's key lists with the schema's.
+    /// Without it `quota.checkedAt` could lose its pattern and every shipped
+    /// descriptor would still pass, while an author following the schema
+    /// learned nothing about what a date looks like here.
+    @Test("The date a mapping was last read is constrained to a date")
+    func checkedAtIsConstrained() throws {
+        let text = try String(contentsOf: URL(fileURLWithPath: "Resources/harness.schema.json"),
+                              encoding: .utf8)
+        let block = try #require(text.range(of: "\"checkedAt\""),
+                                 "the schema no longer describes quota.checkedAt")
+        let after = text[block.upperBound...].prefix(400)
+        #expect(after.contains("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"),
+                "quota.checkedAt accepts any string, so the schema states no shape for a date")
+    }
+
     /// Every section the validator knows about is compared. Not a count of
     /// them — a count is satisfied by a list that is long enough and still
     /// missing the one that matters.

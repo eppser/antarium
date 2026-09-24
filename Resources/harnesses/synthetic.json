@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "synthetic",
   "name": "Synthetic",
-  "note": "Quota only, and the first of these that is a proper meter with a reset: the subscription reports a request ceiling, the requests spent against it and when it renews, so the bar fills and empties rather than counting money down. The figures are requests rather than tokens \u2014 Synthetic bills per request \u2014 so a long conversation and a one-line question cost the same, which is the service's own accounting and not a simplification here. An account with no subscription reports a ceiling of nought and charts nothing, because nought of nothing is not nought per cent.",
+  "note": "Quota only, and the first of these that is a proper meter with a reset: the subscription reports a request ceiling, the requests spent against it and when it renews, so the bar fills and empties rather than counting money down. The figures are requests rather than tokens \u2014 Synthetic bills per request \u2014 so a long conversation and a one-line question cost the same, which is the service's own accounting and not a simplification here. An account with no subscription reports a ceiling of nought and charts nothing, because nought of nothing is not nought per cent. Read against that reference on 2026-09-25 for meaning rather than shape: `subscription.requests` is documented as calls already consumed against the quota, not calls left.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -38,6 +38,7 @@
     },
     "setupHint": "Put your key in ~/.antarium/keys/synthetic",
     "documentation": "https://dev.synthetic.new/docs/synthetic/quotas",
-    "verified": false
+    "verified": false,
+    "checkedAt": "2026-09-25"
   }
 }

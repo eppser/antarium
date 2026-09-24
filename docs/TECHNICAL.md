@@ -857,6 +857,21 @@ strings, so a reader that took only numbers would report nothing for either
 and look exactly like an account with no credit. That is the class of error
 this catches without anyone signing up for anything.
 
+`quota.checkedAt` records the day that reading was last done — the day the
+figures were held against something outside this repository, whether a vendor
+reference or another implementation of the same API. It is deliberately not
+`compatibility.verifiedAt`, which dates a fixture, because a fixture is
+written from the mapping it tests: it proves the mapping is applied and says
+nothing about whether it is right. Five of the seventeen mappings here were
+wrong behind a green fixture, and one of them, MiniMax, had expectations that
+were the exact mirror of the truth. A field name is not a specification.
+`current_interval_usage_count` was what remained, not what was spent, and the
+meter read comfortable while the quota emptied.
+
+So the question `checkedAt` answers is not "does this resolve" but "when did
+somebody last confirm the fields mean what they are named", and a date going
+stale is the signal to ask again.
+
 ## SDK, schema, and migration
 
 `AntariumHarnessSDK` is a public SwiftPM library product with typed models,

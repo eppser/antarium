@@ -478,6 +478,10 @@ public struct HarnessConfig: Codable {
         /// check possible in principle and not in practice. An https URL to the
         /// page that states the response schema.
         public var documentation: String?
+        /// Day this mapping's figures were last read against a source outside
+        /// this repository, as `yyyy-MM-dd`. Not the fixture's date: a
+        /// fixture is written from the mapping it tests.
+        public var checkedAt: String?
         public var signInCommand: String?
         public var verified: Bool?
 

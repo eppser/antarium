@@ -47,6 +47,7 @@
     },
     "setupHint": "Run `cmd login`.",
     "signInCommand": "cmd login",
-    "verified": false
+    "verified": false,
+    "checkedAt": "2026-09-24"
   }
 }

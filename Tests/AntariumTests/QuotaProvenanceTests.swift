@@ -25,6 +25,57 @@ struct QuotaProvenanceTests {
                 Comment(rawValue: "only \(quotaDescriptors.count) quota descriptors were found"))
     }
 
+    /// Every mapping records the day its figures were last read against
+    /// something outside this repository.
+    ///
+    /// The check this dates is the one nothing here can perform. A fixture is
+    /// written from the mapping it tests, so it proves the mapping is applied
+    /// and says nothing about whether it is right: five of the seventeen
+    /// mappings in this app were wrong behind a green fixture, and MiniMax's
+    /// expectations were the exact mirror of the truth for months. A date
+    /// that has gone stale is the only signal available that somebody should
+    /// read the fields again and ask whether they mean what they are named.
+    @Test("Every quota mapping dates its last reading against an outside source")
+    func everyMappingIsDated() throws {
+        var checked = 0
+        for descriptor in quotaDescriptors {
+            let day = try #require(descriptor.quota?.checkedAt,
+                                   Comment(rawValue: "\(descriptor.id) does not say when its "
+                                           + "figures were last read against anything"))
+            let parsed = try #require(Self.day.date(from: day),
+                                      Comment(rawValue: "\(descriptor.id) dates its reading "
+                                              + "\(day), which is not yyyy-MM-dd"))
+            #expect(parsed <= Date().addingTimeInterval(86_400),
+                    Comment(rawValue: "\(descriptor.id) was read on \(day), which is ahead"))
+            checked += 1
+        }
+        #expect(checked >= 10,
+                Comment(rawValue: "only \(checked) mappings were examined"))
+    }
+
+    private static let day: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// And the date is not a substitute for the citation, nor the other way
+    /// round: a mapping can be read against a vendor reference or against
+    /// another implementation, and only the first of those has a URL.
+    @Test("A dated mapping still says what it was read against")
+    func datedMappingsNameTheirSource() {
+        for descriptor in quotaDescriptors where descriptor.quota?.checkedAt != nil {
+            let cited = descriptor.quota?.documentation != nil
+            let explained = (descriptor.note ?? "").contains("2026-")
+            #expect(cited || explained,
+                    Comment(rawValue: "\(descriptor.id) dates a reading and names no reference "
+                            + "and no note saying what was read"))
+        }
+    }
+
     /// An http URL, a bare hostname or a sentence would all be worse than
     /// nothing: they look like provenance and cannot be followed.
     @Test("Every citation is an https URL")

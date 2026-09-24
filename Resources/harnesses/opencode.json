@@ -131,7 +131,8 @@
     },
     "setupHint": "Run `opencode auth login` and pick OpenCode Zen.",
     "signInCommand": "opencode auth login",
-    "verified": false
+    "verified": false,
+    "checkedAt": "2026-09-24"
   },
   "capabilities": {
     "instruction": {
