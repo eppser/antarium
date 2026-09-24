@@ -297,7 +297,7 @@ a looping agent counted as idle | Sources/Antarium/UI/CountItem.swift | s|case .
 an unobservable agent counted as ended | Sources/Antarium/UI/CountItem.swift | s|case .cloud, .unobserved: unknown += 1|case .cloud: unknown += 1; case .unobserved: ended += 1|
 the total leaves out the unknown | Sources/Antarium/UI/CountItem.swift | s|var total: Int { working + waiting + ended + unknown }|var total: Int { working + waiting + ended }|
 a shell counted as waiting | Sources/Antarium/UI/CountItem.swift | s|case .working, .shell, .looping: working += 1|case .working, .looping: working += 1; case .shell: waiting += 1|
-the bar fills the wrong way round | Sources/Antarium/Core/UsageModel.swift | s|var remaining: Double { min(max(1 - used, 0), 1) }|var remaining: Double { min(max(used, 0), 1) }|
+the bar fills the wrong way round | Sources/Antarium/Core/UsageModel.swift | s|var remaining: Double { Gauge.fraction(1 - used) }|var remaining: Double { Gauge.fraction(used) }|
 severity judged off the wrong end | Sources/Antarium/Core/UsageModel.swift | s|hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity|hasMeter ? max(reportedSeverity, Severity.forRemaining(used)) : reportedSeverity|
 a balance colours itself off a phantom fill | Sources/Antarium/Core/UsageModel.swift | s|hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity|max(reportedSeverity, Severity.forRemaining(remaining))|
 a nearly spent window reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
@@ -404,7 +404,7 @@ claude code reads its body outside the bounded path | Sources/Antarium/Providers
 gauge title unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.title = Gauge.clamp(title, to: Gauge.maxTitle)|self.title = title|
 gauge badge unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.badge = Gauge.clamp(badge, to: Gauge.maxBadge)|self.badge = badge|
 gauge backstop cuts an authored title | Sources/Antarium/Core/UsageModel.swift | s|static let maxTitle = 4_096|static let maxTitle = 64|
-a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swift | s|        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0|        self.used = used|
+a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swift | s|        self.used = Gauge.fraction(used)|        self.used = used|
 a window length that is not a number sorts | Sources/Antarium/Core/UsageModel.swift | s|self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil|self.windowSeconds = windowSeconds|
 codex extra label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|(extra\["limit_name"\] as? String).map(clamped)|(extra["limit_name"] as? String)|
 codex plan label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|"\\(clamped(\$0)) plan"|"\\(\$0) plan"|
@@ -629,7 +629,7 @@ an absurd window is accepted | Sources/Antarium/Core/FieldPath.swift | s|guard l
 a zero-length window is a window | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value >= 0, value <= maxWindowSeconds|
 codex reads its reset date unbounded | Sources/Antarium/Providers/CodexProvider.swift | s|            resets = FieldPath.epoch(at)|            resets = Date(timeIntervalSince1970: at)|
 the descriptor badge converts an unbounded window | Sources/Antarium/Providers/DescriptorProvider.swift | s|        guard let seconds = FieldPath.seconds(raw)|        guard let seconds = raw, seconds > 0|
-a gauge keeps a figure outside the range it documents | Sources/Antarium/Core/UsageModel.swift | s|        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0|        self.used = used.isFinite ? used : 0|
+a gauge keeps a figure outside the range it documents | Sources/Antarium/Core/UsageModel.swift | s|        self.used = Gauge.fraction(used)|        self.used = used.isFinite ? used : 0|
 the last agent can be switched off | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }||
 every settings change is refused | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }|        return .refuse(AgentToggle.lastOne)|
 switching an agent on removes it instead | Sources/Antarium/UI/Settings.swift | s|        if on { next.insert(id) } else { next.remove(id) }|        if on { next.remove(id) } else { next.insert(id) }|
@@ -923,3 +923,7 @@ the guard stops reading what git tracks | Tests/AntariumTests/NoMachineIdentityT
 a tilde naming another account is glued onto this one | Sources/Antarium/Core/HarnessDescriptor.swift | s|^        return self$|        return home + dropFirst()|
 the expansion stops happening at all | Sources/Antarium/Core/HarnessDescriptor.swift | s|        if hasPrefix("~/") { return home + dropFirst() }|        if false { return home + dropFirst() }|
 a bare tilde stops meaning this account | Sources/Antarium/Core/HarnessDescriptor.swift | s|        if self == "~" { return home }|        if self == "~" { return self }|
+the percentage trusts its argument | Sources/Antarium/Core/UsageModel.swift | s|let p = Gauge.fraction(fraction) \* 100|let p = fraction * 100|
+the shared fraction clamp lets a non-finite figure through | Sources/Antarium/Core/UsageModel.swift | s|value.isFinite ? Swift.min(Swift.max(value, 0), 1) : 0|Swift.min(Swift.max(value, 0), 1)|
+a sliver used reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
+a sliver left reads as none left | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||

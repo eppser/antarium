@@ -88,7 +88,7 @@ struct Gauge: Equatable {
         // and converted to an `Int` downstream, and `Int` conversion traps
         // rather than rounds on a large enough figure. One forgetful mapping
         // would have been a crash, and the invariant is one line.
-        self.used = used.isFinite ? Swift.min(Swift.max(used, 0), 1) : 0
+        self.used = Gauge.fraction(used)
         self.resetsAt = resetsAt
         self.reportedSeverity = reportedSeverity
         self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil
@@ -122,7 +122,7 @@ struct Gauge: Equatable {
     /// True when this gauge has a denominator and can be drawn as a meter.
     var hasMeter: Bool { amount == nil }
 
-    var remaining: Double { min(max(1 - used, 0), 1) }
+    var remaining: Double { Gauge.fraction(1 - used) }
     /// A balance has no headroom to judge, so it never colours itself urgent
     /// off its own figure — only a severity the provider actually reported.
     var severity: Severity {
@@ -161,10 +161,30 @@ struct Gauge: Equatable {
 
     /// Rounded so a nonzero sliver never reads as a flat 0%.
     var remainingPercentText: String { Gauge.percentText(remaining) }
-    var usedPercentText: String { Gauge.percentText(min(max(used, 0), 1)) }
+    var usedPercentText: String { Gauge.percentText(used) }
 
+    /// A fraction reduced to the nought-to-one range this type documents.
+    ///
+    /// Written once because it was written three times — in the initialiser,
+    /// in `remaining`, and again at the one call site of `percentText` that
+    /// went through a gauge. The one that did not go through a gauge had no
+    /// clamp at all, which is the shape this kind of bug takes: the guard
+    /// lives next to one caller rather than next to the arithmetic it
+    /// protects, and the next caller does not know to repeat it.
+    static func fraction(_ value: Double) -> Double {
+        value.isFinite ? Swift.min(Swift.max(value, 0), 1) : 0
+    }
+
+    /// Clamps rather than trusting its argument, because the last line
+    /// converts to `Int` — which traps rather than rounds on a NaN, an
+    /// infinity, or anything past `Int.max`. Nothing reaches it with such a
+    /// figure today: gauges clamp on the way in and the settings preview
+    /// passes its own literals. But this is `static`, it takes a bare
+    /// `Double`, and a provider that divides two response numbers can produce
+    /// all three of those. A crash in the menu bar takes the whole app with
+    /// it, and the guard is the same line the initialiser already runs.
     static func percentText(_ fraction: Double) -> String {
-        let p = fraction * 100
+        let p = Gauge.fraction(fraction) * 100
         if p > 0 && p < 1 { return "<1%" }
         if p < 100 && p > 99 { return ">99%" }
         return "\(Int(p.rounded()))%"
