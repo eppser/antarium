@@ -52,7 +52,8 @@ integration status.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
 - **Remote tmux agents** over SSH, from machines you already reach with `ssh`.
-- **Quota monitoring** for supported Claude, Codex, Cursor, and GitHub Copilot accounts.
+- **Quota monitoring** for 17 providers — seven read natively, ten described by a
+  harness file you can edit or add to.
 - **Per-agent project setup overview** for supported harnesses, including
   instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
 - **Local-first and private:** no Antarium telemetry and no prompt collection.
@@ -168,6 +169,16 @@ It does not invent quota, context, token, cost, or session values. Cost is
 clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
 
+The same rule applies to how a provider's mapping was checked. Of the ten
+described by a harness file, five were compared field by field against the
+vendor's own published response schema, and each names the page it was read
+from. The other five have no published schema to compare against — checked
+and recorded, with the date and what was found instead — and for those the
+fixture is the whole of the check. A mapping is never written from another
+tool's source, because that is a guess about somebody else's product that
+happens to work today. Every fixture is invented values in the vendor's own
+shape; no real account response is ever committed.
+
 ## Remote tmux agents
 
 Agents running under tmux on another machine appear alongside local ones,
@@ -178,7 +189,7 @@ Adding a machine costs one line — the string you would type after `ssh`:
 ```json
 {
   "includeRemoteTmux": true,
-  "remoteTmuxHosts": ["quibus", "10.0.0.4", "deploy@build-box"]
+  "remoteTmuxHosts": ["build-box", "10.0.0.4", "deploy@build-box"]
 }
 ```
 
@@ -215,7 +226,7 @@ To see what each host actually answered:
 
 ```bash
 Antarium --remote-tmux            # every configured host
-Antarium --remote-tmux quibus     # just this one
+Antarium --remote-tmux build-box     # just this one
 ```
 
 ## Private by design
@@ -225,8 +236,9 @@ session metadata and uses existing provider credentials only when requesting
 supported quota information.
 
 Remote tmux is the one feature that connects outward to a machine you name, and
-it is off until you turn it on. It sends no data — it runs read-only inspection
-commands and reads their output. The built-in dashboard can focus sessions, but it
+it is off until you turn it on. It sends no data — it runs one read-only
+inspection command, which is a constant in this repository rather than
+anything assembled at runtime, and reads the output. The built-in dashboard can focus sessions, but it
 does not terminate agents, terminal applications, or tmux sessions.
 
 Custom harnesses are trusted local configuration and should be reviewed before

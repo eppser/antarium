@@ -76,9 +76,9 @@ struct SortAndRemoteTmuxTests {
     /// two processes deep, and a pane with nothing of interest.
     private var sample: String {
         """
-        910\tquibus-1:@1.%1\t/srv/checkout/apple
-        920\tquibus-1:@2.%2\t/srv/checkout/mango
-        930\tquibus-2:@1.%3\t/srv/idle
+        910\tbuild-box-1:@1.%1\t/srv/checkout/apple
+        920\tbuild-box-1:@2.%2\t/srv/checkout/mango
+        930\tbuild-box-2:@1.%3\t/srv/idle
         \(RemoteTmux.psSeparator)
         910 1 bash -bash
         911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
@@ -92,7 +92,7 @@ struct SortAndRemoteTmuxTests {
 
     @Test("Remote panes are matched to the agents running inside them")
     func parsePlacesAgentsInPanes() {
-        let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
+        let rows = RemoteTmux.parse(sample, host: "build-box", descriptors: bundledHarnesses)
         let byAgent = Dictionary(grouping: rows, by: \.agentID).mapValues(\.count)
         #expect(byAgent["codex"] == 1)
         // Found only by walking up sh -> node, which is the whole point of the
@@ -107,13 +107,13 @@ struct SortAndRemoteTmuxTests {
     func parseDoesNotClaimUnrelatedCommands() {
         // `vim /home/se/.codex/notes.md` sits in a pane of its own. Matching
         // the whole command line would have turned the editor into a session.
-        let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
+        let rows = RemoteTmux.parse(sample, host: "build-box", descriptors: bundledHarnesses)
         #expect(!rows.contains { $0.cwd == "/srv/idle" })
     }
 
     @Test("Remote rows are tagged, marked remote, and carry no local tmux target")
     func parseTagsRowsAndWithholdsTheLocalFocusTarget() {
-        let rows = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses)
+        let rows = RemoteTmux.parse(sample, host: "build-box", descriptors: bundledHarnesses)
         #expect(rows.count >= 2,
                 "only \(rows.count) rows were parsed, so the loop below proves little")
         for row in rows {
@@ -124,15 +124,15 @@ struct SortAndRemoteTmuxTests {
             // path, so a remote pane id there would make a click act on
             // whatever shares that id on this Mac.
             #expect(row.tmuxTarget == nil)
-            #expect(row.id.hasPrefix("tmux-remote:quibus:"))
-            #expect(row.note?.contains("quibus") == true)
+            #expect(row.id.hasPrefix("tmux-remote:build-box:"))
+            #expect(row.note?.contains("build-box") == true)
         }
     }
 
     @Test("Row ids are stable across scans so the list does not churn")
     func parseProducesStableIdentity() {
-        let first = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses).map(\.id).sorted()
-        let again = RemoteTmux.parse(sample, host: "quibus", descriptors: bundledHarnesses).map(\.id).sorted()
+        let first = RemoteTmux.parse(sample, host: "build-box", descriptors: bundledHarnesses).map(\.id).sorted()
+        let again = RemoteTmux.parse(sample, host: "build-box", descriptors: bundledHarnesses).map(\.id).sorted()
         #expect(first == again)
         #expect(Set(first).count == first.count)
     }
@@ -140,22 +140,22 @@ struct SortAndRemoteTmuxTests {
     @Test("One pane yields one row even when the agent has forked")
     func parseKeepsOnePaneToOneRow() {
         let forked = """
-            910\tquibus-1:@1.%1\t/srv/checkout/apple
+            910\tbuild-box-1:@1.%1\t/srv/checkout/apple
             \(RemoteTmux.psSeparator)
             910 1 bash -bash
             911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             912 911 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             """
-        #expect(RemoteTmux.parse(forked, host: "quibus", descriptors: bundledHarnesses).count == 1)
+        #expect(RemoteTmux.parse(forked, host: "build-box", descriptors: bundledHarnesses).count == 1)
     }
 
     @Test("Output that is not the expected two halves yields nothing")
     func parseRejectsUnusableOutput() {
         // A host that answered with an error, or where tmux was not running,
         // must produce no rows rather than half-read ones.
-        #expect(RemoteTmux.parse("", host: "quibus", descriptors: bundledHarnesses).isEmpty)
-        #expect(RemoteTmux.parse("ssh: connect to host quibus port 22: refused",
-                                 host: "quibus",
+        #expect(RemoteTmux.parse("", host: "build-box", descriptors: bundledHarnesses).isEmpty)
+        #expect(RemoteTmux.parse("ssh: connect to host build-box port 22: refused",
+                                 host: "build-box",
                                  descriptors: bundledHarnesses).isEmpty)
         #expect(RemoteTmux.parse(RemoteTmux.psSeparator + "\n910 1 bash -bash", host: "q", descriptors: bundledHarnesses).isEmpty)
     }
@@ -197,13 +197,13 @@ struct SortAndRemoteTmuxTests {
         // The exact shape that made a real scan return nothing: a process
         // whose command line contains the marker, listed after the real one.
         let output = """
-            910\tquibus-1:@1.%1\t/srv/checkout/apple
+            910\tbuild-box-1:@1.%1\t/srv/checkout/apple
             \(RemoteTmux.psSeparator)
             910 1 bash -bash
             999 1 sh sh -c echo \(RemoteTmux.psSeparator)
             911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             """
-        let rows = RemoteTmux.parse(output, host: "quibus", descriptors: bundledHarnesses)
+        let rows = RemoteTmux.parse(output, host: "build-box", descriptors: bundledHarnesses)
         // The agent is listed *after* the stray marker, so a split on the last
         // or on every occurrence loses it.
         #expect(rows.count == 1)
@@ -217,14 +217,14 @@ struct SortAndRemoteTmuxTests {
         // `ps` cannot show that, so without the /proc section a remote Claude
         // Code session is invisible.
         let output = """
-            910\tquibus-1:@1.%1\t/srv/checkout/apple
+            910\tbuild-box-1:@1.%1\t/srv/checkout/apple
             \(RemoteTmux.psSeparator)
             910 1 bash -bash
             911 910 claude claude --dangerously-skip-permissions
             \(RemoteTmux.exeSeparator)
             911 /home/se/.local/share/claude/versions/2.1.241
             """
-        let rows = RemoteTmux.parse(output, host: "quibus", descriptors: bundledHarnesses)
+        let rows = RemoteTmux.parse(output, host: "build-box", descriptors: bundledHarnesses)
         #expect(rows.count == 1)
         #expect(rows.first?.agentID == "claude-code")
     }
@@ -234,13 +234,13 @@ struct SortAndRemoteTmuxTests {
         // BSD and macOS hosts print nothing for the /proc loop. Anything a
         // harness names outright is still found.
         let output = """
-            910\tquibus-1:@1.%1\t/srv/checkout/apple
+            910\tbuild-box-1:@1.%1\t/srv/checkout/apple
             \(RemoteTmux.psSeparator)
             910 1 bash -bash
             911 910 codex /home/se/.codex/packages/standalone/releases/1.2.3/bin/codex
             \(RemoteTmux.exeSeparator)
             """
-        #expect(RemoteTmux.parse(output, host: "quibus", descriptors: bundledHarnesses).first?.agentID == "codex")
+        #expect(RemoteTmux.parse(output, host: "build-box", descriptors: bundledHarnesses).first?.agentID == "codex")
     }
 
     // Deliberately no test writes `remoteTmuxHosts` or `includeRemoteTmux`.
@@ -267,9 +267,9 @@ struct SortAndRemoteTmuxTests {
         #expect(!RemoteTmux.isSafeHost("host|id"))
 
         // The destinations people actually use still pass.
-        #expect(RemoteTmux.isSafeHost("quibus"))
+        #expect(RemoteTmux.isSafeHost("build-box"))
         #expect(RemoteTmux.isSafeHost("10.0.0.4"))
-        #expect(RemoteTmux.isSafeHost("deploy@quibus"))
+        #expect(RemoteTmux.isSafeHost("deploy@build-box"))
         #expect(RemoteTmux.isSafeHost("build-box.internal.example.com"))
         #expect(RemoteTmux.isSafeHost("2001:db8::1"))
     }
@@ -285,10 +285,10 @@ struct SortAndRemoteTmuxTests {
     func sshArgumentsStopOptionParsing() {
         // Belt and braces alongside isSafeHost: "--" makes ssh treat whatever
         // follows as the destination even if it begins with a dash.
-        #expect(RemoteTmux.sshArguments(host: "quibus").contains("--"))
-        let args = RemoteTmux.sshArguments(host: "quibus")
+        #expect(RemoteTmux.sshArguments(host: "build-box").contains("--"))
+        let args = RemoteTmux.sshArguments(host: "build-box")
         let dashDash = args.firstIndex(of: "--")
-        let hostAt = args.firstIndex(of: "quibus")
+        let hostAt = args.firstIndex(of: "build-box")
         #expect(dashDash != nil && hostAt != nil && dashDash! < hostAt!)
         // Unknown host keys must not be auto-accepted: that is trust-on-first-use,
         // and the onboarding step is to run ssh once by hand precisely so the

@@ -274,7 +274,7 @@ struct ArchitectureContractTests {
     func sourcesNameRowsApart() {
         let local = row(id: "0199a1b2-c3d4-session")
         let cloud = row(id: "codex-cloud-task-1", state: .cloud("running"))
-        let remote = row(id: "tmux-remote:quibus:s:@1.%1")
+        let remote = row(id: "tmux-remote:build-box:s:@1.%1")
 
         let merged = AgentScan.merge(local: [local], cloud: [cloud, remote])
         #expect(merged.count == 3, "a row was dropped as a duplicate of another source's")

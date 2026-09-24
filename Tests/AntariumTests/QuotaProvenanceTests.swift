@@ -132,6 +132,29 @@ struct QuotaProvenanceTests {
         #expect(excused.count >= 5, Comment(rawValue: "only \(excused.count) are excused"))
     }
 
+    /// The README states the partition, and the partition is checked. A
+    /// number in prose is a second number unless something compares them —
+    /// and this one is the claim a reader would most reasonably rely on when
+    /// deciding whether to trust a figure the app shows them.
+    @Test("The README's account of how mappings were checked is the real one")
+    func readmeMatchesTheProvenance() throws {
+        let readme = try SourceText.read("README.md")
+        let cited = quotaDescriptors.filter { $0.quota?.documentation != nil }.count
+        let total = quotaDescriptors.count
+        #expect(readme.contains("Of the ten"),
+                "the README no longer says how many providers are described by a file")
+        #expect(total == 10, Comment(rawValue: "\(total) quota providers ship"))
+        #expect(cited == 5, Comment(rawValue: "\(cited) of them cite a published schema"))
+        #expect(readme.contains("five were compared field by field"),
+                Comment(rawValue: "the README does not state that \(cited) were compared"))
+        #expect(readme.contains("The other five"),
+                "the README does not account for the ones with no published schema")
+        // And the provider count in the features list.
+        #expect(readme.contains("17 providers"),
+                Comment(rawValue: "the README states a provider count other than "
+                        + "\(ProviderRegistry.all.count)"))
+    }
+
     /// A string value is not an unusual case to be defensive about: two of
     /// the four vendors above publish their balance that way, so a reader
     /// that took only JSON numbers would report nothing for either and look
