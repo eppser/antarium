@@ -188,6 +188,25 @@ while IFS='|' read -r name file expression; do
                 printf '  %-46s caught (never finished)\n' "$name"
             elif grep -q '^✘ ' "$BACKUP/out"; then
                 printf '  %-46s caught\n' "$name"
+                # Which tests objected, not merely that something did.
+                #
+                # "Caught" alone says the suite noticed, not that the test
+                # meant to cover this noticed. Four entries were added for
+                # credential reachability and every one reported caught; three
+                # were earning it somewhere else — one matched a descriptor's
+                # display name as well as its credential and broke dozens of
+                # unrelated tests, one matched eight paths where only one was
+                # the credential's, and one could not have exercised its own
+                # assertion at all. Finding that out meant applying each by
+                # hand and reading the failures, which is the work this line
+                # does. Three names is enough to tell a specific cover from a
+                # general one.
+                # `✘ Test run with N tests` is the suite's own summary line
+                # and matches the same prefix; it is not a test that objected.
+                grep -E '^✘ Test ' "$BACKUP/out" | grep -v '^✘ Test run with' \
+                    | sed -e 's/^✘ Test //' -e 's/ recorded an issue.*//' \
+                          -e 's/ failed after.*//' -e 's/ with [0-9]* test cases.*//' \
+                    | sort -u | head -3 | sed 's/^/        by /'
             elif grep -qE 'Fatal error|Swift runtime failure|Trace/BPT trap|Illegal instruction|exited with unexpected signal' "$BACKUP/out"; then
                 # Checked before the `error:` test below, because a trap
                 # prints "Fatal error:" — which contains "error:" — and so
