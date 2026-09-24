@@ -972,3 +972,5 @@ minimax counts left are read as counts spent again | Resources/harnesses/minimax
 a remaining count is not subtracted from its limit | Sources/Antarium/Providers/DescriptorProvider.swift | s|                percent = (limit - min(max(remaining, 0), limit)) / limit \* 100|                percent = min(max(remaining, 0), limit) / limit * 100|
 a window declaring only a remaining count is called figureless | Sources/Antarium/Core/HarnessCheck.swift | s|                \|\| (map.remaining != nil \&\& map.limit != nil)||
 the schema refuses a remaining count | Resources/harness.schema.json | s|"remaining": {|"remainingWithheld": {|
+an unlimited allowance is charted as a meter at nought | Resources/harnesses/copilot.json | s|"unlimited": false|"unlimited": true|
+an absent window flag stops reading as false | Sources/Antarium/Providers/DescriptorProvider.swift | s|(window\[\$0.key\] as? Bool ?? false) != \$0.value|(window[$0.key] as? Bool) != $0.value|

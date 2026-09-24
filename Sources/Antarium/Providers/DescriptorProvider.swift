@@ -349,8 +349,16 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         var gauges: [Gauge] = []
         for (key, window) in Self.windows(in: json, map: map) {
             // A window the plan does not include is not a window at zero.
+            //
+            // An absent flag reads as false, which is what lets a rule ask
+            // for one. `has_quota: true` behaves as before — absent already
+            // failed it — and `unlimited: false` now means what it says
+            // instead of rejecting every window that simply does not mention
+            // being unlimited.
             if let require = map.require,
-               require.contains(where: { (window[$0.key] as? Bool) != $0.value }) { continue }
+               require.contains(where: { (window[$0.key] as? Bool ?? false) != $0.value }) {
+                continue
+            }
             // A balance is charted instead of a percentage, not alongside
             // one: the two answer different questions and only one of them
             // can be a bar.

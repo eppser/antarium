@@ -5,7 +5,7 @@
   "presentation": {
     "mark": "copilot"
   },
-  "note": "Quota only \u2014 Copilot's sessions are read through the vscode harness. The token comes from `gh auth token` rather than an environment variable, because an app launched from Finder inherits no shell. Windows without has_quota are skipped: a free plan lists a premium tier it does not have. The endpoint is GitHub's own internal one \u2014 `copilot_internal/user` \u2014 and is published nowhere; checked 2026-09-22. Nothing here can be compared against a reference, so the fixture is the whole of the check.",
+  "note": "Quota only \u2014 Copilot's sessions are read through the vscode harness. The token comes from `gh auth token` rather than an environment variable, because an app launched from Finder inherits no shell. Windows without has_quota are skipped: a free plan lists a premium tier it does not have. The endpoint is GitHub's own internal one \u2014 `copilot_internal/user` \u2014 and is published nowhere; checked 2026-09-22. Nothing here can be compared against a reference, so the fixture is the whole of the check. A window the plan reports as `unlimited` is not charted: a meter that can never move says a quota exists and that none of it has been spent, and both are false for an allowance with no cap \u2014 the same reason a balance draws its figure and no bar. Added 2026-09-24 after reading ClaudeBar's Copilot probe, which reports such a window as unlimited rather than as a percentage.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -39,7 +39,8 @@
       ],
       "percentRemaining": "percent_remaining",
       "require": {
-        "has_quota": true
+        "has_quota": true,
+        "unlimited": false
       },
       "resetsAt": "quota_reset_date_utc",
       "labels": {

@@ -1,9 +1,9 @@
 {
-  "note": "Synthetic. Response shape follows GitHub's documented copilot_internal/user payload; every value is invented. No real account appears here.",
+  "note": "Synthetic. Response shape follows GitHub's documented copilot_internal/user payload; every value is invented. No real account appears here. The business plan's completions window carries `unlimited: true`; it is deliberately not charted, because a bar fixed at nought says a quota exists and that none of it has been spent.",
   "verifiedAt": "2026-09-20",
   "cases": [
     {
-      "name": "business plan",
+      "name": "business plan, whose completions allowance is unlimited",
       "response": {
         "copilot_plan": "copilot_business",
         "quota_reset_date_utc": "2026-10-01T00:00:00Z",
@@ -35,13 +35,6 @@
             "badge": "CHAT",
             "title": "Chat",
             "usedPercent": 20,
-            "resetsAt": "2026-10-01T00:00:00Z"
-          },
-          {
-            "id": "completions",
-            "badge": "CODE",
-            "title": "Code",
-            "usedPercent": 0,
             "resetsAt": "2026-10-01T00:00:00Z"
           }
         ]
