@@ -93,6 +93,23 @@ enum HarnessEngine {
         /// Set only when the harness measures its own context size.
         var measuredContext: Int?
 
+        /// What tells two sessions apart when nothing else does.
+        ///
+        /// Sessions are listed most-recent-first, and a harness whose source
+        /// carries no activity field gives every one of them the same key —
+        /// at which point the order is whatever the sort happened to produce,
+        /// and Swift's sort is not stable. The list is read by position:
+        /// `session(_:forCwd:)` answers with `first`, and the dashboard uses
+        /// each session's rank for the part of a row's identity that has no
+        /// session id to use, and to decide which row carries the process's
+        /// memory. A reshuffle therefore moves the memory figure to another
+        /// row and changes a row's id, which makes the dashboard treat it as
+        /// a row it has not seen before.
+        ///
+        /// Empty only when a session has no identity of any kind, and two of
+        /// those are not distinguishable by anything this app can see.
+        var orderingKey: String { sessionID ?? sourceFile ?? cwd ?? title ?? "" }
+
         /// What the harness measured, or what its token counts add up to.
         /// Only what the harness says is in its context right now.
         ///
@@ -498,7 +515,7 @@ enum HarnessEngine {
         case .json, .jsonl: found = readFiles(descriptor, files)
         case .command, .none: found = []          // handled above
         }
-        let sorted = found.sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
+        let sorted = found.sorted(by: byRecency)
 
         lock.lock(); cache[descriptor.id] = (fingerprint, sorted); lock.unlock()
         return sorted
@@ -712,7 +729,7 @@ enum HarnessEngine {
         } else {
             fail(d.id, "configured command was not found")
         }
-        let sorted = sessions.sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
+        let sorted = sessions.sorted(by: byRecency)
         lock.lock(); commandCache[key] = (Date(), sorted); lock.unlock()
         return sorted
     }
@@ -793,6 +810,18 @@ enum HarnessEngine {
               fileParts.starts(with: rootParts) else { return false }
         let relative = Array(fileParts.dropFirst(rootParts.count))
         return BoundedGlob.matches(path:relative,pattern:glob)
+    }
+
+    /// Most recent first, with ties broken on something stable.
+    ///
+    /// The three places that ordered sessions this way each wrote the
+    /// comparison out, and each left `lastActivity ?? .distantPast` as the
+    /// only key — so every session a harness reports no activity for compared
+    /// equal, and the list came back in a different order each time it was
+    /// built. See `Session.orderingKey` for what that costs.
+    static func byRecency(_ a: Session, _ b: Session) -> Bool {
+        let x = a.lastActivity ?? .distantPast, y = b.lastActivity ?? .distantPast
+        return x == y ? a.orderingKey < b.orderingKey : x > y
     }
 
     private static func modified(_ url: URL) -> Date {

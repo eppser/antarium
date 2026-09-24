@@ -759,8 +759,10 @@ enum AgentScan {
                         // use"; where the app answers that directly, the guess
                         // would just hide a conversation sitting right there.
                         .filter { openTabs != nil || !isStale($0.lastActivity, descriptor) }
-                        .sorted { ($0.lastActivity ?? .distantPast)
-                                > ($1.lastActivity ?? .distantPast) }
+                        // Ties broken on identity: rank decides which row
+                        // carries the process's memory, and part of a row's
+                        // id when it has no session id of its own.
+                        .sorted(by: HarnessEngine.byRecency)
                     // Only tell them apart when they need telling apart: a
                     // lone conversation in a folder is just that folder.
                     var perFolder: [String: Int] = [:]

@@ -939,3 +939,6 @@ the interval bound only checks the sign | Sources/Antarium/UI/Format.swift | s| 
 an unrecognised menu bar item jumps to the front | Sources/Antarium/AppController.swift | s|            let a = registry.firstIndex(of: \$0) ?? registry.count|            let a = registry.firstIndex(of: $0) ?? 0|
 menu bar items that tie are left to reshuffle | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return a < b|
 the menu bar order ignores the registry | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return $0 < $1|
+sessions with the same activity are left to reshuffle | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return x > y|
+the session order ignores recency | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return a.orderingKey < b.orderingKey|
+a session falls back to no identity at all | Sources/Antarium/Core/HarnessEngine.swift | s|        var orderingKey: String { sessionID ?? sourceFile ?? cwd ?? title ?? "" }|        var orderingKey: String { sessionID ?? "" }|
