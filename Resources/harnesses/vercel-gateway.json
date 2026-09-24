@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "vercel-gateway",
   "name": "Vercel AI Gateway",
-  "note": "Quota only, and a balance rather than a meter: the credits endpoint states what is left and never what a full tank was, so there is nothing honest to fill a bar against. The key is read from AI_GATEWAY_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/vercel-gateway otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works.",
+  "note": "Quota only, and a balance rather than a meter: the credits endpoint states what is left and never what a full tank was, so there is nothing honest to fill a bar against. The key is read from AI_GATEWAY_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/vercel-gateway otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works. Cross-read 2026-09-25 against ClaudeBar's VercelUsageProbe: same endpoint, the balance at the top level of the response, and dollars in both. That probe's header records the response as carrying `total_used` alongside it, and neither tool charts a meter from the pair \u2014 lifetime spend is not an allowance, so balance plus spend is not a cap, and a bar drawn from it would invent one.",
   "process": {},
   "compatibility": {
     "level": "declared",
