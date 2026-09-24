@@ -10,6 +10,20 @@ import Foundation
 /// `used_percent` and `limit_window_seconds`. The window length is read rather
 /// than assumed — on a Plus plan the only active window is the 7-day one, so
 /// hardcoding "5 hours" for the primary window would have been wrong.
+///
+/// Cross-read 2026-09-25 against ClaudeBar's Codex probe. Same endpoint, same
+/// `rate_limit.primary_window` / `.secondary_window` with `used_percent`, and
+/// this reads more of the reply than that one does: the code-review limit and
+/// the wrapped entries in `additional_rate_limits` have no counterpart there.
+///
+/// One difference is recorded and not acted on. That probe reads
+/// `x-codex-primary-used-percent` and `x-codex-secondary-used-percent` from
+/// the response headers first and treats the body as the fallback, where this
+/// reads only the body. Whether the headers ever carry a figure the body
+/// omits is unknown — if they do not, the two are the same reading by a
+/// different route. Plumbing headers out of `UsageHTTP` to find out would be
+/// building on a guess about somebody else's API, and the figure here came
+/// from a live account rather than from inference.
 final class CodexProvider: UsageProvider, @unchecked Sendable {
     let id = "codex"
     let displayName = "ChatGPT (Codex)"
