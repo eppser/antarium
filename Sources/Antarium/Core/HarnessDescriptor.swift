@@ -680,9 +680,30 @@ struct HarnessDescriptor: Codable {
 
 extension String {
     /// Expands a leading `~` so descriptors can be written the way people think.
+    /// `~` and `~/…` become this account's home. Everything else is left
+    /// exactly as written.
+    ///
+    /// It used to expand any leading tilde by dropping one character and
+    /// prepending the home directory, which is right for `~/x` and wrong for
+    /// everything else: `~other/x` became `/Users/<you>other/x` and `~~/x`
+    /// became `/Users/<you>~/x`. Neither is a path anybody meant, and the
+    /// first is not even the thing a shell would produce — `~other` is that
+    /// account's home, not a string glued onto yours.
+    ///
+    /// A fabricated path usually resolves to nothing, which is a harness
+    /// quietly reporting no sessions. But this also expands the command a
+    /// descriptor names before `CommandPath` looks it up, and a fabricated
+    /// path that happens to exist is something this app would run.
+    ///
+    /// Left unchanged rather than expanded through `NSString`, which does
+    /// support `~other`: reading another account's home is not something a
+    /// descriptor should be able to ask for by typo, and a path that stays
+    /// `~other/x` resolves to nothing and says so.
     var expandingTilde: String {
-        hasPrefix("~")
-            ? FileManager.default.homeDirectoryForCurrentUser.path + dropFirst()
-            : self
+        guard hasPrefix("~") else { return self }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if self == "~" { return home }
+        if hasPrefix("~/") { return home + dropFirst() }
+        return self
     }
 }

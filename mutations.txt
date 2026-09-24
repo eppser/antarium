@@ -920,3 +920,6 @@ the repository carries a machine name again | README.md | s|"build-box", "10.0.0
 the README misstates how many providers ship | README.md | s|17 providers|12 providers|
 the README misstates how many mappings were verified | README.md | s|five were compared field by field|two were compared field by field|
 the guard stops reading what git tracks | Tests/AntariumTests/NoMachineIdentityTests.swift | s|git.arguments = \["-C", root.path, "ls-files"\]|git.arguments = ["-C", root.path, "ls-files", "--", "nothing"]|
+a tilde naming another account is glued onto this one | Sources/Antarium/Core/HarnessDescriptor.swift | s|^        return self$|        return home + dropFirst()|
+the expansion stops happening at all | Sources/Antarium/Core/HarnessDescriptor.swift | s|        if hasPrefix("~/") { return home + dropFirst() }|        if false { return home + dropFirst() }|
+a bare tilde stops meaning this account | Sources/Antarium/Core/HarnessDescriptor.swift | s|        if self == "~" { return home }|        if self == "~" { return self }|
