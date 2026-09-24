@@ -226,6 +226,27 @@ time is worse than an agent the settings list simply does not offer. The same
 reasoning already applies to Kimi's local endpoint, which only answers while
 Kimi itself is running.
 
+## Coverage against ClaudeBar's roster
+
+The first ask for this app was to read every usage API ClaudeBar does, and
+until this section existed there was no way to tell how far that had got. Every
+part of this document above argues providers one at a time. That is the right
+way to decide about any one of them and no way at all to notice one nobody
+thought of — it can explain at length why something was declined while saying
+nothing about a provider it did not know existed.
+
+ClaudeBar's roster is a fact about somebody else's project, so it cannot be
+derived from this one. It is written down as data instead, in
+`Tests/AntariumTests/ClaudeBarCoverageTests.swift`, which names all twenty
+providers ClaudeBar monitors and checks each against what ships here. When
+ClaudeBar adds one, that list is what has to change, and until it does the
+difference between "declined" and "never heard of" is a real difference again.
+
+14 of the 20 are read for usage here. 2 more — Kimi and Oh My Pi — are
+recognised and given rows without a usage API, for the reasons in the table
+above; the remaining 4 are in that table too. This app also reads usage APIs
+ClaudeBar does not, so the roster is a floor rather than a ceiling.
+
 ## Project context each agent understands
 
 A row can report what a project gives its agent — instructions, memory,
@@ -241,10 +262,10 @@ declare no capabilities, and requires this marker to name exactly that set,
 so adding a harness without capabilities fails until the marker admits it —
 and closing the last gap could not be announced here without being true.
 
-Nine of the twenty-two never appear in it. Project context hangs off a row,
-and those nine make none: a quota-only harness like `copilot` or `zai` reads
-no session source, and a focus-only one like `herdr` or `orca` reports panes
-that are already somebody else's rows. A capability rule on either is
+11 of the 25 never appear in it. Project context hangs off a row, and none of
+those makes one: a quota-only harness like `copilot` or `zai` reads no session
+source, and a focus-only one like `herdr` or `orca` reports panes that are
+already somebody else's rows. A capability rule on either is
 configuration nothing will ever read, so a second test refuses one.
 
 What closing them took, each time, was the vendor's own statement of where

@@ -776,7 +776,7 @@ struct EveryHarnessIsVerifiedOfflineTests {
         let descriptors = HarnessCLI.bundledDescriptors()
         #expect(descriptors.count >= 20, "only \(descriptors.count) harnesses were read")
 
-        var session = 0, quota = 0, uncovered: [String] = [], native: [String] = []
+        var session = 0, quota = 0, native: [String] = []
         for descriptor in descriptors {
             let hasSession = descriptor.source.kind != .none
             let hasQuota = descriptor.quota != nil
@@ -806,9 +806,11 @@ struct EveryHarnessIsVerifiedOfflineTests {
                                 + "and has no provider behind it, so nothing verifies it"))
             }
         }
-        #expect(uncovered.isEmpty,
-                Comment(rawValue: "these read nothing and report nothing, so no fixture "
-                        + "replays them: \(uncovered.joined(separator: ", "))"))
+        // The list this used to assert over was never appended to — the third
+        // branch appends to `native` and asserts a provider inline, which is
+        // the check it stood in for. An assertion over a list nothing fills
+        // reads exactly like a guard and is not one, so it is gone rather
+        // than left to reassure.
         // Each kind must be non-empty, or this passes by everything
         // happening to be one of them.
         #expect(session >= 10, "only \(session) harnesses read sessions")

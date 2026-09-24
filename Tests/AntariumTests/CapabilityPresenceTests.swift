@@ -605,6 +605,26 @@ struct CapabilityApplicabilityTests {
                 Comment(rawValue: "the marker says \(listed) and the descriptors say \(missing)"))
     }
 
+    /// The sentence beside the marker counts the same harnesses in prose, and
+    /// prose does not get checked by anything.
+    ///
+    /// It said "Nine of the twenty-two", which was true of a smaller set of
+    /// descriptors than ships today. The marker one paragraph above it is
+    /// derived from the descriptors precisely because "a sentence that has to
+    /// be edited by hand to stay true is a sentence that will be wrong" — and
+    /// then the next sentence was edited by hand. Digits rather than words so
+    /// there is something to compare.
+    @Test("The harnesses that make no rows are counted correctly in prose")
+    func documentedRowGapCount() throws {
+        let all = try shipped
+        let silent = try all.filter { !makesRows($0) }.count
+        let doc = try String(contentsOf: URL(fileURLWithPath: "docs/ECOSYSTEM.md"),
+                             encoding: .utf8)
+        let sentence = "\(silent) of the \(all.count) never appear in it"
+        #expect(doc.contains(sentence),
+                Comment(rawValue: "ECOSYSTEM.md should say \"\(sentence)\""))
+    }
+
     /// The set the marker is derived from, asserted separately so an empty
     /// gap cannot be reached by finding no harnesses at all.
     @Test("Most shipped harnesses make rows")

@@ -942,3 +942,7 @@ the menu bar order ignores the registry | Sources/Antarium/AppController.swift |
 sessions with the same activity are left to reshuffle | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return x > y|
 the session order ignores recency | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return a.orderingKey < b.orderingKey|
 a session falls back to no identity at all | Sources/Antarium/Core/HarnessEngine.swift | s|        var orderingKey: String { sessionID ?? sourceFile ?? cwd ?? title ?? "" }|        var orderingKey: String { sessionID ?? "" }|
+a rostered provider quietly stops reading its usage api | Resources/harnesses/zai.json | s/"quota"/"quotaWithheld"/
+the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/14 of the 20 are read for usage here/13 of the 20 are read for usage here/
+the document stops naming the roster it is measured against | docs/ECOSYSTEM.md | s/ClaudeBar/that other app/g
+the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/11 of the 25 never appear in it/9 of the 22 never appear in it/

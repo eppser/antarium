@@ -124,6 +124,15 @@ enum ProviderRegistry {
 
     static func provider(id: String) -> UsageProvider? { all.first { $0.id == id } }
 
+    /// The providers written in Swift, by id.
+    ///
+    /// `all` is these plus whatever the descriptor folder currently holds,
+    /// which makes it a fact about the machine it is read on rather than
+    /// about what ships. A test asking "does this app read a usage API for
+    /// X" has to ask of the bundle, or it answers about the tester's own
+    /// seeded folder — and passes there while failing on a fresh Mac.
+    static var nativeIDs: [String] { native.map(\.id) }
+
     /// Agents shown in the menu bar, in registry order so the items keep a
     /// stable left-to-right ordering between launches.
     static var enabled: [UsageProvider] { shown(from: all, enabled: Settings.enabledAgents) }
