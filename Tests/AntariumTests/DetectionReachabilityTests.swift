@@ -126,6 +126,68 @@ struct DetectionReachabilityTests {
         #expect(seen >= 10, Comment(rawValue: "only \(seen) credentials were examined"))
     }
 
+    /// What each credential kind needs before it can produce a token at all.
+    ///
+    /// This is the assertion the rest of this suite was missing. Everything
+    /// above hands `AgentAutoEnable` a `signedIn:` this test made up, and
+    /// `resolve` treats every id alike apart from the tie-break — so looping
+    /// all seventeen providers proved nothing that one would not have. None
+    /// of it read the shipped data.
+    ///
+    /// `DescriptorProvider.token()` needs particular fields per kind, and a
+    /// credential missing one returns nil on every Mac rather than failing
+    /// visibly: `env` needs a variable name or a file to fall back to,
+    /// `command` a command, `textFile` a path, `jsonFile` a path and the
+    /// field to read out of it. A descriptor that omits one is a provider
+    /// that can never be signed in, never auto-enabled, and whose setup hint
+    /// tells the user to do something that will not help.
+    @Test("Every shipped credential declares what its kind needs to read a token")
+    func credentialsCanProduceAToken() {
+        var checked = 0
+        for descriptor in bundled {
+            guard let credential = descriptor.quota?.credential else { continue }
+            checked += 1
+            let id = descriptor.id
+            switch credential.kind {
+            case "env":
+                // Either route: the variable a terminal launch has, or the
+                // file a Finder launch falls back to.
+                #expect(credential.name != nil || credential.path != nil,
+                        Comment(rawValue: "\(id) reads an env credential and names neither a "
+                                + "variable nor a fallback file, so it can never find one"))
+            case "command":
+                #expect(credential.command?.isEmpty == false,
+                        Comment(rawValue: "\(id) reads a command credential and names no command"))
+            case "textFile":
+                #expect(credential.path?.isEmpty == false,
+                        Comment(rawValue: "\(id) reads a text credential and names no path"))
+            case "jsonFile":
+                #expect(credential.path?.isEmpty == false,
+                        Comment(rawValue: "\(id) reads a JSON credential and names no path"))
+                #expect(credential.field?.isEmpty == false,
+                        Comment(rawValue: "\(id) reads a JSON credential and names no field, "
+                                + "so there is nothing to look up in it"))
+            default:
+                Issue.record(Comment(rawValue: "\(id) uses credential kind \(credential.kind), "
+                                     + "which token() has no branch for"))
+            }
+        }
+        #expect(checked >= 10, Comment(rawValue: "only \(checked) credentials were examined"))
+    }
+
+    /// And the same for a quota that reads its figures from a program: a
+    /// command that is not named cannot resolve, so `probeConfigured`
+    /// reports not-installed for ever.
+    @Test("Every shipped command quota names a command to run")
+    func commandQuotasNameACommand() {
+        for descriptor in bundled {
+            guard let command = descriptor.quota?.command else { continue }
+            #expect(!command.isEmpty,
+                    Comment(rawValue: "\(descriptor.id) reads its quota from a command and "
+                            + "names no program, so it can never be detected"))
+        }
+    }
+
     /// The cap is a policy about crowding, not a reason an agent is missing:
     /// with more agents present than slots, the ones left out must be exactly
     /// the weakest, and every one of them must still be offered in Settings.

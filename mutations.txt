@@ -958,3 +958,7 @@ the first-run cap is one agent | Sources/Antarium/Core/AgentAutoEnable.swift | s
 a provider recorded as a gap ships after all | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s|Entry("Mistral", nil, .absent),|Entry("Z.ai", nil, .absent),|
 a covered provider stops replaying its fixture | Resources/harnesses/moonshot.json | s|"quota"|"quotaGone"|
 a test file loses its contents and the suite stays green | Tests/AntariumTests/TildeExpansionTests.swift | s/.*//
+an env credential names no variable and no fallback file | Resources/harnesses/deepseek.json | s|"name": "DEEPSEEK_API_KEY"|"nameGone": "DEEPSEEK_API_KEY"|; s|"path": "~/.antarium/keys/deepseek"|"pathGone": "~/.antarium/keys/deepseek"|
+a json credential names no field to read | Resources/harnesses/zai.json | s|"field": "env.ANTHROPIC_AUTH_TOKEN"|"fieldGone": "env.ANTHROPIC_AUTH_TOKEN"|
+a json credential names no file to read | Resources/harnesses/opencode.json | s|"path": "~/.local/share/opencode/auth.json"|"pathGone": "~/.local/share/opencode/auth.json"|
+a command credential names no command | Resources/harnesses/copilot.json | s|"command": "gh"|"commandGone": "gh"|
