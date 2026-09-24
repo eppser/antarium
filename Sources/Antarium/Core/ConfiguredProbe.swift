@@ -30,11 +30,27 @@ enum ConfiguredProbe {
     /// lock held, which serialises concurrent first probes for the same key —
     /// deliberate, since the alternative is several `security` subprocesses
     /// racing for the same answer.
+    ///
+    /// The clock is read under the lock, and that is the whole of why this
+    /// signature takes an optional. As a default argument it was read before
+    /// the lock was taken, so a caller that then waited while another thread
+    /// computed came back holding a reading older than the entry it found.
+    /// `now >= entry.at` is false for that caller, so it treated a fresh
+    /// answer as stale and ran the work again — which is exactly the
+    /// thundering herd the memoisation exists to prevent, arriving only under
+    /// the contention nothing used to exercise. Sixty-four concurrent first
+    /// probes ran the work two or three times, about three runs in five.
+    ///
+    /// An injected `now` is used as given. The staleness rule itself is
+    /// unchanged, including its refusal of an entry stamped after the
+    /// caller's own reading: with the clock read under the lock that can only
+    /// mean time went backwards, which is what it always meant to say.
     static func value(_ key: String,
-                      now: TimeInterval = ProcessInfo.processInfo.systemUptime,
+                      now injected: TimeInterval? = nil,
                       _ compute: () -> Bool) -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        let now = injected ?? ProcessInfo.processInfo.systemUptime
         if let entry = entries[key], now >= entry.at, now - entry.at < ttl {
             return entry.value
         }

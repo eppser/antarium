@@ -946,3 +946,10 @@ a rostered provider quietly stops reading its usage api | Resources/harnesses/za
 the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/14 of the 20 are read for usage here/13 of the 20 are read for usage here/
 the document stops naming the roster it is measured against | docs/ECOSYSTEM.md | s/ClaudeBar/that other app/g
 the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/11 of the 25 never appear in it/9 of the 22 never appear in it/
+a shipped quota drops the credential that proves an account exists | Resources/harnesses/zai.json | s/"credential"/"credentialWithheld"/
+the sessions half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains(\$0.id))|                     hasSessions: false)|
+the signed-in half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     signedIn: \$0.signedIn,|                     signedIn: false,|
+a first run fills one slot instead of the cap | Sources/Antarium/Core/AgentAutoEnable.swift | s|            .prefix(limit)|            .prefix(1)|
+a provider is dropped before it can be weighed | Sources/Antarium/Core/AgentAutoEnable.swift | s|        providers.map {|        providers.dropLast().map {|
+
+a probe stamps its answer after the caller that asked for it | Sources/Antarium/Core/ConfiguredProbe.swift | s|entries\[key\] = Entry(value: value, at: now)|entries[key] = Entry(value: value, at: now + 1)|
