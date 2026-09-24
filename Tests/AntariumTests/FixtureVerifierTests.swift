@@ -109,14 +109,45 @@ struct QuotaFixtureVerifierTests {
         return (try #require(Bundle(url: root)), root, id)
     }
 
-    private func descriptor(_ id: String) throws -> HarnessDescriptor {
+    private func descriptor(_ id: String,
+                            criticalWhen: [String: Bool]? = nil) throws -> HarnessDescriptor {
+        var windows: [String: Any] = ["list": "data", "usedPercent": "pct"]
+        if let criticalWhen { windows["criticalWhen"] = criticalWhen }
         let object: [String: Any] = [
             "formatVersion": 1, "id": id, "name": "Fixture", "process": [:],
             "source": ["kind": "none", "path": ""],
-            "quota": ["endpoint": "https://example.invalid/u",
-                      "windows": ["list": "data", "usedPercent": "pct"]]]
+            "quota": ["endpoint": "https://example.invalid/u", "windows": windows]]
         return try HarnessDocument.decode(
             JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    /// A fixture can now state that a provider reported a window spent, and
+    /// a statement nothing checks is worse than none — it reads as coverage.
+    @Test("A fixture claiming a spent window from a mapping that reports none is refused")
+    func severityMismatchIsRefused() throws {
+        let (bundle, root, id) = try self.bundle([[
+            "name": "claims spent", "response": response,
+            "expected": ["gauges": [["id": "0", "badge": "0", "title": "0",
+                                     "usedPercent": 25, "severity": "critical"]]]]])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = try #require(QuotaFixture.verify(try descriptor(id), in: bundle))
+        #expect(!report.passed,
+                "a fixture claiming a spent window was accepted from a mapping reporting none")
+    }
+
+    /// And the rule that decides it does nothing when it names nothing.
+    /// `allSatisfy` over an empty rule is true, so a descriptor carrying an
+    /// empty `criticalWhen` would otherwise report every window spent — a
+    /// whole provider permanently red.
+    @Test("A rule naming no flag marks no window spent")
+    func emptyCriticalRuleMarksNothing() throws {
+        let (bundle, root, id) = try self.bundle([[
+            "name": "empty rule", "response": response,
+            "expected": ["gauges": [["id": "0", "badge": "0", "title": "0", "usedPercent": 25]]]]])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = try #require(
+            QuotaFixture.verify(try descriptor(id, criticalWhen: [:]), in: bundle))
+        #expect(report.passed, Comment(rawValue: report.detail))
     }
 
     private let response: [String: Any] = ["data": [["pct": 25.0, "id": "w"]]]

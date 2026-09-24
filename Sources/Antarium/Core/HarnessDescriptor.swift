@@ -288,6 +288,21 @@ struct HarnessDescriptor: Codable {
             /// the bar, and inverts it in the direction that matters: the
             /// meter reads comfortable while the quota runs out.
             var remaining: String?
+            /// Flags that mean this window is spent, whatever its figure says.
+            ///
+            /// `Gauge` already reserves a channel for this — a balance "never
+            /// colours itself urgent off its own figure, only a severity the
+            /// provider actually reported" — and until now no descriptor
+            /// could report one, so the channel existed and nothing could
+            /// reach it.
+            ///
+            /// DeepSeek is the case that needs it. Its response carries
+            /// `is_available`, documented as whether the balance is enough to
+            /// make API calls, and a balance that cannot be spent is not the
+            /// same as money in the bank. Read like any other flag: from the
+            /// window if it is there, otherwise from the response, which is
+            /// where DeepSeek states it.
+            var criticalWhen: [String: Bool]?
             var limit: String?
             /// Windows to skip unless every pair matches — Copilot lists a
             /// premium tier that a free plan simply does not have.

@@ -343,6 +343,19 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         return json
     }
 
+    /// A flag read from the window, or from the response when the window
+    /// does not carry it.
+    ///
+    /// The same rule `resetsAt` already follows, and for the same reason: a
+    /// service can state something once for every window it reports. DeepSeek
+    /// puts `is_available` beside its balances rather than inside each one.
+    /// Absent from both reads as false, which is what lets a rule ask for a
+    /// flag to be off.
+    private static func flag(_ key: String, window: [String: Any],
+                             root: [String: Any]) -> Bool {
+        (window[key] as? Bool) ?? (root[key] as? Bool) ?? false
+    }
+
     func makeSnapshot(_ json: [String: Any]) throws -> Snapshot {
         let map = quota.windows
 
@@ -356,9 +369,16 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             // instead of rejecting every window that simply does not mention
             // being unlimited.
             if let require = map.require,
-               require.contains(where: { (window[$0.key] as? Bool ?? false) != $0.value }) {
+               require.contains(where: { Self.flag($0.key, window: window, root: json) != $0.value }) {
                 continue
             }
+            // Spent, whatever the figure says. An empty rule marks
+            // nothing: `allSatisfy` on nothing is true, and a descriptor that
+            // names no flag has not asked for this.
+            let reported: Severity = (map.criticalWhen.map {
+                !$0.isEmpty && $0.allSatisfy { Self.flag($0.key, window: window, root: json) == $0.value }
+            } ?? false) ? .critical : .normal
+
             // A balance is charted instead of a percentage, not alongside
             // one: the two answer different questions and only one of them
             // can be a bar.
@@ -373,7 +393,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                     title: named ?? key,
                     used: 0,
                     resetsAt: map.resetsAt.flatMap { FieldPath.date(window, $0) ?? FieldPath.date(json, $0) },
-                    reportedSeverity: .normal,
+                    reportedSeverity: reported,
                     amount: Gauge.Amount(value: value,
                                          currency: Self.currency(map, window: window))))
                 continue
@@ -413,7 +433,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                 // Per window if it is there, otherwise the response's own —
                 // Copilot states one reset date for every quota it reports.
                 resetsAt: map.resetsAt.flatMap { FieldPath.date(window, $0) ?? FieldPath.date(json, $0) },
-                reportedSeverity: .normal,
+                reportedSeverity: reported,
                 windowSeconds: span))
         }
         guard !gauges.isEmpty else {

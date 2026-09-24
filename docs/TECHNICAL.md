@@ -798,6 +798,7 @@ and orders, for either shape.
 | `percentRemaining` | 0–100 left |
 | `used` + `limit` | a ratio; a window with no limit is skipped, because "0 of nothing" is not 0% |
 | `remaining` + `limit` | the same ratio from the other side, for a service that reports what is left |
+| `criticalWhen` | flags meaning the window is spent whatever its figure says; read from the window, else from the response |
 | `balance` (+ `currency`) | a figure with no denominator |
 
 A `balance` draws its amount and **no bar**. A credit balance has no cap to

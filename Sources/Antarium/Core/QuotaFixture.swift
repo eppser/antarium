@@ -33,6 +33,11 @@ enum QuotaFixture {
             /// that matters and still pass on `usedPercent: 0`.
             var amount: Double?
             var currency: String?
+            /// "critical" where the provider reports the window spent. Absent
+            /// means normal, so every fixture written before this stays
+            /// correct — and a mapping that starts reporting one has to say
+            /// so here rather than changing a colour nothing watches.
+            var severity: String?
         }
         var accountLabel: String?
         let gauges: [Row]
@@ -215,6 +220,15 @@ enum QuotaFixture {
             let resets = got.resetsAt.map(iso.string(from:))
             if resets != row.resetsAt {
                 problems.append("\(row.id) resetsAt \(quoted(resets)) ≠ \(quoted(row.resetsAt))")
+            }
+            // Absent expects normal, so a mapping that begins reporting a
+            // window spent has to say so here. Compared as the provider
+            // reported it rather than as the gauge resolves it: a meter also
+            // colours itself from its own headroom, and that is a different
+            // question from the service saying the window is done.
+            let reported = got.reportedSeverity == .critical ? "critical" : "normal"
+            if reported != (row.severity ?? "normal") {
+                problems.append("\(row.id) reported \(reported), expected \(row.severity ?? "normal")")
             }
         }
         return problems

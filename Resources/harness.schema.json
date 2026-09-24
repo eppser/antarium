@@ -996,6 +996,13 @@
             "type": "boolean"
           }
         },
+        "criticalWhen": {
+          "type": "object",
+          "description": "Flags meaning the window is spent whatever its figure says. Read from the window, else from the response.",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
         "labels": {
           "type": "object",
           "additionalProperties": {

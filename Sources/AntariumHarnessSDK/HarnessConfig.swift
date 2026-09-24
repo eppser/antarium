@@ -530,6 +530,8 @@ public struct HarnessConfig: Codable {
             /// app-side descriptor: a field named for usage does not always
             /// carry it.
             public var remaining: String?
+            /// Flags that mean the window is spent whatever its figure says.
+            public var criticalWhen: [String: Bool]?
             /// Path to a credit balance — a figure with no denominator.
             public var balance: String?
             /// Currency of `balance`: a path into the window, or a literal code.
