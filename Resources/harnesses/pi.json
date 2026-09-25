@@ -62,7 +62,8 @@
   "source": {
     "kind": "jsonl",
     "path": "~/.pi/agent/sessions",
-    "glob": "*/*.jsonl"
+    "glob": "*/*.jsonl",
+    "checkedAt": "2026-09-25"
   },
   "map": {
     "cwd": "cwd",
@@ -98,7 +99,7 @@
       ]
     }
   },
-  "note": "PI writes the user's message when a turn starts and the assistant's when it ends, so the last role is the state. Without this the row only changed once the transcript had been quiet for idleAfter seconds, which made a long turn look idle. Context files are AGENTS.md or CLAUDE.md, with AGENTS.override.md loaded instead of either when a directory has one \u2014 so the override is declared first and the capability names the file pi used. Global instructions are ~/.pi/agent/AGENTS.md. Skills come from .pi/skills and .agents/skills in the project, and the same pair under ~/.pi/agent and home. Not declared: pi layers context files from every parent directory up to the repository root, and the probe sees only the session's working directory, so a repository-wide AGENTS.md read from a subdirectory reads as absent rather than wrong.",
+  "note": "PI writes the user's message when a turn starts and the assistant's when it ends, so the last role is the state. Without this the row only changed once the transcript had been quiet for idleAfter seconds, which made a long turn look idle. Context files are AGENTS.md or CLAUDE.md, with AGENTS.override.md loaded instead of either when a directory has one \u2014 so the override is declared first and the capability names the file pi used. Global instructions are ~/.pi/agent/AGENTS.md. Skills come from .pi/skills and .agents/skills in the project, and the same pair under ~/.pi/agent and home. Not declared: pi layers context files from every parent directory up to the repository root, and the probe sees only the session's working directory, so a repository-wide AGENTS.md read from a subdirectory reads as absent rather than wrong. Cross-read 2026-09-25. This is Pi \u2014 `@mariozechner/pi-coding-agent` and its `@earendil-works` successor, sessions under `~/.pi/agent/sessions` \u2014 and not Oh My Pi, which is a fork by another author storing sessions under `~/.omp/agent/sessions`. The two were briefly conflated in this app's own coverage table. Pi's session header and per-message `usage` shape match what this maps; no second reader of Pi's own files was found to compare figures against, so the mapping is corroborated on shape and not on meaning.",
   "capabilities": {
     "instruction": {
       "probe": "content",

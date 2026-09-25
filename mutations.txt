@@ -999,8 +999,8 @@ every record is treated as a repeat of the last | Sources/Antarium/Core/HarnessE
 the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if countable, map.skipRepeatedUsage == true {|        if countable {|
 a codex desktop event written twice is counted twice | Resources/harnesses/codex-desktop.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
 a corrected source stops dating the reading that corrected it | Resources/harnesses/codex.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
-a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi"\]|static let unread: Set<String> = ["openclaw", "pi", "codex"]|
-the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi"\]|static let unread: Set<String> = ["openclaw", "pi", "herdr"]|
+a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|    static let unread: Set<String> = \[\]|    static let unread: Set<String> = ["codex"]|
+the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|    static let unread: Set<String> = \[\]|    static let unread: Set<String> = ["herdr"]|
 a session reading is dated in the future | Resources/harnesses/mistral.json | s|"checkedAt": "2026-09-24"|"checkedAt": "2099-01-01"|
 kimi adds its running total to the turns it sums | Resources/harnesses/kimi.json | s|"skipUsageWhere"|"skipUsageWhereWithheld"|
 kimi refuses the wrong scope | Resources/harnesses/kimi.json | s|"usageScope": "session"|"usageScope": "turn"|
@@ -1012,3 +1012,6 @@ a push with no index truncates everything | Sources/Antarium/Core/Journal.swift 
 a deleted request is still counted | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int, (0...2).contains(declared) {|
 a delete empties the document instead of its target | Sources/Antarium/Core/Journal.swift | s|        guard let head = path.first else { return nil }|        return nil; guard let head = path.first else { return nil }|
 a delete of an absent path removes something else | Sources/Antarium/Core/Journal.swift | s|            guard var array = node as? \[Any\], index < array.count else { return node }|            guard var array = node as? [Any] else { return node }|
+
+the roster reads a fork as the product it forked | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%!shipped.contains(name)%!shipped.contains(where: { $0.contains(name) || name.contains($0) })%
+a session source maps figures and dates nothing | Resources/harnesses/pi.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|

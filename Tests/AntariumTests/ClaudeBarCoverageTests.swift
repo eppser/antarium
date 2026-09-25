@@ -71,11 +71,12 @@ struct ClaudeBarCoverageTests {
         // Recognised, with rows, but no usage API mapped.
         Entry("Kimi", "kimi", .sessionsOnly),
         Entry("Mistral", "mistral", .sessionsOnly),
-        Entry("Oh My Pi", "pi", .sessionsOnly, documentedAs: "Omp"),
+
         // Not covered at all. Each is argued in ECOSYSTEM.md.
         Entry("Antigravity", nil, .absent),
         Entry("AWS Bedrock", nil, .absent, documentedAs: "Amazon Bedrock"),
         Entry("Alibaba", nil, .absent, documentedAs: "Alibaba Model Studio"),
+        Entry("Oh My Pi", nil, .absent, documentedAs: "Omp"),
     ]
 
     private var descriptorIDs: Set<String> {
@@ -165,8 +166,13 @@ struct ClaudeBarCoverageTests {
             #expect(doc.localizedCaseInsensitiveContains(entry.documentName),
                     Comment(rawValue: "\(entry.claudeBar) is not covered and ECOSYSTEM.md does "
                             + "not say why (looked for \"\(entry.documentName)\")"))
+            // Compared whole rather than as a substring. Containment reads
+            // "Oh My Pi" as shipped because a harness for Pi exists, and
+            // those are different products by different authors in different
+            // folders — the loose test would have hidden the very entry that
+            // was wrong here, by insisting it was right.
             let name = key(entry.claudeBar)
-            #expect(!shipped.contains(where: { $0.contains(name) || name.contains($0) }),
+            #expect(!shipped.contains(name),
                     Comment(rawValue: "\(entry.claudeBar) now ships, and the roster still "
                             + "records it as a gap — coverage is understated"))
         }
@@ -216,14 +222,14 @@ struct ClaudeBarCoverageTests {
     /// only that nobody edited the table above without meaning to. The
     /// assertions that touch reality are the three before this one. Worth
     /// keeping and worth not mistaking for a measurement.
-    @Test("Coverage stands at fourteen usage, three recognised, three open")
+    @Test("Coverage stands at fourteen usage, two recognised, four open")
     func coverageCounts() {
         let usage = Self.roster.filter { $0.coverage == .usage }.count
         let sessions = Self.roster.filter { $0.coverage == .sessionsOnly }.count
         let absent = Self.roster.filter { $0.coverage == .absent }.count
         #expect(usage == 14, Comment(rawValue: "usage coverage is \(usage)"))
-        #expect(sessions == 3, Comment(rawValue: "sessions-only is \(sessions)"))
-        #expect(absent == 3, Comment(rawValue: "open gaps number \(absent)"))
+        #expect(sessions == 2, Comment(rawValue: "sessions-only is \(sessions)"))
+        #expect(absent == 4, Comment(rawValue: "open gaps number \(absent)"))
         #expect(usage + sessions + absent == Self.roster.count)
     }
 

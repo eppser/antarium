@@ -242,9 +242,13 @@ providers ClaudeBar monitors and checks each against what ships here. When
 ClaudeBar adds one, that list is what has to change, and until it does the
 difference between "declined" and "never heard of" is a real difference again.
 
-14 of the 20 are read for usage here. 3 more — Kimi, Mistral and Oh My Pi —
-are recognised and given rows without a usage API, for the reasons in the table
-above; the remaining 3 are in that table too. This app also reads usage APIs
+14 of the 20 are read for usage here. 2 more — Kimi and Mistral — are
+recognised and given rows without a usage API, for the reasons in the table
+above; the remaining 4 are in that table too. Oh My Pi is one of those four
+and was briefly recorded as covered: this app ships a harness for Pi, and Oh
+My Pi is a fork of it by another author, in another folder, under another
+package name. A roster that matched names loosely would call that covered,
+which is how it was. This app also reads usage APIs
 ClaudeBar does not, so the roster is a floor rather than a ceiling.
 
 ## Project context each agent understands

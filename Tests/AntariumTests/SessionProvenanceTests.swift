@@ -25,7 +25,10 @@ struct SessionProvenanceTests {
     /// the same files. Not a failure — most of these are small tools with no
     /// second implementation to compare against — but written down, because
     /// the two defects above were in this state and nothing said so.
-    static let unread: Set<String> = ["openclaw", "pi"]
+    /// Empty, and the assertions below keep it meaningful rather than
+    /// decorative: a source that maps figures and carries no date fails, so
+    /// the next harness to arrive has to be read or listed here deliberately.
+    static let unread: Set<String> = []
 
     private var mapsTokens: [HarnessDescriptor] {
         HarnessCLI.bundledDescriptors().filter {
