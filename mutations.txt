@@ -993,3 +993,7 @@ a streamed reply is counted once per content block again | Sources/Antarium/Core
 the reply key forgets which request it belonged to | Sources/Antarium/Core/TranscriptStats.swift | s|        for byte in "\\(id ?? "")\|\\(request ?? "")".utf8 {|        for byte in "\\(id ?? "")".utf8 {|
 the memory of counted replies holds nothing | Sources/Antarium/Core/TranscriptStats.swift | s|    static let recentUsageMemory = 512|    static let recentUsageMemory = 0|
 a reply identifying itself is treated as anonymous | Sources/Antarium/Core/TranscriptStats.swift | s#        guard id != nil || request != nil else { return nil }#        return nil#
+a codex event written twice is counted twice | Resources/harnesses/codex.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
+a repeated record is never recognised as one | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = false|
+every record is treated as a repeat of the last | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = true|
+the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if map.skipRepeatedUsage == true {|        if true {|

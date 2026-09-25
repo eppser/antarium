@@ -570,6 +570,20 @@ struct HarnessDescriptor: Codable {
         /// True when `inputTokens` already counts the cached part, so it is not
         /// added a second time when working out what was actually uploaded.
         var inputIncludesCacheRead: Bool?
+        /// `true` where the source re-emits a record it has already written,
+        /// carrying the same figures again.
+        ///
+        /// Codex does. Its rollout files repeat a `token_count` event
+        /// verbatim — the same `last_token_usage`, the same totals — and a
+        /// reader that sums every record sums those twice. Measured on a real
+        /// rollout by somebody who had one: ninety-four events, twelve of them
+        /// re-emissions, and a fifteen per cent overcount for adding them all.
+        ///
+        /// Declared per harness rather than applied to all, because it trades
+        /// one error for another: two consecutive turns that genuinely spent
+        /// exactly the same tokens are indistinguishable from a repeat, and
+        /// only a source known to repeat itself is worth paying that for.
+        var skipRepeatedUsage: Bool?
         var cacheWrite: String?
         var cost: String?
         var title: String?

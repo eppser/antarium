@@ -587,6 +587,10 @@
         "inputIncludesCacheRead": {
           "type": "boolean"
         },
+        "skipRepeatedUsage": {
+          "type": "boolean",
+          "description": "True where the source re-emits a record it already wrote. An identical consecutive record is then a repeat, not new work."
+        },
         "cost": {
           "type": "string"
         },

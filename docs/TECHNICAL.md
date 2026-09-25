@@ -655,6 +655,7 @@ does not show it.
 | `inputTokens`, `outputTokens` | sent and received, accumulated across records |
 | `cacheRead`, `cacheWrite` | the cached halves, kept apart because a cache read is re-used server-side rather than uploaded |
 | `inputIncludesCacheRead` | `true` when the service already counts the cached part inside `inputTokens`, so it is not added twice |
+| `skipRepeatedUsage` | `true` when the source re-emits a record it has already written; an identical consecutive record is then a repeat rather than new work |
 | `totalTokens` | one combined figure, for a harness that reports no split. Refused alongside the four above |
 | `contextTokens` | what the harness says is in the context window now. A list, summed; a context is measured rather than accumulated, so the newest record wins |
 | `contextWindow` | the size of that window, which is the denominator for the context bar |

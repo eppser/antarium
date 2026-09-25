@@ -135,6 +135,9 @@ enum HarnessEngine {
         /// — Codex does. Adding the cache write on top then counts the cached
         /// portion twice, and "sent" read 206x what was actually uploaded.
         var inputIncludesCacheRead = false
+        /// The usage figures of the last record counted, for a source that
+        /// re-emits records. Optional so values written before this decode.
+        var lastCountedUsage: [Int]?
 
         /// What actually went over the wire. Cache reads are re-used
         /// server-side, not re-uploaded, so they are not "sent".
@@ -1020,7 +1023,24 @@ enum HarnessEngine {
         }
         if let path = map.cost, let amount = FieldPath.number(record,path), amount >= 0 { session.markNumeric("cost") }
         if map.inputIncludesCacheRead == true { session.inputIncludesCacheRead = true }
-        if session.numericIssue == nil {
+
+        // A record this source has already written once.
+        //
+        // Only where the descriptor says the source does that, and only for a
+        // record carrying figures at all: the records between two turns carry
+        // none, and skipping those would be comparing nothing with nothing.
+        var repeated = false
+        if map.skipRepeatedUsage == true {
+            let figures = [map.inputTokens, map.outputTokens, map.cacheRead,
+                           map.cacheWrite, map.totalTokens]
+                .map { $0.flatMap { FieldPath.int(record, $0) } ?? 0 }
+            if figures.contains(where: { $0 > 0 }) {
+                repeated = figures == session.lastCountedUsage
+                session.lastCountedUsage = figures
+            }
+        }
+
+        if session.numericIssue == nil, !repeated {
             func accumulated(_ current: Int, path: String?) -> Int? {
                 let amount = path.flatMap { FieldPath.int(record, $0) } ?? 0
                 let total = current.addingReportingOverflow(amount)

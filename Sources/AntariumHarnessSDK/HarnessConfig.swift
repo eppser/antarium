@@ -333,6 +333,10 @@ public struct HarnessConfig: Codable {
         public var totalTokens: String?
         public var cacheRead: String?
         public var inputIncludesCacheRead: Bool?
+        /// `true` where the source re-emits records carrying figures it has
+        /// already reported, so an identical consecutive record is a repeat
+        /// rather than new work.
+        public var skipRepeatedUsage: Bool?
         public var cacheWrite: String?
         public var cost: String?
         public var title: String?

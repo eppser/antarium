@@ -67,7 +67,7 @@ enum HarnessCheck {
         "cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
         "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
         "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status",
-        "pid", "sessionID", "inputIncludesCacheRead",
+        "pid", "sessionID", "inputIncludesCacheRead", "skipRepeatedUsage",
     ]
 
     /// Every key the loader understands. The schema's authority lives here, so
