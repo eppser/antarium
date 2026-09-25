@@ -998,3 +998,7 @@ a repeated record is never recognised as one | Sources/Antarium/Core/HarnessEngi
 every record is treated as a repeat of the last | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = true|
 the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if map.skipRepeatedUsage == true {|        if true {|
 a codex desktop event written twice is counted twice | Resources/harnesses/codex-desktop.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
+a corrected source stops dating the reading that corrected it | Resources/harnesses/codex.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
+a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["kimi", "openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["kimi", "openclaw", "pi", "vscode", "codex"]|
+the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["kimi", "openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["kimi", "openclaw", "pi", "vscode", "herdr"]|
+a session reading is dated in the future | Resources/harnesses/mistral.json | s|"checkedAt": "2026-09-24"|"checkedAt": "2099-01-01"|

@@ -84,7 +84,7 @@ enum HarnessCheck {
         "compatibility": ["level", "verifiedAt", "agentVersions", "fixture", "note"],
         "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
-                   "journal"],
+                   "journal", "checkedAt"],
         "map": mapKeys,
         "quota": ["endpoint", "method", "body", "command", "args",
                   "headers", "credential", "windows", "accountLabel",

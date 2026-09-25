@@ -43,7 +43,8 @@
     },
     "paths": {
       "goals": "~/.codex/goals_1.sqlite"
-    }
+    },
+    "checkedAt": "2026-09-25"
   },
   "map": {
     "cwd": "payload.cwd",

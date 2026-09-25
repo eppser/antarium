@@ -51,7 +51,8 @@
   "source": {
     "kind": "json",
     "path": "~/.vibe/logs/session",
-    "glob": "*/meta.json"
+    "glob": "*/meta.json",
+    "checkedAt": "2026-09-24"
   },
   "map": {
     "cost": "stats.session_cost",

@@ -484,6 +484,18 @@ struct HarnessDescriptor: Codable {
         /// True for an append-only journal of snapshot-plus-patches, folded
         /// back into one document before mapping. See `Journal`.
         var journal: Bool?
+        /// The day this source's records were last read against something
+        /// outside this repository, as `yyyy-MM-dd`.
+        ///
+        /// The session counterpart of `quota.checkedAt`, and needed for the
+        /// same reason: a session fixture is written from the map it tests, so
+        /// it proves the map is applied and cannot notice that the records
+        /// mean something else. Two agents were over-reporting tokens behind
+        /// green fixtures — Claude repeating a reply across content blocks,
+        /// Codex re-emitting an event verbatim — and neither was found by a
+        /// fixture. Both were found by reading what another tool had to handle
+        /// to read the same files.
+        var checkedAt: String?
         /// Shell-style glob under `path`, e.g. "*/*.jsonl". jsonl/json only.
         var glob: String?
         /// Maximum newest files to parse. Defaults to 40; a single-window app

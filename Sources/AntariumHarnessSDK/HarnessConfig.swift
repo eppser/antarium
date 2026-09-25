@@ -274,6 +274,9 @@ public struct HarnessConfig: Codable {
         public var kind: Kind
         public var path: String
         public var journal: Bool?
+        /// Day this source's records were last read against something outside
+        /// this repository, as `yyyy-MM-dd`.
+        public var checkedAt: String?
         public var glob: String?
         public var limit: Int?
         public var pathFields: [String: PathField]?

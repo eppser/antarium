@@ -392,6 +392,11 @@
         "journal": {
           "type": "boolean"
         },
+        "checkedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Day these records were last read against a source outside this repository. Not the fixture's date: a fixture is written from the map it tests."
+        },
         "paths": {
           "type": "object",
           "additionalProperties": {
