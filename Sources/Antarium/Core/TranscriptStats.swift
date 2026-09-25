@@ -58,6 +58,45 @@ struct TranscriptStats: Codable {
     var receivedTokens: Int = 0
     /// How far into the file we've already accounted for.
     fileprivate var consumed: Int = 0
+    /// Hashes of the `message.id` + `requestId` pairs whose usage has already
+    /// been counted.
+    ///
+    /// Claude Code writes one record per content block while a reply streams
+    /// — thinking, text, each tool call — and every one of them repeats the
+    /// whole of `message.usage`. Summing the records sums the same reply
+    /// several times over. Other readers of these files report the totals
+    /// inflated by around four times for this reason, and the fix they all
+    /// arrive at is this pair as a key.
+    ///
+    /// Bounded and kept as hashes because this is persisted per session: the
+    /// repeats are consecutive, so a short memory catches them, and a
+    /// complete one would put a list of every message ever seen into the
+    /// cache file. What it does not catch is the same reply copied into
+    /// another session's file when a conversation is resumed or branched.
+    /// That matters to a tool adding sessions up; this app draws them one row
+    /// each, and one row's figure is right either way.
+    fileprivate var countedUsage: [Int] = []
+
+    /// Long enough for a reply whose blocks interleave with parallel tool
+    /// calls, short enough that the cache stays a cache.
+    static let recentUsageMemory = 512
+
+    /// The pair that identifies one reply, hashed.
+    ///
+    /// Both halves are needed. `message.id` alone repeats across a resumed
+    /// conversation, and `requestId` alone is absent from older records. A
+    /// record carrying neither returns nothing and is counted.
+    static func usageKey(message: [String: Any], record: [String: Any]) -> Int? {
+        let id = message["id"] as? String
+        let request = record["requestId"] as? String
+        guard id != nil || request != nil else { return nil }
+        var hash = 0xcbf29ce484222325 as UInt64
+        for byte in "\(id ?? "")|\(request ?? "")".utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return Int(bitPattern: UInt(truncatingIfNeeded: hash))
+    }
 
     nonisolated(unsafe) private static var cache: [String: TranscriptStats] = [:]
     private static let lock = NSLock()
@@ -66,7 +105,7 @@ struct TranscriptStats: Codable {
     /// like a bug rather than a migration.
     /// Internal rather than private so the rule below can be stated as a test:
     /// this name must never appear in `supersededCacheFilenames`.
-    static let cacheFilename = "transcripts-v6.json"
+    static let cacheFilename = "transcripts-v7.json"
     private static let cacheURL = Config.directory.appendingPathComponent(cacheFilename)
 
     /// Caches from earlier formats. Each version bump orphaned its predecessor
@@ -74,7 +113,7 @@ struct TranscriptStats: Codable {
     /// app writes are the app's to clean up.
     static let supersededCacheFilenames = [
         "transcripts.json", "transcripts-v2.json", "transcripts-v3.json",
-        "transcripts-v4.json", "transcripts-v5.json",
+        "transcripts-v4.json", "transcripts-v5.json", "transcripts-v6.json",
     ]
 
     @discardableResult
@@ -283,6 +322,20 @@ struct TranscriptStats: Codable {
             let bucket = Int(date.timeIntervalSince1970) / Self.bucketSeconds
             stats.activity[bucket, default: 0] += 1
             pendingBucket = bucket
+        }
+
+        // The same reply, already counted. Checked here rather than at the
+        // top of the record: the repeats carry different content blocks, so
+        // their tool calls are real and counted above, and only the usage is
+        // a repetition. An entry naming neither id cannot be paired with
+        // anything, so it is counted — under-reporting a real reply is worse
+        // than counting one that may be a twin.
+        if let key = Self.usageKey(message: message, record: d) {
+            if stats.countedUsage.contains(key) { return }
+            stats.countedUsage.append(key)
+            if stats.countedUsage.count > Self.recentUsageMemory {
+                stats.countedUsage.removeFirst(stats.countedUsage.count - Self.recentUsageMemory)
+            }
         }
 
         // Required message totals must be present. The API's optional cache

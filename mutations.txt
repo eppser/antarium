@@ -989,3 +989,7 @@ a quota mapping stops saying when it was last read | Resources/harnesses/synthet
 a reading is dated in the future | Resources/harnesses/moonshot.json | s|"checkedAt": "2026-09-25"|"checkedAt": "2099-01-01"|
 a reading is dated in a shape no calendar reads | Resources/harnesses/openrouter.json | s|"checkedAt": "2026-09-25"|"checkedAt": "25 September"|
 the schema accepts any text as a reading date | Resources/harness.schema.json | s|"pattern": "\^\[0-9\]{4}-\[0-9\]{2}-\[0-9\]{2}\$",||
+a streamed reply is counted once per content block again | Sources/Antarium/Core/TranscriptStats.swift | s|            if stats.countedUsage.contains(key) { return }||
+the reply key forgets which request it belonged to | Sources/Antarium/Core/TranscriptStats.swift | s|        for byte in "\\(id ?? "")\|\\(request ?? "")".utf8 {|        for byte in "\\(id ?? "")".utf8 {|
+the memory of counted replies holds nothing | Sources/Antarium/Core/TranscriptStats.swift | s|    static let recentUsageMemory = 512|    static let recentUsageMemory = 0|
+a reply identifying itself is treated as anonymous | Sources/Antarium/Core/TranscriptStats.swift | s#        guard id != nil || request != nil else { return nil }#        return nil#
