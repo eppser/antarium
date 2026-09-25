@@ -66,7 +66,7 @@ enum HarnessCheck {
     static let mapKeys: Set<String> = [
         "cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
         "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
-        "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status",
+        "toolMarker", "toolWhere", "toolCalls", "turnWhere", "skipUsageWhere", "turns", "subAgents", "status",
         "pid", "sessionID", "inputIncludesCacheRead", "skipRepeatedUsage",
     ]
 

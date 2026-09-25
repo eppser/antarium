@@ -25,7 +25,7 @@ struct SessionProvenanceTests {
     /// the same files. Not a failure — most of these are small tools with no
     /// second implementation to compare against — but written down, because
     /// the two defects above were in this state and nothing said so.
-    static let unread: Set<String> = ["kimi", "openclaw", "pi", "vscode"]
+    static let unread: Set<String> = ["openclaw", "pi", "vscode"]
 
     private var mapsTokens: [HarnessDescriptor] {
         HarnessCLI.bundledDescriptors().filter {
@@ -77,8 +77,10 @@ struct SessionProvenanceTests {
         }
     }
 
-    /// And the two that were read are the two that were wrong, which is the
-    /// argument for reading the rest.
+    /// And the ones that were read are the ones that were wrong, which is
+    /// the argument for reading the rest. Kimi joined them the day it was
+    /// read: it was summing a running total alongside the turns that total
+    /// was already the sum of.
     @Test("The sources found to be over-reporting are among the dated ones")
     func theFoundOnesAreDated() throws {
         for id in ["codex", "codex-desktop"] {
@@ -89,6 +91,10 @@ struct SessionProvenanceTests {
             #expect(descriptor.fields.skipRepeatedUsage == true,
                     Comment(rawValue: "\(id) no longer skips the records it repeats"))
         }
+        let kimi = try #require(mapsTokens.first { $0.id == "kimi" })
+        #expect(kimi.source.checkedAt != nil, "kimi was corrected and carries no date for it")
+        #expect(kimi.fields.skipUsageWhere?["usageScope"] == "session",
+                "kimi no longer refuses the cumulative records it used to add")
     }
 
     private static let day: DateFormatter = {

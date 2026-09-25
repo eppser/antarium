@@ -22,17 +22,56 @@ struct FixtureVerifierTests {
         return (try #require(Bundle(url: root)), root)
     }
 
-    private func descriptor(fixture path: String?) throws -> HarnessDescriptor {
+    private func descriptor(fixture path: String?,
+                            skipUsageWhere: [String: String]? = nil) throws -> HarnessDescriptor {
         var compatibility: [String: Any] = ["level": "declared", "note": "synthetic"]
         if let path { compatibility["fixture"] = path }
+        var map: [String: Any] = ["cwd": "cwd", "inputTokens": "input", "outputTokens": "output"]
+        if let skipUsageWhere { map["skipUsageWhere"] = skipUsageWhere }
         let object: [String: Any] = [
             "formatVersion": 1, "id": "verifier-\(UUID().uuidString)", "name": "Fixture",
             "process": [:],
             "source": ["kind": "jsonl", "path": "", "glob": "*.jsonl"],
-            "map": ["cwd": "cwd", "inputTokens": "input", "outputTokens": "output"],
+            "map": map,
             "compatibility": compatibility]
         return try HarnessDocument.decode(
             JSONSerialization.data(withJSONObject: object)).descriptor
+    }
+
+    /// A rule naming nothing excludes nothing.
+    ///
+    /// The exclusion is "every named field matches", and every field of an
+    /// empty rule matches anything — so without a guard an empty
+    /// `skipUsageWhere` would refuse to count a single record, and a harness
+    /// that declared one would report a session that spent nothing at all.
+    @Test("An exclusion rule naming no field counts every record")
+    func emptyExclusionCountsEverything() throws {
+        let (bundle, root) = try self.bundle(
+            fixture: "empty-rule",
+            ["files": ["trace.jsonl": record], "expected": expected(inputTokens: 10)])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = HarnessCompatibility.verifyFixture(
+            try descriptor(fixture: "harness-fixtures/empty-rule.json", skipUsageWhere: [:]),
+            in: bundle)
+        #expect(report.status == .fixtureVerified, Comment(rawValue: report.detail))
+    }
+
+    /// And a rule that names a field this record matches excludes its usage
+    /// while the record is still read for the rest.
+    @Test("An excluded record is still read for everything but its figures")
+    func excludedRecordsStillContribute() throws {
+        let (bundle, root) = try self.bundle(
+            fixture: "excluded",
+            ["files": ["trace.jsonl": record],
+             "expected": expected(inputTokens: 0).merging(["outputTokens": 0]) { _, b in b }])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = HarnessCompatibility.verifyFixture(
+            try descriptor(fixture: "harness-fixtures/excluded.json",
+                           skipUsageWhere: ["cwd": "/synthetic"]),
+            in: bundle)
+        // The cwd still arrives, which is the claim: excluded from counting,
+        // not excluded from reading.
+        #expect(report.status == .fixtureVerified, Comment(rawValue: report.detail))
     }
 
     private let record = #"{"cwd":"/synthetic","input":10,"output":5}"# + "\n"

@@ -664,6 +664,7 @@ does not show it.
 | `toolMarker` | a substring that marks a tool call, counted per record |
 | `toolWhere` | one tool call when every named field equals its value |
 | `toolCalls` | tool calls held as a nested array or object, counted |
+| `skipUsageWhere` | records whose usage must **not** be counted, where a source writes both per-turn and cumulative figures; such a record is still read for everything else |
 | `turnWhere` | which records count as conversation turns |
 | `turns`, `subAgents` | counted the same way, from a path and an optional filter |
 | `status` | where the harness records working or waiting, when it says so |

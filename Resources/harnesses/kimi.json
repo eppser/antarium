@@ -64,7 +64,8 @@
           }
         }
       }
-    }
+    },
+    "checkedAt": "2026-09-25"
   },
   "map": {
     "model": "model",
@@ -82,6 +83,9 @@
     },
     "turnWhere": {
       "type": "turn.ended"
+    },
+    "skipUsageWhere": {
+      "usageScope": "session"
     }
   },
   "capabilities": {
@@ -120,5 +124,5 @@
       ]
     }
   },
-  "note": "Kimi Code documents a Kimi-specific location beside a generic one at every scope, and declares the specific one first: .kimi-code/AGENTS.md before AGENTS.md, .kimi-code/skills before .agents/skills, and the same pair under home. MCP servers are declared under mcpServers in .kimi-code/mcp.json or the copy under home. Not declared: KIMI_CODE_HOME relocates every path under ~/.kimi-code, which a descriptor cannot read, so a relocated data root reads as absent rather than wrong; and the project root is the nearest directory holding .git, searched upward, while the probe looks only at the session's working directory."
+  "note": "Kimi Code documents a Kimi-specific location beside a generic one at every scope, and declares the specific one first: .kimi-code/AGENTS.md before AGENTS.md, .kimi-code/skills before .agents/skills, and the same pair under home. MCP servers are declared under mcpServers in .kimi-code/mcp.json or the copy under home. Not declared: KIMI_CODE_HOME relocates every path under ~/.kimi-code, which a descriptor cannot read, so a relocated data root reads as absent rather than wrong; and the project root is the nearest directory holding .git, searched upward, while the probe looks only at the session's working directory. Kimi Code writes `usage.record` lines in two scopes and only one of them may be summed: `turn` is what a turn spent, `session` is the running total so far. Read against three independent readers of the same files on 2026-09-25 \u2014 one states the rule outright, that only turn-scoped records are counted because session-scoped ones are cumulative totals. Adding both would add the running total to the turns it is already the sum of. Stated as `skipUsageWhere` rather than as a rule about what to keep, because an older format writes usage with no scope at all and keeping only what matches would drop it."
 }

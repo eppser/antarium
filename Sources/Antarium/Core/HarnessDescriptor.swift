@@ -607,6 +607,25 @@ struct HarnessDescriptor: Codable {
         var toolCalls: Count?
         /// Records to count as conversation turns, e.g. {"type": "message"}.
         var turnWhere: [String: String]?
+        /// Records whose usage figures must not be counted, for a source
+        /// that writes more than one kind of them.
+        ///
+        /// Kimi Code writes `usage.record` lines in two scopes: `turn`
+        /// carries what one turn spent, `session` carries the running total
+        /// so far. Adding both adds the running total to the turns it is
+        /// already the sum of. Nothing in the figures separates them — both
+        /// records carry the same field names in the same place, and the only
+        /// difference is a sibling field naming the kind.
+        ///
+        /// Stated as an exclusion rather than a rule about what to keep,
+        /// because keeping only what matches would discard the records of an
+        /// older format that names no scope at all, and under-reporting real
+        /// work is the worse mistake. A record that does not match is counted.
+        ///
+        /// Different from `source.filter`, which decides whether a record is
+        /// read: a record excluded here is still read for its model, its
+        /// timestamp and everything else it carries.
+        var skipUsageWhere: [String: String]?
         /// Where working/waiting is recorded, when the harness says so.
         var status: Status?
         /// The harness's own id for this session, used to match it against

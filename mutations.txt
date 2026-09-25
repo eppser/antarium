@@ -996,9 +996,14 @@ a reply identifying itself is treated as anonymous | Sources/Antarium/Core/Trans
 a codex event written twice is counted twice | Resources/harnesses/codex.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
 a repeated record is never recognised as one | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = false|
 every record is treated as a repeat of the last | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = true|
-the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if map.skipRepeatedUsage == true {|        if true {|
+the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if countable, map.skipRepeatedUsage == true {|        if countable {|
 a codex desktop event written twice is counted twice | Resources/harnesses/codex-desktop.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
 a corrected source stops dating the reading that corrected it | Resources/harnesses/codex.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
-a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["kimi", "openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["kimi", "openclaw", "pi", "vscode", "codex"]|
-the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["kimi", "openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["kimi", "openclaw", "pi", "vscode", "herdr"]|
+a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["openclaw", "pi", "vscode", "codex"]|
+the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["openclaw", "pi", "vscode", "herdr"]|
 a session reading is dated in the future | Resources/harnesses/mistral.json | s|"checkedAt": "2026-09-24"|"checkedAt": "2099-01-01"|
+kimi adds its running total to the turns it sums | Resources/harnesses/kimi.json | s|"skipUsageWhere"|"skipUsageWhereWithheld"|
+kimi refuses the wrong scope | Resources/harnesses/kimi.json | s|"usageScope": "session"|"usageScope": "turn"|
+an empty exclusion rule skips every record | Sources/Antarium/Core/HarnessEngine.swift | s|        if let skip = map.skipUsageWhere, !skip.isEmpty {|        if let skip = map.skipUsageWhere {|
+a record excluded from the sums is excluded from the file | Sources/Antarium/Core/HarnessEngine.swift | s|                guard countable, !repeated else { return current }|                guard countable, !repeated else { return nil }|
+a running total is added to the turns it sums | Sources/Antarium/Core/HarnessEngine.swift | s|            countable = !skip.allSatisfy { string(record, \$0.key) == \$0.value }|            countable = true|

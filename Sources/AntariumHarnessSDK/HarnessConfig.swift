@@ -347,6 +347,9 @@ public struct HarnessConfig: Codable {
         public var toolWhere: [String: String]?
         public var toolCalls: Count?
         public var turnWhere: [String: String]?
+        /// Records whose usage figures must not be counted, for a source
+        /// that writes both per-turn and cumulative usage.
+        public var skipUsageWhere: [String: String]?
         public var status: Status?
         public var sessionID: String?
         public var pid: String?

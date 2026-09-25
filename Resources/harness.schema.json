@@ -611,6 +611,13 @@
         "toolCalls": {
           "$ref": "#/$defs/count"
         },
+        "skipUsageWhere": {
+          "type": "object",
+          "description": "Records whose usage figures must not be counted, where a source writes both per-turn and cumulative usage. Such a record is still read for everything else.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "turnWhere": {
           "type": "object",
           "additionalProperties": {

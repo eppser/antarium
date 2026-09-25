@@ -1038,8 +1038,16 @@ enum HarnessEngine {
         // Only where the descriptor says the source does that, and only for a
         // record carrying figures at all: the records between two turns carry
         // none, and skipping those would be comparing nothing with nothing.
+        // A record whose usage this source does not want counted. Read for
+        // everything else — the rule says which figures may be added, not
+        // which records exist.
+        var countable = true
+        if let skip = map.skipUsageWhere, !skip.isEmpty {
+            countable = !skip.allSatisfy { string(record, $0.key) == $0.value }
+        }
+
         var repeated = false
-        if map.skipRepeatedUsage == true {
+        if countable, map.skipRepeatedUsage == true {
             let figures = [map.inputTokens, map.outputTokens, map.cacheRead,
                            map.cacheWrite, map.totalTokens]
                 .map { $0.flatMap { FieldPath.int(record, $0) } ?? 0 }
@@ -1049,8 +1057,15 @@ enum HarnessEngine {
             }
         }
 
-        if session.numericIssue == nil, !repeated {
+        if session.numericIssue == nil {
             func accumulated(_ current: Int, path: String?) -> Int? {
+                // A record whose figures are not this session's to add — a
+                // running total, or an event written twice — contributes
+                // nothing and changes nothing. The record is still read below
+                // for its context and its window: those are the latest state
+                // rather than a sum, and a running total is as current a
+                // statement of them as anything else in the file.
+                guard countable, !repeated else { return current }
                 let amount = path.flatMap { FieldPath.int(record, $0) } ?? 0
                 let total = current.addingReportingOverflow(amount)
                 return total.overflow ? nil : total.partialValue
@@ -1073,7 +1088,8 @@ enum HarnessEngine {
             } else {
                 session.numericIssue = "Trace usage totals exceeded the supported range. Usage figures are unavailable."
             }
-            if let path = map.cost, let amount = FieldPath.number(record, path) {
+            if countable, !repeated, let path = map.cost,
+               let amount = FieldPath.number(record, path) {
                 let total = session.costUSD + amount
                 if total.isFinite { session.costUSD = total }
                 else { session.numericIssue = "Trace cost exceeded the supported range. Usage figures are unavailable." }
