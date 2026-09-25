@@ -957,6 +957,13 @@ swift build --scratch-path /tmp/antarium-strict \
   stronger session evidence exists.
 - Run-wrapper metadata stores argument count, never raw prompts or tokens.
 - One reply is counted once, however many records it was written across.
+- A change to how figures are counted is a cache format change. Both caches
+  store accumulated totals beside the offset they were read to, so bytes
+  already behind that offset are never counted again: without a version bump a
+  correction reaches only what a session writes next, and a long-running one
+  keeps its old figure indefinitely. `transcripts-v7.json` and
+  `harness-cache-v3.json` are both at their versions for that reason rather
+  than because their shape moved.
 
 **Why that last one needs saying.** Claude Code writes a transcript record per
 content block while a reply streams — thinking, text, each tool call — and
