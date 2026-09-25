@@ -955,6 +955,29 @@ swift build --scratch-path /tmp/antarium-strict \
 - Stable logical session identity does not depend on process replacement when
   stronger session evidence exists.
 - Run-wrapper metadata stores argument count, never raw prompts or tokens.
+- One reply is counted once, however many records it was written across.
+
+**Why that last one needs saying.** Claude Code writes a transcript record per
+content block while a reply streams — thinking, text, each tool call — and
+every record repeats the whole of `message.usage`. Adding the records up adds
+the same reply up as many times as it had blocks; readers that do report
+totals inflated by around four times. The reply is identified by `message.id`
+together with `requestId`, and neither half is enough on its own: the id
+repeats across a resumed conversation, and the request is absent from older
+records. A record naming neither is counted, because it cannot be paired with
+anything and under-reporting real work is the worse of the two mistakes.
+
+The same records are *not* deduplicated for tool calls. They carry different
+content, so their tool calls are separate work — counting the reply once must
+not count its tools once. The check therefore sits between the two.
+
+The memory is bounded and per session, which is a deliberate limit rather than
+an oversight. It catches the repeats that inflate a row, because those are
+consecutive. It does not catch the same reply copied into another session's
+file when a conversation is resumed or branched. That duplication matters to a
+tool that adds sessions together; this app draws one row per session, and one
+row's figure is right either way. A memory complete enough to catch it would
+put every message id ever seen into the cache file.
 
 Pricing overrides use the explicit bundled shape at:
 
