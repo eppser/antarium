@@ -520,14 +520,14 @@ a loop minutes away is rounded down to nothing | Sources/Antarium/Core/LoopWatch
 a dead loop is still described | Sources/Antarium/Core/LoopWatch.swift | s|guard isLooping(wakeAt: wakeAt, stopped: stopped, now: now), let wakeAt else { return nil }|guard let wakeAt else { return nil }|
 a loop hours away is described in minutes | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 { return "loops in \\(minutes)m" }|if true { return "loops in \\(minutes)m" }|
 the unit is chosen before the rounding | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 {|if seconds < 3600 {|
-a journal append replaces instead of adding | Sources/Antarium/Core/Journal.swift | s|return existing + ((value as? \[Any\]) ?? \[\])|return (value as? [Any]) ?? []|
+a journal append replaces instead of adding | Sources/Antarium/Core/Journal.swift | s|            return kept + ((value as? \[Any\]) ?? \[\])|            return (value as? [Any]) ?? []|
 a journal set is treated as an append | Sources/Antarium/Core/Journal.swift | s|append: kind == 2|append: true|
 a journal append is treated as a set | Sources/Antarium/Core/Journal.swift | s|append: kind == 2|append: false|
 a journal patch with no path is applied to the root | Sources/Antarium/Core/Journal.swift | s|guard let path = line\["k"\] as? \[Any\], !path.isEmpty else { continue }|guard let path = line["k"] as? [Any] else { continue }|
 a journal index is unbounded | Sources/Antarium/Core/Journal.swift | s|index >= 0, index < 10_000|index >= 0|
 a journal index may be negative | Sources/Antarium/Core/Journal.swift | s|index >= 0, index < 10_000|index < 10_000|
 a journal patch cannot reach a new element | Sources/Antarium/Core/Journal.swift | s|while array.count <= index { array.append(\[String: Any\]()) }||
-a journal patch of nothing clears the element | Sources/Antarium/Core/Journal.swift | s|array\[index\] = write(array\[index\], rest, value, append: append) ?? array\[index\]|array[index] = write(array[index], rest, value, append: append) as Any|
+a journal patch of nothing clears the element | Sources/Antarium/Core/Journal.swift | s|                                 truncate: truncate) ?? array\[index\]|                                 truncate: truncate) as Any|
 a journal snapshot is ignored | Sources/Antarium/Core/Journal.swift | s|document = line\["v"\] as? \[String: Any\] ?? document|document = [:]|
 a second remote sweep starts while one runs | Sources/Antarium/Core/RemoteScanController.swift | s|guard task == nil else { return }||
 a superseded sweep publishes anyway | Sources/Antarium/Core/RemoteScanController.swift | s|guard let self, self.generations.isCurrent(generation) else { return }|guard let self else { return }|
@@ -662,7 +662,7 @@ the clamp stops preferring the low end | Sources/Antarium/UI/PanelPlacement.swif
 sorting by spend leaves ties to chance | Sources/Antarium/Core/AgentScan.swift | s|                if a != b { return a > b }|                return a > b; if false {}|
 an unmeasured context reads as empty | Sources/Antarium/Core/HarnessEngine.swift | s|        var contextTokens: Int? { measuredContext }|        var contextTokens: Int? { measuredContext ?? 0 }|
 a malformed journal kind replaces the document | Sources/Antarium/Core/Journal.swift | s|            } else { continue }|            } else { kind = 0 }|
-an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...2).contains(declared) {|            else if let declared = line["kind"] as? Int {|
+an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int {|
 a journal line with no kind is skipped | Sources/Antarium/Core/Journal.swift | s|            if line\["kind"\] == nil { kind = 0 }|            if false { kind = 0 }|
 a token in the endpoint goes in unencoded | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{token}", with: encode(token))|            out = out.replacingOccurrences(of: "{token}", with: token)|
 a token in the endpoint is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{token}", with: encode(token))||
@@ -999,11 +999,16 @@ every record is treated as a repeat of the last | Sources/Antarium/Core/HarnessE
 the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if countable, map.skipRepeatedUsage == true {|        if countable {|
 a codex desktop event written twice is counted twice | Resources/harnesses/codex-desktop.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
 a corrected source stops dating the reading that corrected it | Resources/harnesses/codex.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
-a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["openclaw", "pi", "vscode", "codex"]|
-the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi", "vscode"\]|static let unread: Set<String> = ["openclaw", "pi", "vscode", "herdr"]|
+a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi"\]|static let unread: Set<String> = ["openclaw", "pi", "codex"]|
+the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|static let unread: Set<String> = \["openclaw", "pi"\]|static let unread: Set<String> = ["openclaw", "pi", "herdr"]|
 a session reading is dated in the future | Resources/harnesses/mistral.json | s|"checkedAt": "2026-09-24"|"checkedAt": "2099-01-01"|
 kimi adds its running total to the turns it sums | Resources/harnesses/kimi.json | s|"skipUsageWhere"|"skipUsageWhereWithheld"|
 kimi refuses the wrong scope | Resources/harnesses/kimi.json | s|"usageScope": "session"|"usageScope": "turn"|
 an empty exclusion rule skips every record | Sources/Antarium/Core/HarnessEngine.swift | s|        if let skip = map.skipUsageWhere, !skip.isEmpty {|        if let skip = map.skipUsageWhere {|
 a record excluded from the sums is excluded from the file | Sources/Antarium/Core/HarnessEngine.swift | s|                guard countable, !repeated else { return current }|                guard countable, !repeated else { return nil }|
 a running total is added to the turns it sums | Sources/Antarium/Core/HarnessEngine.swift | s|            countable = !skip.allSatisfy { string(record, \$0.key) == \$0.value }|            countable = true|
+a retried request stays beside the one that replaced it | Sources/Antarium/Core/Journal.swift | s|            let kept = truncate.map { Array(existing.prefix(\$0)) } ?? existing|            let kept = existing|
+a push with no index truncates everything | Sources/Antarium/Core/Journal.swift | s|            let kept = truncate.map { Array(existing.prefix(\$0)) } ?? existing|            let kept = Array(existing.prefix(truncate ?? 0))|
+a deleted request is still counted | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int, (0...2).contains(declared) {|
+a delete empties the document instead of its target | Sources/Antarium/Core/Journal.swift | s|        guard let head = path.first else { return nil }|        return nil; guard let head = path.first else { return nil }|
+a delete of an absent path removes something else | Sources/Antarium/Core/Journal.swift | s|            guard var array = node as? \[Any\], index < array.count else { return node }|            guard var array = node as? [Any] else { return node }|

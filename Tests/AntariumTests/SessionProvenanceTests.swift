@@ -25,7 +25,7 @@ struct SessionProvenanceTests {
     /// the same files. Not a failure — most of these are small tools with no
     /// second implementation to compare against — but written down, because
     /// the two defects above were in this state and nothing said so.
-    static let unread: Set<String> = ["openclaw", "pi", "vscode"]
+    static let unread: Set<String> = ["openclaw", "pi"]
 
     private var mapsTokens: [HarnessDescriptor] {
         HarnessCLI.bundledDescriptors().filter {

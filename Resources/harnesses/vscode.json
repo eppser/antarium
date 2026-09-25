@@ -5,7 +5,7 @@
   "presentation": {
     "mark": "vscode"
   },
-  "note": "Chat lives per workspace: workspaceStorage/<hash>/chatSessions/<id>.jsonl, with the folder in a sibling workspace.json as a file:// URI. The whole conversation is one record, so the numbers come from its requests array \u2014 tokens, Copilot credits and the model are per request and are summed. Copilot's global session-store.db looked like the right source but records only some conversations and reported the wrong project. VS Code is one process for every window, so this is one row: the workspace worked on most recently. Instruction files follow GitHub's documented Copilot convention: a repository-wide .github/copilot-instructions.md, scoped files under .github/instructions that must end .instructions.md, and the shared agent files AGENTS.md, CLAUDE.md and GEMINI.md in the repository root. The scoped folder is counted by that suffix, so a plain .md left there does not report instructions Copilot never reads. Files nested below .github/instructions are read by Copilot and are not counted here: the probe looks one level deep.",
+  "note": "Chat lives per workspace: workspaceStorage/<hash>/chatSessions/<id>.jsonl, with the folder in a sibling workspace.json as a file:// URI. The whole conversation is one record, so the numbers come from its requests array \u2014 tokens, Copilot credits and the model are per request and are summed. Copilot's global session-store.db looked like the right source but records only some conversations and reported the wrong project. VS Code is one process for every window, so this is one row: the workspace worked on most recently. Instruction files follow GitHub's documented Copilot convention: a repository-wide .github/copilot-instructions.md, scoped files under .github/instructions that must end .instructions.md, and the shared agent files AGENTS.md, CLAUDE.md and GEMINI.md in the repository root. The scoped folder is counted by that suffix, so a plain .md left there does not report instructions Copilot never reads. Files nested below .github/instructions are read by Copilot and are not counted here: the probe looks one level deep. The journal is VS Code's own object mutation log, and it removes as well as adds: a `kind` 2 push may carry `i`, which truncates the array before appending, and `kind` 3 deletes what its path names. Both were ignored until 2026-09-25, so a request the user retried or took back stayed in the folded document beside the one that replaced it and its tokens were counted twice. Read against three descriptions of the format, one naming the source file VS Code writes it from. Two things are known and not acted on: the legacy `.json` snapshots this glob does not match, and a newer layout said to move transcripts elsewhere again \u2014 both would lose sessions rather than miscount them, and neither has a shape confirmed here.",
   "process": {
     "pathContains": [
       "Visual Studio Code.app/Contents/MacOS/Code"
@@ -47,7 +47,8 @@
         "cwd": "folder"
       }
     },
-    "journal": true
+    "journal": true,
+    "checkedAt": "2026-09-25"
   },
   "map": {
     "title": "v.customTitle",

@@ -173,7 +173,7 @@ struct JournalUnknownKindTests {
     /// A kind VS Code adds later must not be applied as one this happens to
     /// know. It used to fall through to the `set` path and write the value.
     @Test("A kind this version does not know is skipped, not guessed at",
-          arguments: [3, 4, 99, -1])
+          arguments: [4, 99, -1])
     func unknownKindIsSkipped(kind: Int) {
         let folded = Journal.fold([snapshot,
                                    ["kind": kind, "k": ["title"], "v": "Wrong"]])
@@ -196,5 +196,111 @@ struct JournalUnknownKindTests {
 
         let replaced = Journal.fold([snapshot, ["kind": 0, "v": ["title": "Second"]]])
         #expect(title(replaced) == "Second")
+    }
+}
+
+
+/// The two operations this fold used to ignore.
+///
+/// VS Code's log is not only initial-set-push. A push may carry `i`, which
+/// truncates the array before appending, and a `kind` 3 line deletes what its
+/// path names. Both remove content, and a fold that skips them keeps content
+/// the session does not have — for a chat transcript that means the tokens of
+/// a request the user retried or took back were still counted, alongside the
+/// request that replaced it.
+@Suite("A fold removes what the session removed")
+struct JournalRemovalTests {
+
+    private let snapshot: [String: Any] = [
+        "kind": 0,
+        "v": ["title": "Real",
+              "requests": [["promptTokens": 10], ["promptTokens": 20]]],
+    ]
+
+    private func requests(_ document: [String: Any]) -> [[String: Any]] {
+        ((document["v"] as? [String: Any])?["requests"] as? [[String: Any]])
+            ?? (document["requests"] as? [[String: Any]]) ?? []
+    }
+
+    /// A retry: the second request is replaced rather than joined.
+    @Test("A push truncates the array where the log says to")
+    func pushTruncates() {
+        let folded = Journal.fold([snapshot,
+                                   ["kind": 2, "k": ["requests"], "i": 1,
+                                    "v": [["promptTokens": 99]]]])
+        let got = requests(folded).compactMap { $0["promptTokens"] as? Int }
+        #expect(got == [10, 99],
+                Comment(rawValue: "the array folded to \(got)"))
+    }
+
+    /// A push with no index still appends, which is the ordinary case and
+    /// must not become a truncation to nothing.
+    @Test("A push with no index appends")
+    func pushWithoutIndexAppends() {
+        let folded = Journal.fold([snapshot,
+                                   ["kind": 2, "k": ["requests"],
+                                    "v": [["promptTokens": 99]]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [10, 20, 99])
+    }
+
+    /// An index past the end truncates nothing.
+    @Test("A push whose index is past the end keeps what is there")
+    func indexPastTheEnd() {
+        let folded = Journal.fold([snapshot,
+                                   ["kind": 2, "k": ["requests"], "i": 9,
+                                    "v": [["promptTokens": 99]]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [10, 20, 99])
+    }
+
+    /// And an index of nought empties it, which is a session cleared rather
+    /// than a session whose figures should survive.
+    @Test("A push whose index is nought replaces the array")
+    func indexOfNought() {
+        let folded = Journal.fold([snapshot,
+                                   ["kind": 2, "k": ["requests"], "i": 0,
+                                    "v": [["promptTokens": 99]]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [99])
+    }
+
+    @Test("A delete removes an element, and the ones after it move up")
+    func deleteRemovesAnElement() {
+        let folded = Journal.fold([snapshot, ["kind": 3, "k": ["requests", 0]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [20])
+    }
+
+    @Test("A delete removes a key")
+    func deleteRemovesAKey() {
+        let folded = Journal.fold([snapshot, ["kind": 3, "k": ["title"]]])
+        #expect(folded["title"] == nil && (folded["v"] as? [String: Any])?["title"] == nil,
+                "the title survived a delete")
+    }
+
+    /// A delete naming something absent is not an error: the document already
+    /// agrees with what the log is asking for.
+    @Test("A delete of something absent changes nothing else")
+    func deleteOfSomethingAbsent() {
+        let folded = Journal.fold([snapshot, ["kind": 3, "k": ["nothing", "here"]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [10, 20])
+    }
+
+    /// And an element past the end of the array. `Array.remove(at:)` traps
+    /// rather than shrugging, so this is the difference between a fold that
+    /// ignores a stale line and one that takes the app down on a file it was
+    /// only reading — which is the shape of every other bound in this
+    /// codebase.
+    @Test("A delete past the end of an array is ignored, not fatal",
+          arguments: [2, 9, 10_000])
+    func deletePastTheEnd(index: Int) {
+        let folded = Journal.fold([snapshot, ["kind": 3, "k": ["requests", index]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [10, 20],
+                Comment(rawValue: "deleting element \(index) changed the array"))
+    }
+
+    /// A negative index names nothing either, and is the one an off-by-one in
+    /// somebody else's writer would produce.
+    @Test("A delete of a negative index is ignored")
+    func deleteOfNegativeIndex() {
+        let folded = Journal.fold([snapshot, ["kind": 3, "k": ["requests", -1]]])
+        #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [10, 20])
     }
 }
