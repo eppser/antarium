@@ -210,7 +210,16 @@ enum HarnessEngine {
 
     /// The live cache. Bump this and the old name goes in the list below, or
     /// it stays in the user's folder for ever.
-    static let cacheFilename = "harness-cache-v2.json"
+    ///
+    /// v3 because the figures in a v2 file were counted under a rule that has
+    /// changed. This cache holds accumulated session totals beside the offset
+    /// they were read to, so a Codex session already summed with its
+    /// re-emitted events counted twice would keep that total for ever: the
+    /// bytes behind the offset are never read again, and the correction would
+    /// only ever apply to whatever the session wrote next. Discarding the
+    /// file costs one re-read and is the only thing that makes the fix reach
+    /// a session that already exists.
+    static let cacheFilename = "harness-cache-v3.json"
     private static var cacheURL: URL {
         Config.directory.appendingPathComponent(cacheFilename)
     }
@@ -222,7 +231,7 @@ enum HarnessEngine {
     /// writes are the app's to clean up. It was never applied here, so the
     /// v1 to v2 bump orphaned a file that is still sitting in this
     /// developer's folder, larger than the one in use.
-    static let supersededCacheFilenames = ["harness-cache-v1.json"]
+    static let supersededCacheFilenames = ["harness-cache-v1.json", "harness-cache-v2.json"]
 
     static func removeSupersededCaches() {
         for name in supersededCacheFilenames {
