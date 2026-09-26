@@ -1096,3 +1096,11 @@ every provider claims a relocation it does not honour | Sources/Antarium/Core/Us
 codex-desktop reads its sessions from the wrong home | Resources/harnesses/codex-desktop.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
 a capability path ignores its agent relocation | Sources/Antarium/Core/ProjectContext.swift | s%                let relocated = HarnessDescriptor.Source.resolve(%                let relocated = substituted.expandingTilde; _ = HarnessDescriptor.Source.resolve(%
 a project path is relocated too | Sources/Antarium/Core/ProjectContext.swift | s%            if substituted.hasPrefix("~") {%            if true {%
+a credential expiry is read as seconds | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let expiry = (oauth\["expiresAt"\] as? Double).map { Date(timeIntervalSince1970: \$0 / 1000) }%        let expiry = (oauth["expiresAt"] as? Double).map { Date(timeIntervalSince1970: $0) }%
+a credential stating no expiry is expired | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        guard let expiresAt else { return false }%        guard let expiresAt else { return true }%
+a credential expiring exactly now is still live | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        return expiresAt <= now%        return expiresAt < now%
+an expired credential is tried before a live one | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            if aExpired != bExpired { return !aExpired }%            if aExpired != bExpired { return aExpired }%
+a credential of unknown expiry is tried last | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            case (.some, .none): return true%            case (.some, .none): return false%
+the same credential from two stores is two | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let unique = tokens.filter { seen.insert(\$0.accessToken).inserted }%        let unique = tokens%
+the credential order depends on the order found | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            return left.offset < right.offset%            return left.offset > right.offset%
+an empty credential token is a credential | Sources/Antarium/Providers/ClaudeCredentials.swift | s%              let token = oauth\["accessToken"\] as? String, !token.isEmpty%              let token = oauth["accessToken"] as? String%

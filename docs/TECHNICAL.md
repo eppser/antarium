@@ -1147,6 +1147,32 @@ SDK callers can use `HarnessConfigMigration.migrate` directly.
 
 ## Verification and evaluations
 
+### Finding what nothing tests
+
+The suite, the catalogue and the gates all answer "is what I thought of still
+true". None of them answers "what did I not think of". Coverage does, and it is
+worth running as an audit rather than as a number to improve:
+
+```bash
+./test.sh --enable-code-coverage
+xcrun llvm-cov report .build/arm64-apple-macosx/debug/AntariumPackageTests.xctest/Contents/MacOS/AntariumPackageTests \
+  -instr-profile=.build/arm64-apple-macosx/debug/codecov/default.profdata \
+  -ignore-filename-regex='Tests/|\.build/'
+```
+
+Sorting by the least-covered file is the useful reading, and the views at the top
+of that list are expected — a SwiftUI body is not a thing a test drives. What the
+first run found was `Providers/ClaudeCredentials.swift` at 20 per cent: the
+credential path for the provider most people have, deciding whether any Claude
+figure appears at all, with every decision it makes about what it read untested.
+The Keychain routes cannot be tested and should not be — they prompt, they depend
+on this machine's grants, and reading a real credential is not something a test
+does — but the decisions about what came back are pure, and one of them was wrong.
+
+A total is not a target. The figure sits near two thirds and most of the gap is
+views and Keychain and subprocess routes; chasing it would mean writing tests that
+assert what a test can reach rather than what matters.
+
 Check a harness against its live source:
 
 ```bash
