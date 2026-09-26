@@ -639,6 +639,7 @@ struct AgentRowView: View {
     private var tooltip: String {
         var lines = [row.sessionName.isEmpty ? row.coreName : row.sessionName, row.cwd]
         if let note = row.note { lines.append(note) }
+        if let why = row.unobservedReason, why != row.note { lines.append(why) }
         if let t = row.tmuxTarget { lines.append("tmux \(t) — click to jump there") }
         else if row.pid != nil { lines.append("Click to bring its terminal to the front") }
         return lines.filter { !$0.isEmpty }.joined(separator: "\n")
@@ -678,6 +679,12 @@ struct AgentRowView: View {
         // Spoken last, because it is an aside about the figures rather than
         // one of them.
         if let note = row.note, !note.isEmpty { values.append(note) }
+        // And why its state is unknown, for the same reason: a row that says
+        // "unobserved" and nothing else leaves the listener with the word and
+        // not the cause.
+        if let why = row.unobservedReason, !why.isEmpty, why != row.note {
+            values.append(why)
+        }
         return values.joined(separator: ", ")
     }
 }

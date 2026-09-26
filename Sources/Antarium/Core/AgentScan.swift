@@ -161,6 +161,26 @@ struct AgentRow: Identifiable {
         let age = now.timeIntervalSince(remoteObservedAt)
         return age.isFinite && age >= 0 && age <= 120
     }
+    /// Why this row's state is unknown, when it is.
+    ///
+    /// Both halves of this existed and neither reached the app.
+    /// `localObservationIssue` carries sentences written for a reader — "this
+    /// process could not be inspected", "the session record predates this
+    /// process" — and went only to the `--status` output.
+    /// `remoteObservationDetail` composes the remote equivalent and had no
+    /// callers at all: somebody wrote the explanation and nothing ever asked
+    /// for it. Meanwhile a row sat in the dashboard saying its state was
+    /// unknown and declining to say why.
+    ///
+    /// Only for a row whose state is actually unknown. The remote detail
+    /// answers for any remote row, and "process discovery does not report
+    /// working or idle state" is true of every one of them — a caveat that
+    /// appears everywhere is read as noise rather than as an explanation.
+    var unobservedReason: String? {
+        guard state.isUnobserved else { return nil }
+        return isRemote ? remoteObservationDetail : localObservationIssue
+    }
+
     var remoteObservationDetail: String? {
         guard isRemote, remoteHost != nil else { return nil }
         var detail = remoteObservationIssue ?? "Process discovery does not report working or idle state."

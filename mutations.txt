@@ -1023,3 +1023,8 @@ a funded balance is drawn as spent | Sources/Antarium/UI/Renderer.swift | s|    
 a row never says why its figures are missing | Sources/Antarium/UI/Dashboard.swift | s|        if let note = row.note, !note.isEmpty { values.append(note) }||
 an empty reason is spoken as a pause | Sources/Antarium/UI/Dashboard.swift | s|        if let note = row.note, !note.isEmpty { values.append(note) }|        values.append(row.note ?? "")|
 the reason is spoken before the figures it explains | Sources/Antarium/UI/Dashboard.swift | s|        var values = \[row.coreName, row.state.label\]|        var values = [row.coreName, row.state.label, row.note ?? ""].filter { !$0.isEmpty }|
+an unobserved row keeps its reason to itself | Sources/Antarium/Core/AgentScan.swift | s|        guard state.isUnobserved else { return nil }|        return nil; guard state.isUnobserved else { return nil }|
+a row whose state is known explains itself anyway | Sources/Antarium/Core/AgentScan.swift | s|        guard state.isUnobserved else { return nil }||
+a remote row is explained as a local one | Sources/Antarium/Core/AgentScan.swift | s|        return isRemote ? remoteObservationDetail : localObservationIssue|        return localObservationIssue|
+the reason is repeated when the note already says it | Sources/Antarium/UI/Dashboard.swift | s|        if let why = row.unobservedReason, !why.isEmpty, why != row.note {|        if let why = row.unobservedReason, !why.isEmpty {|
+the reason never reaches the listener | Sources/Antarium/UI/Dashboard.swift | s|        if let why = row.unobservedReason, !why.isEmpty, why != row.note {|        if false, let why = row.unobservedReason, !why.isEmpty {|

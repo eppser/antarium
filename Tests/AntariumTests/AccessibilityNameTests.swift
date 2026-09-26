@@ -172,3 +172,91 @@ struct RowNoteIsSpokenTests {
         #expect(spoken.contains("estimated cost"))
     }
 }
+
+/// Why a row's state is unknown, where a person can find it.
+///
+/// Both halves of this explanation existed and neither reached the app.
+/// `localObservationIssue` carries sentences written for a reader — "this
+/// process could not be inspected" — and went only to the `--status` output.
+/// `remoteObservationDetail` composes the remote equivalent and had no callers
+/// at all. Somebody wrote both explanations and nothing asked for either,
+/// while a row sat in the dashboard reporting an unknown state and declining
+/// to say why.
+@Suite("An unobserved row says why it is unobserved")
+struct UnobservedReasonTests {
+
+    private func row(state: AgentRow.State, local: String? = nil,
+                     remote: String? = nil, host: String? = nil,
+                     observed: Date? = nil) -> AgentRow {
+        var row = AgentRow(id: "r", agentID: "claude-code", name: "project",
+                           cwd: "/synthetic/project", state: state, lastActivity: nil,
+                           costUSD: nil, hostApp: host)
+        row.localObservationIssue = local
+        row.remoteObservationIssue = remote
+        // `isRemote` is a stored flag, not derived from the host — a row is
+        // remote because the scan said so.
+        row.isRemote = host != nil
+        row.remoteHost = host == nil ? nil : "build-box"
+        row.remoteObservedAt = observed
+        return row
+    }
+
+    @Test("A local row that could not be inspected says so")
+    func localReason() throws {
+        let why = try #require(row(state: .unobserved,
+                                   local: "This process could not be inspected.")
+                                   .unobservedReason)
+        #expect(why.contains("could not be inspected"))
+    }
+
+    @Test("A remote row says what went wrong and when it was last seen")
+    func remoteReason() throws {
+        let seen = Date(timeIntervalSince1970: 1_790_000_000)
+        let why = try #require(row(state: .unobserved, remote: "The host refused the connection.",
+                                   host: RemoteTmux.tag, observed: seen).unobservedReason)
+        #expect(why.contains("refused the connection"))
+        #expect(why.contains("Last observed"),
+                Comment(rawValue: "the remote reason does not say when: \(why)"))
+    }
+
+    /// The rule that keeps it an explanation rather than noise: a row whose
+    /// state is known explains nothing. The remote detail answers for any
+    /// remote row, and "process discovery does not report working or idle
+    /// state" is true of every one of them.
+    @Test("A row whose state is known says nothing",
+          arguments: [AgentRow.State.working, .waiting, .ended])
+    func knownStatesSayNothing(state: AgentRow.State) {
+        #expect(row(state: state, local: "This process could not be inspected.")
+                    .unobservedReason == nil)
+        #expect(row(state: state, remote: "The host refused the connection.",
+                    host: RemoteTmux.tag).unobservedReason == nil)
+    }
+
+    /// And an unobserved row with nothing recorded says nothing rather than
+    /// inventing a cause.
+    @Test("An unobserved row with no recorded cause stays silent")
+    func noCauseStaysSilent() {
+        #expect(row(state: .unobserved).unobservedReason == nil)
+    }
+
+    /// It reaches the listener, which is the half that had no path at all.
+    @Test("The reason is spoken")
+    func reasonIsSpoken() {
+        let spoken = AgentRowView.summary(
+            for: row(state: .unobserved, local: "This process could not be inspected."))
+        #expect(spoken.contains("could not be inspected"),
+                Comment(rawValue: "a listener hears \"\(spoken)\""))
+    }
+
+    /// Without repeating itself: where the note already says it, it is said
+    /// once.
+    @Test("A reason that duplicates the note is not said twice")
+    func noDuplication() {
+        var r = row(state: .unobserved, local: "Same sentence.")
+        r.note = "Same sentence."
+        let spoken = AgentRowView.summary(for: r)
+        let occurrences = spoken.components(separatedBy: "Same sentence.").count - 1
+        #expect(occurrences == 1,
+                Comment(rawValue: "said \(occurrences) times in \"\(spoken)\""))
+    }
+}
