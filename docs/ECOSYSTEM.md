@@ -241,11 +241,22 @@ may carry a list, and a declared window key may be a path rather than only a
 member name — the two windows sit at unrelated places in one reply. They are
 described under "Field paths" in the technical reference.
 
-What is *not* established is whether the gateway accepts the request without a
-browser's headers. The header set is that request's, less a fabricated Chrome
-`User-Agent`, and `verified` is false until somebody holds it against a real
-token — the settings list says so beside the provider. If a real token returns
-403, the `User-Agent` is the first thing to try.
+The transport was probed on 2026-09-27, with a deliberately invalid token and no
+account data. The gateway answered 401 carrying Connect-RPC's own error shape —
+`code: unauthenticated`, "token is malformed: token contains an invalid number of
+segments", `REASON_INVALID_AUTH_TOKEN` — which establishes more than it refuses:
+the path exists rather than 404ing, POST is accepted rather than 405, the body got
+past parsing as far as authentication, and the header set was accepted with no CORS
+or protocol-version complaint. Antarium's own `User-Agent` is therefore enough, and
+the earlier note here — that a Chrome one would be the first thing to try on a 403
+— is moot, because there is no 403. The complaint about segment count also says the
+token is a JWT.
+
+`UsageHTTP` maps 401 to `needsAuth`, which is what a user without a token sees. What
+remains unverified is the one thing that needs an account: the shape of a successful
+reply, which the fixture encodes from the reference implementation's decoder rather
+than from a real response. `verified` stays false, because it means the figures were
+checked and they have not been.
 
 The CLI route is settled, and it is closed. That tool offers it as the
 recommended mode, which made it look like the narrower path: it needs no cookie,

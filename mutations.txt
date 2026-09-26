@@ -1130,3 +1130,7 @@ a camelcase codex reset date is not read | Sources/Antarium/Providers/CodexProvi
 the bar colours by the number rather than the status | Sources/Antarium/UI/Renderer.swift | s%                severity: g.severity)%                severity: Severity.forRemaining(g.remaining))%
 a status-driven critical never reaches the row | Sources/Antarium/UI/Renderer.swift | s%                severity: g.severity)%                severity: .normal)%
 marking a window spent also moves its bar | Sources/Antarium/UI/Renderer.swift | s%            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,%            Row(fill: g.hasMeter ? (g.severity == .critical ? 1 : (mode == .used ? g.used : g.remaining)) : nil,%
+kimi loses the connect protocol header | Resources/harnesses/kimi.json | s%"connect-protocol-version": "1",%%
+kimi sends a browser user agent | Resources/harnesses/kimi.json | s%"User-Agent": "Antarium"%"User-Agent": "Mozilla/5.0 Chrome/143"%
+kimi posts to a different method | Resources/harnesses/kimi.json | s%BillingService/GetUsages%BillingService/ListUsages%
+kimi claims its figures were checked | Resources/harnesses/kimi.json | s%"verified": false%"verified": true%

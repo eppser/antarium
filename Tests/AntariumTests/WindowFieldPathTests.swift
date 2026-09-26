@@ -355,3 +355,83 @@ struct PostBodyTests {
         #expect(strings(body, "scope") == ["FEATURE_CODING"])
     }
 }
+
+/// The Kimi request that was actually probed.
+///
+/// On 2026-09-27 this exact request — endpoint, method, body and header names —
+/// was sent with a deliberately invalid token and no account data, and the
+/// gateway answered 401 with Connect-RPC's own error shape rather than a 404, a
+/// 405 or a complaint about the body or the headers. That is the whole of what is
+/// verified about the transport, and it is only worth anything while the request
+/// stays the one that was sent.
+///
+/// So the shape is pinned here. An edit that changes the endpoint, drops the
+/// protocol-version header or reshapes the body invalidates a recorded
+/// verification, and this is what says so.
+@Suite("Kimi sends the request that was probed")
+struct KimiProbedRequestTests {
+
+    private var quota: HarnessDescriptor.Quota {
+        get throws {
+            let kimi = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "kimi" })
+            return try #require(kimi.quota)
+        }
+    }
+
+    @Test("The endpoint and method are the ones probed")
+    func endpointAndMethod() throws {
+        let quota = try quota
+        #expect(quota.endpoint
+                == "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages")
+        #expect(quota.resolvedMethod == .post)
+    }
+
+    @Test("The body is the one the gateway accepted")
+    func body() throws {
+        let body = DescriptorProvider.postBody(try quota, token: "t", account: nil)
+        #expect(body.count == 1, Comment(rawValue: "the body carries \(body.count) keys"))
+        #expect(body["scope"] as? [String] == ["FEATURE_CODING"])
+    }
+
+    /// The header *names*, not their values: the token is substituted at request
+    /// time and is nobody's business here.
+    @Test("Every header the gateway was asked with is still declared")
+    func headers() throws {
+        let declared = Set((try quota.headers ?? [:]).keys)
+        let probed: Set<String> = ["Authorization", "Cookie", "Content-Type", "Accept",
+                                   "Origin", "Referer", "connect-protocol-version",
+                                   "x-msh-platform", "User-Agent"]
+        #expect(declared == probed,
+                Comment(rawValue: "declared but not probed: \(declared.subtracting(probed).sorted()); "
+                        + "probed but no longer declared: \(probed.subtracting(declared).sorted())"))
+    }
+
+    /// The two that are protocol rather than decoration, stated on their own so a
+    /// reader knows which of the nine the gateway would refuse without.
+    @Test("The Connect-RPC headers carry the values the gateway expects")
+    func protocolHeaders() throws {
+        let headers = try quota.headers ?? [:]
+        #expect(headers["connect-protocol-version"] == "1")
+        #expect(headers["Content-Type"] == "application/json")
+    }
+
+    /// This app sends its own name. A fabricated Chrome one was deliberately not
+    /// copied from the implementation the mapping came from, and the probe showed
+    /// it is not needed — the gateway reached authentication regardless.
+    @Test("The User-Agent is this app's own, not a browser's")
+    func userAgent() throws {
+        let agent = try #require(try quota.headers?["User-Agent"])
+        #expect(agent == "Antarium")
+        #expect(!agent.lowercased().contains("mozilla"))
+        #expect(!agent.lowercased().contains("chrome"))
+    }
+
+    /// And the reading stays unverified, because the figures have not been seen.
+    /// The probe established the transport, which is a different claim.
+    @Test("The mapping is still recorded as unverified")
+    func stillUnverified() throws {
+        #expect(try quota.verified != true,
+                "the figures have not been read from a real account")
+        #expect(try quota.checkedAt == "2026-09-27")
+    }
+}
