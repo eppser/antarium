@@ -279,14 +279,21 @@ struct ColumnLayoutRenderTests {
     /// not a test that failed. Asserting what the display allows is better
     /// than either: it holds everywhere and still says something.
     private var columnsThisDisplayAllows: Int {
+        // The same arguments the view passes, including its fallbacks. An
+        // approximation of them is worse than none: this asked with the
+        // full-size panel width while the view asked with the compact one, so
+        // on a display wide enough for two full columns the two agreed and on
+        // a narrower one they did not. The rendered panel split, the test
+        // predicted it would not, and the difference was exactly a second
+        // column and its gutter.
         let screen = NSScreen.main?.visibleFrame
         return PanelPlacement.columns(
             rowCount: rowsThatDoNotFit, previous: 1,
             contentHeight: RowMetrics.singleColumnHeight(rows: rowsThatDoNotFit,
                                                          reduced: reduced),
-            panel: RowMetrics.panelFull,
-            visibleWidth: screen?.width ?? RowMetrics.panelFull,
-            visibleHeight: screen?.height ?? 900)
+            panel: panel,
+            visibleWidth: screen?.width ?? panel,
+            visibleHeight: screen?.height ?? .greatestFiniteMagnitude)
     }
 
 
