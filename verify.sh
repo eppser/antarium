@@ -54,6 +54,38 @@ else
 fi
 rm -rf "$bare"
 
+step "Tests on a machine where every setting has been turned on"
+# The opposite failure to the bare machine above, and one a bare machine
+# cannot find. Four layout tests rendered the real dashboard, which reads the
+# compact-list preference for itself, and compared it against the full-size
+# metrics — so they passed wherever the setting was off and failed wherever it
+# was on. A fresh home means the default applies and the default is off, so
+# the bare run above was green, CI was green, and the configuration that
+# failed was the one somebody actually uses.
+loaded=$(mktemp -d)
+cat >"$loaded/config.json" <<'JSON'
+{
+  "agentListCompact": true,
+  "showAgentCount": true,
+  "notifyOnIdle": true,
+  "dashboardPinned": true,
+  "includeRemoteTmux": true,
+  "remoteTmuxHosts": ["build-box-1", "build-box-2", "build-box-3"],
+  "enabledAgents": ["claude-code", "codex", "cursor", "copilot"],
+  "meterMode": "remaining",
+  "agentSort": "spend",
+  "refreshMinutes": 60,
+  "agentScanSeconds": 300
+}
+JSON
+if ANTARIUM_HOME="$loaded" ./test.sh >/tmp/verify-loaded.log 2>&1; then
+    ran /tmp/verify-loaded.log "with every setting on"
+else
+    bad "test suite assumes a default setting — see /tmp/verify-loaded.log"
+    grep -E '^✘ Test "' /tmp/verify-loaded.log | head -3
+fi
+rm -rf "$loaded"
+
 step "Tests on a machine that did not generate the local artwork"
 # Every machine but a developer's. `Resources/marks/*.png` is in .gitignore —
 # third-party artwork, derived by a script, never distributed — so a clean
