@@ -385,6 +385,44 @@ struct DeclaredStatusTests {
 @Suite("Scan publication gate")
 struct ScanGenerationTests {
 
+    /// The ownership test the scan's cleanup rests on.
+    ///
+    /// A scan releases the two flags that say one is running — `isScanning`
+    /// and the task handle — only if its own generation still owns them. That
+    /// condition is the whole of the rule: a superseded scan clearing them
+    /// would hide the scan that replaced it, and would let the next periodic
+    /// one stack on top, because a periodic scan is skipped precisely when the
+    /// handle is non-nil.
+    ///
+    /// The other half is what happens if the release is skipped rather than
+    /// wrongly performed: the handle stays non-nil for ever, every periodic
+    /// scan returns early, and the dashboard stops refreshing for the rest of
+    /// the session. Not a stuck spinner — a stopped clock.
+    @Test("Only the current generation may release the scan")
+    func onlyCurrentMayRelease() {
+        var generations = ScanGeneration()
+        let first = generations.begin()
+        #expect(generations.isCurrent(first), "a generation that just began does not own the scan")
+        let second = generations.begin()
+        #expect(!generations.isCurrent(first),
+                "a superseded generation still claims the scan, so it would clear a live one")
+        #expect(generations.isCurrent(second))
+    }
+
+    /// And being cancelled does not take ownership away, which is why the
+    /// release is keyed on currency rather than on `mayPublish`. A scan
+    /// cancelled while current still has to put the flags back, or nothing
+    /// ever will.
+    @Test("A cancelled current generation still owns the scan")
+    func cancelledCurrentStillOwns() {
+        var generations = ScanGeneration()
+        let only = generations.begin()
+        #expect(!generations.mayPublish(only, cancelled: true),
+                "a cancelled scan may not publish")
+        #expect(generations.isCurrent(only),
+                "a cancelled scan lost ownership, so the flags would stay set for ever")
+    }
+
     @Test("Only the newest generation may publish")
     func onlyTheNewestPublishes() {
         var generations = ScanGeneration()

@@ -303,6 +303,17 @@ final class AgentStore: ObservableObject {
         refresh()
     }
 
+    /// Lets go of the scan flags, if the caller's generation still owns them.
+    ///
+    /// The ownership test is the whole of it. A superseded scan must not clear
+    /// them: the scan that replaced it set them for itself, and clearing here
+    /// would hide a live scan and let a periodic one stack on top of it.
+    private func releaseScan(_ generation: Int) {
+        guard generations.isCurrent(generation) else { return }
+        isScanning = false
+        task = nil
+    }
+
     func stop() {
         timer?.invalidate(); timer = nil
         task?.cancel()
@@ -395,6 +406,23 @@ final class AgentStore: ObservableObject {
         let generation = generations.begin()
         isScanning = true
         task = Task { [weak self] in
+            // Whatever happens below, this generation lets go of the two flags
+            // it took — but only if it still owns them.
+            //
+            // They were released on the publishing path alone, and every other
+            // way out of this closure is an early `return` past it. That was
+            // correct, for a reason no line here states: a superseded scan is
+            // superseded by one that took the flags for itself, and a scan
+            // cancelled while current is cancelled by `stop()`, which clears
+            // them synchronously before this returns. Correct by coincidence of
+            // two other functions.
+            //
+            // The symptom of breaking it is not a stuck spinner. `task` stays
+            // non-nil, a periodic scan returns early whenever `task != nil`,
+            // and so the dashboard stops refreshing for the rest of the
+            // session — until something forces a refresh. A new `return` here,
+            // or a new place that cancels, would do it silently.
+            defer { self?.releaseScan(generation) }
             Log.debug("scan", "starting")
             let began = ProcessInfo.processInfo.systemUptime
             let worker = Task.detached(priority: .utility) { Result { try AgentScan.observe() } }
