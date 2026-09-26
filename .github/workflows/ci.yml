@@ -41,6 +41,34 @@ jobs:
         env:
           ANTARIUM_HOME: ${{ runner.temp }}/antarium-bare
 
+      # The opposite of a bare machine, and a bare machine cannot find it. Four
+      # layout tests rendered the real dashboard, which reads the compact-list
+      # preference for itself, and compared it against the full-size metrics —
+      # so they passed wherever the setting was off and failed wherever it was
+      # on. A fresh home means the default applies and the default is off, so
+      # the run above is green and the configuration somebody actually uses is
+      # the one that fails.
+      - name: Re-run tests with every setting turned on
+        run: |
+          home="${{ runner.temp }}/antarium-loaded"
+          mkdir -p "$home"
+          cat >"$home/config.json" <<'JSON'
+          {
+            "agentListCompact": true,
+            "showAgentCount": true,
+            "notifyOnIdle": true,
+            "dashboardPinned": true,
+            "includeRemoteTmux": true,
+            "remoteTmuxHosts": ["build-box-1", "build-box-2", "build-box-3"],
+            "enabledAgents": ["claude-code", "codex", "cursor", "copilot"],
+            "meterMode": "remaining",
+            "agentSort": "spend",
+            "refreshMinutes": 60,
+            "agentScanSeconds": 300
+          }
+          JSON
+          ANTARIUM_HOME="$home" ./test.sh
+
       - name: Audit strict Swift concurrency
         run: >-
           swift build --scratch-path .build/strict
