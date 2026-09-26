@@ -1169,6 +1169,22 @@ struct DocumentedLimitTests {
     /// The rule covers every interpolation rather than the numeric ones,
     /// because which is which cannot be told from the source, and a rule that
     /// needs judgement to apply is one nobody applies.
+    ///
+    /// It is also the only guard against this, and that is worth knowing
+    /// before somebody tries to add another. A locale cannot be varied for a
+    /// test run the way a time zone can: `LANG` and `LC_ALL` do not move
+    /// `Locale.current` on macOS, which reads the account's own preferences,
+    /// so a run under `LC_ALL=de_DE` exercises nothing and passes for the
+    /// wrong reason. Checked rather than assumed — and checked on a machine
+    /// whose region is already German, where `NumberFormatter` returns
+    /// "10.259" for ten thousand two hundred and fifty-nine and the suite is
+    /// green regardless, because nothing in the figures this app draws goes
+    /// through a formatter.
+    ///
+    /// Scanning only `Sources/Antarium/UI` is correct rather than convenient:
+    /// nothing outside it constructs a SwiftUI `Text` at all. The two matches
+    /// elsewhere are `requireText` and `percentText`, in files that do not
+    /// import SwiftUI.
     @Test("No SwiftUI Text interpolates into a localized key")
     func textInterpolationsAreVerbatim() throws {
         let root = URL(fileURLWithPath: #filePath)
