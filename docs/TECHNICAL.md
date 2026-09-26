@@ -875,6 +875,32 @@ the descriptor it matters on: its names are `TOKENS_LIMIT-3`, `TOKENS_LIMIT-6`,
 row that could not name itself — an id in the descriptor's own `keys`, drawn
 under unit 3's label, reporting a window that is not unit 3.
 
+#### A reply that says the credential is the problem
+
+`UsageHTTP` turns 401 and 403 into `needsAuth`, which offers the user a sign-in.
+Two shipped endpoints never send one. Probed on 2026-09-27 with an invalid token,
+MiniMax answers HTTP 200 with
+`{"base_resp":{"status_code":1004,"status_msg":"cookie is missing, log in again"}}`
+and Z.ai answers HTTP 200 with
+`{"code":401,"msg":"token expired or incorrect","success":false}`.
+
+No figure was ever in danger — neither body carries a window, so the mapping found
+none. What the user was told was wrong: "reported no usage window", which points at
+this app rather than at their expired token, and `unsupported` offers no sign-in
+where `needsAuth` does.
+
+`quota.needsAuthWhen` is a field path to the exact value meaning the credential was
+rejected, checked before the windows are read. It matches the *specific* code, not a
+general failure flag: Z.ai's `success: false` covers every error that endpoint has
+and a server fault is not a sign-in problem, so the rule is `code: 401`. MiniMax's
+is `base_resp.status_code: 1004`, the code whose own message says to log in again,
+rather than any non-zero code. An unrecognised error body still reads as
+`unsupported`, which is the honest answer for a reply nothing here understands.
+
+The message names the provider and never echoes the service's own text, the same way
+the 401 path does — a remote string in the menu would need bounding, and there is
+nothing in it the user needs that "rejected the saved credentials" does not say.
+
 #### Flags in a quota reply
 
 `require` decides whether a window is drawn and `criticalWhen` decides whether

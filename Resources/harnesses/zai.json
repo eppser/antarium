@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "zai",
   "name": "Z.ai GLM",
-  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it \u2014 but that field is shared with every other Anthropic-compatible vendor, so the base URL is checked too before the token is treated as Z.ai's. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most. The endpoint is published nowhere; checked 2026-09-22, docs.z.ai documents the plan and not this call. The window keys were the part to doubt, and one of them is no longer doubtful. This used to say the mapping would not be changed on another tool's field paths, because that is a guess about somebody else's product, and an account reporting only CREDIT_LIMIT was reported unreadable rather than drawn as zero. Revisited 2026-09-24: ClaudeBar's ZaiUsageProbe does not merely use those paths, it says what they are \u2014 credit-billed tiers report CREDIT_LIMIT with the same `unit` semantics as TOKENS_LIMIT, naming GLM Coding Lite as the tier that does. That is specific enough to act on, and it is the same standard the Gemini mapping was written to. Units 3, 6 and 7 are read as the same three rolling windows; a Lite subscriber saw an empty bar until they were. What has not changed is the caution: this is still somebody else's observation and `verified` is still false, so a kind neither tool names is still reported as unreadable rather than guessed at, and there is still a fixture case for that.",
+  "note": "Quota only \u2014 Z.ai's GLM Coding Plan is driven through Claude Code, so its sessions are already read by the claude-code harness. The token is the ANTHROPIC_AUTH_TOKEN that Claude Code was pointed at, which is where the plan puts it \u2014 but that field is shared with every other Anthropic-compatible vendor, so the base URL is checked too before the token is treated as Z.ai's. Z.ai reports two TOKENS_LIMIT rows distinguished only by `unit`, so the window key joins both: keying on `type` alone would collapse the weekly cap into the session one and hide the limit users hit most. The endpoint is published nowhere; checked 2026-09-22, docs.z.ai documents the plan and not this call. The window keys were the part to doubt, and one of them is no longer doubtful. This used to say the mapping would not be changed on another tool's field paths, because that is a guess about somebody else's product, and an account reporting only CREDIT_LIMIT was reported unreadable rather than drawn as zero. Revisited 2026-09-24: ClaudeBar's ZaiUsageProbe does not merely use those paths, it says what they are \u2014 credit-billed tiers report CREDIT_LIMIT with the same `unit` semantics as TOKENS_LIMIT, naming GLM Coding Lite as the tier that does. That is specific enough to act on, and it is the same standard the Gemini mapping was written to. Units 3, 6 and 7 are read as the same three rolling windows; a Lite subscriber saw an empty bar until they were. What has not changed is the caution: this is still somebody else's observation and `verified` is still false, so a kind neither tool names is still reported as unreadable rather than guessed at, and there is still a fixture case for that. Probed 2026-09-27 with an invalid token: this endpoint answers HTTP 200 with {\"code\":401,\"msg\":\"token expired or incorrect\",\"success\":false}, so UsageHTTP's 401 handling never fires and the mapping ran against an error body. No figure was in danger \u2014 that body carries no window \u2014 but the user was told \"reported no usage window\", which points at this app rather than at their expired token and offers no sign-in. needsAuthWhen matches code 401 specifically rather than success false, because success covers every error this endpoint has and a server fault is not a sign-in problem.",
   "process": {},
   "compatibility": {
     "level": "declared",
@@ -21,6 +21,9 @@
       "requires": {
         "env.ANTHROPIC_BASE_URL": "z.ai"
       }
+    },
+    "needsAuthWhen": {
+      "code": "401"
     },
     "headers": {
       "Authorization": "Bearer {token}",
@@ -65,6 +68,6 @@
     },
     "setupHint": "Point Claude Code at Z.ai and sign in.",
     "verified": false,
-    "checkedAt": "2026-09-24"
+    "checkedAt": "2026-09-27"
   }
 }

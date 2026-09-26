@@ -1134,3 +1134,10 @@ kimi loses the connect protocol header | Resources/harnesses/kimi.json | s%"conn
 kimi sends a browser user agent | Resources/harnesses/kimi.json | s%"User-Agent": "Antarium"%"User-Agent": "Mozilla/5.0 Chrome/143"%
 kimi posts to a different method | Resources/harnesses/kimi.json | s%BillingService/GetUsages%BillingService/ListUsages%
 kimi claims its figures were checked | Resources/harnesses/kimi.json | s%"verified": false%"verified": true%
+a rejected credential reads as an unreadable reply | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if Self.repliesUnauthenticated(quota, json) {%        if false, Self.repliesUnauthenticated(quota, json) {%
+any failure reads as a rejected credential | Sources/Antarium/Providers/DescriptorProvider.swift | s%        guard let rules = quota.needsAuthWhen, !rules.isEmpty else { return false }%        guard let rules = quota.needsAuthWhen, !rules.isEmpty else { return true }%
+one of several rejection rules is enough | Sources/Antarium/Providers/DescriptorProvider.swift | s%        return rules.allSatisfy {%        return rules.contains {%
+a rejection rule is compared loosely | Sources/Antarium/Providers/DescriptorProvider.swift | s%            FieldPath.comparable(FieldPath.first(json, \$0.key)) == \$0.value%            FieldPath.comparable(FieldPath.first(json, $0.key)) != nil%
+zai stops noticing a rejected token | Resources/harnesses/zai.json | s%"needsAuthWhen": {%"needsAuthWhenUnused": {%
+minimax stops noticing a missing cookie | Resources/harnesses/minimax.json | s%"needsAuthWhen": {%"needsAuthWhenUnused": {%
+zai matches any failure rather than the auth code | Resources/harnesses/zai.json | s%"code": "401"%"success": "false"%

@@ -433,7 +433,25 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)
     }
 
+    /// Whether the reply says the credential is the problem.
+    ///
+    /// Callable, so the rule can be asked without a network. A conjunction: every
+    /// declared pair must hold, and a block declaring nothing says nothing.
+    static func repliesUnauthenticated(_ quota: HarnessDescriptor.Quota,
+                                       _ json: [String: Any]) -> Bool {
+        guard let rules = quota.needsAuthWhen, !rules.isEmpty else { return false }
+        return rules.allSatisfy {
+            FieldPath.comparable(FieldPath.first(json, $0.key)) == $0.value
+        }
+    }
+
     func makeSnapshot(_ json: [String: Any]) throws -> Snapshot {
+        // Before the windows are read, because a reply that says the token
+        // expired has no windows to read and saying "reported no usage window"
+        // sends the user to look at this app instead of at their credential.
+        if Self.repliesUnauthenticated(quota, json) {
+            throw ProviderError.needsAuth("\(displayName) rejected the saved credentials.")
+        }
         let map = quota.windows
 
         var gauges: [Gauge] = []

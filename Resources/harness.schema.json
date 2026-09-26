@@ -867,6 +867,13 @@
         "credential": {
           "$ref": "#/$defs/credential"
         },
+        "needsAuthWhen": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Field path to the exact value meaning the credential was rejected, for a service that says so in the body with an HTTP 200. Conjunction; compared exactly. Match the specific code, not a general failure flag."
+        },
         "windows": {
           "$ref": "#/$defs/windows"
         },

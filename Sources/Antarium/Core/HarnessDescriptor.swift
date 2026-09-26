@@ -474,6 +474,31 @@ struct HarnessDescriptor: Codable {
         let windows: Windows
         var accountLabel: String?
 
+        /// Fields whose values mean "the credential is the problem", for a
+        /// service that says so in the body with an HTTP 200.
+        ///
+        /// `UsageHTTP` turns 401 and 403 into `needsAuth`, which is the whole of
+        /// how this was detected — and two shipped endpoints never send one.
+        /// Probed 2026-09-27 with an invalid token: MiniMax answers 200 with
+        /// `{"base_resp":{"status_code":1004,"status_msg":"cookie is missing, log
+        /// in again"}}` and Z.ai answers 200 with `{"code":401,"msg":"token
+        /// expired or incorrect","success":false}`.
+        ///
+        /// The figures were never in danger — neither body carries a window, so
+        /// the mapping found none. What the user was told was wrong: "reported no
+        /// usage window", which points at this app rather than at their expired
+        /// token, and `unsupported` does not offer to sign them in where
+        /// `needsAuth` does.
+        ///
+        /// Matched on the *specific* code rather than on a general failure flag.
+        /// Z.ai's `success: false` covers every error it has, and a server fault
+        /// is not a sign-in problem; `code: 401` is the one that is. An
+        /// unrecognised error body still reads as `unsupported`, which is the
+        /// honest answer for a reply nothing here understands.
+        ///
+        /// A conjunction, like `criticalWhen`: every pair must hold.
+        var needsAuthWhen: [String: String]?
+
         /// Every field path this block declares, wherever it declares one.
         ///
         /// The validator asks the quota rather than the windows, so a malformed
@@ -483,6 +508,7 @@ struct HarnessDescriptor: Codable {
         var fieldPaths: [String] {
             windows.fieldPaths + (credential?.fieldPaths ?? [])
                 + [accountLabel].compactMap { $0 }
+                + (needsAuthWhen ?? [:]).keys
         }
         var setupHint: String?
     /// Where the response shape this maps was read from.

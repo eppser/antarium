@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic. Shape follows Z.ai's documented quota/limit payload, including the two TOKENS_LIMIT rows that differ only by unit. Every value is invented. The credit-tier case follows ClaudeBar's ZaiUsageProbe, which maps CREDIT_LIMIT to the same windows as TOKENS_LIMIT for plans that bill in credits. Every value is invented.",
+  "note": "Synthetic. Shape follows Z.ai's documented quota/limit payload, including the two TOKENS_LIMIT rows that differ only by unit. Every value is invented. The credit-tier case follows ClaudeBar's ZaiUsageProbe, which maps CREDIT_LIMIT to the same windows as TOKENS_LIMIT for plans that bill in credits. Every value is invented. One case added 2026-09-27 from a probe with an invalid token: this endpoint reports a rejected credential in the body with an HTTP 200, so UsageHTTP's 401 handling never fires. The values are the service's own error shape and carry no account data.",
   "verifiedAt": "2026-09-20",
   "cases": [
     {
@@ -149,6 +149,15 @@
           }
         ]
       }
+    },
+    {
+      "name": "the reply a rejected token gets, which arrives with an HTTP 200",
+      "response": {
+        "code": 401,
+        "msg": "token expired or incorrect",
+        "success": false
+      },
+      "expectError": "needsAuth"
     }
   ]
 }
