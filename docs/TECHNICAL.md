@@ -1147,6 +1147,28 @@ SDK callers can use `HarnessConfigMigration.migrate` directly.
 
 ## Verification and evaluations
 
+### Folding VS Code's journal
+
+A chat session is one snapshot followed by patches: set, push (with an optional
+`i` that truncates first), delete. The lines are folded into the document they
+describe before a descriptor's paths are mapped against it, because read a line at
+a time the fields simply are not there — the snapshot is written when the session
+is empty, and the title, the model and every token count arrive later as patches.
+
+A patch does not reshape what the document already holds. Absent is created, which
+is the ordinary case; present and the wrong shape is left alone, and the fields the
+patch would have set are then absent, which every reader downstream has an answer
+for. `remove` had always worked that way and `write` had not, so a delete refused
+to reshape the document and a set was free to — a patch naming `["requests", 0]`
+where the snapshot put an object at `requests` discarded that object and built an
+array in its place, and `requests[].promptTokens` then summed figures over a
+structure the file never contained.
+
+A push index that is not a sensible splice point is no index: negative, or not a
+number, appends rather than truncating. Read as a position, a negative one traps —
+which the catalogue confirms, since that mutation is caught by the suite not
+surviving it.
+
 ### Finding what nothing tests
 
 The suite, the catalogue and the gates all answer "is what I thought of still

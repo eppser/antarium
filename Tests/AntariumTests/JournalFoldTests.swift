@@ -304,3 +304,174 @@ struct JournalRemovalTests {
         #expect(requests(folded).compactMap { $0["promptTokens"] as? Int } == [10, 20])
     }
 }
+
+/// A patch whose path disagrees with the document's shape.
+///
+/// Found by coverage: `write` had no type guard where `remove` in the same file
+/// has always had one, so a delete refused to reshape the document and a set was
+/// free to. A patch naming `["requests", 0]` where the snapshot put an *object*
+/// at `requests` discarded that object and built an array in its place — and a
+/// descriptor's `requests[].promptTokens` then summed figures over a structure
+/// the file never contained.
+///
+/// The safe answer is the one the rest of this file already gives: the patch is
+/// skipped and the fields it would have set are absent, which every reader
+/// downstream has an answer for. Creating what is *absent* is the ordinary case
+/// and is a different thing — the snapshot is written when the session is empty,
+/// so nearly every path in a folded document was built by a patch.
+@Suite("A patch does not reshape what the document already holds")
+struct JournalShapeTests {
+
+    @Test("An index naming an object leaves the object alone")
+    func indexAgainstObject() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": ["requests": ["a": 1]]],
+            ["kind": 1, "k": ["requests", 0, "tokens"], "v": 5],
+        ])
+        let requests = folded["requests"] as? [String: Any]
+        #expect(requests?["a"] as? Int == 1, "the object the snapshot held was discarded")
+        #expect(folded["requests"] as? [Any] == nil, "an array was built where an object was")
+    }
+
+    @Test("A key naming an array leaves the array alone")
+    func keyAgainstArray() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": ["requests": [["tokens": 1]]]],
+            ["kind": 1, "k": ["requests", "total"], "v": 99],
+        ])
+        let requests = folded["requests"] as? [Any]
+        #expect(requests?.count == 1, "the array the snapshot held was discarded")
+        #expect((folded["requests"] as? [String: Any])?["total"] == nil)
+    }
+
+    @Test("A key naming a number leaves the number alone")
+    func keyAgainstScalar() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": ["total": 7]],
+            ["kind": 1, "k": ["total", "inner"], "v": 5],
+        ])
+        #expect(folded["total"] as? Int == 7, "a number was replaced by an object")
+    }
+
+    /// The ordinary case, which must keep working: the snapshot is written when
+    /// the session is empty, so the array the tokens live in is created by the
+    /// first patch that names it.
+    @Test("A patch still creates what the document does not hold")
+    func absentIsStillCreated() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": [:] as [String: Any]],
+            ["kind": 1, "k": ["requests", 0, "tokens"], "v": 5],
+        ])
+        let requests = try? #require(folded["requests"] as? [Any])
+        #expect(requests?.count == 1)
+        #expect(((requests?.first as? [String: Any])?["tokens"]) as? Int == 5)
+    }
+
+    /// A nested *object* path, which no other case reached: every one of them
+    /// arrives at a dictionary or an array first, so building an object over
+    /// nothing was never exercised. Its mutation survived until this existed.
+    @Test("A patch creates a nested object the document does not hold")
+    func absentObjectIsCreated() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": [:] as [String: Any]],
+            ["kind": 1, "k": ["usage", "input"], "v": 42],
+        ])
+        #expect((folded["usage"] as? [String: Any])?["input"] as? Int == 42,
+                "a nested object path was not built over an absent node")
+    }
+
+    /// And deeper, so the recursion is the thing under test rather than one
+    /// level of it.
+    @Test("A patch creates a nested object several levels down")
+    func deeplyAbsentObjectIsCreated() {
+        let folded = Journal.fold([
+            ["kind": 1, "k": ["a", "b", "c"], "v": "found"],
+        ])
+        let a = folded["a"] as? [String: Any]
+        let b = a?["b"] as? [String: Any]
+        #expect(b?["c"] as? String == "found")
+    }
+
+    @Test("A push still creates the array it appends to")
+    func pushCreatesTheArray() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": [:] as [String: Any]],
+            ["kind": 2, "k": ["requests"], "v": [["tokens": 5]] as [Any]],
+        ])
+        #expect((folded["requests"] as? [Any])?.count == 1)
+    }
+
+    /// And a push onto something that is not an array leaves it alone, rather
+    /// than replacing it with the pushed elements.
+    @Test("A push onto an object leaves the object alone")
+    func pushAgainstObject() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": ["requests": ["a": 1]]],
+            ["kind": 2, "k": ["requests"], "v": [["tokens": 5]] as [Any]],
+        ])
+        #expect((folded["requests"] as? [String: Any])?["a"] as? Int == 1,
+                "an object was replaced by the elements pushed at it")
+    }
+
+    /// A delete already behaved this way, which is how the inconsistency was
+    /// noticed. Asserted here too so the two halves are held together.
+    @Test("A delete naming the wrong shape already left it alone")
+    func deleteAgainstWrongShape() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": ["requests": ["a": 1]]],
+            ["kind": 3, "k": ["requests", 0]],
+        ])
+        #expect((folded["requests"] as? [String: Any])?["a"] as? Int == 1)
+    }
+}
+
+/// The push index, where `i` is not a sensible splice point.
+@Suite("A push index that makes no sense is no index")
+struct JournalPushIndexTests {
+
+    private func pushed(_ i: Any?) -> [Any]? {
+        var push: [String: Any] = ["kind": 2, "k": ["requests"],
+                                   "v": [["tokens": 9]] as [Any]]
+        if let i { push["i"] = i }
+        return Journal.fold([
+            ["kind": 0, "v": ["requests": [["tokens": 1], ["tokens": 2]] as [Any]]],
+            push,
+        ])["requests"] as? [Any]
+    }
+
+    /// A negative `i` is not a splice point. Treated as no index, which appends
+    /// and keeps what is there; read as a position it would either trap or wipe
+    /// the array, and the tokens of two real requests would go with it.
+    @Test("A negative index appends rather than truncating", arguments: [-1, -1_000, Int.min])
+    func negativeIndexAppends(i: Int) {
+        #expect(pushed(i)?.count == 3,
+                Comment(rawValue: "i: \(i) left \(pushed(i)?.count ?? -1) elements"))
+    }
+
+    @Test("An index that is not a number is no index")
+    func nonNumericIndex() {
+        #expect(pushed("two")?.count == 3)
+        #expect(pushed(1.5)?.count == 3)
+    }
+
+    /// And the real thing still truncates, or the cases above would be
+    /// satisfied by ignoring `i` entirely.
+    @Test("A real index still truncates")
+    func realIndexTruncates() {
+        #expect(pushed(1)?.count == 2, "one kept plus one pushed")
+        #expect(pushed(0)?.count == 1, "the array replaced by what was pushed")
+        #expect(pushed(nil)?.count == 3, "no index appends")
+    }
+
+    /// A push carrying something that is not a list of elements adds nothing,
+    /// rather than adding the value itself as one element.
+    @Test("A push carrying no list adds nothing")
+    func pushWithoutAList() {
+        let folded = Journal.fold([
+            ["kind": 0, "v": ["requests": [["tokens": 1]] as [Any]]],
+            ["kind": 2, "k": ["requests"], "v": ["tokens": 9]],
+        ])
+        #expect((folded["requests"] as? [Any])?.count == 1,
+                "an object pushed as if it were a list of elements was added")
+    }
+}
