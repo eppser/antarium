@@ -744,6 +744,26 @@ being built and never sent. There is no `{token}` substitution in it: a
 credential is a scalar, and every list-valued field seen in the wild is a set
 of literal scope names.
 
+#### Naming a window in a list
+
+A `list` response has no member names, so `key` says which field paths inside
+each element name it, joined with `-` where one alone is ambiguous: Z.ai reports
+two `TOKENS_LIMIT` rows and distinguishes them only by `unit`.
+
+Every declared field or none. A descriptor asking for `type` and `unit` and
+getting only `type` used to be named `TOKENS_LIMIT` — a name indistinguishable
+from one a single-key descriptor meant, which then either matched the wrong
+entry in `keys` or matched nothing while looking deliberate. A row that cannot
+state every field it was told to use falls back to its index, which the
+descriptor's `keys` will not contain, so the window is absent rather than
+mislabelled.
+
+Duplicates are numbered with `#`, not `-`. That is not cosmetic, and Z.ai is
+the descriptor it matters on: its names are `TOKENS_LIMIT-3`, `TOKENS_LIMIT-6`,
+`TOKENS_LIMIT-7`, so numbering with `-` synthesised `TOKENS_LIMIT-3` for a third
+row that could not name itself — an id in the descriptor's own `keys`, drawn
+under unit 3's label, reporting a window that is not unit 3.
+
 #### Flags in a quota reply
 
 `require` decides whether a window is drawn and `criticalWhen` decides whether

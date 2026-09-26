@@ -260,3 +260,93 @@ struct RequirementFlagTests {
         #expect(snapshot.gauges.count == 1)
     }
 }
+
+/// What a list element is called when it cannot name itself fully.
+///
+/// A descriptor keying on several fields is asking for a compound name. Half of
+/// one is not that name, and the half that survives is indistinguishable from a
+/// name a single-key descriptor meant — so it either matches the wrong entry in
+/// `keys` or matches nothing while looking deliberate.
+///
+/// This is not hypothetical on the descriptors that ship. Z.ai keys on `type`
+/// and `unit`, and its `keys` list is `TOKENS_LIMIT-3`, `TOKENS_LIMIT-6`,
+/// `TOKENS_LIMIT-7`, `TIME_LIMIT-5`, `CREDIT_LIMIT-3`, `CREDIT_LIMIT-6`,
+/// `CREDIT_LIMIT-7`. Three rows arriving without a `unit` used to become
+/// `TOKENS_LIMIT`, `TOKENS_LIMIT-2` and `TOKENS_LIMIT-3` — and the last of
+/// those is in the list, so it would be drawn under unit 3's label reporting a
+/// window that is not unit 3.
+@Suite("A partial name is not a name")
+struct ListKeyTests {
+
+    private func windows(_ json: [String: Any], key: [String]?,
+                         keys: [String]? = nil) -> [String] {
+        var map = HarnessDescriptor.Quota.Windows()
+        map.list = "limits"
+        map.key = key
+        map.keys = keys
+        return DescriptorProvider.windows(in: json, map: map).map(\.key)
+    }
+
+    /// The failure, on the shape that has it.
+    @Test("Rows that cannot state every key field do not borrow another row's name")
+    func partialKeysDoNotCollide() {
+        let json: [String: Any] = ["limits": [
+            ["type": "TOKENS_LIMIT"], ["type": "TOKENS_LIMIT"], ["type": "TOKENS_LIMIT"],
+        ]]
+        let zaiKeys = ["TOKENS_LIMIT-3", "TOKENS_LIMIT-6", "TOKENS_LIMIT-7"]
+        let named = windows(json, key: ["type", "unit"])
+        #expect(named == ["0", "1", "2"],
+                Comment(rawValue: "named \(named), and a descriptor asking for two fields got "
+                        + "a name built from one"))
+        #expect(!named.contains(where: zaiKeys.contains),
+                "a row that could not name itself took a real window's identifier")
+        // And so nothing is drawn, rather than the wrong thing.
+        #expect(windows(json, key: ["type", "unit"], keys: zaiKeys).isEmpty)
+    }
+
+    @Test("Every key field present still makes the compound name")
+    func fullKeysStillJoin() {
+        let json: [String: Any] = ["limits": [
+            ["type": "TOKENS_LIMIT", "unit": 3], ["type": "CREDIT_LIMIT", "unit": 7],
+        ]]
+        #expect(windows(json, key: ["type", "unit"]) == ["TOKENS_LIMIT-3", "CREDIT_LIMIT-7"])
+    }
+
+    /// One field missing out of two is the same as none: the row is numbered.
+    @Test("A row missing any one key field is numbered", arguments: [
+        ["type": "TOKENS_LIMIT"] as [String: Any],
+        ["unit": 3] as [String: Any],
+        [:] as [String: Any],
+    ])
+    func anyMissingFieldNumbers(row: [String: Any]) {
+        #expect(windows(["limits": [row]], key: ["type", "unit"]) == ["0"])
+    }
+
+    /// A single-key descriptor is unaffected, which is most of them.
+    @Test("A single key still names the row it resolves for")
+    func singleKey() {
+        let json: [String: Any] = ["limits": [["currency": "USD"], ["other": 1]]]
+        #expect(windows(json, key: ["currency"]) == ["USD", "1"])
+    }
+
+    /// A key part may be a filter, since it is a field path — the same
+    /// vocabulary the rest of the block uses.
+    @Test("A key part reaches where a field path reaches")
+    func keyPartIsAPath() {
+        let json: [String: Any] = ["limits": [
+            ["tags": [["k": "name", "v": "weekly"], ["k": "other", "v": "x"]]],
+        ]]
+        #expect(windows(json, key: ["tags[k=name].v"]) == ["weekly"])
+        // And a filter that matches nothing leaves the row unnamed rather than
+        // partially named.
+        #expect(windows(json, key: ["tags[k=missing].v"]) == ["0"])
+    }
+
+    /// A row declaring no key fields at all is still numbered, which is the
+    /// behaviour that was already there.
+    @Test("A descriptor naming no key fields numbers every row")
+    func noKeysAtAll() {
+        #expect(windows(["limits": [["p": 1], ["p": 2]]], key: nil) == ["0", "1"])
+        #expect(windows(["limits": [["p": 1], ["p": 2]]], key: []) == ["0", "1"])
+    }
+}

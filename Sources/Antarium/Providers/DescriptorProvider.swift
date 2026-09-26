@@ -561,19 +561,27 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             let elements = (FieldPath.first(json, path) as? [Any] ?? []).prefix(maxWindows)
             found = elements.enumerated().compactMap { index, element in
                 guard let window = element as? [String: Any] else { return nil }
-                let parts = (map.key ?? []).compactMap { Self.name(window, $0) }
-                let name = parts.joined(separator: "-")
-                return (name.isEmpty ? "\(index)" : name, window)
+                return (Self.listKey(window, map.key, index: index), window)
             }
             // A list can repeat a name where an object cannot. Two gauges with
             // one id would be two identical-looking rows, so later duplicates
             // are numbered rather than dropped: the response said they were
             // different windows.
+            //
+            // The separator is not the one a compound name joins with, and that
+            // matters on the descriptor that has both. Z.ai keys on `type` and
+            // `unit`, so its names are `TOKENS_LIMIT-3`, `TOKENS_LIMIT-6`,
+            // `TOKENS_LIMIT-7` — and numbering a duplicate with the same `-`
+            // would synthesise `TOKENS_LIMIT-3` for the third row that could
+            // not name itself. That id is in the descriptor's `keys`, so the
+            // row would be drawn, under unit 3's label, reporting unit 3's
+            // figures for a window that is not unit 3.
             var seen: [String: Int] = [:]
             found = found.map { entry in
                 let count = (seen[entry.key] ?? 0) + 1
                 seen[entry.key] = count
-                return count == 1 ? entry : ("\(entry.key)-\(count)", entry.window)
+                return count == 1 ? entry : ("\(entry.key)\(Self.duplicateMark)\(count)",
+                                             entry.window)
             }
             // `keys`, when given, filters *and* orders — same contract as the
             // object shape, so a descriptor author reading one understands the
@@ -638,8 +646,37 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     /// One component of a composite window name. A key field is as likely to
     /// be a number as a string — Z.ai's `unit` is an integer — so both read as
     /// text, and a boolean is refused because "true" names nothing.
+    /// What a list element is called, from the key fields the descriptor named.
+    ///
+    /// Every declared part or none. This used to `compactMap`, so a descriptor
+    /// asking for `type` and `unit` and getting only `type` produced
+    /// `TOKENS_LIMIT` — a name indistinguishable from one a single-key
+    /// descriptor meant, and one that then either matched the wrong entry in
+    /// `keys` or matched nothing while looking deliberate. A name built from
+    /// half the fields it was told to use is not that name.
+    ///
+    /// Falling back to the index is what already happened for an element that
+    /// could name itself not at all, and it has the property that matters: the
+    /// descriptor's `keys` will not contain it, so the window is absent rather
+    /// than mislabelled.
+    static func listKey(_ window: [String: Any], _ paths: [String]?, index: Int) -> String {
+        guard let paths, !paths.isEmpty else { return "\(index)" }
+        var parts: [String] = []
+        for path in paths {
+            guard let part = name(window, path) else { return "\(index)" }
+            parts.append(part)
+        }
+        return parts.joined(separator: "-")
+    }
+
+    /// Separates a synthesised duplicate number from the name it disambiguates.
+    /// Deliberately not `-`, which is what a compound key joins with.
+    static let duplicateMark = "#"
+
     private static func name(_ window: [String: Any], _ path: String) -> String? {
-        let value = FieldPath.lookup(window, path)
+        // `first`, not `lookup`: a key part is a field path, which is how it is
+        // classified, and `lookup` cannot see a filter at all.
+        let value = FieldPath.first(window, path)
         if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
         switch value {
         case let text as String: return text.isEmpty ? nil : clamped(text)

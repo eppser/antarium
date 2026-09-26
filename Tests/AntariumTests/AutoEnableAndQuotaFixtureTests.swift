@@ -215,6 +215,12 @@ func listWindowsUseCompositeKeys() {
         == ["TOKENS_LIMIT-3", "TOKENS_LIMIT-6"])
 }
 
+/// The number is separated by something a compound name cannot contain.
+///
+/// It was a `-`, which is what a compound key joins with — so on the one
+/// descriptor that has both, Z.ai, numbering a duplicate produced a name in
+/// exactly the shape of a real one. See `listKey` and the comment beside the
+/// numbering for what that costs.
 @Test("Two list windows sharing a name stay distinct rather than collapsing")
 func listWindowsNumberDuplicates() {
     var map = HarnessDescriptor.Quota.Windows()
@@ -222,7 +228,9 @@ func listWindowsNumberDuplicates() {
     map.key = ["type"]
     let json: [String: Any] = ["limits": [["type": "SAME"], ["type": "SAME"], ["type": "OTHER"]]]
     #expect(DescriptorProvider.windows(in: json, map: map).map(\.key)
-        == ["SAME", "SAME-2", "OTHER"])
+        == ["SAME", "SAME#2", "OTHER"])
+    #expect(!DescriptorProvider.duplicateMark.contains("-"),
+            "the number is separated by the character a compound name joins with")
 }
 
 @Test("An unnamed list window is numbered rather than dropped")
