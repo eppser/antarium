@@ -1015,3 +1015,5 @@ a delete of an absent path removes something else | Sources/Antarium/Core/Journa
 
 the roster reads a fork as the product it forked | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%!shipped.contains(name)%!shipped.contains(where: { $0.contains(name) || name.contains($0) })%
 a session source maps figures and dates nothing | Resources/harnesses/pi.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
+the compact panel is the same width as the full one | Sources/Antarium/UI/Dashboard.swift | s|    static let panelReduced: CGFloat = 400|    static let panelReduced: CGFloat = 600|
+a compact row is as tall as a full one | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitchReduced: CGFloat = 23|    static let rowPitchReduced: CGFloat = 40|

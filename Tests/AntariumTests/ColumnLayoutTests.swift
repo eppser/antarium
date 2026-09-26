@@ -213,6 +213,23 @@ struct ColumnWidthIdentityTests {
 @MainActor
 struct ColumnLayoutRenderTests {
 
+    /// Which mode the rendered view is in, rather than which one this test
+    /// would prefer.
+    ///
+    /// Everything below renders the real `DashboardView`, and that view reads
+    /// the compact-list preference for itself. Four of these tests compared
+    /// what it produced against the full-size metrics, so they passed on a
+    /// machine with the setting off and failed on one with it on — which is a
+    /// test that reports the reader's preferences rather than the code. It
+    /// hides in continuous integration, where the home is always fresh and
+    /// the default always applies, and it surfaced here only because the app
+    /// was running beside the suite with the setting turned on.
+    private var reduced: Bool { Settings.agentListCompact }
+
+    /// The panel width for that mode, and the height one row costs in it.
+    private var panel: CGFloat { reduced ? RowMetrics.panelReduced : RowMetrics.panelFull }
+    private var pitch: CGFloat { reduced ? RowMetrics.rowPitchReduced : RowMetrics.rowPitch }
+
     private func rows(_ count: Int) -> [AgentRow] {
         (0..<count).map {
             AgentRow(id: "row-\($0)", agentID: "claude-code", name: "project-\($0)",
@@ -245,7 +262,7 @@ struct ColumnLayoutRenderTests {
         let room = (NSScreen.main?.visibleFrame.height ?? 900)
             - PanelPlacement.verticalAllowance
         var n = 0
-        while RowMetrics.singleColumnHeight(rows: n + 1, reduced: false) <= room { n += 1 }
+        while RowMetrics.singleColumnHeight(rows: n + 1, reduced: reduced) <= room { n += 1 }
         return n
     }
     private var rowsThatDoNotFit: Int { rowsThatFit + 1 }
@@ -257,7 +274,7 @@ struct ColumnLayoutRenderTests {
         return PanelPlacement.columns(
             rowCount: rowsThatDoNotFit, previous: 1,
             contentHeight: RowMetrics.singleColumnHeight(rows: rowsThatDoNotFit,
-                                                         reduced: false),
+                                                         reduced: reduced),
             panel: RowMetrics.panelFull,
             visibleWidth: screen?.width ?? RowMetrics.panelFull,
             visibleHeight: screen?.height ?? 900) == 2
@@ -272,28 +289,48 @@ struct ColumnLayoutRenderTests {
         let one = fittingHeight(rowCount: 1)
         let two = fittingHeight(rowCount: 2)
         let nine = fittingHeight(rowCount: 9)
-        #expect(abs((two - one) - RowMetrics.rowPitch) < 0.5,
-                Comment(rawValue: "a row adds \(two - one)pt, not \(RowMetrics.rowPitch)"))
-        #expect(abs((one - RowMetrics.rowPitch) - RowMetrics.chrome) < 0.5,
-                Comment(rawValue: "the chrome is \(one - RowMetrics.rowPitch)pt, not "
-                        + "\(RowMetrics.chrome)"))
+        #expect(abs((two - one) - pitch) < 0.5,
+                Comment(rawValue: "a row adds \(two - one)pt, not \(pitch)"))
+        #expect(abs((one - pitch) - RowMetrics.chrome) < 0.5,
+                Comment(rawValue: "the chrome is \(one - pitch)pt, not \(RowMetrics.chrome)"))
         // And the arithmetic predicts a longer list, not just two short ones.
-        #expect(abs(RowMetrics.singleColumnHeight(rows: 9, reduced: false) - nine) < 0.5,
+        #expect(abs(RowMetrics.singleColumnHeight(rows: 9, reduced: reduced) - nine) < 0.5,
                 Comment(rawValue: "nine rows measure \(nine)pt and the metrics predict "
-                        + "\(RowMetrics.singleColumnHeight(rows: 9, reduced: false))"))
+                        + "\(RowMetrics.singleColumnHeight(rows: 9, reduced: reduced))"))
+    }
+
+    /// The two modes are not the same size, which is what makes the
+    /// parameterisation above load-bearing rather than decorative.
+    ///
+    /// Without this, `reduced` could be ignored everywhere and every
+    /// assertion would still hold on whichever machine ran it — the failure
+    /// only appears when the setting is on, and the machine that decides is
+    /// the reader's, not the code's.
+    @Test("A compact row and a full row are different sizes")
+    func theTwoModesDiffer() {
+        #expect(RowMetrics.panelReduced != RowMetrics.panelFull)
+        #expect(RowMetrics.rowPitchReduced != RowMetrics.rowPitch)
+        // And the difference is the one the failures showed: a full panel is
+        // wider by exactly what a compact one gives up.
+        #expect(RowMetrics.panelFull - RowMetrics.panelReduced == 200)
+        #expect(RowMetrics.rowPitch - RowMetrics.rowPitchReduced == 17)
+        // So a list of the same length is shorter in compact mode, which is
+        // why the row count that splits the panel differs between them.
+        #expect(RowMetrics.singleColumnHeight(rows: 20, reduced: true)
+                    < RowMetrics.singleColumnHeight(rows: 20, reduced: false))
     }
 
     @Test("A short list is one column wide")
     func shortListIsOneColumn() {
         let width = fittingWidth(rowCount: 4)
-        #expect(abs(width - RowMetrics.panelFull) < 1,
+        #expect(abs(width - panel) < 1,
                 Comment(rawValue: "four rows produced a \(width)pt panel"))
     }
 
     @Test("A long list is two columns wide")
     func longListIsTwoColumns() throws {
         try #require(screenIsWideEnough, "this display cannot hold two columns")
-        let expected = RowMetrics.panelFull * 2 + RowMetrics.gutter
+        let expected = panel * 2 + RowMetrics.gutter
         let width = fittingWidth(rowCount: rowsThatDoNotFit)
         #expect(abs(width - expected) < 1,
                 Comment(rawValue: "\(rowsThatDoNotFit) rows produced a \(width)pt panel, "
@@ -340,8 +377,9 @@ struct ColumnLayoutRenderTests {
         let host = NSHostingView(rootView: DashboardView(store: store, onSettings: {},
                                                           onTogglePin: {}, singleColumn: true))
         host.layoutSubtreeIfNeeded()
-        #expect(abs(host.fittingSize.width - RowMetrics.panelFull) < 1,
-                Comment(rawValue: "forty rows rendered \(host.fittingSize.width)pt wide"))
+        #expect(abs(host.fittingSize.width - panel) < 1,
+                Comment(rawValue: "forty rows rendered \(host.fittingSize.width)pt wide, "
+                        + "expected \(panel)"))
     }
 
     /// And the escape is used where the sheet is written, or the parameter
