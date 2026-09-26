@@ -1209,6 +1209,38 @@ number, appends rather than truncating. Read as a position, a negative one traps
 which the catalogue confirms, since that mutation is caught by the suite not
 surviving it.
 
+### Asking whether the endpoints are still there
+
+A fixture replays a recorded body. It proves a mapping is applied and can never
+notice that the endpoint has moved, so a provider pointing at a 404 reports nothing
+and every test still passes.
+
+```bash
+python3 tools/probe-endpoints.py
+```
+
+One request per endpoint, built from the shipped descriptors, with a deliberately
+invalid credential. No account data is read or sent and nothing is written. A 401 or
+403 is the answer to want: the path is alive, the method is accepted, the credential
+is refused, and that is what `UsageHTTP` turns into `needsAuth`. A 404 means the path
+moved, a 405 the method is wrong, a 400 the body or a header is.
+
+A **200** means the service reports a rejected credential in the body, and two do.
+For those the tool fetches the body and applies the descriptor's own
+`quota.needsAuthWhen` to it, so it reports whether the rule still recognises what the
+service actually sends — a service that changes its error code is the case that would
+otherwise go unnoticed, because the app would quietly go back to telling the user it
+could not read the reply.
+
+Run 2026-09-27 across all sixteen endpoints, eleven from descriptors and five held in
+Swift: fourteen answered 401, and the two that answer 200 were recognised by their
+declared rule. No path had moved.
+
+It is deliberately not in `./test.sh` or `./verify.sh`. Those run offline in a fresh
+checkout, and a gate that fails when somebody else's service is down — or that sends
+a request to eleven companies on every run — is a gate people learn to ignore. Run it
+when a mapping is added, or when a provider reports nothing.
+
 ### Finding what nothing tests
 
 The suite, the catalogue and the gates all answer "is what I thought of still
