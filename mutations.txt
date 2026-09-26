@@ -1094,3 +1094,5 @@ a rewritten fixture path keeps its relocation | Sources/Antarium/Core/HarnessCom
 a shared data directory is not held to its variable | Tests/AntariumTests/NativeRelocationTests.swift | s%    static let sharedDirectories: \[String: \[String\]\] = \["codex": \["codex-desktop"\]\]%    static let sharedDirectories: [String: [String]] = [:]%
 every provider claims a relocation it does not honour | Sources/Antarium/Core/UsageProvider.swift | s%    var relocationVariable: String? { nil }%    var relocationVariable: String? { "CODEX_HOME" }%
 codex-desktop reads its sessions from the wrong home | Resources/harnesses/codex-desktop.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
+a capability path ignores its agent relocation | Sources/Antarium/Core/ProjectContext.swift | s%                let relocated = HarnessDescriptor.Source.resolve(%                let relocated = substituted.expandingTilde; _ = HarnessDescriptor.Source.resolve(%
+a project path is relocated too | Sources/Antarium/Core/ProjectContext.swift | s%            if substituted.hasPrefix("~") {%            if true {%

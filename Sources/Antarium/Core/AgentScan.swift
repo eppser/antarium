@@ -541,7 +541,7 @@ enum AgentScan {
 
             let entrypoint = d["entrypoint"] as? String ?? "cli"
             let transcript = transcriptURL(cwd: cwd, sessionID: sessionID,
-                                           root: claude.source.paths?["transcripts"])
+                                           root: claude.source.declaredPath("transcripts"))
             if transcript == nil {
                 // An SDK- or ACP-launched session registers itself and then
                 // writes nothing more: no transcript, no status, and its
@@ -909,7 +909,7 @@ enum AgentScan {
 
         // Loop state a harness keeps elsewhere, keyed by its own session id.
         var goalIssue: String?
-        if let goals = descriptor.source.paths?["goals"], let id = session.sessionID {
+        if let goals = descriptor.source.declaredPath("goals"), let id = session.sessionID {
             row.loopGoal = nil
             do {
                 if let goal = try CodexGoals.all(at:goals)[id], goal.isRunning { row.loopGoal = goal.label }

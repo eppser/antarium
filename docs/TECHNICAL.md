@@ -437,11 +437,30 @@ exist would read as absent. The claude-code note records that, dated.
 
 The rule is a pure function over an injected environment, so it is tested against
 a machine with none of these agents installed and no such variable set — which is
-every machine the suite runs on. What it covers is `source.path`: the directory
-sessions are read from. `source.paths`, `source.pathFields` and a capability's
-inherited paths are not relocated yet, and are named here rather than left to be
-discovered — each needs its own prefix, and one shape asserted across all three
-is how a wrong mapping ships.
+every machine the suite runs on. `ProjectContext.scan` takes the environment as a
+parameter for the same reason.
+
+It covers every path that moves with an agent's data directory: `source.path`,
+the extra paths a source declares beside it, and a capability's home-relative
+inherited paths. Codex keeps its autonomous-goal database at
+`~/.codex/goals_1.sqlite`, and Kimi, Hermes and OpenClaw keep their inherited
+instructions and skills under the root their variable moves — so relocating only
+the session store left a relocated agent showing its rows while reporting its loop
+state as unavailable and its project setup as absent, which reads as "you have not
+set this up" to a user who has.
+
+Project paths are *not* relocated: nothing about a checkout moves because a data
+directory did. Nor is `source.pathFields`, which despite the name holds no
+filesystem paths — it derives a title and a session id from a path's components.
+
+`source.paths` is private, and its only reader is `declaredPath(_:environment:)`,
+which relocates. That is deliberate: both call sites had read the map directly and
+forgotten to relocate, and both mutations for that survived, because the decision
+was tested and the one-line pass-through at each call site was not — reaching
+those takes a live scan against real processes. Making the unresolved value
+unreachable removes the class rather than testing for it, and the two catalogue
+entries went with it. A mutation that cannot be written is worth more than one
+that can only survive.
 
 ### Descriptor-backed quota providers
 

@@ -59,8 +59,13 @@ struct ProjectContext {
         lock.lock(); defer { lock.unlock() }; return cache.count
     }
 
+    /// `environment` is a parameter so the relocation below can be exercised
+    /// without setting a variable in the test process, which would leak into
+    /// every other suite and make results depend on the order they run in.
     static func scan(_ cwd: String, agentID: String,
-                     descriptor supplied: HarnessDescriptor? = nil) -> ProjectContext {
+                     descriptor supplied: HarnessDescriptor? = nil,
+                     environment: [String: String] = ProcessInfo.processInfo.environment)
+        -> ProjectContext {
         let descriptor = supplied ?? HarnessDescriptor.all().first { $0.id == agentID }
         let rules = descriptor?.capabilityRules ?? [:]
         guard rules.values.reduce(0, { $0 + $1.projectPaths.count + $1.inheritedPaths.count }) <= 128 else {
@@ -77,7 +82,20 @@ struct ProjectContext {
                 .replacingOccurrences(of: "{cwd}", with: cwd)
                 .replacingOccurrences(of: "{cwdSlug}", with: slug)
             if substituted.hasPrefix("~") {
-                return URL(fileURLWithPath: substituted.expandingTilde).standardizedFileURL
+                // A home-relative capability path moves with the agent's data
+                // directory, the same way its session store does. Kimi, Hermes
+                // and OpenClaw each keep their inherited instructions and skills
+                // under the root their variable relocates, so following it for
+                // the sessions and not for these left a relocated agent showing
+                // its sessions and reading its project setup as absent.
+                //
+                // Project paths are relative to the working directory and are
+                // not relocated: nothing about a checkout moves because a data
+                // directory did.
+                let relocated = HarnessDescriptor.Source.resolve(
+                    substituted, relocate: descriptor?.source.relocate,
+                    environment: environment)
+                return URL(fileURLWithPath: relocated).standardizedFileURL
             }
             if substituted.hasPrefix("/") {
                 return URL(fileURLWithPath: substituted).standardizedFileURL

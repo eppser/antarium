@@ -554,7 +554,7 @@ struct CapabilityApplicabilityTests {
     private func makesRows(_ d: HarnessDescriptor) -> Bool {
         if d.contributesFocusOnly { return false }
         if d.contributesPresenceOnly { return true }
-        return d.source.kind != .none || !(d.source.paths ?? [:]).isEmpty
+        return d.source.kind != .none || !d.source.declaredPathNames.isEmpty
     }
 
     private var shipped: [HarnessDescriptor] {

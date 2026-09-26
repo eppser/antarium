@@ -631,9 +631,19 @@ struct HarnessDescriptor: Codable {
         var relocate: Relocation?
 
         /// Where this harness reads, after any relocation it declares.
-        var resolvedPath: String {
-            Self.resolve(path, relocate: relocate,
-                         environment: ProcessInfo.processInfo.environment)
+        var resolvedPath: String { resolved(path) }
+
+        /// Any other path this harness declares, after the same relocation.
+        ///
+        /// `source.paths` names files beside the session store — Codex's
+        /// autonomous-goal database is `~/.codex/goals_1.sqlite` — and they move
+        /// with the directory. Relocating the session root and not these left a
+        /// relocated Codex showing its sessions and reporting its loop state as
+        /// unavailable, which is the same half-fix one level down.
+        func resolved(_ path: String,
+                      environment: [String: String] = ProcessInfo.processInfo.environment)
+            -> String {
+            Self.resolve(path, relocate: relocate, environment: environment)
         }
 
         /// Pure, so the rule can be tested against a machine that has none of
@@ -702,7 +712,30 @@ struct HarnessDescriptor: Codable {
         /// Extra directories a reader needs beyond `path`. Claude's transcripts
         /// live in a different tree from its session registry, and both should
         /// be fixable in the file if Claude ever moves them.
-        var paths: [String: String]?
+        private var paths: [String: String]?
+
+        /// Names of the extra paths this source declares.
+        var declaredPathNames: [String] { (paths ?? [:]).keys.sorted() }
+
+        /// A path this source declares beside its session store, relocated.
+        ///
+        /// The map itself is private, and that is the point rather than tidiness.
+        /// Two call sites read it directly and forgot the relocation: Codex keeps
+        /// its autonomous-goal database under the root `CODEX_HOME` moves, so a
+        /// relocated Codex showed its sessions and reported its loop state as
+        /// unavailable. Both mutations for that survived, because the decision was
+        /// tested and the one-line pass-through at each call site was not, and
+        /// reaching those takes a live scan against real processes.
+        ///
+        /// Making the unresolved value unreachable removes the class instead of
+        /// testing for it: there is no longer an unrelocated path to pass by
+        /// mistake. The two catalogue entries are gone with it — a mutation that
+        /// cannot be written is better than one that can only survive.
+        func declaredPath(_ name: String,
+                          environment: [String: String] = ProcessInfo.processInfo.environment)
+            -> String? {
+            paths?[name].map { resolved($0, environment: environment) }
+        }
         /// sqlite only. Newest session first, LIMIT 1.
         var query: String?
         /// sqlite only: what each selected column means.
