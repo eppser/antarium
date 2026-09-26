@@ -1141,3 +1141,7 @@ a rejection rule is compared loosely | Sources/Antarium/Providers/DescriptorProv
 zai stops noticing a rejected token | Resources/harnesses/zai.json | s%"needsAuthWhen": {%"needsAuthWhenUnused": {%
 minimax stops noticing a missing cookie | Resources/harnesses/minimax.json | s%"needsAuthWhen": {%"needsAuthWhenUnused": {%
 zai matches any failure rather than the auth code | Resources/harnesses/zai.json | s%"code": "401"%"success": "false"%
+a native provider ships with no hint | Sources/Antarium/Providers/KiroProvider.swift | s%    var setupHint: String { "Install kiro-cli and sign in." }%    var setupHint: String { "" }%
+a native hint restates the problem | Sources/Antarium/Providers/GrokProvider.swift | s%    var setupHint: String { "Run `grok` in Terminal and sign in." }%    var setupHint: String { "not signed in" }%
+a sign-in command becomes prose | Sources/Antarium/Providers/GeminiProvider.swift | s%    let signInCommand: String? = "gemini"%    let signInCommand: String? = "Please run gemini and sign in."%
+two native providers share an id | Sources/Antarium/Providers/GrokProvider.swift | s%    let id = "grok"%    let id = "gemini"%
