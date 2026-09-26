@@ -218,13 +218,44 @@ credential rather than the response.
 | Alibaba Model Studio | authentication is a browser cookie |
 | Mistral | shipped 2026-09-24 as a session reader, not a quota one. Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`; the descriptor globs it, maps `stats.session_cost` and `stats.session_total_llm_tokens`, and takes the session time from the file rather than the folder name, which is the one place it differs from ClaudeBar. Account-wide spend still needs the Mistral console: only Vibe writes these logs |
 | Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
-| Kimi | browser cookie by default. The POST half of this is no longer a reason: `quota.method` describes one now, and `roots` already reaches windows that nest. The cookie is what remains, and it is the whole of it. Re-checked 2026-09-25: the tool this is measured against reads the same five-hour and weekly limits either from the Kimi web billing API — the cookie route — or from the `kimi` CLI itself. A CLI route would need no cookie and `quota.command` already reads a program's stdout, so the blocker may be narrower than this row says. What is not established is the shape of that route: the documentation describes `/usage` as something typed inside the interactive CLI, and a slash command in a running session is not a program this app can run and read. One invocation that prints those figures non-interactively is the whole of what is missing, and inventing one is how a descriptor ships matching nothing |
 
 A provider whose credential expires with no way to renew it is deliberately
 left out rather than shipped degraded: a gauge that reads "sign in" most of the
-time is worse than an agent the settings list simply does not offer. The same
-reasoning already applies to Kimi's local endpoint, which only answers while
-Kimi itself is running.
+time is worse than an agent the settings list simply does not offer. Kimi's
+*local* endpoint is still out for that reason — it only answers while Kimi
+itself is running — but its account plan is in.
+
+### Kimi Code's plan
+
+Shipped 2026-09-26 as a plan reader. The cookie was the last thing keeping it
+out, and it turned out not to be the whole of it: the implementation this app is
+measured against checks `KIMI_AUTH_TOKEN` before it reads any cookie store, and
+an `env` credential already describes that. The descriptor posts to the
+Connect-RPC billing method the code console calls, filters `usages[]` to scope
+`FEATURE_CODING`, and takes the weekly total from `detail` and the five-hour
+window from `limits[]` by `window.duration` 300 rather than by position.
+
+Three additions to the descriptor model made it expressible, each general rather
+than Kimi-shaped: a field path may select an array element by field, a POST body
+may carry a list, and a declared window key may be a path rather than only a
+member name — the two windows sit at unrelated places in one reply. They are
+described under "Field paths" in the technical reference.
+
+What is *not* established is whether the gateway accepts the request without a
+browser's headers. The header set is that request's, less a fabricated Chrome
+`User-Agent`, and `verified` is false until somebody holds it against a real
+token — the settings list says so beside the provider. If a real token returns
+403, the `User-Agent` is the first thing to try.
+
+The CLI route is settled, and it is closed. That tool offers it as the
+recommended mode, which made it look like the narrower path: it needs no cookie,
+and `quota.command` already reads a program's stdout. What it actually does is
+start the interactive `kimi` TUI in a PTY, wait for a prompt marker, type
+`/usage` and parse the drawn box. `-p`/`--print` rejects slash commands, and
+`MoonshotAI/kimi-cli` issue 2169 is an open request for a non-interactive route.
+Nothing prints these figures to stdout, so `quota.command` cannot reach them and
+a descriptor that claimed to would match nothing.
+
 
 ## Coverage against ClaudeBar's roster
 
@@ -242,7 +273,7 @@ providers ClaudeBar monitors and checks each against what ships here. When
 ClaudeBar adds one, that list is what has to change, and until it does the
 difference between "declined" and "never heard of" is a real difference again.
 
-14 of the 20 are read for usage here. 2 more — Kimi and Mistral — are
+15 of the 20 are read for usage here. 1 more — Mistral — is
 recognised and given rows without a usage API, for the reasons in the table
 above; the remaining 4 are in that table too. Oh My Pi is one of those four
 and was briefly recorded as covered: this app ships a harness for Pi, and Oh

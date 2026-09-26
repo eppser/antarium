@@ -79,7 +79,7 @@ another vendor's token accepted as this one's | Sources/Antarium/Providers/Descr
 shipped shared-file credential left unguarded | Resources/harnesses/zai.json | s|"requires": {|"unused": {|
 credential follows a redirect to another host | Sources/Antarium/Core/BoundedResponse.swift | s|to.host?.lowercased() == fromHost,|to.host != nil,|
 same-host redirects refused too, breaking real endpoints | Sources/Antarium/Core/BoundedResponse.swift | s|completionHandler(request)$|completionHandler(nil)|
-unbounded gauges from a list response | Sources/Antarium/Providers/DescriptorProvider.swift | s|(FieldPath.lookup(json, path) as? \[Any\] ?? \[\]).prefix(maxWindows)|FieldPath.lookup(json, path) as? [Any] ?? []|
+unbounded gauges from a list response | Sources/Antarium/Providers/DescriptorProvider.swift | s|(FieldPath.first(json, path) as? \[Any\] ?? \[\]).prefix(maxWindows)|FieldPath.first(json, path) as? [Any] ?? []|
 unbounded gauges from an object response | Sources/Antarium/Providers/DescriptorProvider.swift | s|^                .prefix(maxWindows)$||
 response text clamp does nothing | Sources/Antarium/Providers/DescriptorProvider.swift | s|text.count <= maxResponseText ? text : String(text.prefix(maxResponseText))|text|
 window cap set below what real plans report | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 2|
@@ -164,10 +164,10 @@ codex empty response accepted | Sources/Antarium/Providers/CodexProvider.swift |
 codex additional caps dropped | Sources/Antarium/Providers/CodexProvider.swift | s|let inner = extra\["rate_limit"\] as? \[String: Any\] ?? extra|let inner = extra|
 field path booleans counted as numbers | Sources/Antarium/Core/FieldPath.swift | s|if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }|if false { return nil }|
 field path accepts a non-finite total | Sources/Antarium/Core/FieldPath.swift | s|guard total.isFinite else { return nil }||
-field path last-element selector reads the first | Sources/Antarium/Core/FieldPath.swift | s|let last = array.last else { return \[\] }|let last = array.first else { return [] }|
+field path last-element selector reads the first | Sources/Antarium/Core/FieldPath.swift | s%case .last: selected = array.suffix(1).map { \$0 }%case .last: selected = array.prefix(1).map { $0 }%
 field path model reads the oldest value | Sources/Antarium/Core/FieldPath.swift | s|each(record, path).compactMap { \$0 as? String }.last|each(record, path).compactMap { $0 as? String }.first|
 field path missing value becomes zero | Sources/Antarium/Core/FieldPath.swift | s|guard !found.isEmpty else { return nil }|if found.isEmpty { return 0 }|
-field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s|return suffix.isEmpty ? array : array.compactMap { lookup(\$0, suffix) }|return array|
+field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s%        guard !path.isEmpty else { return entries }%        guard false else { return entries }%
 field path integer total wraps | Sources/Antarium/Core/FieldPath.swift | s|guard !sum.overflow else { return nil }||
 check accepts an unknown descriptor field | Sources/Antarium/Core/HarnessCheck.swift | s|for problem in schemaProblems(in: object) { fail(problem) }||
 check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   true,|
@@ -461,9 +461,9 @@ amp claims a failed path lookup means not installed | Sources/Antarium/Providers
 kiro claims a failed path lookup means not installed | Sources/Antarium/Providers/KiroProvider.swift | s|Kiro wasn't found in the usual places.|Kiro isn't installed on this Mac.|
 the check warning claims absence | Sources/Antarium/Core/HarnessCheck.swift | s|was not found in the usual places"|is not on this Mac"|
 a posted quota goes out as a get | Sources/Antarium/Providers/DescriptorProvider.swift | s|if quota.resolvedMethod == .post {|if false {|
-a posted body drops the token substitution | Sources/Antarium/Providers/DescriptorProvider.swift | /resolvedMethod == .post/,/^        } else {/ s|Self.filled(\$0, token: token, account: account, forURL: false)|\$0|
+a posted body drops the token substitution | Sources/Antarium/Providers/DescriptorProvider.swift | /static func postBody/,/^    }$/ s|Self.filled(\$0, token: token, account: account, forURL: false)|\$0|
 an unknown quota method reads as a get | Sources/Antarium/Core/HarnessDocument.swift | s|\["get", "post"\].contains(method.lowercased())|true|
-a body on a get is shipped and never sent | Sources/Antarium/Core/HarnessDocument.swift | s|                if method.lowercased() != "post", quota\["body"\] != nil {|                if false, quota["body"] != nil {|
+a body on a get is shipped and never sent | Sources/Antarium/Core/HarnessDocument.swift | s%                if method.lowercased() != "post" { try refuseBodyWithoutPost() }%                if false { try refuseBodyWithoutPost() }%
 a quota method is compared without folding case | Sources/Antarium/Core/HarnessDescriptor.swift | s|Method(rawValue: (method ?? "get").lowercased()) ?? .get|Method(rawValue: method ?? "get") ?? .get|
 a stop across a long gap is announced as fresh | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|true|
 a late sweep stops reporting | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= interval|
@@ -557,8 +557,8 @@ a declared source label is overruled | Sources/Antarium/UI/HarnessRowPresentatio
 a failed quota mapping reads as verified | Sources/Antarium/UI/HarnessRowPresentation.swift | s|report.map { \$0.passed ? "Quota fixture verified"|report.map { (\$0.passed \|\| true) ? "Quota fixture verified"|
 the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        false|
 a harness with no fixture is called broken | Sources/Antarium/UI/HarnessRowPresentation.swift | s|if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {|if false {|
-the validator forgets the quota command | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "method", "body",|
-the validator forgets the quota method | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "command", "args",|"quota": ["endpoint", "command", "args",|
+the validator forgets the quota command | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "bodyList", "command", "args",|"quota": ["endpoint", "method", "body", "bodyList",|
+the validator forgets the quota method | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "bodyList", "command", "args",|"quota": ["endpoint", "command", "args",|
 the sdk cannot say a quota is posted | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var method: String?||
 the sdk cannot carry a posted body | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var body: \[String: String\]?||
 the sdk cannot filter a capability by suffix | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var fileSuffixes: \[String\]?||
@@ -916,7 +916,7 @@ being used here stops outranking being merely signed in | Sources/Antarium/Core/
 sessions alone stop counting as evidence | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (false, true): return 1|            case (false, true): return 0|
 the ranking collapses to two rungs | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (true, false): return 2|            case (true, false): return 1|
 the repository carries a machine name again | README.md | s|"build-box", "10.0.0.4"|"someones-imac", "10.0.0.4"|
-the README misstates how many providers ship | README.md | s|17 providers|12 providers|
+the README misstates how many providers ship | README.md | s|18 providers|12 providers|
 the README misstates how many mappings were verified | README.md | s|five were compared field by field|two were compared field by field|
 the guard stops reading what git tracks | Tests/AntariumTests/NoMachineIdentityTests.swift | s|git.arguments = \["-C", root.path, "ls-files"\]|git.arguments = ["-C", root.path, "ls-files", "--", "nothing"]|
 a tilde naming another account is glued onto this one | Sources/Antarium/Core/HarnessDescriptor.swift | s|^        return self$|        return home + dropFirst()|
@@ -942,7 +942,7 @@ sessions with the same activity are left to reshuffle | Sources/Antarium/Core/Ha
 the session order ignores recency | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return a.orderingKey < b.orderingKey|
 a session falls back to no identity at all | Sources/Antarium/Core/HarnessEngine.swift | s|        var orderingKey: String { sessionID ?? sourceFile ?? cwd ?? title ?? "" }|        var orderingKey: String { sessionID ?? "" }|
 a rostered provider quietly stops reading its usage api | Resources/harnesses/zai.json | s/"quota"/"quotaWithheld"/
-the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/14 of the 20 are read for usage here/13 of the 20 are read for usage here/
+the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/15 of the 20 are read for usage here/14 of the 20 are read for usage here/
 the document stops naming the roster it is measured against | docs/ECOSYSTEM.md | s/ClaudeBar/that other app/g
 the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/11 of the 26 never appear in it/9 of the 22 never appear in it/
 a shipped quota drops the credential that proves an account exists | Resources/harnesses/zai.json | s/"credential"/"credentialWithheld"/
@@ -1037,3 +1037,18 @@ the open-terminal action stops refusing a remote row | Sources/Antarium/Core/Foc
 the copy action stops naming the machine | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.copyPath), let path = pathToCopy(for: row)|        let path = row.cwd; guard actions(for: row).contains(.copyPath), true|
 disposal no longer refuses later readings | Sources/Antarium/Core/QuotaStore.swift | s|        retired.insert(providerID)||
 the store retires every provider at once | Sources/Antarium/Core/QuotaStore.swift | s|        retired.insert(providerID)|        retired.insert(providerID); retired.insert("other")|
+a misspelled filter reads as every element | Sources/Antarium/Core/FieldPath.swift | s%case .malformed: return \[\]%case .malformed: selected = array%
+a filter needs only one of its clauses | Sources/Antarium/Core/FieldPath.swift | s%clauses.allSatisfy { comparable(lookup(entry, \$0.path)) == \$0.value }%clauses.contains { comparable(lookup(entry, $0.path)) == $0.value }%
+a filter with an empty half is still a filter | Sources/Antarium/Core/FieldPath.swift | s%guard !key.isEmpty, !value.isEmpty else { return .malformed }%guard !key.isEmpty else { return .malformed }%
+a flag compares as the number it is carried by | Sources/Antarium/Core/FieldPath.swift | s%            return number.boolValue ? "true" : "false"%            return String(number.intValue)%
+an integral number compares as a decimal | Sources/Antarium/Core/FieldPath.swift | s%        if number == number.rounded(), let integer = Int(exactly: number) {%        if false, let integer = Int(exactly: number) {%
+a container path cannot see its own filter | Sources/Antarium/Core/FieldPath.swift | s%path.contains("\[") ? each(record, path).first : lookup(record, path)%lookup(record, path)%
+only the first bracket in a path is a filter | Sources/Antarium/Core/FieldPath.swift | s%return entries.flatMap { each(\$0, path) }%return entries.compactMap { lookup($0, path) }%
+a filter ignores the clauses it was given | Sources/Antarium/Core/FieldPath.swift | s%clauses.allSatisfy { comparable(lookup(entry, \$0.path)) == \$0.value }%clauses.allSatisfy { _ in true }%
+a malformed filter ships without complaint | Sources/Antarium/Core/HarnessDocument.swift | s%                guard FieldPath.selection(String(inner)) != .malformed else {%                guard true else {%
+an unclosed bracket ships without complaint | Sources/Antarium/Core/HarnessDocument.swift | s%                guard let close = rest\[open...\].firstIndex(of: "\]") else {%                guard let close = rest[open...].firstIndex(of: "]") ?? rest.indices.last else {%
+a body key declared twice is resolved by luck | Sources/Antarium/Core/HarnessDocument.swift | s%            guard both.isEmpty else {%            guard true else {%
+a posted list body is sent on a GET | Sources/Antarium/Core/HarnessDocument.swift | s%            let declaredBody = \["body", "bodyList"\].filter { quota\[\$0\] != nil }%            let declaredBody = ["body"].filter { quota[$0] != nil }%
+the list half of a body is dropped | Sources/Antarium/Providers/DescriptorProvider.swift | s%        for (key, value) in quota.bodyList ?? \[:\] { body\[key\] = value }%%
+a declared window key is only ever a member name | Sources/Antarium/Providers/DescriptorProvider.swift | s%                    (FieldPath.first(container, key) as? \[String: Any\]).map { (key, \$0) }%                    (container[key] as? [String: Any]).map { (key, $0) }%
+a list body may hold anything at all | Sources/Antarium/Core/HarnessDocument.swift | s%                          .allSatisfy { \$0 is String } ?? false }) else {%                          .allSatisfy { _ in true } ?? true }) else {%

@@ -811,10 +811,16 @@ struct MoonshotQuotaTests {
     }
 
     /// This is the API platform. The kimi harness reads the Kimi Code CLI's
-    /// transcripts. One is an account and the other is a conversation, so
-    /// neither counts the other — the double-counting rule that keeps
-    /// aggregators out does not apply here, and a test says so because the
-    /// two names look like they ought to collide.
+    /// transcripts and, since 2026-09-26, its subscription plan. One is an
+    /// account paid by the token and the other is a plan measured in requests,
+    /// so neither counts the other — the double-counting rule that keeps
+    /// aggregators out does not apply here, and a test says so because the two
+    /// names look like they ought to collide.
+    ///
+    /// This used to assert that the CLI harness charted no quota at all, which
+    /// stated the separation by there being nothing to separate. Now that both
+    /// report something the claim has to be the real one: different services,
+    /// different units, and nothing shared but a brand.
     @Test("It does not overlap the Kimi CLI harness")
     func doesNotOverlapKimi() throws {
         let moonshot = try descriptor()
@@ -823,7 +829,19 @@ struct MoonshotQuotaTests {
         let kimi = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
         #expect(moonshot.id != kimi.id)
         #expect(moonshot.source.kind == .none, "the account harness reads no sessions")
-        #expect(kimi.quota == nil, "the CLI harness charts no quota")
+        let plan = try #require(kimi.quota, "the CLI harness charts its plan")
+        #expect(plan.endpoint != moonshot.quota?.endpoint,
+                "both read the same endpoint, so one of them is counting the other's figures")
+        // Money against a bar: the account harness charts a balance and has no
+        // meter, the plan harness charts meters and no balance. Nothing can be
+        // added across the two even by accident.
+        #expect(moonshot.quota?.windows.balance != nil)
+        #expect(plan.windows.balance == nil)
+        #expect(plan.windows.limit != nil)
+        #expect(moonshot.quota?.windows.limit == nil)
+        // And they take different credentials, so signing in to one is not
+        // silently read as signing in to the other.
+        #expect(plan.credential?.name != moonshot.quota?.credential?.name)
     }
 }
 
@@ -993,21 +1011,41 @@ struct PostQuotaTests {
         }
     }
 
-    /// Every shipped descriptor predates the field and must still be a GET —
-    /// adding a way to post is not a reason for anything to start posting.
-    @Test("No shipped descriptor changed method")
-    func shippedAreAllGet() throws {
+    /// Only the descriptors that need to post, post.
+    ///
+    /// This read "no shipped descriptor changed method" while none had, which
+    /// said adding the field changed nothing. One has now: Kimi's billing
+    /// endpoint is a Connect-RPC call and a GET to it is a different request.
+    /// The claim worth keeping is the narrow one — that posting stayed
+    /// deliberate, rather than spreading to descriptors that never needed it.
+    @Test("Only the descriptors that must post, post")
+    func onlyDeliberatePosts() throws {
         let urls = try #require(AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses"))
-        var checked = 0
+        let mayPost: Set<String> = ["kimi"]
+        var checked = 0, posting: [String] = []
         for url in urls {
             let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
             guard let quota = descriptor.quota, quota.command == nil else { continue }
-            #expect(quota.resolvedMethod == .get,
-                    Comment(rawValue: "\(descriptor.id) posts"))
             checked += 1
+            guard quota.resolvedMethod == .post else { continue }
+            posting.append(descriptor.id)
+            #expect(mayPost.contains(descriptor.id),
+                    Comment(rawValue: "\(descriptor.id) posts and is not listed as needing to"))
         }
         #expect(checked >= 8, "only \(checked) endpoint quotas were checked")
+        // And the list is not stale: a descriptor listed here that stopped
+        // posting would excuse a method nothing uses.
+        #expect(Set(posting) == mayPost,
+                Comment(rawValue: "listed as posting: \(mayPost.sorted()); actually posting: "
+                        + "\(posting.sorted())"))
+        // A posted body must actually be built, or the method is decoration.
+        for url in urls {
+            let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+            guard let quota = descriptor.quota, quota.resolvedMethod == .post else { continue }
+            #expect(quota.body?.isEmpty == false || quota.bodyList?.isEmpty == false,
+                    Comment(rawValue: "\(descriptor.id) posts an empty body"))
+        }
     }
 }
 

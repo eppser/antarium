@@ -891,6 +891,16 @@
           },
           "description": "Body sent with a POST, as flat string values. {token} is substituted."
         },
+        "bodyList": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Body keys whose value is a list of strings, sent with the same POST as body. A key may appear in one or the other, not both. No {token} substitution."
+        },
         "documentation": {
           "type": "string",
           "format": "uri",

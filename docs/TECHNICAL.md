@@ -734,6 +734,60 @@ method is refused rather than defaulted, because a typo reads as GET and the
 descriptor would fetch the wrong way and report whatever a GET to that path
 returns.
 
+A body key whose value is a list of strings goes in `bodyList` instead, which
+is sent with the same POST. Kimi's billing endpoint is a Connect-RPC call whose
+body is `{"scope":["FEATURE_CODING"]}`, and posting the bare string where an
+array belongs is not a near miss to a typed gateway — it is a different
+request. A key given in both halves is refused, so the merge has no precedence
+to get wrong, and `bodyList` on a non-POST method is refused too rather than
+being built and never sent. There is no `{token}` substitution in it: a
+credential is a scalar, and every list-valued field seen in the wild is a set
+of literal scope names.
+
+#### Field paths
+
+A field path is dotted — `data.limits.weekly` — and may step through an array.
+`rows[]` is every element, `rows[-1]` is the last, and `rows[key=value]` is
+those whose `key` is `value`, with several comma-separated clauses all having
+to hold. The key is itself a path, so `limits[window.duration=300]` reaches
+inside each element, and a path may filter more than once:
+`usages[scope=FEATURE_CODING].limits[window.duration=300].detail.remaining`.
+
+The filter is not a convenience. `FieldPath.int` sums every value a path names,
+which is what `[]` is for, so on a response carrying one entry per billing
+scope `usages[].detail.limit` is every scope's limit added together — a
+plausible number, in the right units, wrong, with nothing missing for anything
+downstream to notice. A path names the entry meant or it names nothing.
+
+Comparison is against the text the descriptor writes, and both sides of a
+response are accommodated: Kimi states one window's length as the number `300`
+and the counts beside it as the strings `"1024"` and `"512"` in the same
+payload, so a filter that matched only strings would work on half of its own
+reply. Booleans compare as `true` and `false`, decided before the numeric
+cases because parsed JSON hands both back as `NSNumber` and a boolean bridges
+to `Int` as 1.
+
+A field stated as `null` matches nothing, the same answer an absent one gets: a
+filter has nothing to say about the difference between the two, and reading a
+null as `""` or `0` would let a clause match a field that stated no value. A
+filter value cannot itself contain a comma or an `=`, and there is no escape —
+the clause splits, the group reads as malformed, and the refusal below names it,
+so the limit is found at `--check` rather than by a gauge never appearing.
+
+A declared window key is resolved as a path too, so a key holding a dot now
+reaches into a member rather than naming one literally. No shipped descriptor
+had a dotted key; a third-party document with a JSON member genuinely named
+`a.b` is the one shape this changed.
+
+A filter that matches nothing is absent, never zero — a gauge reading "0 left"
+on a plan with plenty left is worse than one that does not appear. A bracket
+group that is neither `[]`, `[-1]`, nor `key=value` pairs selects nothing for
+the same reason, and rather than leave that silent the document boundary
+refuses it at decode, naming the path and the group. Which strings in a
+`windows` block are paths is enumerated on the block itself, beside the
+declarations, and `WindowFieldPathTests` reflects over the struct so a field
+added without being classified fails there instead of going unvalidated.
+
 A `quota` block reads from exactly one place: an `endpoint`, or a `command`
 whose stdout is the JSON the `windows` map describes. Both would leave which
 one wins to the order of an `if`, and neither is a quota block that does

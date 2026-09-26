@@ -86,7 +86,7 @@ enum HarnessCheck {
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
                    "journal", "checkedAt"],
         "map": mapKeys,
-        "quota": ["endpoint", "method", "body", "command", "args",
+        "quota": ["endpoint", "method", "body", "bodyList", "command", "args",
                   "headers", "credential", "windows", "accountLabel",
                   "setupHint", "signInCommand", "verified", "documentation", "checkedAt"],
         "focus": ["command", "args"],

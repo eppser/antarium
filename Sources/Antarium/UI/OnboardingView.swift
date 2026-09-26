@@ -38,7 +38,7 @@ struct OnboardingView: View {
                 if !signedIn.isEmpty {
                     group("Quota") { ForEach(signedIn) { row($0) } }
                 }
-                // Ten providers ship, and on most Macs a few are signed in.
+                // Eighteen providers ship, and on most Macs a few are signed in.
                 // Listing the rest as unchecked rows with a setup hint each
                 // filled the panel with things the user has not got, under a
                 // heading that says Antarium is ready. They are named, once,

@@ -318,6 +318,43 @@ struct HarnessDescriptor: Codable {
             var windowSeconds: String?
             var resetsAt: String?
             var title: String?
+
+            /// Every string in this block that `FieldPath` will resolve.
+            ///
+            /// Enumerated beside the declarations rather than inside the
+            /// validator, which would otherwise be a second copy of the list
+            /// above kept aligned by hand. `WindowFieldPathTests` reflects over
+            /// this struct and fails when a field is added without being
+            /// classified here, so the two cannot drift apart quietly.
+            ///
+            /// `title` is the one exception: it is text shown in a menu, and a
+            /// title reading "Weekly [beta]" is a title rather than a path
+            /// anyone got wrong. The value halves of `labels` and `badges` are
+            /// text too — only their keys are paths.
+            ///
+            /// `keys` is included, which takes explaining, because it means two
+            /// things. Against an object response it names members, and a
+            /// member may be reached by a path; against a list response it
+            /// matches the name `key` derived for each element, which is not a
+            /// path at all. Either way a bracket group in it is only ever a
+            /// filter or a mistake, and that is all the validator looks at.
+            var fieldPaths: [String] {
+                var paths = [root, list, usedPercent, percentRemaining, balance,
+                             currency, single, used, remaining, limit,
+                             windowSeconds, resetsAt].compactMap { $0 }
+                paths += roots ?? []
+                paths += key ?? []
+                paths += keys ?? []
+                paths += (criticalWhen ?? [:]).keys
+                paths += (require ?? [:]).keys
+                paths += (labels ?? [:]).keys
+                paths += (badges ?? [:]).keys
+                return paths
+            }
+
+            /// Fields above that are not field paths. Named so a test can hold
+            /// the classification against the struct itself.
+            static let nonPathFields: Set<String> = ["title"]
         }
         /// An https URL to read the figures from. Optional because some
         /// services no longer offer one.
@@ -353,6 +390,24 @@ struct HarnessDescriptor: Codable {
         /// of scalars, and a nested one can be added when something needs it
         /// rather than guessed at now.
         var body: [String: String]?
+        /// The same body, for the keys whose value is a list of strings.
+        ///
+        /// Something needed it. Kimi's billing endpoint is a Connect-RPC call
+        /// whose body is `{"scope":["FEATURE_CODING"]}`, and posting the string
+        /// `"FEATURE_CODING"` where an array belongs is not a near miss to a
+        /// typed gateway — it is a different request.
+        ///
+        /// A second field rather than a nested value type, because the nesting
+        /// that exists in the wild is one level of array of strings. A general
+        /// JSON value would decode shapes no endpoint asks for and would have
+        /// to answer what `{token}` substitution means inside them; this
+        /// answers nothing it does not have to.
+        ///
+        /// No `{token}` substitution: a credential is a scalar, and every
+        /// list-valued field seen is a set of literal scope names. The
+        /// validator refuses a key given in both halves, so the merge below
+        /// cannot depend on which one is applied second.
+        var bodyList: [String: [String]]?
         var headers: [String: String]?
         var credential: Credential?
         let windows: Windows

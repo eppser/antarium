@@ -124,5 +124,52 @@
       ]
     }
   },
-  "note": "Kimi Code documents a Kimi-specific location beside a generic one at every scope, and declares the specific one first: .kimi-code/AGENTS.md before AGENTS.md, .kimi-code/skills before .agents/skills, and the same pair under home. MCP servers are declared under mcpServers in .kimi-code/mcp.json or the copy under home. Not declared: KIMI_CODE_HOME relocates every path under ~/.kimi-code, which a descriptor cannot read, so a relocated data root reads as absent rather than wrong; and the project root is the nearest directory holding .git, searched upward, while the probe looks only at the session's working directory. Kimi Code writes `usage.record` lines in two scopes and only one of them may be summed: `turn` is what a turn spent, `session` is the running total so far. Read against three independent readers of the same files on 2026-09-25 \u2014 one states the rule outright, that only turn-scoped records are counted because session-scoped ones are cumulative totals. Adding both would add the running total to the turns it is already the sum of. Stated as `skipUsageWhere` rather than as a rule about what to keep, because an older format writes usage with no scope at all and keeping only what matches would drop it."
+  "note": "Kimi Code documents a Kimi-specific location beside a generic one at every scope, and declares the specific one first: .kimi-code/AGENTS.md before AGENTS.md, .kimi-code/skills before .agents/skills, and the same pair under home. MCP servers are declared under mcpServers in .kimi-code/mcp.json or the copy under home. Not declared: KIMI_CODE_HOME relocates every path under ~/.kimi-code, which a descriptor cannot read, so a relocated data root reads as absent rather than wrong; and the project root is the nearest directory holding .git, searched upward, while the probe looks only at the session's working directory. Kimi Code writes `usage.record` lines in two scopes and only one of them may be summed: `turn` is what a turn spent, `session` is the running total so far. Read against three independent readers of the same files on 2026-09-25 \u2014 one states the rule outright, that only turn-scoped records are counted because session-scoped ones are cumulative totals. Adding both would add the running total to the turns it is already the sum of. Stated as `skipUsageWhere` rather than as a rule about what to keep, because an older format writes usage with no scope at all and keeping only what matches would drop it. Quota added 2026-09-26. The plan windows are the Kimi Code subscription's, which is a different thing from the moonshot harness's pay-as-you-go balance: one is a weekly request allowance with a five-hour rate limit, the other is money, and neither counts the other. The shape is published nowhere \u2014 the endpoint is a Connect-RPC method the kimi.com code console calls, and it appears in no vendor documentation. It is mapped from the only primary source there is, the implementation of the tool this app is measured against, read on 2026-09-26: usages[] filtered to scope FEATURE_CODING, detail carrying limit, used, remaining and resetTime as strings, and limits[] carrying the rate windows with the five-hour one identified by window.duration 300 and window.timeUnit TIME_UNIT_MINUTE rather than by position. used and remaining may each be absent and the other derived from limit, which is why all three paths are declared: the mapping tries used over limit first and falls back to remaining over limit, matching that implementation exactly. What is not established is the transport. The token is the kimi-auth session cookie, and this app reads no browser cookie store, so the descriptor takes it from KIMI_AUTH_TOKEN \u2014 the same variable that implementation checks before it reads any cookie, and the only route to these figures that needs no Full Disk Access. The header set is that request's, less the parts a descriptor cannot state or should not claim: no r-timezone, and Antarium's own User-Agent rather than a Chrome one. Whether the gateway accepts that is untested, because testing it takes a real session token; verified is false and the settings list says so. If a real token returns 403, the User-Agent is the first thing to try. The CLI route that tool offers as its recommended mode is not available to a descriptor and is not a narrower blocker than it looks: it starts the interactive kimi TUI in a PTY, waits for a prompt marker, types /usage and parses the drawn box. -p/--print rejects slash commands, and MoonshotAI/kimi-cli issue 2169 is an open request for a non-interactive route. There is no invocation that prints these figures to stdout, so quota.command cannot reach them. The credential falls back to ~/.antarium/keys/kimi, because an app started from Finder inherits no shell and a hint reading \"export KIMI_AUTH_TOKEN\" would do nothing for most installations.",
+  "quota": {
+    "endpoint": "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages",
+    "method": "POST",
+    "bodyList": {
+      "scope": [
+        "FEATURE_CODING"
+      ]
+    },
+    "credential": {
+      "kind": "env",
+      "name": "KIMI_AUTH_TOKEN",
+      "path": "~/.antarium/keys/kimi"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Cookie": "kimi-auth={token}",
+      "Content-Type": "application/json",
+      "Accept": "*/*",
+      "Origin": "https://www.kimi.com",
+      "Referer": "https://www.kimi.com/code/console",
+      "connect-protocol-version": "1",
+      "x-msh-platform": "web",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "root": "usages[scope=FEATURE_CODING]",
+      "keys": [
+        "detail",
+        "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail"
+      ],
+      "used": "used",
+      "remaining": "remaining",
+      "limit": "limit",
+      "resetsAt": "resetTime",
+      "labels": {
+        "detail": "Weekly",
+        "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail": "5-hour"
+      },
+      "badges": {
+        "detail": "WK",
+        "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail": "5H"
+      }
+    },
+    "setupHint": "Put your kimi-auth in ~/.antarium/keys/kimi",
+    "verified": false,
+    "checkedAt": "2026-09-26"
+  }
 }

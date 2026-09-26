@@ -145,7 +145,7 @@ enum Onboarding {
     /// Splits accounts into the ones worth a row each and the ones worth a
     /// single line naming them.
     ///
-    /// Ten providers ship. Giving every unconfigured one a row with its setup
+    /// Eighteen providers ship. Giving every unconfigured one a row with its setup
     /// hint filled the first-run panel with things the user has not got, under
     /// a heading that says Antarium is ready — and the hints, being long
     /// enough to be useful, truncated mid-word in the space left for them.

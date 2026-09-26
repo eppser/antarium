@@ -666,8 +666,8 @@ struct SettingsView: View {
         let present: Bool
     }
 
-    /// Ten providers ship, and on most Macs only a few are real. Splitting the
-    /// list on that means the ones you have are at the top and the rest are
+    /// Eighteen providers ship, and on most Macs only a few are real. Splitting
+    /// the list on that means the ones you have are at the top and the rest are
     /// still there to switch on, rather than a flat list where "not signed in"
     /// is the most common line.
     static func agentRows(providers: [UsageProvider], enabled: Set<String>,

@@ -249,15 +249,36 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
 
         let json: [String: Any]
         if quota.resolvedMethod == .post {
-            let body = (quota.body ?? [:]).mapValues {
-                Self.filled($0, token: token, account: account, forURL: false)
-            }
-            json = try await UsageHTTP.postJSON(url, body: body, headers: headers,
-                                                session: session)
+            json = try await UsageHTTP.postJSON(
+                url, body: Self.postBody(quota, token: token, account: account),
+                headers: headers, session: session)
         } else {
             json = try await UsageHTTP.getJSON(url, headers: headers, session: session)
         }
         return try makeSnapshot(json)
+    }
+
+    /// The body of a POST, from the two halves a descriptor may declare.
+    ///
+    /// Split out of `fetch` so it can be asked. It was three lines inside an
+    /// `await`, which meant the only way to see what gets posted was to post
+    /// it: a merge that dropped the list half, or substituted a token into it,
+    /// or preferred the wrong half for a key in both, would have shipped with
+    /// every fixture still green — a quota fixture replays `makeSnapshot`, and
+    /// by then the request has already been made.
+    ///
+    /// Merged rather than overlaid: the document boundary refuses a key
+    /// declared in both halves, so there is no precedence to decide here and
+    /// none to get wrong later. `{token}` reaches only the scalar half — a
+    /// credential is one value, and every list-valued field seen is a set of
+    /// literal scope names.
+    static func postBody(_ quota: HarnessDescriptor.Quota,
+                         token: String, account: String?) -> [String: Any] {
+        var body: [String: Any] = (quota.body ?? [:]).mapValues {
+            Self.filled($0, token: token, account: account, forURL: false)
+        }
+        for (key, value) in quota.bodyList ?? [:] { body[key] = value }
+        return body
     }
 
     /// The URL to ask, with the credential in it if that is where it goes.
@@ -510,7 +531,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                         map: HarnessDescriptor.Quota.Windows) -> [(key: String, window: [String: Any])] {
         var found: [(key: String, window: [String: Any])]
         if let path = map.list {
-            let elements = (FieldPath.lookup(json, path) as? [Any] ?? []).prefix(maxWindows)
+            let elements = (FieldPath.first(json, path) as? [Any] ?? []).prefix(maxWindows)
             found = elements.enumerated().compactMap { index, element in
                 guard let window = element as? [String: Any] else { return nil }
                 let parts = (map.key ?? []).compactMap { Self.name(window, $0) }
@@ -539,7 +560,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             let candidates = map.roots ?? map.root.map { [$0] } ?? []
             let container: [String: Any]? = candidates.isEmpty
                 ? json
-                : candidates.lazy.compactMap { FieldPath.lookup(json, $0) as? [String: Any] }.first
+                : candidates.lazy.compactMap { FieldPath.first(json, $0) as? [String: Any] }.first
             found = container.map { [(name, $0)] } ?? []
         } else {
             // First candidate that actually resolves to an object. An absent
@@ -549,13 +570,21 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             let candidates = map.roots ?? map.root.map { [$0] } ?? []
             let container: [String: Any] = candidates
                 .lazy
-                .compactMap { FieldPath.lookup(json, $0) as? [String: Any] }
+                .compactMap { FieldPath.first(json, $0) as? [String: Any] }
                 .first ?? (candidates.isEmpty ? json : [:])
             // For an object the declared order is the drawing order.
+            //
+            // A declared key is resolved as a path, not only as a member name,
+            // which is how two windows at unrelated places in one response are
+            // described. Kimi reports the weekly total in `detail` and the
+            // five-hour window inside a `limits` array beside it, and neither
+            // the list shape nor a shared parent object reaches both. For a
+            // key of one segment — which is every key shipped so far — this is
+            // the member lookup it was.
             found = (map.keys ?? container.keys.sorted())
                 .prefix(maxWindows)
                 .compactMap { key in
-                    (container[key] as? [String: Any]).map { (key, $0) }
+                    (FieldPath.first(container, key) as? [String: Any]).map { (key, $0) }
                 }
         }
         return found

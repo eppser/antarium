@@ -60,8 +60,41 @@ enum HarnessDocument {
         let normalized = try JSONSerialization.data(withJSONObject: runtime,
                                                      options: [.sortedKeys])
         let descriptor = try JSONDecoder().decode(HarnessDescriptor.self, from: normalized)
+        try validateFieldPaths(descriptor)
         return Decoded(descriptor: descriptor,
                        migratedFrom: originalVersion == currentVersion ? nil : originalVersion)
+    }
+
+    /// Refuses a field path whose bracket group means nothing.
+    ///
+    /// A path may select array elements by field — `usages[scope=FEATURE_CODING]`
+    /// — and a misspelled filter selects nothing at all. That is the safe
+    /// failure and a silent one: the gauge does not appear, on the user's
+    /// machine, with nothing anywhere saying why. Refused where it is written,
+    /// which is the reasoning `requires` and `accountField` are already checked
+    /// under.
+    ///
+    /// Checked after decoding rather than against the raw object, so the list
+    /// of which strings are paths comes from the SDK's own declarations instead
+    /// of being spelled out a second time here.
+    private static func validateFieldPaths(_ descriptor: HarnessDescriptor) throws {
+        guard let windows = descriptor.quota?.windows else { return }
+        for path in windows.fieldPaths {
+            var rest = Substring(path)
+            while let open = rest.firstIndex(of: "[") {
+                guard let close = rest[open...].firstIndex(of: "]") else {
+                    throw Error.semantic(
+                        "quota.windows field path \"\(path)\" opens a bracket it never closes")
+                }
+                let inner = rest[rest.index(after: open)..<close]
+                guard FieldPath.selection(String(inner)) != .malformed else {
+                    throw Error.semantic(
+                        "quota.windows field path \"\(path)\" has a bracket group "
+                        + "\"[\(inner)]\" that is neither [], [-1], nor key=value pairs")
+                }
+                rest = rest[rest.index(after: close)...]
+            }
+        }
     }
 
     /// Canonical current-format bytes, suitable for an explicit SDK/CLI
@@ -189,6 +222,18 @@ enum HarnessDocument {
                     "quota.credential.accountField reads a second field out of a JSON file, "
                     + "and this credential is \((credential?["kind"] as? String) ?? "not declared")")
             }
+            // A key declared in both body halves has two values and one slot.
+            // Refused rather than resolved by precedence, for the reason the
+            // endpoint-and-command pair is: whichever way the merge happened to
+            // run would become the rule, unwritten.
+            let scalars = Set((quota["body"] as? [String: Any])?.keys ?? [:].keys)
+            let lists = Set((quota["bodyList"] as? [String: Any])?.keys ?? [:].keys)
+            let both = scalars.intersection(lists).sorted()
+            guard both.isEmpty else {
+                throw Error.semantic(
+                    "quota declares \(both.joined(separator: ", ")) in both body and bodyList; "
+                    + "a body key has one value")
+            }
             // And the other way round: a placeholder nothing can fill leaves
             // the request asking about an account literally called
             // "{account}".
@@ -221,19 +266,37 @@ enum HarnessDocument {
             // The method is checked rather than defaulted: a typo reads as
             // GET, and a descriptor that meant to post would fetch the wrong
             // way and report whatever a GET to that path happens to return.
+            //
+            // Both halves of the body are checked here, together. A separate
+            // rule for `bodyList` was written first and was subtly weaker: it
+            // only refused an explicitly non-POST method, so a list body with
+            // no method at all — which is a GET — was built and never sent. The
+            // rule this one already had covers the absent case, which is why it
+            // is the one that grew rather than being duplicated beside.
+            let declaredBody = ["body", "bodyList"].filter { quota[$0] != nil }
+            func refuseBodyWithoutPost() throws {
+                guard let field = declaredBody.first else { return }
+                throw Error.semantic("quota.\(field) is only sent with POST")
+            }
             if let raw = quota["method"] {
                 guard let method = raw as? String,
                       ["get", "post"].contains(method.lowercased()) else {
                     throw Error.semantic("quota.method must be GET or POST")
                 }
-                if method.lowercased() != "post", quota["body"] != nil {
-                    throw Error.semantic("quota.body is only sent with POST")
-                }
-            } else if quota["body"] != nil {
-                throw Error.semantic("quota.body is only sent with POST")
+                if method.lowercased() != "post" { try refuseBodyWithoutPost() }
+            } else {
+                try refuseBodyWithoutPost()
             }
             if let body = quota["body"], !(body is [String: String]) {
                 throw Error.semantic("quota.body must be an object of string values")
+            }
+            if let lists = quota["bodyList"] {
+                guard let object = lists as? [String: Any],
+                      object.values.allSatisfy({ ($0 as? [Any])?
+                          .allSatisfy { $0 is String } ?? false }) else {
+                    throw Error.semantic(
+                        "quota.bodyList must be an object whose values are arrays of strings")
+                }
             }
             if command?.isEmpty == false {
                 if quota["headers"] != nil {

@@ -52,8 +52,8 @@ integration status.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
 - **Remote tmux agents** over SSH, from machines you already reach with `ssh`.
-- **Quota monitoring** for 17 providers — seven read natively, ten described by a
-  harness file you can edit or add to.
+- **Quota monitoring** for 18 providers — seven read natively, eleven described by
+  a harness file you can edit or add to.
 - **Per-agent project setup overview** for supported harnesses, including
   instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
 - **Local-first and private:** no Antarium telemetry and no prompt collection.
@@ -113,6 +113,7 @@ Accounts whose usage appears in the menu bar:
 - DeepSeek
 - Gemini CLI
 - MiniMax
+- Kimi
 - Moonshot (Kimi API)
 - OpenRouter
 - Synthetic
@@ -121,7 +122,11 @@ Accounts whose usage appears in the menu bar:
 
 Some tools appear in both lists under different names — a CLI and the
 account behind it are separate harnesses, because one reads sessions on
-this Mac and the other asks a service what is left.
+this Mac and the other asks a service what is left. Kimi appears in both
+under the *same* name, which is a third case: one harness reads its
+sessions from this Mac and its plan windows from the service. The
+Moonshot entry beside it is a different product — an API balance paid by
+the token, not a subscription measured in requests.
 
 Install detection covers documented npm, curl/native, Homebrew, direct binary,
 app-bundle, interpreter, and Nix layouts where the upstream tool supports them.
@@ -171,15 +176,16 @@ clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
 
 The same rule applies to how a provider's mapping was checked, and the answer
-changed after the mappings were audited. Of the ten described by a harness
+changed after the mappings were audited. Of the eleven described by a harness
 file, five were compared field by field against the vendor's own published
-response schema and name the page they were read from. The other five have no
+response schema and name the page they were read from. The other six have no
 published schema at all.
 
-For those five the fixture used to be the whole of the check, and that turned
+For those six the fixture used to be the whole of the check, and that turned
 out not to be enough — because a fixture is written from the mapping it tests.
 It proves the mapping is applied and cannot notice that the fields mean
-something else. Four of the ten were wrong behind a passing fixture, and one
+something else. Four of the ten audited at the time were wrong behind a passing
+fixture, and one
 of them, MiniMax, had expectations that were the exact mirror of the truth:
 `current_interval_usage_count` is what remains, not what was spent, so a meter
 read comfortable while the quota emptied.

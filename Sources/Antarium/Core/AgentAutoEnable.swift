@@ -8,7 +8,7 @@ import Foundation
 /// user actually had. This replaces the guess with evidence: an agent earns a
 /// slot when it is signed in here, or has left sessions on this Mac.
 ///
-/// At most `limit` are switched on, strongest evidence first — ten providers
+/// At most `limit` are switched on, strongest evidence first — eighteen providers
 /// ship now, and a Mac with traces of eight of them should not open to eight
 /// menu bar items. Settings lists every one of them for adding the rest.
 ///
