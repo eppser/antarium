@@ -583,7 +583,7 @@ enum HarnessEngine {
                 return ([], "\(path) did not print JSON")
             }
             if let root = d.source.root, let dict = object as? [String: Any],
-               let nested = FieldPath.lookup(dict, root) as? [[String: Any]] { return (nested, path) }
+               let nested = FieldPath.first(dict, root) as? [[String: Any]] { return (nested, path) }
             return ((object as? [[String: Any]]) ?? [], path)
         case .sqlite:
             // Run the real query so the checker can say what each declared
@@ -717,7 +717,7 @@ enum HarnessEngine {
                 let records: [[String: Any]]
                 if let path = d.source.root,
                    let dict = object as? [String: Any],
-                   let nested = FieldPath.lookup(dict, path) as? [[String: Any]] {
+                   let nested = FieldPath.first(dict, path) as? [[String: Any]] {
                     records = nested
                 } else {
                     records = (object as? [[String: Any]]) ?? []
@@ -1007,7 +1007,7 @@ enum HarnessEngine {
             session.lastActivity = when
             if session.startedAt == nil { session.startedAt = when }
         }
-        if let path = map.pid, let value = FieldPath.lookup(record,path) {
+        if let path = map.pid, let value = FieldPath.first(record,path) {
             session.pid = FieldPath.processID(value)
         }
         let integerPaths = [map.inputTokens, map.outputTokens, map.cacheRead, map.cacheWrite,
@@ -1113,7 +1113,7 @@ enum HarnessEngine {
             }
         }
         func countIsPresent(_ path:String) -> Bool {
-            let value = FieldPath.lookup(record,path)
+            let value = FieldPath.first(record,path)
             return value is [Any] || value is [String:Any]
         }
         if let count = map.turns, countIsPresent(count.path) {

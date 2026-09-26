@@ -275,9 +275,14 @@ enum FieldPath {
     }
 
     /// Entries of a nested array or object matching every pair given.
+    ///
+    /// `first`, not `lookup`, so the path may filter. Its caller already asked
+    /// whether the path names a collection at all and did so through `first` —
+    /// so a filtered path reported as present and then counted nothing, which
+    /// is a count of zero for a collection that is there.
     static func count(_ record: [String: Any], path: String, match: [String: String]) -> Int {
         let entries: [[String: Any]]
-        switch lookup(record, path) {
+        switch first(record, path) {
         case let dict as [String: Any]: entries = dict.values.compactMap { $0 as? [String: Any] }
         case let array as [[String: Any]]: entries = array
         default: entries = []

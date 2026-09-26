@@ -35,7 +35,7 @@ enum SessionSelection {
             guard bytesRead < 8 * 1_024 * 1_024,
                   let data = try? BoundedFile.read(file, maxBytes:min(4 * 1_024 * 1_024,8 * 1_024 * 1_024 - bytesRead)),
                   let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  var value = FieldPath.lookup(root, recordsPath)
+                  var value = FieldPath.first(root, recordsPath)
             else { return nil }
             bytesRead += data.count
 
@@ -80,7 +80,7 @@ enum SessionSelection {
         let value: Any
         if let root = selection.root,
            let dictionary = object as? [String: Any] {
-            guard let nested = FieldPath.lookup(dictionary, root) else { return nil }
+            guard let nested = FieldPath.first(dictionary, root) else { return nil }
             value = nested
         } else {
             value = object
@@ -95,7 +95,7 @@ enum SessionSelection {
         var result:Set<String> = []
         for record in records {
             let accepted = (selection.filter ?? [:]).allSatisfy { path, values in
-                guard let raw = FieldPath.lookup(record, path) else { return false }
+                guard let raw = FieldPath.first(record, path) else { return false }
                 let text: String
                 switch raw {
                 case let value as String: text = value

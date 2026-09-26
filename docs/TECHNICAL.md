@@ -810,6 +810,20 @@ to hold. The key is itself a path, so `limits[window.duration=300]` reaches
 inside each element, and a path may filter more than once:
 `usages[scope=FEATURE_CODING].limits[window.duration=300].detail.remaining`.
 
+One notation, everywhere a descriptor declares a path. That was not true until
+2026-09-26: the `map` block already resolved brackets for the fields that go
+through `FieldPath.each` — VS Code's `v.requests[].promptTokens` is how a
+session's tokens are summed — while `map.pid`, `map.turns.path`, `source.root`,
+the selection block's `records`, `root` and `filter` keys, and every path on the
+quota side read a single value through a flat lookup. So one block accepted two
+different notations depending on which field you wrote it in, and nothing said
+which.
+
+The two flat lookups that remain are deliberate and are not declared paths: the
+schema walk in `HarnessCheck`, which reads the harness document's own structure,
+and a capability's `keys`, which are object or *TOML* key names rather than paths
+into JSON.
+
 The filter is not a convenience. `FieldPath.int` sums every value a path names,
 which is what `[]` is for, so on a response carrying one entry per billing
 scope `usages[].detail.limit` is every scope's limit added together — a
