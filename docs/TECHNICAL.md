@@ -411,7 +411,15 @@ without it, `Authorization: Bearer {token}` is assumed.
 
 A `jsonFile` credential may add `requires`, a map of field path to required
 substring, checked in the same file before the token is used or counted as a
-sign-in. It exists for credentials that live somewhere shared: Z.ai's plan is
+sign-in. `field`, `accountField` and the keys of `requires` are field paths and
+may filter, which is what a shared credential file listing one entry per
+provider needs: selecting the right entry is the whole job, and `requires` exists
+because such files are shared. `path` is a filesystem path and `name` an
+environment variable's name — neither is a path into JSON, and the classification
+says so on the credential itself. `quota.accountLabel` is a path into the reply
+and may filter too. The validator checks every one of them, so a malformed filter
+in a credential guard is refused where it is written rather than reading as a
+file that is not this vendor's. It exists for credentials that live somewhere shared: Z.ai's plan is
 driven through Claude Code, so its token is whatever sits in
 `env.ANTHROPIC_AUTH_TOKEN` — a field Kimi, MiniMax, a corporate gateway and a
 plain Anthropic key all write too. Without a second field to check, any of

@@ -227,6 +227,25 @@ struct HarnessDescriptor: Codable {
             /// other kinds there is no second field to read, and a setting
             /// that silently does nothing is worse than none.
             var accountField: String?
+
+            /// Every string here that `FieldPath` resolves against the
+            /// credential file or the reply.
+            ///
+            /// `requires` is documented as a map of *field path* to required
+            /// substring, and `field` and `accountField` are read the same way —
+            /// `zai` already declares `env.ANTHROPIC_AUTH_TOKEN`. They resolved
+            /// flatly until 2026-09-26, so a filter in any of them would have
+            /// been accepted and then matched nothing.
+            ///
+            /// `path` is a filesystem path and `name` an environment variable's
+            /// name; neither is a path into JSON. `command` and `args` are a
+            /// program and its arguments.
+            var fieldPaths: [String] {
+                [field, accountField].compactMap { $0 } + (requires ?? [:]).keys
+            }
+
+            /// Fields above that are not field paths into JSON.
+            static let nonPathFields: Set<String> = ["kind", "path", "name", "command", "args"]
         }
         /// Where the windows live in the response, and what each field is called.
         struct Windows: Codable {
@@ -424,6 +443,17 @@ struct HarnessDescriptor: Codable {
         var credential: Credential?
         let windows: Windows
         var accountLabel: String?
+
+        /// Every field path this block declares, wherever it declares one.
+        ///
+        /// The validator asks the quota rather than the windows, so a malformed
+        /// filter in a credential guard or in `accountLabel` is refused where it
+        /// is written too. `accountLabel` is a path into the reply — Copilot
+        /// names `copilot_plan`.
+        var fieldPaths: [String] {
+            windows.fieldPaths + (credential?.fieldPaths ?? [])
+                + [accountLabel].compactMap { $0 }
+        }
         var setupHint: String?
     /// Where the response shape this maps was read from.
     ///

@@ -78,18 +78,18 @@ enum HarnessDocument {
     /// of which strings are paths comes from the SDK's own declarations instead
     /// of being spelled out a second time here.
     private static func validateFieldPaths(_ descriptor: HarnessDescriptor) throws {
-        guard let windows = descriptor.quota?.windows else { return }
-        for path in windows.fieldPaths {
+        guard let quota = descriptor.quota else { return }
+        for path in quota.fieldPaths {
             var rest = Substring(path)
             while let open = rest.firstIndex(of: "[") {
                 guard let close = rest[open...].firstIndex(of: "]") else {
                     throw Error.semantic(
-                        "quota.windows field path \"\(path)\" opens a bracket it never closes")
+                        "quota field path \"\(path)\" opens a bracket it never closes")
                 }
                 let inner = rest[rest.index(after: open)..<close]
                 guard FieldPath.selection(String(inner)) != .malformed else {
                     throw Error.semantic(
-                        "quota.windows field path \"\(path)\" has a bracket group "
+                        "quota field path \"\(path)\" has a bracket group "
                         + "\"[\(inner)]\" that is neither [], [-1], nor key=value pairs")
                 }
                 rest = rest[rest.index(after: close)...]

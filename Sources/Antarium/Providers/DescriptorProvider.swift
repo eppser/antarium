@@ -153,7 +153,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             // Failing closed here means an unrecognised setup is reported as
             // not signed in, rather than as this vendor and sent to it.
             guard Self.belongsToThisVendor(object, credential) else { return nil }
-            return FieldPath.lookup(object, field) as? String
+            return FieldPath.first(object, field) as? String
         default:
             return nil
         }
@@ -169,7 +169,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     static func belongsToThisVendor(_ object: [String: Any],
                                     _ credential: HarnessDescriptor.Quota.Credential) -> Bool {
         for (path, required) in credential.requires ?? [:] {
-            guard let found = FieldPath.lookup(object, path) as? String,
+            guard let found = FieldPath.first(object, path) as? String,
                   found.lowercased().contains(required.lowercased())
             else { return false }
         }
@@ -194,8 +194,8 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         // A number is a perfectly ordinary account id, and reading only
         // strings would report "not signed in" for a file that says so
         // plainly.
-        if let text = FieldPath.lookup(object, field) as? String, !text.isEmpty { return text }
-        if let number = FieldPath.lookup(object, field) as? NSNumber { return number.stringValue }
+        if let text = FieldPath.first(object, field) as? String, !text.isEmpty { return text }
+        if let number = FieldPath.first(object, field) as? NSNumber { return number.stringValue }
         return nil
     }
 
@@ -520,7 +520,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             .map(\.element)
 
         return Snapshot(providerID: id, gauges: gauges, extras: [],
-                        accountLabel: quota.accountLabel.flatMap { FieldPath.lookup(json, $0) as? String },
+                        accountLabel: quota.accountLabel.flatMap { FieldPath.first(json, $0) as? String },
                         fetchedAt: Date())
     }
 
