@@ -7,6 +7,10 @@ import AntariumHarnessSDK
 /// and cannot distinguish an old meaning from a future one. Every load passes
 /// through here so bundled and third-party documents receive identical
 /// migrations and future versions fail closed.
+private extension Optional where Wrapped == [String] {
+    var orEmpty: [String] { self ?? [] }
+}
+
 enum HarnessDocument {
     static let currentVersion = HarnessConfig.currentFormatVersion
 
@@ -56,8 +60,41 @@ enum HarnessDocument {
         let normalized = try JSONSerialization.data(withJSONObject: runtime,
                                                      options: [.sortedKeys])
         let descriptor = try JSONDecoder().decode(HarnessDescriptor.self, from: normalized)
+        try validateFieldPaths(descriptor)
         return Decoded(descriptor: descriptor,
                        migratedFrom: originalVersion == currentVersion ? nil : originalVersion)
+    }
+
+    /// Refuses a field path whose bracket group means nothing.
+    ///
+    /// A path may select array elements by field — `usages[scope=FEATURE_CODING]`
+    /// — and a misspelled filter selects nothing at all. That is the safe
+    /// failure and a silent one: the gauge does not appear, on the user's
+    /// machine, with nothing anywhere saying why. Refused where it is written,
+    /// which is the reasoning `requires` and `accountField` are already checked
+    /// under.
+    ///
+    /// Checked after decoding rather than against the raw object, so the list
+    /// of which strings are paths comes from the SDK's own declarations instead
+    /// of being spelled out a second time here.
+    private static func validateFieldPaths(_ descriptor: HarnessDescriptor) throws {
+        guard let quota = descriptor.quota else { return }
+        for path in quota.fieldPaths {
+            var rest = Substring(path)
+            while let open = rest.firstIndex(of: "[") {
+                guard let close = rest[open...].firstIndex(of: "]") else {
+                    throw Error.semantic(
+                        "quota field path \"\(path)\" opens a bracket it never closes")
+                }
+                let inner = rest[rest.index(after: open)..<close]
+                guard FieldPath.selection(String(inner)) != .malformed else {
+                    throw Error.semantic(
+                        "quota field path \"\(path)\" has a bracket group "
+                        + "\"[\(inner)]\" that is neither [], [-1], nor key=value pairs")
+                }
+                rest = rest[rest.index(after: close)...]
+            }
+        }
     }
 
     /// Canonical current-format bytes, suitable for an explicit SDK/CLI
@@ -75,6 +112,12 @@ enum HarnessDocument {
         return value
     }
 
+    /// Only ever called after `canonicalObject` has accepted the document, so
+    /// the refusals below cannot be reached by anything that decodes — a
+    /// non-numeric or negative version has already been thrown out. They stay
+    /// because this function's answer is reported to the user as "migrated
+    /// from", and returning a plausible 0 for an unreadable value would be a
+    /// figure invented rather than read.
     private static func version(in object: [String: Any]) -> Int {
         guard let value = object["formatVersion"] else { return 0 }
         // NSNumber may also represent a boolean, which is not a version.
@@ -124,6 +167,20 @@ enum HarnessDocument {
         guard source["path"] is String else {
             throw Error.semantic("source.path is required (use an empty string for none/command)")
         }
+        // A relocation that can never fire is a declaration that silently does
+        // nothing, which is the same reasoning `requires` and `accountField` are
+        // refused under.
+        if let relocate = source["relocate"] as? [String: Any] {
+            try requireText("env", in: relocate, at: "source.relocate.")
+            try requireText("replaces", in: relocate, at: "source.relocate.")
+            let replaces = (relocate["replaces"] as? String) ?? ""
+            let path = (source["path"] as? String) ?? ""
+            guard path == replaces || path.hasPrefix(replaces + "/") else {
+                throw Error.semantic(
+                    "source.relocate.replaces \"\(replaces)\" is not a prefix of source.path "
+                    + "\"\(path)\", so the variable could never move anything")
+            }
+        }
         if let process = object["process"] as? [String: Any],
            let binding = process["sessionBinding"] as? String {
             guard binding == "openSourceFile" else {
@@ -134,6 +191,172 @@ enum HarnessDocument {
                     "process.sessionBinding openSourceFile requires a JSON or JSONL source")
             }
         }
+        if let map = object["map"] as? [String: Any],
+           (map["totalTokens"] as? String)?.isEmpty == false {
+            // A total and a split cannot both be believed: nothing here can
+            // tell whether the total already counts the other two, so adding
+            // them makes a figure too large and ignoring them makes the
+            // descriptor's own declaration a lie. Same reasoning as the quota
+            // block refusing an endpoint and a command together.
+            let split = ["inputTokens", "outputTokens", "cacheRead", "cacheWrite"]
+                .filter { (map[$0] as? String)?.isEmpty == false }
+            guard split.isEmpty else {
+                throw Error.semantic(
+                    "map.totalTokens is for a harness that reports no split, and this one "
+                    + "also declares \(split.joined(separator: ", "))")
+            }
+        }
+        if let quota = object["quota"] as? [String: Any] {
+            // Exactly one way in. Both would leave which one wins to the
+            // order of an if, and neither is a quota block that does
+            // anything — it would decode, ship, and report nothing.
+            let endpoint = (quota["endpoint"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let command = (quota["command"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            switch (endpoint?.isEmpty == false, command?.isEmpty == false) {
+            case (true, true):
+                throw Error.semantic(
+                    "quota declares both an endpoint and a command; it reads from one or the other")
+            case (false, false):
+                throw Error.semantic("quota declares neither an endpoint nor a command")
+            default: break
+            }
+            // An account id is read from the credential file beside the
+            // token, so asking for one on a credential that has no such file
+            // is a descriptor that can never work. Refused where it is
+            // written rather than at the first fetch, which is the same
+            // reasoning `requires` is checked under.
+            let credential = quota["credential"] as? [String: Any]
+            let accountField = (credential?["accountField"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if accountField?.isEmpty == false,
+               (credential?["kind"] as? String) != "jsonFile" {
+                throw Error.semantic(
+                    "quota.credential.accountField reads a second field out of a JSON file, "
+                    + "and this credential is \((credential?["kind"] as? String) ?? "not declared")")
+            }
+            // A key declared in both body halves has two values and one slot.
+            // Refused rather than resolved by precedence, for the reason the
+            // endpoint-and-command pair is: whichever way the merge happened to
+            // run would become the rule, unwritten.
+            let scalars = Set((quota["body"] as? [String: Any])?.keys ?? [:].keys)
+            let lists = Set((quota["bodyList"] as? [String: Any])?.keys ?? [:].keys)
+            let both = scalars.intersection(lists).sorted()
+            guard both.isEmpty else {
+                throw Error.semantic(
+                    "quota declares \(both.joined(separator: ", ")) in both body and bodyList; "
+                    + "a body key has one value")
+            }
+            // And the other way round: a placeholder nothing can fill leaves
+            // the request asking about an account literally called
+            // "{account}".
+            let usesAccount = [(quota["endpoint"] as? String) ?? ""]
+                + (quota["headers"] as? [String: String]).map { Array($0.values) } .orEmpty
+                + (quota["body"] as? [String: String]).map { Array($0.values) } .orEmpty
+            if usesAccount.contains(where: { $0.contains("{account}") }),
+               accountField?.isEmpty != false {
+                throw Error.semantic(
+                    "quota uses {account} but its credential declares no accountField")
+            }
+
+            // A balance is money, and money with no stated currency is a
+            // number whose meaning is unknown. The mapping used to answer
+            // "USD" for an author who omitted it, which turns a CNY balance
+            // into a dollar figure wrong by an exchange rate — the exact
+            // mistake the deepseek harness carries a note about. Neither
+            // shipped descriptor relied on that default; it was a trap set
+            // for whoever wrote the next one.
+            if let windows = quota["windows"] as? [String: Any],
+               let balance = windows["balance"] as? String, !balance.isEmpty {
+                let currency = (windows["currency"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let currency, !currency.isEmpty else {
+                    throw Error.semantic(
+                        "quota.windows.balance needs quota.windows.currency — a path "
+                        + "into the response where the service states one, or the code itself")
+                }
+            }
+            // The method is checked rather than defaulted: a typo reads as
+            // GET, and a descriptor that meant to post would fetch the wrong
+            // way and report whatever a GET to that path happens to return.
+            //
+            // Both halves of the body are checked here, together. A separate
+            // rule for `bodyList` was written first and was subtly weaker: it
+            // only refused an explicitly non-POST method, so a list body with
+            // no method at all — which is a GET — was built and never sent. The
+            // rule this one already had covers the absent case, which is why it
+            // is the one that grew rather than being duplicated beside.
+            let declaredBody = ["body", "bodyList"].filter { quota[$0] != nil }
+            func refuseBodyWithoutPost() throws {
+                guard let field = declaredBody.first else { return }
+                throw Error.semantic("quota.\(field) is only sent with POST")
+            }
+            if let raw = quota["method"] {
+                guard let method = raw as? String,
+                      ["get", "post"].contains(method.lowercased()) else {
+                    throw Error.semantic("quota.method must be GET or POST")
+                }
+                if method.lowercased() != "post" { try refuseBodyWithoutPost() }
+            } else {
+                try refuseBodyWithoutPost()
+            }
+            if let body = quota["body"], !(body is [String: String]) {
+                throw Error.semantic("quota.body must be an object of string values")
+            }
+            if let lists = quota["bodyList"] {
+                guard let object = lists as? [String: Any],
+                      object.values.allSatisfy({ ($0 as? [Any])?
+                          .allSatisfy { $0 is String } ?? false }) else {
+                    throw Error.semantic(
+                        "quota.bodyList must be an object whose values are arrays of strings")
+                }
+            }
+            if command?.isEmpty == false {
+                if quota["headers"] != nil {
+                    throw Error.semantic("quota.headers is only read for an endpoint")
+                }
+                if quota["method"] != nil || quota["body"] != nil {
+                    throw Error.semantic("quota.method and quota.body are only read for an endpoint")
+                }
+                // argv, never a shell. A separator in the command name is the
+                // shape of an injected path rather than a program name.
+                if let command, command.contains("/") || command.contains(" ") {
+                    throw Error.semantic(
+                        "quota.command must be a program name resolved on PATH, not a path or a line")
+                }
+                if let args = quota["args"], !(args is [String]) {
+                    throw Error.semantic("quota.args must be an array of strings")
+                }
+            } else if quota["args"] != nil {
+                throw Error.semantic("quota.args is only read for a command")
+            }
+        }
+        if let quota = object["quota"] as? [String: Any],
+           let credential = quota["credential"] as? [String: Any],
+           let rawRequires = credential["requires"] {
+            // A guard that silently does nothing is worse than no guard: the
+            // descriptor reads as if the credential were checked.
+            guard let requires = rawRequires as? [String: String], !requires.isEmpty else {
+                throw Error.semantic(
+                    "quota.credential.requires must be a non-empty object of field to substring")
+            }
+            // Refused here rather than in HarnessCheck: `--check` decodes
+            // first and gives up if that fails, so a copy of this rule over
+            // there could never fire. A check that cannot fail is worse than
+            // no check, because it reads as coverage.
+            guard credential["kind"] as? String == "jsonFile" else {
+                throw Error.semantic(
+                    "quota.credential.requires is only read for a jsonFile credential")
+            }
+            for (field, expected) in requires where
+                field.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || expected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw Error.semantic(
+                    "quota.credential.requires has an empty field or substring")
+            }
+        }
+
         if let process = object["process"] as? [String: Any],
            let rawProbes = process["installationProbes"] {
             guard let probes = rawProbes as? [[String: Any]] else {

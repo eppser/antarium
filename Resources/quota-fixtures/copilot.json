@@ -1,0 +1,73 @@
+{
+  "note": "Synthetic. Response shape follows GitHub's documented copilot_internal/user payload; every value is invented. No real account appears here. The business plan's completions window carries `unlimited: true`; it is deliberately not charted, because a bar fixed at nought says a quota exists and that none of it has been spent.",
+  "verifiedAt": "2026-09-20",
+  "cases": [
+    {
+      "name": "business plan, whose completions allowance is unlimited",
+      "response": {
+        "copilot_plan": "copilot_business",
+        "quota_reset_date_utc": "2026-10-01T00:00:00Z",
+        "quota_snapshots": {
+          "chat": {
+            "has_quota": true,
+            "entitlement": 300,
+            "remaining": 240,
+            "percent_remaining": 80
+          },
+          "completions": {
+            "has_quota": true,
+            "unlimited": true,
+            "percent_remaining": 100
+          },
+          "premium_interactions": {
+            "has_quota": false,
+            "entitlement": 0,
+            "remaining": 0,
+            "percent_remaining": 0
+          }
+        }
+      },
+      "expected": {
+        "accountLabel": "copilot_business",
+        "gauges": [
+          {
+            "id": "chat",
+            "badge": "CHAT",
+            "title": "Chat",
+            "usedPercent": 20,
+            "resetsAt": "2026-10-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "free plan with no quota at all",
+      "response": {
+        "copilot_plan": "free",
+        "quota_reset_date_utc": "2026-10-01T00:00:00Z",
+        "quota_snapshots": {
+          "chat": {
+            "has_quota": false,
+            "percent_remaining": 0
+          },
+          "completions": {
+            "has_quota": false,
+            "percent_remaining": 0
+          },
+          "premium_interactions": {
+            "has_quota": false,
+            "percent_remaining": 0
+          }
+        }
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "response with no snapshots key",
+      "response": {
+        "copilot_plan": "business"
+      },
+      "expectError": "unsupported"
+    }
+  ]
+}

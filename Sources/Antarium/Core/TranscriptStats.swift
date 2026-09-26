@@ -11,6 +11,13 @@ import Foundation
 /// carry usage are handed to JSONSerialization.
 struct TranscriptStats: Codable {
     var model: String?
+    private var readerState: BoundedTraceReader.State?
+    private var readIssue: String?
+    private var numericIssue: String?
+    private var backlog: Bool?
+    var usageIssue: String? {
+        numericIssue ?? readIssue ?? (backlog == true ? "Transcript history is still being read. Usage figures are unavailable until it catches up." : nil)
+    }
     var toolCalls: Int = 0
     struct TokenFacts: Codable {
         var input = 0
@@ -21,7 +28,8 @@ struct TranscriptStats: Codable {
     }
     /// Raw billable facts survive pricing edits; dollars are derived on read.
     private var usageByModel: [String: TokenFacts] = [:]
-    var costUSD: Double { estimatedCost(Pricing.rate) }
+    var costUSD: Double? { estimatedCost(Pricing.rate) }
+    var hasUsageFacts: Bool { !usageByModel.isEmpty }
     /// Tokens in the model's context as of the last assistant turn.
     var contextTokens: Int?
     var lastActivity: Date?
@@ -50,49 +58,133 @@ struct TranscriptStats: Codable {
     var receivedTokens: Int = 0
     /// How far into the file we've already accounted for.
     fileprivate var consumed: Int = 0
+    /// Hashes of the `message.id` + `requestId` pairs whose usage has already
+    /// been counted.
+    ///
+    /// Claude Code writes one record per content block while a reply streams
+    /// — thinking, text, each tool call — and every one of them repeats the
+    /// whole of `message.usage`. Summing the records sums the same reply
+    /// several times over. Other readers of these files report the totals
+    /// inflated by around four times for this reason, and the fix they all
+    /// arrive at is this pair as a key.
+    ///
+    /// Bounded and kept as hashes because this is persisted per session: the
+    /// repeats are consecutive, so a short memory catches them, and a
+    /// complete one would put a list of every message ever seen into the
+    /// cache file. What it does not catch is the same reply copied into
+    /// another session's file when a conversation is resumed or branched.
+    /// That matters to a tool adding sessions up; this app draws them one row
+    /// each, and one row's figure is right either way.
+    fileprivate var countedUsage: [Int] = []
+
+    /// Long enough for a reply whose blocks interleave with parallel tool
+    /// calls, short enough that the cache stays a cache.
+    static let recentUsageMemory = 512
+
+    /// The pair that identifies one reply, hashed.
+    ///
+    /// Both halves are needed. `message.id` alone repeats across a resumed
+    /// conversation, and `requestId` alone is absent from older records. A
+    /// record carrying neither returns nothing and is counted.
+    static func usageKey(message: [String: Any], record: [String: Any]) -> Int? {
+        let id = message["id"] as? String
+        let request = record["requestId"] as? String
+        guard id != nil || request != nil else { return nil }
+        var hash = 0xcbf29ce484222325 as UInt64
+        for byte in "\(id ?? "")|\(request ?? "")".utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return Int(bitPattern: UInt(truncatingIfNeeded: hash))
+    }
 
     nonisolated(unsafe) private static var cache: [String: TranscriptStats] = [:]
     private static let lock = NSLock()
     /// Versioned: a cache written before the token series existed can't be
     /// decoded into the current shape, and silently dropping it would look
     /// like a bug rather than a migration.
-    private static let cacheURL = Config.directory.appendingPathComponent("transcripts-v5.json")
+    /// Internal rather than private so the rule below can be stated as a test:
+    /// this name must never appear in `supersededCacheFilenames`.
+    static let cacheFilename = "transcripts-v7.json"
+    private static let cacheURL = Config.directory.appendingPathComponent(cacheFilename)
 
     /// Caches from earlier formats. Each version bump orphaned its predecessor
     /// in the user's folder, where three of these had accumulated — files the
     /// app writes are the app's to clean up.
-    private static let supersededCaches = [
+    static let supersededCacheFilenames = [
         "transcripts.json", "transcripts-v2.json", "transcripts-v3.json",
-        "transcripts-v4.json",
+        "transcripts-v4.json", "transcripts-v5.json", "transcripts-v6.json",
     ]
 
+    @discardableResult
     mutating func recordUsage(model: String?, input: Int, output: Int,
                               cacheWrite5m: Int, cacheWrite1h: Int,
-                              cacheRead: Int) {
-        let key = model ?? ""
-        usageByModel[key, default: TokenFacts()].input += input
-        usageByModel[key, default: TokenFacts()].output += output
-        usageByModel[key, default: TokenFacts()].cacheWrite5m += cacheWrite5m
-        usageByModel[key, default: TokenFacts()].cacheWrite1h += cacheWrite1h
-        usageByModel[key, default: TokenFacts()].cacheRead += cacheRead
+                              cacheRead: Int) -> Bool {
+        guard numericIssue == nil else { return false }
+        let key = String((model ?? "").prefix(256))
+        guard usageByModel[key] != nil || usageByModel.count < 128 else {
+            numericIssue = "Transcript contains too many model variants. Usage figures are unavailable."
+            return false
+        }
+        let old = usageByModel[key] ?? TokenFacts()
+        guard let i = Self.add(old.input, input), let o = Self.add(old.output, output),
+              let w5 = Self.add(old.cacheWrite5m, cacheWrite5m),
+              let w1 = Self.add(old.cacheWrite1h, cacheWrite1h),
+              let r = Self.add(old.cacheRead, cacheRead) else {
+            numericIssue = "Transcript usage values are invalid or out of range. Usage figures are unavailable."
+            return false
+        }
+        usageByModel[key] = TokenFacts(input: i, output: o, cacheWrite5m: w5, cacheWrite1h: w1, cacheRead: r)
+        return true
     }
 
-    func estimatedCost(_ rateFor: (String?) -> Pricing.Rate?) -> Double {
-        usageByModel.reduce(0) { total, item in
-            let model = item.key.isEmpty ? nil : item.key
-            guard let rate = rateFor(model) else { return total }
-            let usage = item.value
-            return total
-                + Double(usage.input) / 1_000_000 * rate.input
+    private static func add(_ values: Int...) -> Int? {
+        var total = 0
+        for value in values {
+            guard value >= 0 else { return nil }
+            let next = total.addingReportingOverflow(value)
+            guard !next.overflow else { return nil }
+            total = next.partialValue
+        }
+        return total
+    }
+
+    func estimatedCost(_ rateFor: (String?) -> Pricing.Rate?) -> Double? {
+        guard usageIssue == nil, !usageByModel.isEmpty else { return nil }
+        var total = 0.0
+        for (key, usage) in usageByModel {
+            guard let rate = rateFor(key.isEmpty ? nil : key),
+                  [rate.input, rate.output, rate.cacheWrite5m, rate.cacheWrite1h, rate.cacheRead]
+                    .allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
+            total += Double(usage.input) / 1_000_000 * rate.input
                 + Double(usage.output) / 1_000_000 * rate.output
                 + Double(usage.cacheWrite5m) / 1_000_000 * rate.cacheWrite5m
                 + Double(usage.cacheWrite1h) / 1_000_000 * rate.cacheWrite1h
                 + Double(usage.cacheRead) / 1_000_000 * rate.cacheRead
+            // No catalogue entry: the rates above are already finite and the
+            // counts are integers, so reaching an infinity here needs a sum
+            // no machine will produce. Kept because a price table is edited
+            // by hand and this costs nothing.
+            guard total.isFinite else { return nil }
         }
+        return total
+    }
+
+    /// How many transcripts are still being read in. While any are, a scan is
+    /// absorbing history rather than doing its steady-state work, and timing
+    /// it measures throughput.
+    /// Whether this transcript's history is still being read, as a fact the
+    /// row can carry rather than a sentence it has to match.
+    var isBacklogged: Bool { backlog == true }
+
+    static func backloggedCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.values.filter { $0.backlog == true }.count
     }
 
     static func removeSupersededCaches() {
-        for name in supersededCaches {
+        for name in supersededCacheFilenames {
             try? FileManager.default.removeItem(at: Config.directory.appendingPathComponent(name))
         }
     }
@@ -137,7 +229,7 @@ struct TranscriptStats: Codable {
                 continue
             }
             stats.loopStopped = false
-            if let delay = input["delaySeconds"] as? Double, let stamp {
+            if let delay = input["delaySeconds"] as? Double, delay.isFinite, delay >= 0, delay <= 31_536_000, let stamp {
                 stats.loopWakeAt = stamp.addingTimeInterval(delay)
             } else if let stamp {
                 // A cron loop has no single next time we can read; record that
@@ -148,7 +240,7 @@ struct TranscriptStats: Codable {
     }
 
     private static let usageNeedle = Array(#""usage""#.utf8)
-    private static let toolNeedle = Array(#""type":"tool_use""#.utf8)
+    private static let toolNeedle = Array(#""tool_use""#.utf8)
     private static let loopNeedle = Array(#"ScheduleWakeup"#.utf8)
     private static let cronNeedle = Array(#"CronCreate"#.utf8)
     private static let newline = UInt8(0x0A)
@@ -162,65 +254,30 @@ struct TranscriptStats: Codable {
     /// Shared with the other agents so every sparkline covers the same window.
     static func series(from buckets: [Int: Int], now: Date = Date()) -> [Int] {
         let count = historyHours * 3600 / bucketSeconds
-        let newest = Int(now.timeIntervalSince1970) / bucketSeconds
+        guard let epoch = Int(exactly: now.timeIntervalSince1970.rounded(.towardZero)) else { return Array(repeating: 0, count: count) }
+        let newest = epoch / bucketSeconds
         return (0..<count).map { buckets[newest - (count - 1 - $0)] ?? 0 }
     }
 
     static func of(_ url: URL) -> TranscriptStats? {
-        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
-            .flatMap { $0 } ?? 0
-
         lock.lock()
         var stats = cache[url.path] ?? TranscriptStats()
         lock.unlock()
-
-        // A file that shrank was rotated or replaced — start over.
-        if size < stats.consumed { stats = TranscriptStats() }
-        if size == stats.consumed && stats.consumed > 0 { return stats }
-
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
-        defer { try? handle.close() }
-        if stats.consumed > 0 {
-            do { try handle.seek(toOffset: UInt64(stats.consumed)) } catch { return nil }
-        }
-
-        // Read in bounded chunks rather than slurping the file: a first pass
-        // over hundreds of megabytes would otherwise push the whole app's
-        // resident memory up by that much.
-        let chunkSize = 1 << 20
-        var carry = Data()                    // partial line spanning a boundary
-        while true {
-            // JSONSerialization hands back autoreleased objects. Without a pool
-            // per chunk they pile up until the enclosing pool drains, which over
-            // a few hundred megabytes of transcript meant ~200 MB of resident
-            // memory that looked like a leak.
-            let done = autoreleasepool { () -> Bool in
-                guard let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty else {
-                    return true
+        // Older persisted offsets have no file identity and cannot safely be
+        // attached to today's file. Rebuild once through the bounded reader.
+        if stats.readerState == nil { stats = TranscriptStats() }
+        do {
+            let batch = try BoundedTraceReader.read(url, state: stats.readerState ?? .init(),
+                onReset: { stats = TranscriptStats() }) { line in
+                    consume(line, into: &stats)
                 }
-                var buffer = carry
-                buffer.append(chunk)
-                carry = Data()
-
-                var lineStart = buffer.startIndex
-                var index = buffer.startIndex
-                while index < buffer.endIndex {
-                    if buffer[index] == newline {
-                        consume(buffer[lineStart..<index], into: &stats)
-                        lineStart = buffer.index(after: index)
-                    }
-                    index = buffer.index(after: index)
-                }
-                if lineStart < buffer.endIndex {
-                    carry = Data(buffer[lineStart..<buffer.endIndex])
-                }
-                stats.consumed += chunk.count
-                return false
+            stats.readerState = batch.state
+            stats.consumed = Int(clamping: batch.state.offset)
+            stats.backlog = batch.backlogged
+            if batch.skipped > 0 {
+                stats.readIssue = "Some transcript records exceeded the read limit. Usage figures are unavailable."
             }
-            if done { break }
-        }
-        // A trailing partial line stays unaccounted until it's finished.
-        stats.consumed -= carry.count
+        } catch { return nil }
 
         let cutoff = Int(Date().timeIntervalSince1970) / bucketSeconds
             - (historyHours * 3600 / bucketSeconds)
@@ -236,27 +293,30 @@ struct TranscriptStats: Codable {
     private static func consume(_ line: Data, into stats: inout TranscriptStats) {
         var pendingBucket: Int?
         guard !line.isEmpty else { return }
-        let (tools, hasUsage, hasSchedule) = line.withUnsafeBytes {
-            (raw: UnsafeRawBufferPointer) -> (Int, Bool, Bool) in
-            let bytes = raw.bindMemory(to: UInt8.self)
-            return (count(of: toolNeedle, in: bytes),
-                    contains(usageNeedle, in: bytes),
-                    contains(loopNeedle, in: bytes) || contains(cronNeedle, in: bytes))
+        let (hasTools, hasUsage, hasSchedule) = line.withUnsafeBytes {
+            (raw: UnsafeRawBufferPointer) -> (Bool, Bool, Bool) in
+            markers(in: raw.bindMemory(to: UInt8.self))
         }
-        stats.toolCalls += tools
+        guard hasTools || hasUsage || hasSchedule else { return }
+        guard let d = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
+            stats.readIssue = "Some transcript records were invalid. Usage figures are unavailable."
+            return
+        }
+        let message = d["message"] as? [String: Any] ?? [:]
+        if hasTools, let content = message["content"] as? [[String: Any]] {
+            let tools = content.filter { ($0["type"] as? String) == "tool_use" }.count
+            if let total = add(stats.toolCalls, tools) { stats.toolCalls = total }
+            else { stats.numericIssue = "Transcript tool count is out of range. Usage figures are unavailable." }
+        }
         if hasSchedule { readScheduling(line, into: &stats) }
-        guard hasUsage else { return }
-
-        guard let d = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-              let message = d["message"] as? [String: Any],
-              let usage = message["usage"] as? [String: Any] else { return }
+        guard hasUsage, let usage = message["usage"] as? [String: Any] else { return }
 
         // Claude Code injects messages tagged "<synthetic>"; they'd otherwise
         // become the session's reported model just by being last.
-        if let model = message["model"] as? String,
-           !model.isEmpty, !model.hasPrefix("<") {
-            stats.model = model
+        let currentModel = (message["model"] as? String).flatMap {
+            !$0.isEmpty && !$0.hasPrefix("<") && $0.utf8.count <= 256 ? $0 : nil
         }
+        if let currentModel { stats.model = currentModel }
         if let ts = d["timestamp"] as? String, let date = UsageHTTP.parseDate(ts) {
             stats.lastActivity = date
             let bucket = Int(date.timeIntervalSince1970) / Self.bucketSeconds
@@ -264,29 +324,62 @@ struct TranscriptStats: Codable {
             pendingBucket = bucket
         }
 
-        let input = int(usage["input_tokens"])
-        let output = int(usage["output_tokens"])
-        let cacheCreation = usage["cache_creation"] as? [String: Any]
-        var cacheWrite5m = int(cacheCreation?["ephemeral_5m_input_tokens"])
-        let cacheWrite1h = int(cacheCreation?["ephemeral_1h_input_tokens"])
-        let cacheWriteTotal = int(usage["cache_creation_input_tokens"])
-        // Older records predate the TTL breakdown. Cache entries were
-        // five-minute by default; any unclassified aggregate belongs there.
-        cacheWrite5m += max(cacheWriteTotal - cacheWrite5m - cacheWrite1h, 0)
-        let cacheRead = int(usage["cache_read_input_tokens"])
-        stats.recordUsage(model: stats.model, input: input, output: output,
-                          cacheWrite5m: cacheWrite5m,
-                          cacheWrite1h: cacheWrite1h,
-                          cacheRead: cacheRead)
+        // The same reply, already counted. Checked here rather than at the
+        // top of the record: the repeats carry different content blocks, so
+        // their tool calls are real and counted above, and only the usage is
+        // a repetition. An entry naming neither id cannot be paired with
+        // anything, so it is counted — under-reporting a real reply is worse
+        // than counting one that may be a twin.
+        if let key = Self.usageKey(message: message, record: d) {
+            if stats.countedUsage.contains(key) { return }
+            stats.countedUsage.append(key)
+            if stats.countedUsage.count > Self.recentUsageMemory {
+                stats.countedUsage.removeFirst(stats.countedUsage.count - Self.recentUsageMemory)
+            }
+        }
 
-        // Context at this turn is everything the model was shown.
-        let cacheWrite = cacheWrite5m + cacheWrite1h
-        stats.contextTokens = input + cacheWrite + cacheRead
-        stats.sentTokens += input + cacheWrite
-        stats.receivedTokens += output
+        // Required message totals must be present. The API's optional cache
+        // fields may be absent/null; a supplied TTL breakdown must be complete.
+        let creation: [String:Any]
+        if let raw = usage["cache_creation"], !(raw is NSNull) {
+            guard let object = raw as? [String:Any],
+                  object["ephemeral_5m_input_tokens"] != nil,
+                  object["ephemeral_1h_input_tokens"] != nil else {
+                stats.numericIssue = "Transcript cache usage is incomplete or unsupported. Usage figures are unavailable."
+                return
+            }
+            creation = object
+        } else { creation = [:] }
+        func usageCount(_ object: [String: Any], _ key: String, required:Bool = false) -> Int? {
+            guard let raw = object[key], !(raw is NSNull) else { return required ? nil : 0 }
+            return FieldPath.integer(raw).flatMap { $0 >= 0 ? $0 : nil }
+        }
+        guard let input = usageCount(usage, "input_tokens",required:true),
+              let output = usageCount(usage, "output_tokens",required:true),
+              let w5 = usageCount(creation, "ephemeral_5m_input_tokens",required:!creation.isEmpty),
+              let w1 = usageCount(creation, "ephemeral_1h_input_tokens",required:!creation.isEmpty),
+              let writeTotal = usageCount(usage, "cache_creation_input_tokens"),
+              let read = usageCount(usage, "cache_read_input_tokens"),
+              let classified = add(w5, w1),
+              let write5 = add(w5, max(0, writeTotal - classified)),
+              let write = add(write5, w1), let sent = add(input, write),
+              let context = add(sent, read), let sentTotal = add(stats.sentTokens, sent),
+              let receivedTotal = add(stats.receivedTokens, output),
+              stats.recordUsage(model: currentModel, input: input, output: output,
+                                cacheWrite5m: write5, cacheWrite1h: w1, cacheRead: read) else {
+            stats.numericIssue = "Transcript usage values are invalid or out of range. Usage figures are unavailable."
+            return
+        }
+        stats.contextTokens = context
+        stats.sentTokens = sentTotal
+        stats.receivedTokens = receivedTotal
         if let bucket = pendingBucket {
-            stats.sent[bucket, default: 0] += input + cacheWrite
-            stats.received[bucket, default: 0] += output
+            guard let sentBucket = add(stats.sent[bucket, default: 0], sent),
+                  let receivedBucket = add(stats.received[bucket, default: 0], output) else {
+                stats.numericIssue = "Transcript usage values are out of range. Usage figures are unavailable."
+                return
+            }
+            stats.sent[bucket] = sentBucket; stats.received[bucket] = receivedBucket
         }
 
     }
@@ -295,6 +388,51 @@ struct TranscriptStats: Codable {
 
     private static func contains(_ needle: [UInt8], in hay: UnsafeBufferPointer<UInt8>) -> Bool {
         count(of: needle, in: hay, stopAtFirst: true) > 0
+    }
+
+    /// Which of the four markers a record contains, in one pass.
+    ///
+    /// This used to be four separate full scans of every line, and they were
+    /// the largest single cost in a scan — over half of it on this machine.
+    /// The needles start with only three distinct bytes between them, so one
+    /// walk with a switch on the current byte does the same work: a line that
+    /// contains none of them is read once instead of four times, and one that
+    /// contains all of them stops as soon as the last is found.
+    ///
+    /// Same answers as the four `contains` calls it replaces, including the
+    /// deliberate looseness of `"tool_use"` matching anywhere in the record —
+    /// the JSON decode that follows is what decides the actual count.
+    static func markers(in hay: UnsafeBufferPointer<UInt8>) -> (tools: Bool, usage: Bool, schedule: Bool) {
+        var tools = false, usage = false, schedule = false
+        guard let base = hay.baseAddress, hay.count > 0 else { return (false, false, false) }
+
+        func matches(_ needle: [UInt8], at index: Int) -> Bool {
+            guard index + needle.count <= hay.count else { return false }
+            var offset = 1                                  // first byte already checked
+            while offset < needle.count {
+                if base[index + offset] != needle[offset] { return false }
+                offset += 1
+            }
+            return true
+        }
+
+        var index = 0
+        while index < hay.count {
+            switch base[index] {
+            case UInt8(ascii: "\""):
+                if !tools, matches(toolNeedle, at: index) { tools = true }
+                if !usage, matches(usageNeedle, at: index) { usage = true }
+            case UInt8(ascii: "S"):
+                if !schedule, matches(loopNeedle, at: index) { schedule = true }
+            case UInt8(ascii: "C"):
+                if !schedule, matches(cronNeedle, at: index) { schedule = true }
+            default:
+                break
+            }
+            if tools && usage && schedule { break }
+            index += 1
+        }
+        return (tools, usage, schedule)
     }
 
     private static func count(of needle: [UInt8], in hay: UnsafeBufferPointer<UInt8>,
@@ -319,9 +457,4 @@ struct TranscriptStats: Codable {
         return found
     }
 
-    private static func int(_ v: Any?) -> Int {
-        if let i = v as? Int { return i }
-        if let d = v as? Double { return Int(d) }
-        return 0
-    }
 }

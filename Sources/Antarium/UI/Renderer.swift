@@ -5,7 +5,9 @@ import AppKit
 struct StatusRender: Equatable {
     struct Row: Equatable {
         /// 0...1 of the bar to light, already resolved for the meter mode.
-        let fill: Double
+        /// Nil for a credit balance, which has no denominator to fill against
+        /// — that row draws its figure and no bar.
+        let fill: Double?
         let percentText: String
         let resetText: String
         let severity: Severity
@@ -18,11 +20,17 @@ struct StatusRender: Equatable {
     /// The numbers are real but no longer fresh.
     var stale: Bool = false
 
-    static func rows(for snapshot: Snapshot) -> [Row] {
-        let mode = Settings.meterMode
+    /// The mode is a parameter so the two readings of the same gauge can be
+    /// compared. The invariant below — that severity does not follow the
+    /// mode — is not checkable from a single reading, and reading the setting
+    /// inside made a test of it a test of whatever this Mac happens to be set
+    /// to.
+    static func rows(for snapshot: Snapshot,
+                     mode: MeterMode = Settings.meterMode) -> [Row] {
         return snapshot.gauges.prefix(2).map { g in
-            Row(fill: mode == .used ? g.used : g.remaining,
-                percentText: mode == .used ? g.usedPercentText : g.remainingPercentText,
+            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,
+                percentText: g.amountText
+                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),
                 resetText: Format.shortCountdown(to: g.resetsAt),
                 // Severity is headroom either way, so the colours never flip
                 // meaning when the mode changes.
@@ -53,7 +61,10 @@ enum Renderer {
     /// configurable: the setting outlived its control, and a stored 0 left the
     /// logo touching the numbers with no way to put it back.
     private static let glyphGap: CGFloat = 3
-    private static let glyphSize: CGFloat = 15.5
+    /// Internal rather than private so a test can state a lower bound on the
+    /// item's width: "narrower than a menu bar item" is satisfied by an item
+    /// of no width at all.
+    static let glyphSize: CGFloat = 15.5
 
     /// Narrow, tightly-spaced beams — the Little Snitch proportion. Beam count
     /// is configurable (`"beams"` in config.json) because density is taste.
@@ -150,15 +161,20 @@ enum Renderer {
         var x = rect.minX
         let context = NSColor.labelColor.withAlphaComponent(contextAlpha * alpha)
 
-        if true {
-            text(row.percentText, font: percentFont,
-                 color: NSColor.labelColor.withAlphaComponent(alpha),
-                 at: x, width: percentW, align: .right, in: rect)
-            x += percentW + gap
-        }
+        text(row.percentText, font: percentFont,
+             color: Self.figureColor(for: row, agentID: agentID, row: index)
+                 .withAlphaComponent(alpha),
+             at: x, width: percentW, align: .right, in: rect)
+        x += percentW + gap
 
-        drawBar(fill: row.fill, severity: row.severity, agentID: agentID, row: index,
-                alpha: alpha, in: NSRect(x: x, y: rect.midY - barH / 2, width: barW, height: barH))
+        // A credit balance has nothing to fill a bar against, so it keeps the
+        // space rather than drawing a meter it cannot justify. The reset text
+        // still lines up with every other row.
+        if let fill = row.fill {
+            drawBar(fill: fill, severity: row.severity, agentID: agentID, row: index,
+                    alpha: alpha,
+                    in: NSRect(x: x, y: rect.midY - barH / 2, width: barW, height: barH))
+        }
         x += barW + resetGap
 
         // Always shown: with no 5H/7D label, "2h" versus "6d" is what tells the
@@ -190,9 +206,43 @@ enum Renderer {
     /// least one, so "barely started" reads as started rather than as empty.
     static func litCount(_ fill: Double, of count: Int? = nil) -> Int {
         let n = count ?? segments
+        // A figure that is not a number lights nothing. `min(1, nan)` returns
+        // 1 — NaN compares false against everything, so the clamp below hands
+        // it straight through — and the bar came out full: a reading nobody
+        // could take, drawn as a spent quota. `Gauge` normalises its own
+        // figure, so nothing reaches this today; it takes a bare Double and
+        // must not depend on that.
+        guard fill.isFinite else { return 0 }
         let clamped = max(0, min(1, fill))
         guard clamped > 0 else { return 0 }
+        // `min(n, …)` has no catalogue entry and cannot get one: `clamped` is
+        // already at most 1, so the product can never exceed `n` and removing
+        // the bound changes no answer. Kept because it states the range the
+        // caller draws against, and because the clamp above is a line
+        // somebody may move.
         return max(1, min(n, Int((clamped * Double(n)).rounded())))
+    }
+
+    /// What colour a row's figure is drawn in.
+    ///
+    /// Ordinarily the label colour: the bar carries the warning, and a figure
+    /// that changed colour alongside it would say the same thing twice.
+    ///
+    /// A row with no bar has nowhere to say it. A credit balance draws its
+    /// amount and no meter — deliberately, because a meter pinned full reads
+    /// the same whether five hundred dollars or two cents remain — so a
+    /// balance the provider reports as spent, or one that has reached nought,
+    /// was drawn exactly like a full account. The figure is the whole of what
+    /// such a row shows, so the figure carries the warning.
+    ///
+    /// A decision rather than an expression inside the draw call, because the
+    /// draw call can only be checked by reading pixels back, and the figure
+    /// sits in a field whose width is private and whose text is right-aligned
+    /// — a sampled strip found no difference where there plainly was one.
+    static func figureColor(for row: StatusRender.Row, agentID: String,
+                            row index: Int) -> NSColor {
+        guard row.fill == nil, row.severity == .critical else { return .labelColor }
+        return color(for: .critical, agentID: agentID, row: index)
     }
 
     /// One accent for every agent while there's headroom; the warning steps are

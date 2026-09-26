@@ -9,9 +9,14 @@ struct ClaudeToken {
     let subscriptionType: String?
     let source: Source
 
-    var isExpired: Bool {
+    var isExpired: Bool { isExpired(at: Date()) }
+
+    /// `now` is a parameter so the rule can be asked without waiting for a
+    /// clock. A token that states no expiry is *not* expired — absence is not
+    /// a date in the past, and Claude Code's file does omit the field.
+    func isExpired(at now: Date) -> Bool {
         guard let expiresAt else { return false }
-        return expiresAt <= Date()
+        return expiresAt <= now
     }
 }
 
@@ -66,11 +71,50 @@ enum ClaudeCredentials {
 
         if let file = fromFile() { tokens.append(file) }
 
-        // Same token from two sources is one token.
+        return Load(tokens: ordered(tokens, now: Date()), keychainDenied: denied)
+    }
+
+    /// The order tokens are tried in, deduplicated. Pure, and `now` is a
+    /// parameter, so the rule is testable without a Keychain or a clock.
+    ///
+    /// Two lines of this file used to disagree about a missing expiry.
+    /// `isExpired` reads it as "not expired", which is right — Claude Code's
+    /// file omits the field, and absence is not a date in the past. The sort
+    /// read it as `.distantPast`, which put a token of unknown expiry *behind*
+    /// every token whose expiry had demonstrably passed.
+    ///
+    /// Nothing reported a wrong figure for it: the provider tries each token in
+    /// turn until one is accepted. But each attempt it wastes is a request to
+    /// Anthropic that is expected to fail, and it was spending them on the
+    /// tokens least likely to work first.
+    ///
+    /// Unexpired before expired, and a token with no stated expiry is
+    /// unexpired. Among the unexpired, one that *states* a future expiry comes
+    /// before one that states none: Claude Code wrote that date because it
+    /// believes the token is good until then, and positive evidence of validity
+    /// beats no evidence either way. Among tokens that state one, the later
+    /// expiry first. Ties keep the order they were found in, which is the order
+    /// the sources are tried in — cheapest first.
+    static func ordered(_ tokens: [ClaudeToken], now: Date) -> [ClaudeToken] {
         var seen = Set<String>()
-        tokens = tokens.filter { seen.insert($0.accessToken).inserted }
-        tokens.sort { ($0.expiresAt ?? .distantPast) > ($1.expiresAt ?? .distantPast) }
-        return Load(tokens: tokens, keychainDenied: denied)
+        let unique = tokens.filter { seen.insert($0.accessToken).inserted }
+        // Enumerated so the sort is total: `sorted(by:)` is not stable, and two
+        // tokens with the same expiry would otherwise be free to swap between
+        // scans.
+        return unique.enumerated().sorted { left, right in
+            let (a, b) = (left.element, right.element)
+            let (aExpired, bExpired) = (a.isExpired(at: now), b.isExpired(at: now))
+            if aExpired != bExpired { return !aExpired }
+            switch (a.expiresAt, b.expiresAt) {
+            // Only reachable for the unexpired: a token with no expiry is never
+            // expired, so the expired group states one on both sides.
+            case (.some(let x), .some(let y)) where x != y: return x > y
+            case (.some, .none): return true
+            case (.none, .some): return false
+            default: break
+            }
+            return left.offset < right.offset
+        }.map(\.element)
     }
 
     /// Cheap "has this Mac ever run Claude Code?" check — no Keychain, no prompt.
@@ -84,8 +128,16 @@ enum ClaudeCredentials {
 
     // MARK: - Sources
 
-    private static func fromFile() -> ClaudeToken? {
-        guard let data = try? Data(contentsOf: credentialsFile) else { return nil }
+    /// The file is a parameter so the bound below can be tested against a
+    /// synthetic one. Reading the real credentials file in a test would be
+    /// both unreliable and the wrong thing to do.
+    static func fromFile(_ credentialsFile: URL = ClaudeCredentials.credentialsFile)
+        -> ClaudeToken? {
+        // Another application writes this file, and every other reader here
+        // is bounded. A credential is a few kilobytes; nothing legitimate
+        // about this path is larger.
+        guard let data = try? BoundedFile.read(credentialsFile, maxBytes: 256 * 1_024)
+        else { return nil }
         return decode(data, source: .file)
     }
 
@@ -141,14 +193,25 @@ enum ClaudeCredentials {
 
         do { try process.run() } catch { return nil }
 
+        // Asked to stop, then made to. `terminate()` is SIGTERM, which a
+        // process sitting on a modal authorisation dialog is free to ignore —
+        // and the read below blocks until the pipe closes, so ignoring it
+        // wedges exactly the loop this watchdog exists to protect. `Shell`
+        // has escalated for the same reason since it was written; this had
+        // the first half only.
         let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        let force = DispatchWorkItem {
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        }
         DispatchQueue.global().asyncAfter(deadline: .now() + 10, execute: watchdog)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10.5, execute: force)
 
         // Read before waiting: a full pipe buffer would otherwise deadlock.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         _ = errPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         watchdog.cancel()
+        force.cancel()
 
         let text = String(decoding: data, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)

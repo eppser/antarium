@@ -10,7 +10,7 @@ import Foundation
 /// The precedence below is the whole design: **evidence beats inference**. A
 /// harness that publishes its own status is always believed over anything we
 /// could deduce from file timestamps, and when there is no evidence at all we
-/// say "waiting" rather than invent activity.
+/// say "unknown" rather than invent working or waiting status.
 enum AgentStateMachine {
 
     /// What a harness told us about itself, in its own words.
@@ -55,7 +55,11 @@ enum AgentStateMachine {
 
         // 4. Inference: a transcript that moved recently is being written to.
         let quiet: AgentRow.State = evidence.looping ? .looping : .waiting
-        guard let last = evidence.lastActivity else { return quiet }
-        return now.timeIntervalSince(last) > evidence.idleAfter ? quiet : .working
+        guard let last = evidence.lastActivity else { return evidence.looping ? .looping : .unobserved }
+        let age = now.timeIntervalSince(last)
+        guard age.isFinite, age >= 0, evidence.idleAfter.isFinite, evidence.idleAfter >= 0 else {
+            return evidence.looping ? .looping : .unobserved
+        }
+        return age > evidence.idleAfter ? quiet : .working
     }
 }

@@ -4,63 +4,173 @@
   "title": "Antarium harness",
   "type": "object",
   "additionalProperties": false,
-  "required": ["formatVersion", "id", "name", "process", "source"],
+  "required": [
+    "formatVersion",
+    "id",
+    "name",
+    "process",
+    "source"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "formatVersion": { "const": 1 },
-    "id": { "type": "string", "minLength": 1 },
-    "name": { "type": "string", "minLength": 1 },
-    "match": { "type": "array", "items": { "type": "string" } },
-    "matchProcessName": { "type": "array", "items": { "type": "string" } },
-    "process": { "$ref": "#/$defs/process" },
-    "source": { "$ref": "#/$defs/source" },
-    "map": { "$ref": "#/$defs/map" },
-    "quota": { "$ref": "#/$defs/quota" },
+    "$schema": {
+      "type": "string"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "match": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "matchProcessName": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "process": {
+      "$ref": "#/$defs/process"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "map": {
+      "$ref": "#/$defs/map"
+    },
+    "quota": {
+      "$ref": "#/$defs/quota"
+    },
     "capabilities": {
       "type": "object",
       "propertyNames": {
-        "enum": ["instruction", "memory", "skills", "mcp", "permission"]
+        "enum": [
+          "instruction",
+          "memory",
+          "skills",
+          "mcp",
+          "permission"
+        ]
       },
-      "additionalProperties": { "$ref": "#/$defs/capability" }
+      "additionalProperties": {
+        "$ref": "#/$defs/capability"
+      }
     },
-    "selection": { "$ref": "#/$defs/selection" },
-    "idleAfter": { "type": "number", "minimum": 0 },
-    "staleAfter": { "type": "number", "minimum": 0 },
-    "fallbackName": { "type": "string" },
-    "mark": { "type": "string" },
-    "note": { "type": "string" },
-    "detached": { "type": "boolean" },
-    "multiSession": { "type": "boolean" },
-    "openTabsOnly": { "type": "boolean", "deprecated": true },
-    "enabled": { "type": "boolean" }
-    ,"presentation": { "$ref": "#/$defs/presentation" }
-    ,"compatibility": { "$ref": "#/$defs/compatibility" }
+    "selection": {
+      "$ref": "#/$defs/selection"
+    },
+    "focus": {
+      "$ref": "#/$defs/focus"
+    },
+    "contributes": {
+      "enum": [
+        "sessions",
+        "focus",
+        "presence"
+      ],
+      "description": "focus supplies focus targets for other harnesses' sessions; presence makes a row per running process for an agent that keeps no session record."
+    },
+    "idleAfter": {
+      "type": "number",
+      "minimum": 0
+    },
+    "staleAfter": {
+      "type": "number",
+      "minimum": 0
+    },
+    "fallbackName": {
+      "type": "string"
+    },
+    "mark": {
+      "type": "string"
+    },
+    "note": {
+      "type": "string"
+    },
+    "detached": {
+      "type": "boolean"
+    },
+    "multiSession": {
+      "type": "boolean"
+    },
+    "openTabsOnly": {
+      "type": "boolean",
+      "deprecated": true
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "presentation": {
+      "$ref": "#/$defs/presentation"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    }
   },
   "allOf": [
     {
       "if": {
-        "properties": { "multiSession": { "const": true } },
-        "required": ["multiSession"]
+        "properties": {
+          "multiSession": {
+            "const": true
+          }
+        },
+        "required": [
+          "multiSession"
+        ]
       },
       "then": {
         "anyOf": [
           {
-            "required": ["map"],
-            "properties": { "map": { "required": ["sessionID"] } }
-          },
-          {
+            "required": [
+              "map"
+            ],
             "properties": {
-              "source": {
-                "required": ["columns"],
-                "properties": { "columns": { "contains": { "const": "sessionID" } } }
+              "map": {
+                "required": [
+                  "sessionID"
+                ]
               }
             }
           },
           {
             "properties": {
               "source": {
-                "required": ["pathFields"],
-                "properties": { "pathFields": { "required": ["sessionID"] } }
+                "required": [
+                  "columns"
+                ],
+                "properties": {
+                  "columns": {
+                    "contains": {
+                      "const": "sessionID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "source": {
+                "required": [
+                  "pathFields"
+                ],
+                "properties": {
+                  "pathFields": {
+                    "required": [
+                      "sessionID"
+                    ]
+                  }
+                }
               }
             }
           }
@@ -71,17 +181,34 @@
       "if": {
         "properties": {
           "process": {
-            "properties": { "sessionBinding": { "const": "openSourceFile" } },
-            "required": ["sessionBinding"]
+            "properties": {
+              "sessionBinding": {
+                "const": "openSourceFile"
+              }
+            },
+            "required": [
+              "sessionBinding"
+            ]
           }
         },
-        "required": ["process"]
+        "required": [
+          "process"
+        ]
       },
       "then": {
         "properties": {
           "source": {
-            "properties": { "kind": { "enum": ["json", "jsonl"] } },
-            "required": ["kind"]
+            "properties": {
+              "kind": {
+                "enum": [
+                  "json",
+                  "jsonl"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
           }
         }
       }
@@ -92,144 +219,464 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "pathContains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "names": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "argv0Contains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "sessionBinding": { "enum": ["openSourceFile"] },
+        "pathContains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "argv0Contains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "sessionBinding": {
+          "enum": [
+            "openSourceFile"
+          ]
+        },
         "installationProbes": {
           "type": "array",
-          "items": { "$ref": "#/$defs/installationProbe" }
+          "items": {
+            "$ref": "#/$defs/installationProbe"
+          }
         }
       }
     },
     "installationProbe": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "path", "name", "argv0", "expected", "evidence", "verifiedAt"],
+      "required": [
+        "method",
+        "path",
+        "name",
+        "argv0",
+        "expected",
+        "evidence",
+        "verifiedAt"
+      ],
       "properties": {
-        "method": { "type": "string", "minLength": 1 },
-        "path": { "type": "string" },
-        "name": { "type": "string" },
-        "argv0": { "type": "string" },
-        "expected": { "type": "boolean" },
-        "evidence": { "type": "string", "format": "uri", "pattern": "^https://" },
-        "verifiedAt": { "type": "string", "format": "date" }
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "argv0": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date"
+        }
       }
     },
     "presentation": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mark": { "type": "string" },
-        "fallbackName": { "type": "string" },
-        "sourceLabel": { "type": "string" }
+        "mark": {
+          "type": "string"
+        },
+        "fallbackName": {
+          "type": "string"
+        },
+        "sourceLabel": {
+          "type": "string"
+        }
       }
     },
     "compatibility": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["level"],
+      "required": [
+        "level"
+      ],
       "properties": {
-        "level": { "enum": ["experimental", "declared", "fixtureVerified", "liveVerified"] },
-        "verifiedAt": { "type": "string", "format": "date" },
-        "agentVersions": { "type": "array", "items": { "type": "string" } },
-        "fixture": { "type": "string" },
-        "note": { "type": "string" }
+        "level": {
+          "enum": [
+            "experimental",
+            "declared",
+            "fixtureVerified",
+            "liveVerified"
+          ]
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date"
+        },
+        "agentVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fixture": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
       },
-      "allOf": [{
-        "if": { "properties": { "level": { "enum": ["fixtureVerified", "liveVerified"] } } },
-        "then": { "required": ["verifiedAt", "fixture"] }
-      }]
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "level": {
+                "enum": [
+                  "fixtureVerified",
+                  "liveVerified"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "verifiedAt",
+              "fixture"
+            ]
+          }
+        }
+      ]
     },
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "path"],
+      "required": [
+        "kind",
+        "path"
+      ],
       "properties": {
-        "kind": { "enum": ["jsonl", "json", "sqlite", "command", "none"] },
-        "path": { "type": "string" },
-        "glob": { "type": "string" },
-        "limit": { "type": "integer", "minimum": 1, "maximum": 400 },
-        "journal": { "type": "boolean" },
-        "paths": { "type": "object", "additionalProperties": { "type": "string" } },
+        "kind": {
+          "enum": [
+            "jsonl",
+            "json",
+            "sqlite",
+            "command",
+            "none"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "relocate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "env",
+            "replaces"
+          ],
+          "properties": {
+            "env": {
+              "type": "string",
+              "description": "Environment variable that moves this harness's data directory."
+            },
+            "replaces": {
+              "type": "string",
+              "description": "The path prefix the variable stands in for. Must be a prefix of source.path."
+            }
+          },
+          "description": "Honours an agent's own relocation variable, such as CODEX_HOME. Unset or empty leaves source.path as written."
+        },
+        "glob": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 400
+        },
+        "journal": {
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Day these records were last read against a source outside this repository. Not the fixture's date: a fixture is written from the map it tests."
+        },
+        "paths": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "pathFields": {
           "type": "object",
-          "propertyNames": { "enum": ["cwd", "title", "model", "sessionID"] },
-          "additionalProperties": { "$ref": "#/$defs/pathField" }
+          "propertyNames": {
+            "enum": [
+              "cwd",
+              "title",
+              "model",
+              "sessionID"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/pathField"
+          }
         },
-        "query": { "type": "string", "minLength": 1 },
-        "columns": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "filter": { "$ref": "#/$defs/stringListMap" },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "filter": {
+          "$ref": "#/$defs/stringListMap"
+        },
         "manifest": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["file", "map"],
+          "required": [
+            "file",
+            "map"
+          ],
           "properties": {
-            "file": { "type": "string" },
-            "map": { "$ref": "#/$defs/map" }
+            "file": {
+              "type": "string"
+            },
+            "map": {
+              "$ref": "#/$defs/map"
+            }
           }
         },
-        "command": { "type": "string", "minLength": 1 },
-        "args": { "type": "array", "items": { "type": "string" } },
-        "root": { "type": "string" },
-        "refreshEvery": { "type": "number", "minimum": 0 }
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "root": {
+          "type": "string"
+        },
+        "refreshEvery": {
+          "type": "number",
+          "minimum": 0
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "kind": { "const": "sqlite" } }, "required": ["kind"] },
-          "then": { "required": ["query", "columns"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "sqlite"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "query",
+              "columns"
+            ]
+          }
         },
         {
-          "if": { "properties": { "kind": { "const": "command" } }, "required": ["kind"] },
-          "then": { "required": ["command"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "command"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "command"
+            ]
+          }
         },
         {
-          "if": { "properties": { "kind": { "enum": ["jsonl", "json"] } }, "required": ["kind"] },
-          "then": { "required": ["glob"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "jsonl",
+                  "json"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "glob"
+            ]
+          }
         }
       ]
     },
     "pathField": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ancestor", "value"],
+      "required": [
+        "ancestor",
+        "value"
+      ],
       "properties": {
-        "ancestor": { "type": "integer", "minimum": 0 },
-        "value": { "enum": ["name", "stem", "path"] }
+        "ancestor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "value": {
+          "enum": [
+            "name",
+            "stem",
+            "path"
+          ]
+        }
       }
     },
     "map": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "cwd": { "type": "string" },
-        "title": { "type": "string" },
-        "model": { "type": "string" },
-        "contextWindow": { "type": "string" },
-        "contextTokens": { "type": "array", "items": { "type": "string" } },
-        "timestamp": { "type": "string" },
-        "inputTokens": { "type": "string" },
-        "outputTokens": { "type": "string" },
-        "cacheRead": { "type": "string" },
-        "cacheWrite": { "type": "string" },
-        "inputIncludesCacheRead": { "type": "boolean" },
-        "cost": { "type": "string" },
-        "toolMarker": { "type": "string" },
-        "toolWhere": { "type": "object", "additionalProperties": { "type": "string" } },
-        "toolCalls": { "$ref": "#/$defs/count" },
-        "turnWhere": { "type": "object", "additionalProperties": { "type": "string" } },
-        "turns": { "$ref": "#/$defs/count" },
-        "subAgents": { "$ref": "#/$defs/count" },
-        "pid": { "type": "string" },
-        "sessionID": { "type": "string" },
+        "cwd": {
+          "type": "string"
+        },
+        "focusTarget": {
+          "type": "string",
+          "description": "Path to the value this harness's focus command needs."
+        },
+        "title": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "contextWindow": {
+          "type": "string"
+        },
+        "contextTokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "inputTokens": {
+          "type": "string"
+        },
+        "outputTokens": {
+          "type": "string"
+        },
+        "totalTokens": {
+          "type": "string",
+          "description": "One combined token figure, for a harness that reports no split. Cannot be declared alongside inputTokens, outputTokens, cacheRead or cacheWrite."
+        },
+        "cacheRead": {
+          "type": "string"
+        },
+        "cacheWrite": {
+          "type": "string"
+        },
+        "inputIncludesCacheRead": {
+          "type": "boolean"
+        },
+        "skipRepeatedUsage": {
+          "type": "boolean",
+          "description": "True where the source re-emits a record it already wrote. An identical consecutive record is then a repeat, not new work."
+        },
+        "cost": {
+          "type": "string"
+        },
+        "toolMarker": {
+          "type": "string"
+        },
+        "toolWhere": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "toolCalls": {
+          "$ref": "#/$defs/count"
+        },
+        "skipUsageWhere": {
+          "type": "object",
+          "description": "Records whose usage figures must not be counted, where a source writes both per-turn and cumulative usage. Such a record is still read for everything else.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "turnWhere": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "turns": {
+          "$ref": "#/$defs/count"
+        },
+        "subAgents": {
+          "$ref": "#/$defs/count"
+        },
+        "pid": {
+          "type": "string"
+        },
+        "sessionID": {
+          "type": "string"
+        },
         "status": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "whileNotEmpty": { "type": "string" },
-            "field": { "type": "string" },
-            "working": { "type": "array", "items": { "type": "string" } },
-            "idle": { "type": "array", "items": { "type": "string" } }
+            "whileNotEmpty": {
+              "type": "string"
+            },
+            "field": {
+              "type": "string"
+            },
+            "working": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "idle": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       }
@@ -237,112 +684,458 @@
     "count": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path"],
+      "required": [
+        "path"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "match": { "type": "object", "additionalProperties": { "type": "string" } }
+        "path": {
+          "type": "string"
+        },
+        "match": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       }
     },
     "capability": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "probe": { "enum": ["content", "directory", "jsonObject", "toml"] },
-        "project": { "type": "array", "items": { "type": "string" } },
-        "inherited": { "type": "array", "items": { "type": "string" } },
-        "index": { "type": "string" },
-        "keys": { "type": "array", "items": { "type": "string" } }
+        "probe": {
+          "enum": [
+            "content",
+            "directory",
+            "jsonObject",
+            "toml"
+          ]
+        },
+        "project": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inherited": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "index": {
+          "type": "string"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fileSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "When a path is a directory: only entries whose names end with one of these are counted."
+        }
       }
     },
     "selection": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
-        "kind": { "enum": ["jsonFiles", "sqlite", "command"] },
-        "path": { "type": "string" },
-        "glob": { "type": "string" },
-        "records": { "type": "string" },
-        "encodedJSON": { "type": "boolean" },
-        "id": { "type": "string" },
-        "filter": { "$ref": "#/$defs/stringListMap" },
-        "query": { "type": "string", "minLength": 1 },
-        "column": { "type": "string", "minLength": 1 },
-        "command": { "type": "string", "minLength": 1 },
-        "args": { "type": "array", "items": { "type": "string" } },
-        "root": { "type": "string" }
+        "kind": {
+          "enum": [
+            "jsonFiles",
+            "sqlite",
+            "command"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "glob": {
+          "type": "string"
+        },
+        "records": {
+          "type": "string"
+        },
+        "encodedJSON": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "filter": {
+          "$ref": "#/$defs/stringListMap"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "column": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "root": {
+          "type": "string"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "kind": { "const": "jsonFiles" } } },
-          "then": { "required": ["path", "glob", "records", "id"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "jsonFiles"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "path",
+              "glob",
+              "records",
+              "id"
+            ]
+          }
         },
         {
-          "if": { "properties": { "kind": { "const": "sqlite" } } },
-          "then": { "required": ["path", "query", "column"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "sqlite"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "path",
+              "query",
+              "column"
+            ]
+          }
         },
         {
-          "if": { "properties": { "kind": { "const": "command" } } },
-          "then": { "required": ["command", "id"] }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "command"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "command",
+              "id"
+            ]
+          }
         }
       ]
     },
     "quota": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["endpoint", "windows"],
+      "required": [
+        "windows"
+      ],
       "properties": {
-        "endpoint": { "type": "string", "format": "uri" },
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-        "credential": { "$ref": "#/$defs/credential" },
-        "windows": { "$ref": "#/$defs/windows" },
-        "accountLabel": { "type": "string" },
-        "setupHint": { "type": "string" },
-        "signInCommand": { "type": "string" },
-        "verified": { "type": "boolean" }
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "https URL to read the figures from. Exactly one of endpoint or command."
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "credential": {
+          "$ref": "#/$defs/credential"
+        },
+        "windows": {
+          "$ref": "#/$defs/windows"
+        },
+        "accountLabel": {
+          "type": "string"
+        },
+        "setupHint": {
+          "type": "string"
+        },
+        "signInCommand": {
+          "type": "string"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "string",
+          "description": "Program name, resolved on PATH, whose stdout is the usage JSON. Exactly one of endpoint or command."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Arguments for quota.command. argv, never a shell."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST",
+            "get",
+            "post"
+          ],
+          "description": "HTTP method for quota.endpoint. Absent means GET."
+        },
+        "body": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Body sent with a POST, as flat string values. {token} is substituted."
+        },
+        "bodyList": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Body keys whose value is a list of strings, sent with the same POST as body. A key may appear in one or the other, not both. No {token} substitution."
+        },
+        "documentation": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "description": "URL of the vendor reference stating the response schema this maps."
+        },
+        "checkedAt": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Day these figures were last read against a source outside this repository. Not the fixture's date: a fixture is written from the mapping it tests."
+        }
       }
     },
     "credential": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
-        "kind": { "enum": ["jsonFile", "textFile", "env", "command"] },
-        "path": { "type": "string" },
-        "field": { "type": "string" },
-        "name": { "type": "string" },
-        "command": { "type": "string" },
-        "args": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "enum": [
+            "jsonFile",
+            "textFile",
+            "env",
+            "command"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Field path -> required substring, checked in the same jsonFile before the token is used."
+        },
+        "accountField": {
+          "type": "string",
+          "description": "Field path to the account or organisation id in the same jsonFile, substituted as {account} into the endpoint, headers and body. jsonFile credentials only."
+        }
       }
     },
     "windows": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "root": { "type": "string" },
-        "keys": { "type": "array", "items": { "type": "string" } },
-        "usedPercent": { "type": "string" },
-        "percentRemaining": { "type": "string" },
-        "used": { "type": "string" },
-        "limit": { "type": "string" },
-        "require": { "type": "object", "additionalProperties": { "type": "boolean" } },
-        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "windowSeconds": { "type": "string" },
-        "resetsAt": { "type": "string" },
-        "title": { "type": "string" }
+        "root": {
+          "type": "string"
+        },
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Candidate paths tried in order, for an optional payload envelope."
+        },
+        "list": {
+          "type": "string",
+          "description": "Dot-path to an array of windows. Supersedes root."
+        },
+        "key": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Field paths inside each list element that name that window; several are joined with '-'."
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "single": {
+          "type": "string",
+          "description": "Names the container itself as one window, for flat responses."
+        },
+        "balance": {
+          "type": "string",
+          "description": "Path to a credit balance: a figure with no denominator."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency of balance: a path into the window, or a literal ISO 4217 code."
+        },
+        "usedPercent": {
+          "type": "string"
+        },
+        "percentRemaining": {
+          "type": "string"
+        },
+        "used": {
+          "type": "string"
+        },
+        "remaining": {
+          "type": "string",
+          "description": "Counts left, against the same limit. Use where a service reports what is left rather than what is spent."
+        },
+        "limit": {
+          "type": "string"
+        },
+        "require": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "criticalWhen": {
+          "type": "object",
+          "description": "Flags meaning the window is spent whatever its figure says. Read from the window, else from the response.",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "criticalWhenEquals": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Field path to the exact value that means this window is spent, for a service stating a word rather than a flag. Compared exactly. Conjunction with criticalWhen. A field nothing states satisfies nothing."
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "badges": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4
+          },
+          "description": "Explicit menu-bar badge per window, when the label abbreviates badly."
+        },
+        "windowSeconds": {
+          "type": "string"
+        },
+        "resetsAt": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
       },
       "anyOf": [
-        { "required": ["usedPercent"] },
-        { "required": ["percentRemaining"] },
-        { "required": ["used", "limit"] }
+        {
+          "required": [
+            "usedPercent"
+          ]
+        },
+        {
+          "required": [
+            "percentRemaining"
+          ]
+        },
+        {
+          "required": [
+            "used",
+            "limit"
+          ]
+        },
+        {
+          "required": [
+            "balance"
+          ]
+        }
       ]
     },
     "stringListMap": {
       "type": "object",
       "additionalProperties": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "minItems": 1
+      }
+    },
+    "focus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command"
+      ],
+      "description": "How this harness raises one of its own sessions. {focusTarget} in an argument is replaced with map.focusTarget.",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

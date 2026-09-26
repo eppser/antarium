@@ -111,6 +111,22 @@ final class AgentItem: NSObject, NSMenuDelegate {
         self.coordinator = coordinator
         super.init()
 
+        // An item existing is what makes this provider's readings wanted. Its
+        // last item may have retired the id — switching an agent off and on
+        // again would otherwise leave it silently refused for the rest of the
+        // session.
+        //
+        // No catalogue entry, for the same reason `dispose` carries none for
+        // its second line: an `AgentItem` cannot be built in a test, because
+        // building one takes a status bar. The rule it upholds is tested from
+        // the store's side, and the alternative that would need no call here —
+        // retiring for a fixed span rather than until re-admission — is worse
+        // rather than merely untested. A re-enabled item fetches on its first
+        // tick, so a span long enough to cover a fetch in flight would swallow
+        // the reading that replaces it and leave the agent blank until the next
+        // poll, minutes later.
+        QuotaStore.shared.admit(providerID: provider.id)
+
         statusItem.button?.imagePosition = .imageOnly
         // Remembers where the user ⌘-dragged this item to.
         statusItem.autosaveName = "Antarium.\(provider.id)"
@@ -131,7 +147,16 @@ final class AgentItem: NSObject, NSMenuDelegate {
     }
 
     /// Removing the status item is what takes it out of the menu bar.
+    /// Two lines, only one of which a test can reach: the second needs a
+    /// status bar. The first is covered from the other side — `QuotaStore`
+    /// removal is tested directly, and `AppController.membership` decides
+    /// which providers get here — but the wiring between them is held by
+    /// reading rather than by a test, so a mutation of this line survives.
     func dispose() {
+        // Removes the reading and refuses the one still in flight. The fetch
+        // running when an agent is switched off completes afterwards and
+        // publishes, and by then there is no item to publish again — so the
+        // stale reading stayed in the dashboard until the app restarted.
         QuotaStore.shared.remove(providerID: provider.id)
         NSStatusBar.system.removeStatusItem(statusItem)
     }
@@ -178,6 +203,28 @@ final class AgentItem: NSObject, NSMenuDelegate {
         }
     }
 
+    /// Which sounds a reading earns, at most one of each.
+    ///
+    /// A response may carry many windows, and several crossing at once is one
+    /// event to a listener rather than several — firing per gauge is a burst
+    /// of identical chirps.
+    static func crossings(from previous: [String: Gauge],
+                          to current: [Gauge]) -> (critical: Bool, rolledOver: Bool) {
+        var critical = false
+        var rolledOver = false
+        for gauge in current {
+            guard let was = previous[gauge.id] else { continue }
+            if was.severity != .critical, gauge.severity == .critical { critical = true }
+            // A window that rolled over: its reset moved later and headroom
+            // jumped back up.
+            if let old = was.resetsAt, let new = gauge.resetsAt,
+               new > old, gauge.remaining > was.remaining + 0.2 {
+                rolledOver = true
+            }
+        }
+        return (critical, rolledOver)
+    }
+
     /// Sounds fire on a *transition*, never on a standing state — otherwise a
     /// spent quota would chirp on every poll. Nothing fires on the first
     /// reading, when there is nothing to compare against.
@@ -188,36 +235,70 @@ final class AgentItem: NSObject, NSMenuDelegate {
         }
         guard !previousGauges.isEmpty else { return }
 
-        for gauge in snapshot.gauges {
-            guard let was = previousGauges[gauge.id] else { continue }
-            if was.severity != .critical, gauge.severity == .critical {
-                Sounds.play(.budgetCritical)
-            }
-            // A window that rolled over: its reset moved later and headroom
-            // jumped back up.
-            if let old = was.resetsAt, let new = gauge.resetsAt,
-               new > old, gauge.remaining > was.remaining + 0.2 {
-                Sounds.play(.quotaReset)
-            }
+        // At most one of each sound per reading. A response may carry many
+        // windows, and several crossing at once is one event to a listener,
+        // not several — playing it per gauge is a burst of identical chirps.
+        let crossed = Self.crossings(from: previousGauges, to: snapshot.gauges)
+        if crossed.critical { Sounds.play(.budgetCritical) }
+        if crossed.rolledOver { Sounds.play(.quotaReset) }
+    }
+
+    /// When to look again. Pure, so the one place a response decides when the
+    /// app *acts* rather than what it shows can be tested without a timer.
+    ///
+    /// If a window rolls over sooner than the refresh interval, look again
+    /// just after it does — that is the moment the number the user cares
+    /// about jumps. The reset time comes from the server, though, so a window
+    /// reported as resetting a second from now, on every reading, would pull
+    /// the next poll to twenty-one seconds out for as long as the server kept
+    /// saying it: the user's refresh interval replaced by the endpoint's.
+    /// Never sooner than `minimumPollInterval`.
+    static func nextPoll(after now: Date, interval: TimeInterval,
+                         resets: [Date]) -> Date {
+        var next = now.addingTimeInterval(interval)
+        let floor = now.addingTimeInterval(minimumPollInterval)
+        for reset in resets {
+            let after = reset.addingTimeInterval(20)
+            // A reset already behind us says nothing about when to look next.
+            // Flooring first would lift every stale date into a valid poll,
+            // which is how a response full of yesterday's timestamps became a
+            // reason to fetch a minute from now.
+            guard after > now else { continue }
+            let candidate = max(after, floor)
+            if candidate < next { next = candidate }
         }
+        return next
+    }
+
+    /// The soonest a reported reset may pull the next poll. Long enough that
+    /// a server cannot set the refresh rate, short enough that a real window
+    /// rollover — minutes or hours away — is unaffected.
+    static let minimumPollInterval: TimeInterval = 60
+
+    /// How long to wait after a failed reading.
+    ///
+    /// Doubling from a minute, and never longer than the interval the user
+    /// asked for — a provider that is failing must not end up checked less
+    /// often than one that is working, or a service coming back stays
+    /// unnoticed. The doubling is capped before the multiplication so a long
+    /// outage cannot overflow it into something absurd.
+    ///
+    /// The first retry is sooner than the normal interval on purpose: most
+    /// failures are a dropped connection, and waiting ten minutes to find
+    /// that out is worse than asking again in two.
+    static func backoff(failures: Int, interval: TimeInterval) -> TimeInterval {
+        min(interval, pow(2, Double(min(max(failures, 0), 4))) * 60)
     }
 
     private func scheduleNext(success: Bool, snapshot: Snapshot? = nil) {
         let interval = TimeInterval(Settings.refreshMinutes * 60)
         guard success else {
-            // Back off, but never past the normal interval.
             nextFetch = Date().addingTimeInterval(
-                min(interval, pow(2, Double(min(consecutiveFailures, 4))) * 60))
+                Self.backoff(failures: consecutiveFailures, interval: interval))
             return
         }
-        var next = Date().addingTimeInterval(interval)
-        // If a window rolls over sooner, look again just after it does — that's
-        // the moment the number the user cares about jumps.
-        for reset in (snapshot?.gauges ?? []).compactMap(\.resetsAt) {
-            let after = reset.addingTimeInterval(20)
-            if after > Date() && after < next { next = after }
-        }
-        nextFetch = next
+        nextFetch = Self.nextPoll(after: Date(), interval: interval,
+                                  resets: (snapshot?.gauges ?? []).compactMap(\.resetsAt))
     }
 
     /// Pull the next poll into line with a changed interval, without firing now.
@@ -265,6 +346,12 @@ final class AgentItem: NSObject, NSMenuDelegate {
         lastRender = next
         statusItem.button?.image = Renderer.image(next, appearance: appearance, scale: scale)
         statusItem.button?.toolTip = tooltip()
+        // Named for VoiceOver as well as for the pointer. Sixteen of the
+        // shipped harnesses have no artwork here and draw letters instead,
+        // and a few of those letters are shared — so without this the only
+        // thing distinguishing two items is a glyph that a screen reader
+        // cannot read at all.
+        statusItem.button?.setAccessibilityLabel(provider.displayName)
     }
 
     private func publishQuota() {
@@ -292,22 +379,25 @@ final class AgentItem: NSObject, NSMenuDelegate {
         }
     }
 
+    /// One tooltip line. A balance has no "used" and no "left" to report, so
+    /// it states the figure instead of inventing both halves of a percentage.
+    private static func line(_ g: Gauge) -> String {
+        if let amount = g.amountText { return "\(g.title): \(amount) left" }
+        return "\(g.title): \(g.usedPercentText) used, \(g.remainingPercentText) left"
+    }
+
     private func tooltip() -> String {
         switch state {
         case .loading:
             return "\(provider.displayName) — checking…"
         case .ready(let s):
-            let lines = (s.gauges + s.extras).map {
-                "\($0.title): \($0.usedPercentText) used, \($0.remainingPercentText) left"
-            }
+            let lines = (s.gauges + s.extras).map(Self.line)
             return ([provider.displayName] + lines).joined(separator: "\n")
         case .failed(let e, let last):
             guard let last else {
                 return "\(provider.displayName) — \(e.errorDescription ?? "error")"
             }
-            let lines = (last.gauges + last.extras).map {
-                "\($0.title): \($0.usedPercentText) used, \($0.remainingPercentText) left"
-            }
+            let lines = (last.gauges + last.extras).map(Self.line)
             return ([provider.displayName + " — as of " + Format.age(last.fetchedAt)]
                 + lines + ["Last refresh failed: \(e.errorDescription ?? "error")"])
                 .joined(separator: "\n")
@@ -390,7 +480,9 @@ final class AgentItem: NSObject, NSMenuDelegate {
         for (i, gauge) in s.gauges.enumerated() {
             menu.addItem(gaugeItem(gauge, stale: stale, row: i))
         }
-        for extra in s.extras where extra.used > 0 {
+        // A zero balance is a reading, not an absence — the filter is about
+        // hiding windows that were never touched, which a balance never is.
+        for extra in s.extras where extra.used > 0 || !extra.hasMeter {
             menu.addItem(gaugeItem(extra, stale: stale, row: 1))
         }
     }
@@ -400,16 +492,20 @@ final class AgentItem: NSObject, NSMenuDelegate {
     private func gaugeItem(_ g: Gauge, stale: Bool, row: Int) -> NSMenuItem {
         let item = NSMenuItem()
         item.isEnabled = true
-        item.image = Renderer.chip(fill: Settings.meterMode == .used ? g.used : g.remaining,
-                                   severity: g.severity, agentID: provider.id, row: row,
-                                   appearance: NSApp.effectiveAppearance, scale: scale)
+        if g.hasMeter {
+            item.image = Renderer.chip(fill: Settings.meterMode == .used ? g.used : g.remaining,
+                                       severity: g.severity, agentID: provider.id, row: row,
+                                       appearance: NSApp.effectiveAppearance, scale: scale)
+        }
         let title = NSMutableAttributedString(
-            string: g.title + "\n",
+            string: Self.menuTitle(g.title) + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
                          .foregroundColor: stale ? NSColor.secondaryLabelColor : NSColor.labelColor])
         // Both framings, always — this is where "is 75% good or bad?" gets settled.
+        let detail = g.amountText.map { "\($0) left · \(Format.longReset(g.resetsAt))" }
+            ?? "\(g.usedPercentText) used · \(g.remainingPercentText) left · \(Format.longReset(g.resetsAt))"
         title.append(NSAttributedString(
-            string: "\(g.usedPercentText) used · \(g.remainingPercentText) left · \(Format.longReset(g.resetsAt))",
+            string: detail,
             attributes: [.font: NSFont.systemFont(ofSize: 11),
                          .foregroundColor: NSColor.secondaryLabelColor]))
         item.attributedTitle = title
@@ -450,21 +546,33 @@ final class AgentItem: NSObject, NSMenuDelegate {
             string: (err.errorDescription ?? "Couldn't read usage.") + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium),
                          .foregroundColor: NSColor.systemRed])
-        let hint: String
-        switch err {
-        case .needsAuth, .notConfigured, .unsupported: hint = provider.setupHint
-        case .accessDenied:
-            hint = "Open Keychain Access, select the agent's credential item, "
-                 + "and allow Antarium under Access Control."
-        case .transport:   hint = "Will retry automatically."
-        case .badResponse: hint = "The usage API returned something unexpected."
-        }
+        // Asked of the error rather than decided here, so the advice cannot
+        // drift from `suggestsSignIn` again.
+        let hint = err.hint(setupHint: provider.setupHint)
         s.append(NSAttributedString(
             string: hint,
             attributes: [.font: NSFont.systemFont(ofSize: 11),
                          .foregroundColor: NSColor.secondaryLabelColor]))
         item.attributedTitle = s
         return item
+    }
+
+    /// A window's name, cut to what a menu can draw.
+    ///
+    /// `NSMenu` does not truncate. A menu is as wide as its widest item, and
+    /// measured: a 4,096-character title — the backstop `Gauge` allows —
+    /// produces a menu 33,470 points wide against a 3,440 point display, and
+    /// five hundred characters already overflows one.
+    ///
+    /// Cut here rather than in `Gauge`, because the model is deliberately not
+    /// the place for it: a descriptor's label is trusted local configuration
+    /// and passes through unclamped, and the same string is used in tooltips
+    /// and in diagnostic output where its length costs nothing. This is the
+    /// one place it is laid out.
+    static let maxMenuTitle = 120
+    static func menuTitle(_ title: String) -> String {
+        guard title.count > maxMenuTitle else { return title }
+        return String(title.prefix(maxMenuTitle - 1)) + "…"
     }
 
     private func submenu(_ title: String, items: [NSMenuItem]) -> NSMenuItem {

@@ -2,16 +2,56 @@
   "formatVersion": 1,
   "id": "claude-code",
   "name": "Claude Code",
-  "presentation": { "mark": "claude-code" },
-  "note": "Sessions are read from Claude's own live registry in ~/.claude/sessions, which reports status per pid \u2014 richer than any file map could express. What lives here is which processes count as Claude: the CLI, the copy inside Claude Desktop, and the SDK binary that ACP hosts like Zed launch. Miss one and its memory reads 0MB.",
+  "presentation": {
+    "mark": "claude-code"
+  },
+  "note": "Sessions are read from Claude's own live registry in ~/.claude/sessions, which reports status per pid \u2014 richer than any file map could express. What lives here is which processes count as Claude: the CLI, the copy inside Claude Desktop, and the SDK binary that ACP hosts like Zed launch. Miss one and its memory reads 0MB. Not declared, and deliberately: CLAUDE_CONFIG_DIR. Looked into 2026-09-26 while five other harnesses gained source.relocate, and the evidence contradicts itself. Third-party tooling describes the variable as relocating the whole config directory; there are also open feature requests on Claude Code's own tracker asking for exactly that variable to be added, and an issue on a profile-switching tool titled to the effect that it is unsupported and that such tools manage a directory Claude Code does not read. Declaring it on that evidence would be worse than leaving it: a user who sets it on third-party advice would have this app look somewhere Claude Code does not write, and sessions that exist under ~/.claude would read as absent. One check against a version that honours it \u2014 or the variable appearing in Claude Code's own documentation \u2014 is the whole of what is missing.",
   "process": {
-    "pathContains": ["/claude/versions/", "/claude-code/", "claude-agent-sdk"],
-    "argv0Contains": ["/@anthropic-ai/claude-code/"],
+    "pathContains": [
+      "/claude/versions/",
+      "/claude-code/",
+      "claude-agent-sdk"
+    ],
+    "argv0Contains": [
+      "/@anthropic-ai/claude-code/"
+    ],
     "installationProbes": [
-      { "method": "native-installer", "path": "/fixture/home/.local/share/claude/versions/2.1.0", "name": "2.1.0", "argv0": "claude", "expected": true, "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started", "verifiedAt": "2026-08-26" },
-      { "method": "npm", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@anthropic-ai/claude-code/cli.js", "expected": true, "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started", "verifiedAt": "2026-08-26" },
-      { "method": "sdk-host", "path": "/fixture/cache/claude-agent-sdk/claude", "name": "claude", "argv0": "claude", "expected": true, "evidence": "https://github.com/anthropics/claude-agent-sdk-python", "verifiedAt": "2026-08-26" },
-      { "method": "name-collision", "path": "/fixture/tools/claude-helper", "name": "claude-helper", "argv0": "claude-helper", "expected": false, "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started", "verifiedAt": "2026-08-26" }
+      {
+        "method": "native-installer",
+        "path": "/fixture/home/.local/share/claude/versions/2.1.0",
+        "name": "2.1.0",
+        "argv0": "claude",
+        "expected": true,
+        "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "npm",
+        "path": "/usr/bin/node",
+        "name": "node",
+        "argv0": "/fixture/lib/node_modules/@anthropic-ai/claude-code/cli.js",
+        "expected": true,
+        "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "sdk-host",
+        "path": "/fixture/cache/claude-agent-sdk/claude",
+        "name": "claude",
+        "argv0": "claude",
+        "expected": true,
+        "evidence": "https://github.com/anthropics/claude-agent-sdk-python",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "name-collision",
+        "path": "/fixture/tools/claude-helper",
+        "name": "claude-helper",
+        "argv0": "claude-helper",
+        "expected": false,
+        "evidence": "https://docs.anthropic.com/en/docs/claude-code/getting-started",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
@@ -28,29 +68,57 @@
   "capabilities": {
     "instruction": {
       "probe": "content",
-      "project": ["CLAUDE.md", "AGENTS.md", ".claude/CLAUDE.md", "CONVENTIONS.md"],
-      "inherited": ["~/.claude/CLAUDE.md"]
+      "project": [
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".claude/CLAUDE.md",
+        "CONVENTIONS.md"
+      ],
+      "inherited": [
+        "~/.claude/CLAUDE.md"
+      ]
     },
     "memory": {
       "probe": "directory",
-      "project": ["~/.claude/projects/{cwdSlug}/memory"],
+      "project": [
+        "~/.claude/projects/{cwdSlug}/memory"
+      ],
       "index": "MEMORY.md"
     },
     "skills": {
       "probe": "directory",
-      "project": [".claude/skills"],
-      "inherited": ["~/.claude/skills"]
+      "project": [
+        ".claude/skills"
+      ],
+      "inherited": [
+        "~/.claude/skills"
+      ]
     },
     "mcp": {
       "probe": "jsonObject",
-      "project": [".mcp.json", ".claude/mcp.json"],
-      "inherited": ["~/.claude/mcp.json", "~/.claude.json"],
-      "keys": ["mcpServers", "servers", "mcp_servers"]
+      "project": [
+        ".mcp.json",
+        ".claude/mcp.json"
+      ],
+      "inherited": [
+        "~/.claude/mcp.json",
+        "~/.claude.json"
+      ],
+      "keys": [
+        "mcpServers",
+        "servers",
+        "mcp_servers"
+      ]
     },
     "permission": {
       "probe": "content",
-      "project": [".claude/settings.local.json", ".claude/settings.json"],
-      "inherited": ["~/.claude/settings.json"]
+      "project": [
+        ".claude/settings.local.json",
+        ".claude/settings.json"
+      ],
+      "inherited": [
+        "~/.claude/settings.json"
+      ]
     }
   }
 }

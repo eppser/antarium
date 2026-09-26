@@ -60,6 +60,288 @@ and session-storage evidence. It should ship only after synthetic fixtures prove
 identity, working/waiting transitions, installation layouts, and the absence of
 helper-process collisions.
 
+## Which quota providers can be descriptors
+
+A descriptor makes one authenticated GET and maps the reply. That covers more
+services than it sounds like, and not the ones whose difficulty is in getting
+the token rather than reading the answer. The distinction is worth writing down,
+because "add every provider some other tool supports" is a reasonable-sounding
+request whose honest answer is "about half of them, and the rest are each a
+separate piece of Swift".
+
+Shipping as descriptors, each with a recorded response shape under
+`Resources/quota-fixtures`: GitHub Copilot, Z.ai GLM, MiniMax, OpenCode Zen,
+Command Code, Vercel AI Gateway, DeepSeek.
+
+Native, because a descriptor cannot express them: Claude Code (Keychain and
+OAuth refresh), Codex, Cursor (token from the desktop app's SQLite store), Amp
+and Kiro (the reply is text, not JSON, and both are scanned rather than matched
+— stdout is bounded but not trusted, and a backtracking pattern is a way to
+turn a long line into a hung menu bar; Kiro reports what has been used where
+Amp reports what is left, which is worth knowing before reading either), Gemini, and Grok
+(`~/.grok/auth.json` is keyed by `<issuer>::<client-id>`, so the entry is found
+by looking rather than by a path, and the refresh token is spent here because
+no CLI reissues it — against the issuer the credential itself names, checked
+to be an x.ai host first, since a bearer token must not be posted to whatever
+a file says. The refreshed token is held in memory and never written back:
+rewriting another application's credential file to save a round trip is a
+poor trade against racing its own writes) — its access token lasts about an hour, and renewing it means running
+the CLI and letting it rewrite `~/.gemini/oauth_creds.json`. The mapping alone
+was written as a descriptor first and reverted, because a correct mapping
+behind a credential that expires is exactly what the note below says not to
+ship.
+
+Synthetic is the first descriptor-backed provider that is a proper meter
+with a reset: the subscription states a request ceiling, the requests
+spent against it and when it renews. The renewal is read from the
+response rather than inferred from a period length, which is the
+difference between a row that stays right after a plan change and one
+that is right until somebody changes plan. The figures are requests
+rather than tokens, because that is how the service bills.
+
+OpenRouter is charted as spend against purchases. Its credits endpoint
+reports two lifetime figures — everything ever added and everything ever
+spent — and no remaining balance, so the meter is the ratio of the two:
+empty after a top-up, full when the credits are gone. The key is read
+from a file rather than from `OPENROUTER_API_KEY`, because the endpoint
+answers 403 to an ordinary inference key and only a management key
+works; reading the conventional variable would take the key most people
+have and fail with it for ever, which is the degraded shipping this
+document rules out two paragraphs below.
+
+Five more were looked at and not written, for one reason between them: the
+endpoint is known and the response is not. Chutes publishes
+`GET /users/me/quotas` and `GET /users/me/subscription_usage` in its API
+reference and says "schema not detailed" for both. DeepInfra's balance and
+usage calls appear in other tools but in none of DeepInfra's own
+documentation. Antigravity's field paths are reverse-engineered from the
+binary by the projects that carry them, whose own notes say the shape may
+change without notice.
+
+Codebuff's own documentation has no usage endpoint in it at all, and Poe's
+balance call is named by every tool that reads it and by none of Poe's pages.
+
+A mapping written from another tool's source is a guess about somebody else's
+product that happens to work today, and the fixture beside it would prove
+only that the guess is self-consistent. One real payload each is the whole
+of what is missing, and it is worth more than any amount of reading around
+it.
+
+Checked again on 2026-09-22, against the vendors' own references rather than
+against this list. DeepInfra's API reference documents its OpenAI-compatible
+and native inference endpoints and no account, billing or balance endpoint
+of any kind; the balance path that circulates does so in other projects'
+pull requests, which is the whole of the objection. Poe's own API
+documentation describes chat completions and responses and no endpoint for
+reading a compute-point balance. Both verdicts stand, and stand on evidence
+now rather than on this paragraph.
+
+Chutes was re-checked on 2026-09-22 and the entry above holds, now for a
+reason that is established rather than repeated. The users reference does
+document `GET /users/me/quotas`, with a Bearer token, and the machine-
+readable index beside it lists the same path as "account limits and usage".
+Neither states a single field the response contains. So the endpoint is
+published and its shape is not, which is precisely the case this section is
+about: a descriptor is field paths, and there are none to read.
+
+This is the entry most worth revisiting, because it is one page away from
+being writable. A published example response — or one real reply from an
+account — is the whole of what is missing.
+
+A whole class was blocked by our own scheme check rather than by anything a
+vendor does. A self-hosted proxy in front of an agent — LiteLLM, and the
+several like it — documents its spend endpoint properly and serves it over
+http on a port, because it is listening on loopback. Requiring https refused
+every one of them, and the only way round it was a certificate in front of a
+local socket. Plaintext to this machine is accepted now, which is a thing our
+code decides rather than a schema somebody else has to publish.
+
+One more thing stood between that and a working descriptor, and it was
+ours: `--check` kept its own copy of the endpoint rule and insisted on
+https, so the self-hosted case the runtime accepts was reported as broken by
+the tool whose whole job is telling an author whether theirs works. Both
+read one predicate now.
+
+What still stops LiteLLM specifically is smaller and is the user's to fix:
+its endpoint is a host and port only they know, and `/key/info` wants the
+master key in the header and the key being asked about in the query. A
+shipped descriptor cannot carry a working default for either, so this is a
+thing to document for somebody writing their own rather than to ship.
+
+Documented now, and the two-secret problem turned out not to need a second
+credential: the key being watched is not a secret from the person watching
+it, so it goes in their own descriptor while the master key stays in the
+keys folder. The worked example in docs/TECHNICAL.md is decoded, checked
+and mapped by the test suite, against the reply LiteLLM's own pages show.
+`/spend/keys` would take one secret rather than two and is not used: its
+response shape is not published, and the shape of a structurally similar
+endpoint is the guess this document exists to refuse.
+
+The second half of that was wrong for longer than it looked. "Document it
+for somebody writing their own" assumed they could, and they could not:
+`{token}` was substituted into headers and into a POST body but not into the
+endpoint, so a credential belonging in the query had nowhere to go. The
+class was undescribable by anybody, not merely unshippable by us. It is
+substituted there now, percent-encoded, and the authoring guide says so.
+
+Fireworks is the exception that failed differently: it publishes a complete
+schema for `GET /v1/accounts/{account_id}/quotas`, and still does not fit.
+The path carries an account id this app has no way to learn — a descriptor
+declares one endpoint, not a call to discover the identifier for the next —
+and the quotas themselves are reserved GPU capacity rather than spend, so a
+serverless account has none. Worth recording because the first half will
+recur: plenty of vendors scope usage under an account or organisation id, and
+until a descriptor can name where to find one, a published schema is not
+enough on its own.
+
+A descriptor can name one now, for the case that actually occurs: the id is
+written beside the token, which is where the Codex provider reads its own
+from, so `quota.credential.accountField` takes it out of the file the
+credential already opens and `{account}` goes wherever `{token}` does. A
+discovery call — asking one endpoint for the identifier of the next — is a
+different thing and still is not possible. Fireworks itself remains out for
+its other reason: the quotas are reserved GPU capacity rather than spend, so
+a serverless account has none to report.
+
+Not currently integrated, with the reason each would need native code — or,
+for the first, the reason it still cannot be written even though it no longer
+would. The
+table is the answer to "add every provider some other tool supports", and it
+is worth reading before starting one: a mapping being expressible is not the
+same as a provider being shippable, and the difference is almost always the
+credential rather than the response.
+
+| Service | Why a descriptor cannot express it |
+| --- | --- |
+| Antigravity | the reason moved. Its embedded language server began refusing every tokenless request once the `agy` CLI stopped publishing the CSRF token it generates, so the port-probing route other tools used is closed to them too; the working path is now `agy -p /usage --output-format json`. A descriptor can express that — `quota.command` reads its figures from a program's stdout — so the blocker is no longer the access. What is missing is the mapping: the field paths are reverse-engineered from the binary by the tools that carry them, and their own documentation says the shape may change without notice. One real payload would be enough to write the descriptor and its fixture, and nothing short of that should be written. Re-read 2026-09-24 against two independent implementations, and the missing thing has changed. The mapping is no longer it: ClaudeBar's `AntigravityQuotaSummaryParser` and the unrelated `agy-usage` both decode the same summary — `groups[].buckets[]`, each bucket carrying `bucketId`, `remainingFraction` and `resetTime`, with the four ids `gemini-5h`, `gemini-weekly`, `3p-5h` and `3p-weekly`, and headroom reported as a fraction of one, which `fractionRemaining` already describes. Two tools agreeing on a shape neither publishes is about as close to a specification as this gets. What blocks a descriptor is the transport: ClaudeBar finds the process, discovers which loopback port it is listening on, and sends a CSRF token with the request; `agy-usage` skips all that by extracting the OAuth client metadata out of the `agy` binary and refreshing a token itself. A descriptor expresses neither. Worth correcting while here — this entry used to name `agy -p /usage --output-format json` as the working path. No primary source found uses the CLI for quota at all, both implementations chose HTTP instead, and what secondary sources describe is `/quota` rather than `/usage`. It was an unverified claim and it read like a settled one |
+| Amazon Bedrock | requests must be SigV4-signed |
+| Alibaba Model Studio | authentication is a browser cookie |
+| Mistral | shipped 2026-09-24 as a session reader, not a quota one. Vibe writes `~/.vibe/logs/session/session_<date>_<time>_<id>/meta.json`; the descriptor globs it, maps `stats.session_cost` and `stats.session_total_llm_tokens`, and takes the session time from the file rather than the folder name, which is the one place it differs from ClaudeBar. Account-wide spend still needs the Mistral console: only Vibe writes these logs |
+| Omp | `omp usage --json` is JSON and would map, but Oh My Pi is an aggregator: it manages OAuth accounts for Anthropic, Codex, Z.ai and others and reports every one. Adding it would show the same Claude window twice, once natively and once through it |
+
+A provider whose credential expires with no way to renew it is deliberately
+left out rather than shipped degraded: a gauge that reads "sign in" most of the
+time is worse than an agent the settings list simply does not offer. Kimi's
+*local* endpoint is still out for that reason — it only answers while Kimi
+itself is running — but its account plan is in.
+
+### Kimi Code's plan
+
+Shipped 2026-09-26 as a plan reader. The cookie was the last thing keeping it
+out, and it turned out not to be the whole of it: the implementation this app is
+measured against checks `KIMI_AUTH_TOKEN` before it reads any cookie store, and
+an `env` credential already describes that. The descriptor posts to the
+Connect-RPC billing method the code console calls, filters `usages[]` to scope
+`FEATURE_CODING`, and takes the weekly total from `detail` and the five-hour
+window from `limits[]` by `window.duration` 300 rather than by position.
+
+Three additions to the descriptor model made it expressible, each general rather
+than Kimi-shaped: a field path may select an array element by field, a POST body
+may carry a list, and a declared window key may be a path rather than only a
+member name — the two windows sit at unrelated places in one reply. They are
+described under "Field paths" in the technical reference.
+
+The transport was probed on 2026-09-27, with a deliberately invalid token and no
+account data. The gateway answered 401 carrying Connect-RPC's own error shape —
+`code: unauthenticated`, "token is malformed: token contains an invalid number of
+segments", `REASON_INVALID_AUTH_TOKEN` — which establishes more than it refuses:
+the path exists rather than 404ing, POST is accepted rather than 405, the body got
+past parsing as far as authentication, and the header set was accepted with no CORS
+or protocol-version complaint. Antarium's own `User-Agent` is therefore enough, and
+the earlier note here — that a Chrome one would be the first thing to try on a 403
+— is moot, because there is no 403. The complaint about segment count also says the
+token is a JWT.
+
+`UsageHTTP` maps 401 to `needsAuth`, which is what a user without a token sees. What
+remains unverified is the one thing that needs an account: the shape of a successful
+reply, which the fixture encodes from the reference implementation's decoder rather
+than from a real response. `verified` stays false, because it means the figures were
+checked and they have not been.
+
+The CLI route is settled, and it is closed. That tool offers it as the
+recommended mode, which made it look like the narrower path: it needs no cookie,
+and `quota.command` already reads a program's stdout. What it actually does is
+start the interactive `kimi` TUI in a PTY, wait for a prompt marker, type
+`/usage` and parse the drawn box. `-p`/`--print` rejects slash commands, and
+`MoonshotAI/kimi-cli` issue 2169 is an open request for a non-interactive route.
+Nothing prints these figures to stdout, so `quota.command` cannot reach them and
+a descriptor that claimed to would match nothing.
+
+
+## Coverage against ClaudeBar's roster
+
+The first ask for this app was to read every usage API ClaudeBar does, and
+until this section existed there was no way to tell how far that had got. Every
+part of this document above argues providers one at a time. That is the right
+way to decide about any one of them and no way at all to notice one nobody
+thought of — it can explain at length why something was declined while saying
+nothing about a provider it did not know existed.
+
+ClaudeBar's roster is a fact about somebody else's project, so it cannot be
+derived from this one. It is written down as data instead, in
+`Tests/AntariumTests/ClaudeBarCoverageTests.swift`, which names all twenty
+providers ClaudeBar monitors and checks each against what ships here.
+
+Like every mapping, it carries the day it was last held against its source —
+`rosterReadAt`, re-checked 2026-09-26 and unchanged since 2026-09-24. It is the
+one input to this comparison that can go stale without anything here noticing: a
+provider added upstream makes the coverage figure overstate itself while every
+test still passes. The check is a directory listing rather than a reading of
+prose, and `rosterSource` records the command, so the next one is mechanical. When
+ClaudeBar adds one, that list is what has to change, and until it does the
+difference between "declined" and "never heard of" is a real difference again.
+
+15 of the 20 are read for usage here. 1 more — Mistral — is
+recognised and given rows without a usage API, for the reasons in the table
+above; the remaining 4 are in that table too. Oh My Pi is one of those four
+and was briefly recorded as covered: this app ships a harness for Pi, and Oh
+My Pi is a fork of it by another author, in another folder, under another
+package name. A roster that matched names loosely would call that covered,
+which is how it was. This app also reads usage APIs
+ClaudeBar does not, so the roster is a floor rather than a ceiling.
+
+## Project context each agent understands
+
+A row can report what a project gives its agent — instructions, memory,
+skills, MCP servers, permissions — but only where the convention is written
+down by the vendor and unambiguous enough to probe without guessing.
+
+Described: every harness that puts a row on the dashboard.
+
+<!-- capability-gap: none -->
+
+That line is not prose. A test derives the harnesses that make rows and
+declare no capabilities, and requires this marker to name exactly that set,
+so adding a harness without capabilities fails until the marker admits it —
+and closing the last gap could not be announced here without being true.
+
+11 of the 26 never appear in it. Project context hangs off a row, and none of
+those makes one: a quota-only harness like `copilot` or `zai` reads no session
+source, and a focus-only one like `herdr` or `orca` reports panes that are
+already somebody else's rows. A capability rule on either is
+configuration nothing will ever read, so a second test refuses one.
+
+What closing them took, each time, was the vendor's own statement of where
+the files live — a convention taken from memory would report a capability the
+agent never reads, or miss one it does. Two shapes made it harder than it
+looks. A folder where only some names count needs `fileSuffixes`: Cursor
+reads `.cursor/rules/*.mdc` and ignores a plain `.md` there, and Copilot's
+scoped instructions must end `.instructions.md`, which is a suffix and not an
+extension. And where an agent documents a chain rather than a set — Hermes
+names six files and loads the first that matches; pi loads
+`AGENTS.override.md` instead of `AGENTS.md` — the declared order is that
+chain, because the probe returns the first path that matches and a wrong
+order names a file the agent ignored.
+
+What none of them declares is the walk. Most of these agents look up through
+parent directories to a repository root, and several discover more files as
+they read; the probe sees the session's working directory. A repository-wide
+file read from a subdirectory reads as absent, which is the safer of the two
+wrong answers, and each descriptor's note says so rather than approximating.
+The same holds one level down: GitHub documents Copilot's scoped instructions
+as living "within or below" `.github/instructions`, and a file in a subfolder
+there is not counted.
+
 ## Positioning in one sentence
 
 > Orchestrators run your agent team; Antarium shows supported agents across your

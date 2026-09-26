@@ -3,22 +3,58 @@
   "id": "kimi",
   "name": "Kimi",
   "process": {
-    "pathContains": ["kimi-code", "/.kimi"],
-    "names": ["kimi"],
-    "argv0Contains": ["/@moonshot-ai/kimi-code/"],
+    "pathContains": [
+      "kimi-code",
+      "/.kimi"
+    ],
+    "names": [
+      "kimi"
+    ],
+    "argv0Contains": [
+      "/@moonshot-ai/kimi-code/"
+    ],
     "installationProbes": [
-      { "method": "curl", "path": "/fixture/home/.kimi-code/bin/kimi", "name": "kimi", "argv0": "kimi", "expected": true, "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md", "verifiedAt": "2026-08-26" },
-      { "method": "npm", "path": "/usr/bin/node", "name": "node", "argv0": "/fixture/lib/node_modules/@moonshot-ai/kimi-code/bin/kimi.js", "expected": true, "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md", "verifiedAt": "2026-08-26" },
-      { "method": "name-collision", "path": "/fixture/tools/kimiko", "name": "kimiko", "argv0": "kimiko", "expected": false, "evidence": "https://github.com/MoonshotAI/kimi-code", "verifiedAt": "2026-08-26" }
+      {
+        "method": "curl",
+        "path": "/fixture/home/.kimi-code/bin/kimi",
+        "name": "kimi",
+        "argv0": "kimi",
+        "expected": true,
+        "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "npm",
+        "path": "/usr/bin/node",
+        "name": "node",
+        "argv0": "/fixture/lib/node_modules/@moonshot-ai/kimi-code/bin/kimi.js",
+        "expected": true,
+        "evidence": "https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/guides/getting-started.md",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "name-collision",
+        "path": "/fixture/tools/kimiko",
+        "name": "kimiko",
+        "argv0": "kimiko",
+        "expected": false,
+        "evidence": "https://github.com/MoonshotAI/kimi-code",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
-    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/kimi.json"
   },
   "source": {
     "kind": "jsonl",
     "path": "~/.kimi-code/sessions",
+    "relocate": {
+      "env": "KIMI_CODE_HOME",
+      "replaces": "~/.kimi-code"
+    },
     "glob": "*/*/agents/main/wire.jsonl",
     "manifest": {
       "file": "../../state.json",
@@ -32,7 +68,8 @@
           }
         }
       }
-    }
+    },
+    "checkedAt": "2026-09-25"
   },
   "map": {
     "model": "model",
@@ -45,9 +82,98 @@
       "tokens"
     ],
     "contextWindow": "maxTokens",
-    "toolWhere": { "type": "tool.call" },
+    "toolWhere": {
+      "type": "tool.call"
+    },
     "turnWhere": {
       "type": "turn.ended"
+    },
+    "skipUsageWhere": {
+      "usageScope": "session"
     }
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        ".kimi-code/AGENTS.md",
+        "AGENTS.md"
+      ],
+      "inherited": [
+        "~/.kimi-code/AGENTS.md",
+        "~/.agents/AGENTS.md"
+      ]
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [
+        ".kimi-code/skills",
+        ".agents/skills"
+      ],
+      "inherited": [
+        "~/.kimi-code/skills",
+        "~/.agents/skills"
+      ]
+    },
+    "mcp": {
+      "probe": "jsonObject",
+      "project": [
+        ".kimi-code/mcp.json"
+      ],
+      "inherited": [
+        "~/.kimi-code/mcp.json"
+      ],
+      "keys": [
+        "mcpServers"
+      ]
+    }
+  },
+  "note": "Kimi Code documents a Kimi-specific location beside a generic one at every scope, and declares the specific one first: .kimi-code/AGENTS.md before AGENTS.md, .kimi-code/skills before .agents/skills, and the same pair under home. MCP servers are declared under mcpServers in .kimi-code/mcp.json or the copy under home. Not declared: KIMI_CODE_HOME relocates every path under ~/.kimi-code; both halves follow it as of 2026-09-26 through source.relocate \u2014 the session source and the inherited capability paths under the same root; and the project root is the nearest directory holding .git, searched upward, while the probe looks only at the session's working directory. Kimi Code writes `usage.record` lines in two scopes and only one of them may be summed: `turn` is what a turn spent, `session` is the running total so far. Read against three independent readers of the same files on 2026-09-25 \u2014 one states the rule outright, that only turn-scoped records are counted because session-scoped ones are cumulative totals. Adding both would add the running total to the turns it is already the sum of. Stated as `skipUsageWhere` rather than as a rule about what to keep, because an older format writes usage with no scope at all and keeping only what matches would drop it. Quota added 2026-09-26. The plan windows are the Kimi Code subscription's, which is a different thing from the moonshot harness's pay-as-you-go balance: one is a weekly request allowance with a five-hour rate limit, the other is money, and neither counts the other. The shape is published nowhere \u2014 the endpoint is a Connect-RPC method the kimi.com code console calls, and it appears in no vendor documentation. It is mapped from the only primary source there is, the implementation of the tool this app is measured against, read on 2026-09-26: usages[] filtered to scope FEATURE_CODING, detail carrying limit, used, remaining and resetTime as strings, and limits[] carrying the rate windows with the five-hour one identified by window.duration 300 and window.timeUnit TIME_UNIT_MINUTE rather than by position. used and remaining may each be absent and the other derived from limit, which is why all three paths are declared: the mapping tries used over limit first and falls back to remaining over limit, matching that implementation exactly. What is not established is the transport. The token is the kimi-auth session cookie, and this app reads no browser cookie store, so the descriptor takes it from KIMI_AUTH_TOKEN \u2014 the same variable that implementation checks before it reads any cookie, and the only route to these figures that needs no Full Disk Access. The header set is that request's, less the parts a descriptor cannot state or should not claim: no r-timezone, and Antarium's own User-Agent rather than a Chrome one. The transport was probed on 2026-09-27 with a deliberately invalid token and no account data: the gateway answered 401 with Connect-RPC's own error shape (code unauthenticated, \"token is malformed: token contains an invalid number of segments\", reason REASON_INVALID_AUTH_TOKEN). That establishes more than it refuses. The path exists rather than 404ing, POST is accepted rather than 405, the body got past parsing to authentication, and the header set was accepted with no CORS or protocol-version complaint \u2014 so Antarium's own User-Agent is enough and the earlier advice here, that a Chrome one would be the first thing to try on a 403, is moot because there is no 403. It also says the token is a JWT, since the gateway counts its segments. UsageHTTP maps 401 to needsAuth, which is what a user with no token sees. What remains unverified is the one thing that needs an account: the shape of a successful reply, which the fixture encodes from the reference implementation's decoder rather than from a real response. So verified stays false \u2014 it means the figures were checked, and they have not been. The CLI route that tool offers as its recommended mode is not available to a descriptor and is not a narrower blocker than it looks: it starts the interactive kimi TUI in a PTY, waits for a prompt marker, types /usage and parses the drawn box. -p/--print rejects slash commands, and MoonshotAI/kimi-cli issue 2169 is an open request for a non-interactive route. There is no invocation that prints these figures to stdout, so quota.command cannot reach them. The credential falls back to ~/.antarium/keys/kimi, because an app started from Finder inherits no shell and a hint reading \"export KIMI_AUTH_TOKEN\" would do nothing for most installations. KIMI_CODE_HOME is declared as of 2026-09-26; the note above said a descriptor could not read it, which stopped being true when source.relocate arrived. Capability paths under the same root are still not relocated.",
+  "quota": {
+    "endpoint": "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages",
+    "method": "POST",
+    "bodyList": {
+      "scope": [
+        "FEATURE_CODING"
+      ]
+    },
+    "credential": {
+      "kind": "env",
+      "name": "KIMI_AUTH_TOKEN",
+      "path": "~/.antarium/keys/kimi"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Cookie": "kimi-auth={token}",
+      "Content-Type": "application/json",
+      "Accept": "*/*",
+      "Origin": "https://www.kimi.com",
+      "Referer": "https://www.kimi.com/code/console",
+      "connect-protocol-version": "1",
+      "x-msh-platform": "web",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "root": "usages[scope=FEATURE_CODING]",
+      "keys": [
+        "detail",
+        "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail"
+      ],
+      "used": "used",
+      "remaining": "remaining",
+      "limit": "limit",
+      "resetsAt": "resetTime",
+      "labels": {
+        "detail": "Weekly",
+        "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail": "5-hour"
+      },
+      "badges": {
+        "detail": "WK",
+        "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail": "5H"
+      }
+    },
+    "setupHint": "Put your kimi-auth in ~/.antarium/keys/kimi",
+    "verified": false,
+    "checkedAt": "2026-09-27"
   }
 }

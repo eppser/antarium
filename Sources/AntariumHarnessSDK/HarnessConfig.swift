@@ -64,6 +64,7 @@ public struct HarnessConfig: Codable {
     }
 
     public func validate() throws {
+        guard formatVersion == Self.currentFormatVersion else { throw ValidationError.unsupportedFormatVersion(formatVersion) }
         guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ValidationError.emptyID
         }
@@ -141,6 +142,7 @@ public struct HarnessConfig: Codable {
     }
 
     public enum ValidationError: Error, LocalizedError {
+        case unsupportedFormatVersion(Int)
         case emptyID
         case emptyName
         case incompleteSQLiteSource
@@ -152,6 +154,7 @@ public struct HarnessConfig: Codable {
 
         public var errorDescription: String? {
             switch self {
+            case .unsupportedFormatVersion(let version): return "Harness format \(version) is not supported; migrate to format \(HarnessConfig.currentFormatVersion) first."
             case .emptyID: return "Harness id must not be empty."
             case .emptyName: return "Harness name must not be empty."
             case .incompleteSQLiteSource:
@@ -271,6 +274,9 @@ public struct HarnessConfig: Codable {
         public var kind: Kind
         public var path: String
         public var journal: Bool?
+        /// Day this source's records were last read against something outside
+        /// this repository, as `yyyy-MM-dd`.
+        public var checkedAt: String?
         public var glob: String?
         public var limit: Int?
         public var pathFields: [String: PathField]?
@@ -315,14 +321,25 @@ public struct HarnessConfig: Codable {
 
     public struct Mapping: Codable {
         public var cwd: String?
+        /// Path to the value this harness's focus command needs.
+        public var focusTarget: String?
         public var contextWindow: String?
         public var contextTokens: [String]?
         public var model: String?
         public var timestamp: String?
         public var inputTokens: String?
         public var outputTokens: String?
+        /// One combined figure, for a harness that reports no split. Cannot
+        /// be declared alongside the four fields around it — the decoder
+        /// refuses that, because nothing can tell whether such a total
+        /// already counts them.
+        public var totalTokens: String?
         public var cacheRead: String?
         public var inputIncludesCacheRead: Bool?
+        /// `true` where the source re-emits records carrying figures it has
+        /// already reported, so an identical consecutive record is a repeat
+        /// rather than new work.
+        public var skipRepeatedUsage: Bool?
         public var cacheWrite: String?
         public var cost: String?
         public var title: String?
@@ -330,6 +347,9 @@ public struct HarnessConfig: Codable {
         public var toolWhere: [String: String]?
         public var toolCalls: Count?
         public var turnWhere: [String: String]?
+        /// Records whose usage figures must not be counted, for a source
+        /// that writes both per-turn and cumulative usage.
+        public var skipUsageWhere: [String: String]?
         public var status: Status?
         public var sessionID: String?
         public var pid: String?
@@ -379,6 +399,10 @@ public struct HarnessConfig: Codable {
         public var inherited: [String]?
         public var index: String?
         public var keys: [String]?
+        /// When a path is a directory: only entries whose names end with one
+        /// of these count. Suffixes rather than extensions, because
+        /// `.instructions.md` is not an extension.
+        public var fileSuffixes: [String]?
 
         public init(probe: Probe, project: [String]? = nil,
                     inherited: [String]? = nil, index: String? = nil,
@@ -438,17 +462,51 @@ public struct HarnessConfig: Codable {
     }
 
     public struct Quota: Codable {
-        public var endpoint: String
+        /// An https URL to read the figures from. Exactly one of this and
+        /// `command`.
+        public var endpoint: String?
+        /// A program name, resolved on PATH, whose stdout is the usage JSON.
+        /// argv only — never a shell line, and never a path.
+        public var command: String?
+        public var args: [String]?
+        /// "GET" or "POST". Absent means GET.
+        public var method: String?
+        /// Body for a POST, as flat string values. `{token}` is substituted
+        /// the same way it is in `headers`.
+        public var body: [String: String]?
         public var headers: [String: String]?
         public var credential: Credential?
         public var windows: Windows
         public var accountLabel: String?
         public var setupHint: String?
+        /// Where the response shape this maps was read from.
+        ///
+        /// A descriptor with `verified: false` has never been held against a live
+        /// account, so the only way to check it without one is to read the
+        /// vendor's own reference and compare. That reference was consulted when
+        /// each mapping was written and then not written down, which left the
+        /// check possible in principle and not in practice. An https URL to the
+        /// page that states the response schema.
+        public var documentation: String?
+        /// Day this mapping's figures were last read against a source outside
+        /// this repository, as `yyyy-MM-dd`. Not the fixture's date: a
+        /// fixture is written from the mapping it tests.
+        public var checkedAt: String?
         public var signInCommand: String?
         public var verified: Bool?
 
         public init(endpoint: String, windows: Windows) {
             self.endpoint = endpoint
+            self.windows = windows
+        }
+
+        /// The command form. Separate initialiser rather than two optional
+        /// parameters, so a configuration declaring both cannot be written in
+        /// the first place — the runtime refuses one, and the SDK should not
+        /// let it be built.
+        public init(command: String, args: [String] = [], windows: Windows) {
+            self.command = command
+            self.args = args
             self.windows = windows
         }
 
@@ -459,6 +517,10 @@ public struct HarnessConfig: Codable {
             public var name: String?
             public var command: String?
             public var args: [String]?
+            /// Field path to the account or organisation id in the same JSON
+            /// file, substituted as `{account}` into the endpoint, headers
+            /// and body. `jsonFile` credentials only.
+            public var accountField: String?
 
             public init(kind: String) {
                 self.kind = kind
@@ -467,20 +529,45 @@ public struct HarnessConfig: Codable {
 
         public struct Windows: Codable {
             public var root: String?
+            /// Candidate paths tried in order, for an optional payload envelope.
+            public var roots: [String]?
+            /// Dot-path to an array of windows, for services that report one
+            /// instead of a keyed object. Supersedes `root`.
+            public var list: String?
+            /// Field paths inside each list element that name that window.
+            /// Several are joined with "-" when one alone is ambiguous.
+            public var key: [String]?
             public var keys: [String]?
             public var usedPercent: String?
             public var percentRemaining: String?
+            /// Counts left, against the same `limit`. See the note on the
+            /// app-side descriptor: a field named for usage does not always
+            /// carry it.
+            public var remaining: String?
+            /// Flags that mean the window is spent whatever its figure says.
+            public var criticalWhen: [String: Bool]?
+            /// Path to a credit balance — a figure with no denominator.
+            public var balance: String?
+            /// Currency of `balance`: a path into the window, or a literal code.
+            public var currency: String?
+            /// Names the container itself as one window, for flat responses.
+            public var single: String?
             public var used: String?
             public var limit: String?
             public var require: [String: Bool]?
             public var labels: [String: String]?
+            /// Explicit menu-bar badge per window, when the label abbreviates badly.
+            public var badges: [String: String]?
             public var windowSeconds: String?
             public var resetsAt: String?
             public var title: String?
 
-            public init(root: String? = nil, keys: [String]? = nil) {
+            public init(root: String? = nil, keys: [String]? = nil,
+                        list: String? = nil, key: [String]? = nil) {
                 self.root = root
                 self.keys = keys
+                self.list = list
+                self.key = key
             }
         }
     }

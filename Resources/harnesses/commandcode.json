@@ -1,0 +1,53 @@
+{
+  "formatVersion": 1,
+  "id": "commandcode",
+  "name": "Command Code",
+  "note": "Quota only. The rolling and weekly caps come from `windowLimits`, which Command Code returns either at the top level or inside a `data` envelope depending on the call \u2014 both paths are declared rather than guessed. The monthly credit balance is deliberately not charted: turning it into a percentage needs a plan-id-to-allowance table that only the vendor knows, and an unrecognised plan would produce a confident wrong number. The response shape is published nowhere; checked 2026-09-22, commandcode.ai/docs/resources/usage-limits documents the windows themselves \u2014 a five-hour cap and a weekly one on every plan, which is what the two keys here are named for \u2014 and points at the CLI's own /usage for reading them. The fixture is the whole of the check. Cross-read 2026-09-24 against ClaudeBar's CommandCodeUsageProbe, which documents the same payload this maps \u2014 `windowLimits.fiveHour` and `.weekly`, each with `used`, `cap` and `resetAt`. One difference is not acted on. That probe calls `alpha/whoami?limits=1` first and passes the organisation id it finds to the credits endpoint as `orgId`, when there is one. A descriptor cannot make one call to parameterise another. What the endpoint returns for a member of an organisation without that parameter is unknown: it may default to the caller's organisation, in which case this is already right, or it may report personal credits, in which case an organisation member sees the wrong window. Both are guesses, and the figure is not changed on one.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live plan."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.commandcode.ai/alpha/billing/credits",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.commandcode/auth.json",
+      "field": "apiKey"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "roots": [
+        "data.windowLimits",
+        "windowLimits"
+      ],
+      "keys": [
+        "fiveHour",
+        "weekly"
+      ],
+      "used": "used",
+      "limit": "cap",
+      "resetsAt": "resetAt",
+      "labels": {
+        "fiveHour": "Session (5 hours)",
+        "weekly": "Weekly"
+      },
+      "badges": {
+        "fiveHour": "5H",
+        "weekly": "7D"
+      }
+    },
+    "setupHint": "Run `cmd login`.",
+    "signInCommand": "cmd login",
+    "verified": false,
+    "checkedAt": "2026-09-24"
+  }
+}

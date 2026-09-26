@@ -11,7 +11,11 @@ final class ClaudeCodeProvider: UsageProvider, @unchecked Sendable {
     let displayName = "Claude Code"
     var setupHint: String { "Run `claude` in Terminal and sign in." }
     let signInCommand: String? = "claude auth login"
-    var isConfigured: Bool { ClaudeCredentials.hasAnyCredentials }
+    /// Memoised: the fallback path runs `/usr/bin/security`, and this is
+    /// read from a SwiftUI body.
+    var isConfigured: Bool {
+        ConfiguredProbe.value(id) { ClaudeCredentials.hasAnyCredentials }
+    }
     let isVerified = true
 
     private let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
@@ -51,26 +55,26 @@ final class ClaudeCodeProvider: UsageProvider, @unchecked Sendable {
         throw denialError ?? lastAuthError
     }
 
+    /// Goes through `UsageHTTP.getJSON` like every other provider, and used
+    /// not to.
+    ///
+    /// It built its own `URLRequest` and called `session.data(for:)`, which
+    /// looks equivalent and is not. The session's bounded delegate collects a
+    /// body into an entry `UsageHTTP` registers per task; `data(for:)`
+    /// registers none, so `didReceive data:` returned at its first guard and
+    /// the running-total cap enforced nothing. The declared-length half still
+    /// worked, which left exactly the case it cannot cover — a chunked reply
+    /// that declares no length — unbounded, on the one provider that talks to
+    /// Anthropic's own API.
+    ///
+    /// A refused cross-host redirect was the same shape: the refusal still
+    /// happened, but the reason was recorded into an entry nobody was reading,
+    /// so the caller saw whatever a cancelled redirect happens to look like
+    /// instead of being told a credential was nearly sent elsewhere.
     private func request(token: ClaudeToken) async throws -> [String: Any] {
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "GET"
-        req.setValue("Bearer \(token.accessToken)", forHTTPHeaderField: "Authorization")
-        req.cachePolicy = .reloadIgnoringLocalCacheData
-
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(for: req)
-        } catch let urlErr as URLError {
-            throw ProviderError.transport(UsageHTTP.describe(urlErr, host: "api.anthropic.com"))
-        } catch {
-            throw ProviderError.transport(error.localizedDescription)
-        }
-
-        try UsageHTTP.check(response, host: "api.anthropic.com")
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw ProviderError.badResponse("Usage response wasn't valid JSON.")
-        }
-        return obj
+        try await UsageHTTP.getJSON(
+            endpoint, headers: ["Authorization": "Bearer \(token.accessToken)"],
+            session: session)
     }
 
     // MARK: - Parsing
@@ -126,12 +130,31 @@ final class ClaudeCodeProvider: UsageProvider, @unchecked Sendable {
             self.resetsAt = resetsAt; self.severity = severity
         }
 
+        /// The group an entry belongs to when it does not name one.
+        ///
+        /// `group` and `kind` say the same thing at different resolutions,
+        /// which this class already assumed by falling back from one to the
+        /// other. The fallback only ran in that direction, so an entry
+        /// carrying `kind` and no `group` was refused outright — and every
+        /// entry being refused is not an error here, it is an empty `limits`
+        /// array and a quiet drop to the flat windows below, which carry no
+        /// severity and no per-model scope at all. A reply that had more to
+        /// say would have been read as one that had less.
+        static func group(forKind kind: String?) -> String? {
+            switch kind {
+            case "session": return "session"
+            case "weekly_all", "weekly_scoped": return "weekly"
+            default: return nil
+            }
+        }
+
         /// From a `limits[]` entry.
         convenience init?(_ dict: [String: Any]) {
-            guard let group = dict["group"] as? String,
+            let named = dict["kind"] as? String
+            guard let group = dict["group"] as? String ?? ParsedLimit.group(forKind: named),
                   let percent = dict["percent"] as? Double ?? (dict["percent"] as? Int).map(Double.init)
             else { return nil }
-            let kind = dict["kind"] as? String ?? group
+            let kind = named ?? group
             self.init(group: group,
                       title: ParsedLimit.title(kind: kind, scope: dict["scope"] as? [String: Any]),
                       percent: percent,

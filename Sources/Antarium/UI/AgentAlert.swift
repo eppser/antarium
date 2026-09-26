@@ -17,43 +17,38 @@ final class AgentAlert: NSObject {
     private let width: CGFloat = 330
     private let spacing: CGFloat = 8
 
+    /// How many banners may be on screen at once.
+    ///
+    /// Nothing bounded this. A sweep that finds a fleet of agents finished
+    /// posts one panel each, and `restack` walks them down from the menu bar
+    /// — past five they are off the bottom of an ordinary screen, still
+    /// alive, still holding a SwiftUI tree, for twelve seconds. The rule is
+    /// the one docs/TECHNICAL.md states as bounding objects rather than only
+    /// bytes, and a borderless panel is very much an object.
+    nonisolated static let maxVisible = 5
+
+    /// How many of the oldest banners to retire so a new one fits. Pure, so
+    /// the rule can be checked without a screen.
+    nonisolated static func surplus(showing: Int, limit: Int = maxVisible) -> Int {
+        max(0, showing + 1 - limit)
+    }
+
+    /// Which banners to retire. Generic so which *end* of the list goes can
+    /// be checked without an AppKit panel: `post` inserts the newest at the
+    /// front, so the ones to drop are at the back, and taking them from the
+    /// front instead would retire the arrival the user is meant to see.
+    nonisolated static func retiring<T>(_ showing: [T],
+                                        limit: Int = maxVisible) -> ArraySlice<T> {
+        showing.suffix(surplus(showing: showing.count, limit: limit))
+    }
+
     func post(_ row: AgentRow) {
         guard Settings.notifyOnIdle else { return }
 
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: 78),
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
-        panel.isFloatingPanel = true
-        panel.level = .screenSaver          // above full-screen apps too
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        panel.ignoresMouseEvents = false
+        // Oldest first, so the newest arrival is the one that stays.
+        for panel in Self.retiring(panels) { dismiss(panel) }
 
-        let card = AlertCard(row: row,
-                             onOpen: { [weak self] in
-                                 Focus.reveal(row)
-                                 self?.dismiss(panel)
-                             },
-                             onClose: { [weak self] in self?.dismiss(panel) })
-        // Same reason as the dashboard: an alert nobody can dismiss on the
-        // first click is worse than no alert.
-        let hosting = PanelChrome.ClickThrough(rootView: card)
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView()
-        container.wantsLayer = true
-        panel.contentView = container
-        container.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            hosting.topAnchor.constraint(equalTo: container.topAnchor),
-            hosting.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        hosting.layoutSubtreeIfNeeded()
-        panel.setContentSize(hosting.fittingSize)
+        let panel = makePanel(row)
 
         panels.insert(panel, at: 0)
         restack()
@@ -72,6 +67,50 @@ final class AgentAlert: NSObject {
         }
     }
 
+    /// Builds an alert without showing it; construction owns no global state.
+    func makePanel(_ row: AgentRow) -> NSPanel {
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: 78),
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered, defer: false)
+        panel.isFloatingPanel = true
+        panel.level = .screenSaver          // above full-screen apps too
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.ignoresMouseEvents = false
+
+        let card = AlertCard(row: row,
+                             onOpen: { [weak self, weak panel] in
+                                 guard let panel else { return }
+                                 Focus.reveal(row)
+                                 self?.dismiss(panel)
+                             },
+                             onClose: { [weak self, weak panel] in
+                                 guard let panel else { return }
+                                 self?.dismiss(panel)
+                             })
+        // Same reason as the dashboard: an alert nobody can dismiss on the
+        // first click is worse than no alert.
+        let hosting = PanelChrome.ClickThrough(rootView: card)
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.wantsLayer = true
+        panel.contentView = container
+        container.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            hosting.topAnchor.constraint(equalTo: container.topAnchor),
+            hosting.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        hosting.layoutSubtreeIfNeeded()
+        panel.setContentSize(hosting.fittingSize)
+
+        return panel
+    }
+
     private func dismiss(_ panel: NSPanel) {
         guard panels.contains(panel) else { return }
         panels.removeAll { $0 == panel }
@@ -79,7 +118,12 @@ final class AgentAlert: NSObject {
             context.duration = 0.18
             panel.animator().alphaValue = 0
         } completionHandler: {
-            Task { @MainActor in panel.orderOut(nil) }
+            Task { @MainActor in
+                panel.orderOut(nil)
+                // Tear down the SwiftUI tree, including its animations and
+                // observers, as soon as the dismissal finishes.
+                panel.contentView = nil
+            }
         }
         restack()
     }
@@ -98,8 +142,15 @@ final class AgentAlert: NSObject {
             if let button = anchor, let window = button.window {
                 // Right-align to the status item, but never past the screen edge.
                 let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
-                x = min(max(frame.maxX - size.width, visible.minX + 12),
-                        visible.maxX - size.width - 12)
+                // Crossing-safe: on a screen narrower than the banner the
+                // high bound falls below the low one, and a plain
+                // min(max(…)) clamps to it — off the left edge. Not
+                // reachable on any Mac display at this banner's width, and
+                // shared with the panel rule because the shape is the one
+                // that has already been wrong twice.
+                x = PanelPlacement.clamp(frame.maxX - size.width,
+                                         low: visible.minX + 12,
+                                         high: visible.maxX - size.width - 12)
             }
             panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height),
                            display: true)
@@ -149,7 +200,7 @@ struct AlertCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(row.coreName) finished its task")
+                    Text(verbatim: "\(row.coreName) finished its task")
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     HStack(spacing: 6) {
@@ -202,7 +253,7 @@ struct AlertCard: View {
         .accessibilityAction { onOpen() }
         .onHover { hovering = $0 }
         .onAppear {
-            withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) {
+            withAnimation(.easeOut(duration: 1.1)) {
                 pulse = true
             }
         }

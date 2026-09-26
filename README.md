@@ -52,7 +52,8 @@ integration status.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
 - **Remote tmux agents** over SSH, from machines you already reach with `ssh`.
-- **Quota monitoring** for supported Claude, Codex, Cursor, and GitHub Copilot accounts.
+- **Quota monitoring** for 18 providers — seven read natively, eleven described by
+  a harness file you can edit or add to.
 - **Per-agent project setup overview** for supported harnesses, including
   instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
 - **Local-first and private:** no Antarium telemetry and no prompt collection.
@@ -84,17 +85,48 @@ pipeline.
 
 ## Supported tools
 
-Antarium currently includes harnesses for:
+Antarium ships harnesses for 26 tools.
+
+Agents whose sessions appear in the dashboard:
+
+- Codex Desktop
+- ChatGPT (Codex)
+- Copilot CLI
+- Cursor CLI
+- Cursor
+- Herdr
+- Hermes
+- Kimi
+- Mistral Vibe
+- OpenClaw
+- opencode
+- Orca
+- PI
+- VS Code (Copilot)
+- Zed
+
+Accounts whose usage appears in the menu bar:
 
 - Claude Code
-- Codex CLI and Codex Desktop
-- Cursor CLI and Cursor
-- OpenCode
-- Kimi Code
-- Pi
-- Hermes
-- Zed
-- VS Code with Copilot Chat
+- Command Code
+- GitHub Copilot
+- DeepSeek
+- Gemini CLI
+- MiniMax
+- Kimi
+- Moonshot (Kimi API)
+- OpenRouter
+- Synthetic
+- Vercel AI Gateway
+- Z.ai GLM
+
+Some tools appear in both lists under different names — a CLI and the
+account behind it are separate harnesses, because one reads sessions on
+this Mac and the other asks a service what is left. Kimi appears in both
+under the *same* name, which is a third case: one harness reads its
+sessions from this Mac and its plan windows from the service. The
+Moonshot entry beside it is a different product — an API balance paid by
+the token, not a subscription measured in requests.
 
 Install detection covers documented npm, curl/native, Homebrew, direct binary,
 app-bundle, interpreter, and Nix layouts where the upstream tool supports them.
@@ -116,8 +148,14 @@ The script builds, signs, verifies, installs, and launches
 To run the full project checks:
 
 ```bash
-./test.sh
+./verify.sh
 ```
+
+That is the gate the project requires: the suite three times over — as-is,
+on a machine that has never run Antarium, and outside UTC — plus every
+shipped harness checked, the assembled app inspected, and the scan
+benchmark. `./test.sh` runs the suite alone and is the faster loop while
+you work.
 
 Signed and notarized downloadable releases are on the [roadmap](Roadmap.md).
 
@@ -136,6 +174,38 @@ Antarium treats “missing,” “zero,” and “failed to read” as different
 It does not invent quota, context, token, cost, or session values. Cost is
 clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
+
+The same rule applies to how a provider's mapping was checked, and the answer
+changed after the mappings were audited. Of the eleven described by a harness
+file, five were compared field by field against the vendor's own published
+response schema and name the page they were read from. The other six have no
+published schema at all.
+
+For those six the fixture used to be the whole of the check, and that turned
+out not to be enough — because a fixture is written from the mapping it tests.
+It proves the mapping is applied and cannot notice that the fields mean
+something else. Four of the ten audited at the time were wrong behind a passing
+fixture, and one
+of them, MiniMax, had expectations that were the exact mirror of the truth:
+`current_interval_usage_count` is what remains, not what was spent, so a meter
+read comfortable while the quota emptied.
+
+So a mapping may now be corrected against another implementation of the same
+API, where that implementation *states what a field means* rather than merely
+using it — a comment recording a cross-check against the vendor's own
+dashboard, an issue reporting the same inversion, a second tool deriving the
+same figure. Two independent readings agreeing on a shape neither vendor
+publishes is the closest thing to a specification these endpoints have. Where
+only the paths are visible and nothing explains them, the mapping is left
+alone and the doubt is written down.
+
+`quota.checkedAt` and `source.checkedAt` record the day each mapping's figures
+were last held against something outside this repository, whether a vendor
+reference or another reader of the same files. A date going stale is the
+signal to look again.
+
+Every fixture is invented values in the vendor's own shape; no real account
+response is ever committed.
 
 ## Remote tmux agents
 
@@ -194,8 +264,9 @@ session metadata and uses existing provider credentials only when requesting
 supported quota information.
 
 Remote tmux is the one feature that connects outward to a machine you name, and
-it is off until you turn it on. It sends no data — it runs read-only inspection
-commands and reads their output. The built-in dashboard can focus sessions, but it
+it is off until you turn it on. It sends no data — it runs one read-only
+inspection command, which is a constant in this repository rather than
+anything assembled at runtime, and reads the output. The built-in dashboard can focus sessions, but it
 does not terminate agents, terminal applications, or tmux sessions.
 
 Custom harnesses are trusted local configuration and should be reviewed before

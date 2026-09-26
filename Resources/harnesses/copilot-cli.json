@@ -1,0 +1,92 @@
+{
+  "formatVersion": 1,
+  "id": "copilot-cli",
+  "name": "Copilot CLI",
+  "note": "GitHub Copilot's command-line agent, which is a different thing from the VS Code extension the `copilot` harness charts quota for and the `vscode` harness reads sessions from. It keeps its own SQLite store at ~/.copilot/session-store.db with a row per session and a usage event per model call, so token counts come from the agent's own accounting rather than from re-parsing a transcript. Cache reads are summed separately from input, because they are re-used server-side rather than uploaded again. Instruction files follow GitHub's documented Copilot convention: a repository-wide .github/copilot-instructions.md, scoped files under .github/instructions that must end .instructions.md, and the shared agent files AGENTS.md, CLAUDE.md and GEMINI.md in the repository root. The scoped folder is counted by that suffix, so a plain .md left there does not report instructions Copilot never reads. Files nested below .github/instructions are read by Copilot and are not counted here: the probe looks one level deep.",
+  "process": {
+    "names": [
+      "copilot"
+    ],
+    "installationProbes": [
+      {
+        "method": "npm global install",
+        "path": "/opt/example/lib/node_modules/@github/copilot/bin/copilot",
+        "name": "copilot",
+        "argv0": "copilot",
+        "expected": true,
+        "evidence": "https://github.com/github/copilot-cli",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "homebrew",
+        "path": "/opt/homebrew/bin/copilot",
+        "name": "copilot",
+        "argv0": "copilot",
+        "expected": true,
+        "evidence": "https://github.com/github/copilot-cli",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: the language server, not the agent",
+        "path": "/opt/example/.vscode/extensions/github.copilot/dist/copilot-language-server",
+        "name": "copilot-language-server",
+        "argv0": "copilot-language-server",
+        "expected": false,
+        "evidence": "https://github.com/github/copilot-cli",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: a directory named copilot",
+        "path": "/opt/example/src/copilot/node_modules/.bin/tsc",
+        "name": "tsc",
+        "argv0": "tsc",
+        "expected": false,
+        "evidence": "https://github.com/github/copilot-cli",
+        "verifiedAt": "2026-09-20"
+      }
+    ]
+  },
+  "compatibility": {
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-09-20",
+    "fixture": "harness-fixtures/copilot-cli.json",
+    "note": "Read from the CLI's own SQLite store; validate against a local install with --check."
+  },
+  "source": {
+    "kind": "sqlite",
+    "path": "~/.copilot/session-store.db",
+    "query": "SELECT s.id AS sessionID, s.cwd AS cwd, s.summary AS title, s.updated_at AS lastActivity, s.created_at AS startedAt, (SELECT u.model FROM assistant_usage_events u WHERE u.session_id = s.id ORDER BY u.id DESC LIMIT 1) AS model, (SELECT SUM(u.input_tokens) FROM assistant_usage_events u WHERE u.session_id = s.id) AS inputTokens, (SELECT SUM(u.output_tokens) FROM assistant_usage_events u WHERE u.session_id = s.id) AS outputTokens, (SELECT SUM(u.cache_read_tokens) FROM assistant_usage_events u WHERE u.session_id = s.id) AS cacheRead, (SELECT SUM(u.cache_write_tokens) FROM assistant_usage_events u WHERE u.session_id = s.id) AS cacheWrite, (SELECT COUNT(*) FROM turns t WHERE t.session_id = s.id) AS turns FROM sessions s ORDER BY s.updated_at DESC LIMIT 200",
+    "columns": [
+      "sessionID",
+      "cwd",
+      "title",
+      "lastActivity",
+      "startedAt",
+      "model",
+      "inputTokens",
+      "outputTokens",
+      "cacheRead",
+      "cacheWrite",
+      "turns"
+    ]
+  },
+  "multiSession": true,
+  "presentation": {
+    "sourceLabel": "SQLite"
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        ".github/copilot-instructions.md",
+        ".github/instructions",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "GEMINI.md"
+      ],
+      "fileSuffixes": [
+        ".instructions.md"
+      ]
+    }
+  }
+}

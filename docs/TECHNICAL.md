@@ -354,15 +354,771 @@ Capabilities are scoped to one harness and are never borrowed from another:
 
 Supported probes are `content`, `directory`, `jsonObject`, and `toml`.
 
+### Workspace harnesses
+
+Herdr and Orca host other agents rather than being agents. A Claude session in
+a Herdr pane is the same conversation the `claude-code` harness already
+reports, so a harness that emitted both would show every agent twice — once
+with its real figures and once as an empty duplicate.
+
+`contributes: "focus"` says: read these records, use them to say how each
+session is raised, and make no rows. The join is on the agent's own session id
+where the manager publishes one — Herdr does, and it is exact. Otherwise on
+the working directory, which is weaker: one pane in a folder says nothing
+about which of two agents working there it holds, so a directory claimed by
+more than one row or pane is left alone. A target is never handed to two rows.
+Focusing the wrong pane is worse than focusing none.
+
+`focus` declares how to raise a session. `{focusTarget}` in an argument is
+replaced with the session's `map.focusTarget` value — a tab id for Herdr, a
+terminal handle for Orca, neither of which is the session id. The command runs
+directly rather than through a shell, and appears in the reviewed command
+allowlist alongside source and credential commands, because a command run when
+a row is clicked is still a command this application runs.
+
+Both read their live state through `source.kind: "command"`. Their fixtures
+replace that command with one that prints a recorded reply, so the mapping,
+the records path and every field path are exercised without either tool being
+installed.
+
+### Agents that keep no session record
+
+Gemini CLI writes a settings file, a project list and a `.project_root` marker
+per directory, and nothing describing a conversation. There is no transcript,
+so there are no tokens, no cost and no context figure.
+
+`contributes: "presence"` makes a row per matching process and leaves every
+figure absent — not zero. "No tokens recorded" and "zero tokens used" are
+different statements and only the first is true. The state is `unobserved`
+rather than `waiting`, for the same reason: whether the agent is idle is a
+claim this harness cannot make. The row carries a note saying why it is empty,
+because a line of dashes otherwise reads as an agent that has done nothing.
+
+### A `none` source that still names a path
+
+`claude-code` declares `kind: none` and `path: ~/.claude/sessions`, which looks
+like a contradiction and is not. Its sessions come from `AgentScan.claudeRows` —
+native code, selected by *id* — and the path is the root that reader uses and the
+one install detection looks for.
+
+For any other harness the same declaration reads nothing: `AgentScan.rows` and
+`HarnessEngine.sessions` both return early on a `none` kind. An author who wrote
+it would see their agent detected, listed in settings, and permanently without
+sessions, so `--check` now says so and names whose path *is* read. A test holds the
+list of native readers against the shipped descriptors, so a second harness
+declaring the combination without a reader fails rather than shipping quiet.
+
+### An agent's own relocation variable
+
+`source.relocate` honours the variable an agent uses to move its data directory:
+`{"env": "CODEX_HOME", "replaces": "~/.codex"}` reads
+`$CODEX_HOME/sessions` when that variable is set and `~/.codex/sessions`
+otherwise.
+
+Three harnesses recorded the absence of this as a known limitation —
+`KIMI_CODE_HOME`, `HERMES_HOME`, `OPENCLAW_PROFILE`, each noted as something a
+descriptor could not read, each reading as absent rather than wrong. The worse
+case was in no note at all: `CodexProvider` honours `CODEX_HOME` while the codex
+harness read `~/.codex/sessions` regardless, so a developer who moves their Codex
+home saw their account quota and none of their sessions. Two halves of one agent
+disagreeing about where it lives, and nothing saying so.
+
+`replaces` is stated rather than inferred. `CODEX_HOME` stands for the whole of
+`~/.codex`, and a rule that worked the prefix out of the path would have to
+decide how much of it to keep. It is matched on a path boundary, not as a string
+prefix, so a rule for `~/.codex` does not fire on `~/.codex-backup` — the same
+mistake `abbreviatingHome` once made in reverse, where a home of `/Users/sam`
+matched `/Users/sammy`. The validator refuses a `replaces` that is not a prefix
+of `source.path`, because a relocation that can never fire is a declaration that
+silently does nothing.
+
+Where an agent has both a native provider and a harness, the two are held
+against each other. A native provider states the variable it honours on
+`relocationVariable`, and `NativeRelocationTests` insists the harness reading the
+same directory names the same one — including `codex-desktop`, which shares
+`~/.codex` with the CLI and is listed as sharing it. That comparison is the
+recurrence guard for the defect that prompted all of this: two halves of one
+agent, each correct on its own terms, with nothing anywhere comparing them.
+
+Not every agent's variable is safe to declare. `CLAUDE_CONFIG_DIR` was looked
+into at the same time and left out, because the evidence contradicts itself:
+third-party tooling describes it as relocating the config directory, Claude Code's
+own tracker carries open requests asking for exactly that variable to be added,
+and a profile-switching tool reports it as unsupported. Declaring it on that
+evidence would be worse than leaving it — a user who set it on third-party advice
+would have this app look somewhere Claude Code does not write, and sessions that
+exist would read as absent. The claude-code note records that, dated.
+
+The rule is a pure function over an injected environment, so it is tested against
+a machine with none of these agents installed and no such variable set — which is
+every machine the suite runs on. `ProjectContext.scan` takes the environment as a
+parameter for the same reason.
+
+It covers every path that moves with an agent's data directory: `source.path`,
+the extra paths a source declares beside it, and a capability's home-relative
+inherited paths. Codex keeps its autonomous-goal database at
+`~/.codex/goals_1.sqlite`, and Kimi, Hermes and OpenClaw keep their inherited
+instructions and skills under the root their variable moves — so relocating only
+the session store left a relocated agent showing its rows while reporting its loop
+state as unavailable and its project setup as absent, which reads as "you have not
+set this up" to a user who has.
+
+Project paths are *not* relocated: nothing about a checkout moves because a data
+directory did. Nor is `source.pathFields`, which despite the name holds no
+filesystem paths — it derives a title and a session id from a path's components.
+
+`source.paths` is private, and its only reader is `declaredPath(_:environment:)`,
+which relocates. That is deliberate: both call sites had read the map directly and
+forgotten to relocate, and both mutations for that survived, because the decision
+was tested and the one-line pass-through at each call site was not — reaching
+those takes a live scan against real processes. Making the unresolved value
+unreachable removes the class rather than testing for it, and the two catalogue
+entries went with it. A mutation that cannot be written is worth more than one
+that can only survive.
+
 ### Descriptor-backed quota providers
 
 For agents without a built-in authentication flow, `quota` can describe a
-read-only JSON endpoint. Credentials may come from an environment variable,
-text file, JSON field, or bounded direct command. Mappings support used or
-remaining percentages, count/limit ratios, reset times, labels, and filters.
+read-only JSON source: an endpoint fetched with a GET or a POST, or a command
+whose stdout is the payload. The reply is mapped onto gauges; anything that
+needs control flow — an OAuth refresh, request signing, a browser cookie,
+parsing a CLI's *text* output — belongs in Swift under
+`Sources/Antarium/Providers` instead. The shapes themselves are described
+under "Quota transport" below, which is the authority: this paragraph says
+what belongs here rather than how to write it.
 
-Set `verified` only after comparing the mapping with the real service. Unverified
-integrations remain visibly marked as such.
+`credential` resolves the token, from `env`, `textFile`, `jsonFile` (with
+`field`), or a bounded `command`. `headers` may interpolate `{token}`;
+without it, `Authorization: Bearer {token}` is assumed.
+
+A `jsonFile` credential may add `requires`, a map of field path to required
+substring, checked in the same file before the token is used or counted as a
+sign-in. `field`, `accountField` and the keys of `requires` are field paths and
+may filter, which is what a shared credential file listing one entry per
+provider needs: selecting the right entry is the whole job, and `requires` exists
+because such files are shared. `path` is a filesystem path and `name` an
+environment variable's name — neither is a path into JSON, and the classification
+says so on the credential itself. `quota.accountLabel` is a path into the reply
+and may filter too. The validator checks every one of them, so a malformed filter
+in a credential guard is refused where it is written rather than reading as a
+file that is not this vendor's. It exists for credentials that live somewhere shared: Z.ai's plan is
+driven through Claude Code, so its token is whatever sits in
+`env.ANTHROPIC_AUTH_TOKEN` — a field Kimi, MiniMax, a corporate gateway and a
+plain Anthropic key all write too. Without a second field to check, any of
+those reads as a Z.ai sign-in and is sent to Z.ai's endpoint. Z.ai requires
+`env.ANTHROPIC_BASE_URL` to contain `z.ai`. Matching is case-insensitive, an
+absent field fails closed, and the check is refused at decode on any other
+credential kind, where it would silently do nothing.
+
+The scheme rule is under "Quota transport"; it is not repeated here, because
+it changed and this copy did not. Redirects are followed only within the same scheme and host. The headers live
+on the session's `httpAdditionalHeaders`, so `URLSession` carries the
+Authorization header onto whatever a redirect points at, and does not drop it
+when the host changes — a usage endpoint answering `302 Location: elsewhere`
+would otherwise hand that host the user's token. A refused redirect is
+reported as itself rather than as whatever the 3xx happens to look like.
+
+Anything a fresh install would do outward — connect to another machine, make
+a noise, show an alert — defaults to off, and a test reads
+`Settings.swift` to enforce it rather than reading the accessors at runtime.
+`Config` binds to the real settings directory the first time it is touched,
+so a runtime check reports whoever is running it: the first version of that
+test asserted alerts were off and failed, because on the machine it ran on
+they are on. Reading cloud tasks is the one deliberate exception, because it
+costs a request that was going to be made anyway.
+
+Paths are compared as Strings, never as bytes. macOS hands back a decomposed
+filename — `e` followed by a combining acute — while a path an agent writes
+into its transcript is usually composed, and the two are equal as Strings and
+different as bytes. A project folder with an accent in its name loses its
+session the moment a comparison is made on `utf8` for speed, which has already
+happened once in this file for a different scan.
+
+SwiftUI's `Text("\(x)")` takes a `LocalizedStringKey` and groups digits for
+the reader, which is how 10259 once reached the bar as "10.259". Every
+interpolation goes through `Text(verbatim:)` instead, enforced by a test —
+over all of them rather than the numeric ones, because which is which cannot
+be told from the source and a rule needing judgement is a rule nobody
+applies.
+
+A `DateFormatter` with a fixed `dateFormat` is pinned to `en_US_POSIX`, and
+no calendar comes from `Calendar.current` — that carries the reader's
+calendar system and their zone, so a date built through it is a different
+instant for a different person. Tests in `ArchitectureContractTests` read the
+sources to enforce both. That is a
+source rule rather than a run under another locale because `Locale.current` on
+macOS comes from user defaults and ignores the environment — there is no `TZ`
+equivalent to set, so the mistake has to be caught where it is written.
+Without it the hour field follows the reader's own preferences, so a Mac with
+24-Hour Time switched off writes a twelve-hour clock with no am/pm and every
+log line is ambiguous between morning and afternoon. Formatters that render
+for a person — the row's clock, which uses `dateStyle` and `timeStyle` — are
+deliberately left localised, because that is the one place the reader's
+preference is the right answer.
+
+Anything iterated out of a `Set` or a `Dictionary` and then shown, written,
+compared *or chosen from* is sorted first — the sixth instance found was a
+cache evicting `keys.first`, which is not merely unreproducible but can drop
+the entry about to be read again, repeatedly. Their order is stable within one process and not
+across runs, so an unsorted iteration looks correct in every test that was
+ever written for it and differs on somebody else's machine. Three of those
+were found in one sweep — the glob search that finds session files, the rows
+parsed from a remote host, and the rows a harness claiming several processes
+produces — and a final sort does not rescue them, because rows tied on its
+key keep whatever order they arrived in.
+
+Every reader that turns input from outside this process into objects bounds
+the objects, not only the bytes. The two are different budgets and the second
+does not imply the first: four megabytes of small JSON records is tens of
+thousands of sessions, and each one becomes a row, a sort key and a
+transcript read. The caps are 64 usage windows per response, 256 rows per
+remote host, 256 sessions per command harness, 400 files per file harness,
+2,000 rows per SQLite query and 2,000 cloud tasks per inventory. Three of
+those were missing and were found one at a time; the rule is written down
+here so the next reader inherits it rather than repeating them.
+
+A budget is a ceiling rather than a default: `BoundedSQLite.query` takes
+`maxRows` and applies `min(2_000, …)`, so a caller can lower it and not raise
+it.
+
+The bounded-objects rule applies to folders the app writes, not only to ones
+it reads. `antarium run <agent>` records each invocation as a small JSON file
+under `~/.antarium/runs`, nothing reads them back, and so nothing noticed
+that the folder had no bound on how many it held — a few hundred bytes each
+is exactly why a bytes rule would not have caught it. The newest 500 are
+kept, ordered on the timestamp the filename begins with rather than on
+modification time, which a copy or a restore rewrites.
+
+A reading that has stopped being refreshed says so. `QuotaStore` keeps the
+last good snapshot when a fetch fails — deliberately, so a bar does not blink
+out every time a network hiccups — and the cost of that is a figure which
+goes on looking current. The menu already reported "Updated ten minutes ago";
+the dashboard drew the same number with nothing at all, so the two surfaces
+disagreed about whether what was on screen was now. Past five minutes, which
+is several missed refreshes, the bar dims and its tooltip says when the
+reading was taken. Dimmed rather than hidden: the figure is still the best
+there is, and why it is old is already reported where failures belong.
+
+The settings directory is private to its owner, and tightened on launch if
+it is not. It was created at 0755, which was unremarkable while it held
+preferences; descriptors now name key files inside it, and on macOS every
+local account is in `staff`, so a home directory at 0750 is traversable by
+all of them. The directory rather than the file, because the user writes the
+file with whatever umask they have — a directory nobody else may enter
+protects what is in it regardless. Only ever tightened, never loosened, and
+left untouched when it is already right, so a launch is not a change of mtime.
+
+### Adding a quota provider
+
+Five steps, none of which need the service installed or an account with it.
+
+Two places a harness can live, and the steps are the same in both. A harness
+of your own goes in `~/.antarium/harnesses/<id>.json`, with its fixture
+beside it; one that ships with the app goes in `Resources/harnesses/<id>.json`,
+with its fixture in `Resources/quota-fixtures/`. Where each file goes is
+noted below; nothing else differs.
+
+1. Find the vendor's own statement of the endpoint and the response shape. A
+   field path taken from another monitoring tool's source is a guess about
+   somebody else's product that happens to work today; `docs/ECOSYSTEM.md`
+   lists the services turned down for exactly that reason. Record its address
+   in `quota.documentation`: an unverified mapping can only be checked by
+   reading that page and comparing, and a reference nobody wrote down leaves
+   the check possible in principle and not in practice.
+2. Write the descriptor with `source.kind` of `none` and a `quota` block.
+   `verified` stays `false` until somebody has seen the numbers against a
+   live account, and the row says so.
+3. Write the fixture: a `cases` array of recorded payloads with the gauges
+   each should produce. Include the shapes that must *not* chart — an account
+   with no plan, a reply missing the figures — with `expectError`. Every
+   value is invented; no real payload belongs in a repository, and none is
+   needed.
+
+   Your own harness: `<id>.quota-fixture.json`, beside the descriptor.
+   Shipped: `Resources/quota-fixtures/<id>.json`.
+4. `antarium --check <the descriptor>`. It reports the descriptor and
+   replays the fixture beside it through the real provider code, which is
+   what makes this testable with nothing installed.
+
+   For the shipped ones, `antarium --verify-harness-quota` replays all of
+   them at once. It reads the descriptors inside the app and no others, so
+   it will not mention a harness of yours — use `--check` for that.
+5. Add the mapping's load-bearing parts to `mutations.txt` and run
+   `./mutate.sh` over just those lines. A fixture proves the mapping works
+   today; a mutation proves a test would notice when it stops. This one is
+   for the shipped harnesses: the catalogue lives in the repository.
+
+A session harness is checked the same way — declare `compatibility.fixture`
+and put that file beside the descriptor, or in `Resources/harness-fixtures/`
+for a shipped one. `--check` replays it and names any field that differs.
+
+A source field that its `kind` never reads is reported by `--check`. A key
+list catches a typo; it cannot catch a field spelled correctly and ignored —
+`limit` on a SQLite source, which bounds newest *files* and so means nothing
+where there is one file, or `query` on a JSONL one. Both passed clean while
+doing nothing. `glob`, `limit`, `journal`, `pathFields` and `manifest` are
+read for `json` and `jsonl`; `query` and `columns` for `sqlite`; `args`,
+`refreshEvery` and `root` for `command`. It is a warning rather than a
+refusal: a leftover field does no harm beyond the silence, and refusing would
+break files people already have.
+
+`selection` has the same shape and the same check. `glob`, `records` and
+`encodedJSON` are read when selecting by `jsonFiles`; `query` and `column`
+when selecting by `sqlite`; `command`, `args` and `root` when selecting by
+`command`. `id` and `filter` belong to the two kinds that read records — a
+sqlite selection takes its ids straight out of a column and consults
+neither.
+
+A quota credential is the third object with a `kind` and gets the same
+treatment: `name` for `env`, `field` for `jsonFile`, `command` and `args` for
+`command`, and `path` for the three kinds that read a file — including `env`,
+which falls back to one when its variable is unset. `requires` is not in that
+table because the decoder already refuses it outright on anything but a
+`jsonFile`: a guard that silently does nothing is worse than no guard, and a
+warning where there is already a refusal would be unreachable.
+
+### A worked example: a self-hosted proxy
+
+LiteLLM is the case this section exists for. It cannot ship — the host and
+port are yours and nobody else's — and everything else about it is now
+expressible. Its own documentation states the call and the reply, which is
+step one done for you.
+
+```json
+{
+  "formatVersion": 1,
+  "id": "litellm",
+  "name": "LiteLLM",
+  "process": {},
+  "source": { "kind": "none", "path": "" },
+  "quota": {
+    "endpoint": "http://127.0.0.1:4000/key/info?key=sk-the-key-you-are-watching",
+    "headers": { "Authorization": "Bearer {token}" },
+    "credential": { "kind": "textFile", "path": "~/.antarium/keys/litellm" },
+    "windows": {
+      "single": "key",
+      "used": "info.spend",
+      "limit": "info.max_budget",
+      "labels": { "key": "Key budget" },
+      "badges": { "key": "KEY" }
+    },
+    "setupHint": "Put your LiteLLM master key in ~/.antarium/keys/litellm",
+    "verified": false
+  }
+}
+```
+
+Four things worth saying about it.
+
+The call takes two secrets — the master key authorises it, and a query
+parameter names the key being asked about — and a credential supplies one.
+The key you are watching is not a secret from you, so it goes in the
+descriptor; the master key stays in the keys folder. Both sit under a
+directory this app keeps private, and only one of them is in a file you
+might paste somewhere.
+
+`http` to `127.0.0.1` is accepted, by the request and by `--check` alike.
+Plaintext to this machine never reaches a wire.
+
+`max_budget` is frequently `null`, and then there is no denominator and
+nothing is charted — which is correct, and is why the row will say nothing
+until a budget is set on the key. A spend figure with no cap is not a
+meter, and calling it one would draw a bar against a number nobody stated.
+
+LiteLLM's own pages show the reply in two shapes: nested under `info`, as
+above, and flat. Record whichever yours returns as
+`litellm.quota-fixture.json` beside the descriptor and run `--check`; that
+is what the fixture is for, and it takes one reply and no account.
+
+### What a row can show
+
+`map` names where each figure lives in a record. Everything below is
+optional: a field left out is absent rather than zero, and the row simply
+does not show it.
+
+| Field | What it is |
+| --- | --- |
+| `cwd` | the working directory, which is how a session is matched to a process |
+| `title`, `model`, `timestamp` | what the row is called, which model answered, when |
+| `sessionID` | the harness's own id, for matching state held elsewhere |
+| `pid` | the process a session belongs to, when the source names it — a session binds to that pid directly instead of being matched by directory |
+| `inputTokens`, `outputTokens` | sent and received, accumulated across records |
+| `cacheRead`, `cacheWrite` | the cached halves, kept apart because a cache read is re-used server-side rather than uploaded |
+| `inputIncludesCacheRead` | `true` when the service already counts the cached part inside `inputTokens`, so it is not added twice |
+| `skipRepeatedUsage` | `true` when the source re-emits a record it has already written; an identical consecutive record is then a repeat rather than new work |
+| `source.checkedAt` | the day these records were last read against something outside this repository; the session counterpart of `quota.checkedAt` |
+| `totalTokens` | one combined figure, for a harness that reports no split. Refused alongside the four above |
+| `contextTokens` | what the harness says is in the context window now. A list, summed; a context is measured rather than accumulated, so the newest record wins |
+| `contextWindow` | the size of that window, which is the denominator for the context bar |
+| `cost` | money, accumulated. Shown as an estimate everywhere it appears |
+| `toolMarker` | a substring that marks a tool call, counted per record |
+| `toolWhere` | one tool call when every named field equals its value |
+| `toolCalls` | tool calls held as a nested array or object, counted |
+| `skipUsageWhere` | records whose usage must **not** be counted, where a source writes both per-turn and cumulative figures; such a record is still read for everything else |
+| `turnWhere` | which records count as conversation turns |
+| `turns`, `subAgents` | counted the same way, from a path and an optional filter |
+| `status` | where the harness records working or waiting, when it says so |
+
+A `quota` block adds two of its own: `accountLabel`, a path to the plan or
+account name the row shows beside the figures, and `signInCommand`, the
+command the row offers when the credential is missing.
+
+### Quota transport
+
+A `balance` must declare a `currency` — a path into the response where the
+service states one, or the code itself. The mapping used to answer "USD" for
+a descriptor that declared none, which turns a CNY balance into a dollar
+figure wrong by an exchange rate. Neither shipped descriptor relied on that
+default; it was a trap set for whoever wrote the next one, and the decoder
+refuses it now rather than guessing.
+
+An `env` credential reads its variable first and the file at its `path`
+second. The fallback is not decoration: an app started from Finder inherits
+the launchd session environment rather than a shell's, so a key exported in a
+shell profile is invisible to it, and three shipped providers could not work
+in the ordinary installation. The variable still wins when both are present,
+so a key rotated in a shell is not overridden by a stale file.
+
+A usage endpoint must be https, or http to this machine. Every usage request
+carries a credential, and plaintext to somewhere else would put it on a wire;
+plaintext to loopback never reaches one. Refusing it outright meant a
+self-hosted proxy in front of an agent — LiteLLM and its kind, which are http
+on a port by default — could not be described at all unless somebody put a
+certificate in front of a loopback socket, which nobody does. `0.0.0.0` is
+not accepted: it is a bind address meaning every interface rather than a
+destination meaning here, and anyone who meant loopback can write it.
+
+`map.totalTokens` is for a harness that keeps one running token count and no
+split. Mapping such a figure into `inputTokens` would say it was all
+uploaded, which is wrong in a way nobody reading the row could see, and
+leaving it out throws away the only figure the harness has. It is refused
+alongside `inputTokens`, `outputTokens`, `cacheRead` or `cacheWrite`: nothing
+can tell whether the total already counts those, so adding them makes a
+figure too large and ignoring them makes the declaration a lie. The row
+draws it under its own icon, never under the sent arrow.
+
+`quota.credential.accountField` reads a second value — an account or
+organisation id — out of the same `jsonFile`, and `{account}` is substituted
+wherever `{token}` is. It is for services that scope usage under an
+identifier the URL has to carry, `GET /v1/accounts/{account_id}/quotas` being
+the common shape. The id is subject to the same `requires` guards as the
+token, since a file that is not this vendor's does not hold this vendor's
+account either. Declaring it on any other credential kind is refused, as is
+using `{account}` without declaring it.
+
+`{token}` is substituted into the headers, into a POST `body`, and into the
+`endpoint` itself. The last is for services that take the credential as a
+query parameter rather than a header — a self-hosted proxy in front of an
+agent typically does. It is percent-encoded there, so a key containing `&`,
+`?` or `#` stays one value instead of ending the parameter early. Nothing
+logs a request URL: `UsageHTTP` records the status alone and `--check`
+prints the endpoint's host, so a credential in the query is no more exposed
+than one in a header.
+
+An endpoint quota may declare `method: "POST"` and a flat `body`, with
+`{token}` substituted the way it is in `headers`. Not every usage API is a
+GET — Codebuff posts to its usage path, and Kimi's server endpoint is a POST
+— and a model that could only describe a GET forced native code for a reason
+with nothing to do with whether the mapping was expressible. An unrecognised
+method is refused rather than defaulted, because a typo reads as GET and the
+descriptor would fetch the wrong way and report whatever a GET to that path
+returns.
+
+A body key whose value is a list of strings goes in `bodyList` instead, which
+is sent with the same POST. Kimi's billing endpoint is a Connect-RPC call whose
+body is `{"scope":["FEATURE_CODING"]}`, and posting the bare string where an
+array belongs is not a near miss to a typed gateway — it is a different
+request. A key given in both halves is refused, so the merge has no precedence
+to get wrong, and `bodyList` on a non-POST method is refused too rather than
+being built and never sent. There is no `{token}` substitution in it: a
+credential is a scalar, and every list-valued field seen in the wild is a set
+of literal scope names.
+
+`criticalWhenEquals` is the same rule for a field that states a word rather
+than a flag: a field path to the exact value that means the window is spent.
+OpenCode gives each window a `status` of "ok" or "rate-limited", and that was
+recorded as an unactionable gap — "descriptors have no way to say a window is
+exhausted" — which was true before `criticalWhen` existed and half true after.
+
+It marks the window and leaves the figure alone. The tool this app is measured
+against forces a rate-limited window to nothing left whatever percentage it
+reports, and whether such a window ever reports under 100 is not established, so
+writing that clamp would be inventing a number for the case where the flag and
+the figure disagree. Reporting what the service said and marking it spent needs
+no such guess, and is strictly more informative than either half alone.
+
+Compared exactly — these are enum values, and "ok" must not match "not-ok" — and
+through `FieldPath.comparable`, so a state stated as a number matches a rule
+written as text, the same way a path filter compares. It is a conjunction with
+`criticalWhen` rather than an alternative: a descriptor declaring both is
+critical when everything it named holds. Nothing shipped needs "either", and
+reading two blocks as "or" while each is internally "and" would be a rule nobody
+could predict.
+
+#### Naming a window in a list
+
+A `list` response has no member names, so `key` says which field paths inside
+each element name it, joined with `-` where one alone is ambiguous: Z.ai reports
+two `TOKENS_LIMIT` rows and distinguishes them only by `unit`.
+
+Every declared field or none. A descriptor asking for `type` and `unit` and
+getting only `type` used to be named `TOKENS_LIMIT` — a name indistinguishable
+from one a single-key descriptor meant, which then either matched the wrong
+entry in `keys` or matched nothing while looking deliberate. A row that cannot
+state every field it was told to use falls back to its index, which the
+descriptor's `keys` will not contain, so the window is absent rather than
+mislabelled.
+
+Duplicates are numbered with `#`, not `-`. That is not cosmetic, and Z.ai is
+the descriptor it matters on: its names are `TOKENS_LIMIT-3`, `TOKENS_LIMIT-6`,
+`TOKENS_LIMIT-7`, so numbering with `-` synthesised `TOKENS_LIMIT-3` for a third
+row that could not name itself — an id in the descriptor's own `keys`, drawn
+under unit 3's label, reporting a window that is not unit 3.
+
+#### Flags in a quota reply
+
+`require` decides whether a window is drawn and `criticalWhen` decides whether
+it is painted as spent. Both read boolean fields, from the window or — where a
+service states one for every window it reports, as DeepSeek does with
+`is_available` — from the reply beside them. The window's own wins.
+
+The two rules treat a flag nothing stated differently, and the difference is the
+point. `require` supplies `false` itself, so `unlimited: false` means what it
+says rather than rejecting every window that does not mention being unlimited.
+`criticalWhen` supplies nothing: painting a gauge spent is an assertion about
+somebody's account, so a reply that omits the field marks nothing. It used to
+read an absent flag as `false` for both, which meant a DeepSeek reply omitting
+`is_available` marked every balance critical on evidence that did not exist —
+invisible because every fixture case stated the field.
+
+A flag stated as the number `1` or `0` reads as a flag; `2` or `"true"` do not,
+and read as unstated. That is `as? Bool`'s own bridging of the `NSNumber` a
+parsed reply carries, checked rather than assumed, and it means an unreadable
+value is no longer a silent `false` for the rule that matters. A test builds its
+replies by parsing JSON for exactly this reason: `0 as? Bool` is nil for a Swift
+`Int` and false for an `NSNumber`, so a suite written with literals would agree
+with itself and say nothing about what an endpoint sends.
+
+A flag key is a field path, so it may be dotted or filtered like any other. It
+resolved as a flat member until 2026-09-26, which meant a dotted key silently
+matched nothing and a filtered one passed the validator — which checks bracket
+groups in these keys — and then never matched.
+
+#### Field paths
+
+A field path is dotted — `data.limits.weekly` — and may step through an array.
+`rows[]` is every element, `rows[-1]` is the last, and `rows[key=value]` is
+those whose `key` is `value`, with several comma-separated clauses all having
+to hold. The key is itself a path, so `limits[window.duration=300]` reaches
+inside each element, and a path may filter more than once:
+`usages[scope=FEATURE_CODING].limits[window.duration=300].detail.remaining`.
+
+One notation, everywhere a descriptor declares a path. That was not true until
+2026-09-26: the `map` block already resolved brackets for the fields that go
+through `FieldPath.each` — VS Code's `v.requests[].promptTokens` is how a
+session's tokens are summed — while `map.pid`, `map.turns.path`, `source.root`,
+the selection block's `records`, `root` and `filter` keys, and every path on the
+quota side read a single value through a flat lookup. So one block accepted two
+different notations depending on which field you wrote it in, and nothing said
+which.
+
+The two flat lookups that remain are deliberate and are not declared paths: the
+schema walk in `HarnessCheck`, which reads the harness document's own structure,
+and a capability's `keys`, which are object or *TOML* key names rather than paths
+into JSON.
+
+The filter is not a convenience. `FieldPath.int` sums every value a path names,
+which is what `[]` is for, so on a response carrying one entry per billing
+scope `usages[].detail.limit` is every scope's limit added together — a
+plausible number, in the right units, wrong, with nothing missing for anything
+downstream to notice. A path names the entry meant or it names nothing.
+
+Comparison is against the text the descriptor writes, and both sides of a
+response are accommodated: Kimi states one window's length as the number `300`
+and the counts beside it as the strings `"1024"` and `"512"` in the same
+payload, so a filter that matched only strings would work on half of its own
+reply. Booleans compare as `true` and `false`, decided before the numeric
+cases because parsed JSON hands both back as `NSNumber` and a boolean bridges
+to `Int` as 1.
+
+A field stated as `null` matches nothing, the same answer an absent one gets: a
+filter has nothing to say about the difference between the two, and reading a
+null as `""` or `0` would let a clause match a field that stated no value. A
+filter value cannot itself contain a comma or an `=`, and there is no escape —
+the clause splits, the group reads as malformed, and the refusal below names it,
+so the limit is found at `--check` rather than by a gauge never appearing.
+
+A declared window key is resolved as a path too, so a key holding a dot now
+reaches into a member rather than naming one literally. No shipped descriptor
+had a dotted key; a third-party document with a JSON member genuinely named
+`a.b` is the one shape this changed.
+
+Which strings in a `windows` block are paths is enumerated on the block itself.
+The fields that are *not* are the ones naming a window rather than reaching into
+a reply: `single`, and the keys of `labels` and `badges`, which are matched
+against the name a window already has. Everything else is a path, `title`
+included — it reads as text because it ends up drawn in a menu, and it is a path
+to the text rather than the text.
+
+Two tests hold that. `WindowFieldPathTests` reflects over the struct, so a field
+added without being classified fails there; it compares the list against itself
+and cannot tell a wrong classification from a right one.
+`WindowPathFilterTests` is the one that can: it writes a filter into every field
+the classification calls a path, against a reply where the entry the filter must
+not pick carries different figures, so a path resolved flatly fails rather than
+passing by coincidence. That is what caught `title`, which had been excused by
+the validator and resolved with a flat lookup — a filter written there would
+have passed `--check` and then silently matched nothing.
+
+A filter that matches nothing is absent, never zero — a gauge reading "0 left"
+on a plan with plenty left is worse than one that does not appear. A bracket
+group that is neither `[]`, `[-1]`, nor `key=value` pairs selects nothing for
+the same reason, and rather than leave that silent the document boundary
+refuses it at decode, naming the path and the group. Which strings in a
+`windows` block are paths is enumerated on the block itself, beside the
+declarations, and `WindowFieldPathTests` reflects over the struct so a field
+added without being classified fails there instead of going unvalidated.
+
+A `quota` block reads from exactly one place: an `endpoint`, or a `command`
+whose stdout is the JSON the `windows` map describes. Both would leave which
+one wins to the order of an `if`, and neither is a quota block that does
+anything, so the decoder refuses each. The command form exists because some
+services have stopped answering over HTTP at all, and a model that can only
+describe an endpoint forces native code for an agent whose mapping is
+perfectly expressible.
+
+A quota command is argv and never a shell, must be a program name rather than
+a path, is bounded in time and output, and appears in the allowlist test in
+`ExtensibilityAndReleaseTests.swift` beside every other command a shipped
+harness may run. Its failures are told apart rather than folded together:
+`Shell.Result.completeOutput` is `succeeded && !stdoutTruncated`, so a
+command that exits non-zero printing nothing reads as one that printed too
+much unless the cases are asked separately.
+
+A capability probe may declare `fileSuffixes`, and then a directory counts
+only the entries whose names end with one of them. Some conventions are a
+folder where the agent reads one kind of file and ignores the rest — Cursor's
+documentation says a plain `.md` in `.cursor/rules` is ignored because it
+carries no frontmatter — and counting every entry would report a capability
+for a folder the agent never reads. The filter is opt-in: without it every
+entry counts, which is what the other conventions here want.
+
+Suffixes rather than extensions, because a convention can require more than
+an extension: Copilot's scoped instructions must end `.instructions.md`, and
+the path extension of `style.instructions.md` is `md`, the same as a file
+Copilot ignores. The filter applies wherever a probe looks at a directory,
+including a `content` rule — Copilot's one rule lists a file, a folder and
+three more files, and a filter that applied to only one probe kind would
+count files the agent never reads.
+
+`windows` says where the limits are and what they mean. At most 64 are read
+from one response, and text the response supplies — a window title, a
+currency code, a composite key — is clamped to 64 characters. The 2 MiB body
+cap bounds the transfer, not what is built from it: 2 MiB of small objects is
+tens of thousands of windows, and each becomes a gauge, a menu bar line and
+an alert evaluation. Labels the descriptor itself declares are trusted local
+configuration and are not clamped.
+
+**Finding the windows.** Responses come in three shapes:
+
+| Shape | Fields | Example |
+| --- | --- | --- |
+| Object keyed by window name | `root` (or `roots`), optional `keys` | Copilot's `quota_snapshots` |
+| Array of windows | `list`, `key` | Z.ai's `data.limits`, MiniMax's `model_remains` |
+| One flat window | `single` | Vercel's `{"balance": …}` |
+
+`roots` takes candidate paths in order, for a service that wraps its payload in
+an envelope on some calls and not others — Command Code returns `windowLimits`
+at the top level or under `data`. Declaring one and guessing wrong makes the
+gauges silently vanish on the other shape.
+
+`key` is a list because one field is not always enough to name a window: Z.ai
+reports two `TOKENS_LIMIT` rows that differ only by `unit`, so keying on `type`
+alone collapses the weekly cap into the session one and hides the limit users
+hit most. Several paths are joined with `-`. `keys`, where given, both filters
+and orders, for either shape.
+
+**Reading the figure.** Exactly one of these per window:
+
+| Fields | Meaning |
+| --- | --- |
+| `usedPercent` | 0–100 consumed |
+| `percentRemaining` | 0–100 left |
+| `used` + `limit` | a ratio; a window with no limit is skipped, because "0 of nothing" is not 0% |
+| `remaining` + `limit` | the same ratio from the other side, for a service that reports what is left |
+| `criticalWhen` | flags meaning the window is spent whatever its figure says; read from the window, else from the response |
+| `balance` (+ `currency`) | a figure with no denominator |
+
+A `balance` draws its amount and **no bar**. A credit balance has no cap to
+fill against, and pinning such a gauge to 100% — which is what a
+percentage-only model forces — paints the same full green meter whether $500 or
+two cents remain. `currency` is a path into the window where the service
+reports one, otherwise a literal ISO 4217 code; it is not assumed, because
+DeepSeek bills some accounts in CNY and a dollar sign there misstates the
+balance by an exchange rate.
+
+**Presentation.** `labels` names each window, `badges` gives the two-to-four
+character menu-bar tag where abbreviating the label reads badly ("Premium"
+becomes "PRE", "Tools" becomes "TOO"). `title` is a path into the window for a
+service that names its own windows, used where `labels` gives no name. `windowSeconds` and `resetsAt` are read
+per window, falling back to the response root. `require` skips a window unless
+every pair matches — a free Copilot plan lists a premium tier it does not have.
+
+**Verification.** Every shipped descriptor that declares `quota` must have a
+recorded response shape in `Resources/quota-fixtures/<id>.json`, checked by:
+
+```bash
+Antarium --verify-harness-quota
+```
+
+The fixture replays a synthetic response through the real mapping and compares
+every gauge — id, badge, title, percentage, window length, reset time, and for
+a balance its figure and currency.
+
+Session fixtures verify the focus target alongside the session fields. A focus
+mapping that resolves to nothing fails silently — the row falls back to raising
+the application, which looks like it worked — so renaming Herdr's `tab_id` was
+invisible until the fixture began checking it.
+
+A quota fixture file holds either one case at the top level or a `cases` array,
+and a case declares `expected` or `expectError`. The second matters as much as the first:
+a plan that includes no windows at all must be refused, not charted as a row of
+zeros, and that is a behaviour a success-only fixture cannot state. Copilot
+records a free plan whose every tier reports `has_quota: false`, MiniMax an
+account whose models are all unmetered, DeepSeek an account with no balances —
+each `expectError: unsupported`. Removing Copilot's `has_quota` filter, or
+accepting a zero limit as a denominator, fails them. No account, no network, and no installed
+agent is involved, so a wrong field path fails at build time rather than on a
+stranger's Mac. Fixtures are invented values in the vendor's published shape;
+no real account response is ever committed.
+
+Set `verified` only after comparing the mapping with the real service. A
+passing fixture proves the mapping resolves, not that the numbers are right.
+Unverified integrations stay visibly marked as such in Settings.
+
+Which is why `quota.documentation` matters most for the unverified ones. It
+is what makes an unverified mapping checkable by somebody with no account:
+open the cited page, read the response schema, and compare it field by field
+with the descriptor — endpoint, nesting, names, and whether an amount arrives
+as a JSON number or a string. DeepSeek and Vercel both publish theirs as
+strings, so a reader that took only numbers would report nothing for either
+and look exactly like an account with no credit. That is the class of error
+this catches without anyone signing up for anything.
+
+`quota.checkedAt` records the day that reading was last done — the day the
+figures were held against something outside this repository, whether a vendor
+reference or another implementation of the same API. It is deliberately not
+`compatibility.verifiedAt`, which dates a fixture, because a fixture is
+written from the mapping it tests: it proves the mapping is applied and says
+nothing about whether it is right. Five of the seventeen mappings here were
+wrong behind a green fixture, and one of them, MiniMax, had expectations that
+were the exact mirror of the truth. A field name is not a specification.
+`current_interval_usage_count` was what remained, not what was spent, and the
+meter read comfortable while the quota emptied.
+
+So the question `checkedAt` answers is not "does this resolve" but "when did
+somebody last confirm the fields mean what they are named", and a date going
+stale is the signal to ask again.
 
 ## SDK, schema, and migration
 
@@ -404,6 +1160,54 @@ $BIN --migrate-harness old.json migrated.json
 SDK callers can use `HarnessConfigMigration.migrate` directly.
 
 ## Verification and evaluations
+
+### Folding VS Code's journal
+
+A chat session is one snapshot followed by patches: set, push (with an optional
+`i` that truncates first), delete. The lines are folded into the document they
+describe before a descriptor's paths are mapped against it, because read a line at
+a time the fields simply are not there — the snapshot is written when the session
+is empty, and the title, the model and every token count arrive later as patches.
+
+A patch does not reshape what the document already holds. Absent is created, which
+is the ordinary case; present and the wrong shape is left alone, and the fields the
+patch would have set are then absent, which every reader downstream has an answer
+for. `remove` had always worked that way and `write` had not, so a delete refused
+to reshape the document and a set was free to — a patch naming `["requests", 0]`
+where the snapshot put an object at `requests` discarded that object and built an
+array in its place, and `requests[].promptTokens` then summed figures over a
+structure the file never contained.
+
+A push index that is not a sensible splice point is no index: negative, or not a
+number, appends rather than truncating. Read as a position, a negative one traps —
+which the catalogue confirms, since that mutation is caught by the suite not
+surviving it.
+
+### Finding what nothing tests
+
+The suite, the catalogue and the gates all answer "is what I thought of still
+true". None of them answers "what did I not think of". Coverage does, and it is
+worth running as an audit rather than as a number to improve:
+
+```bash
+./test.sh --enable-code-coverage
+xcrun llvm-cov report .build/arm64-apple-macosx/debug/AntariumPackageTests.xctest/Contents/MacOS/AntariumPackageTests \
+  -instr-profile=.build/arm64-apple-macosx/debug/codecov/default.profdata \
+  -ignore-filename-regex='Tests/|\.build/'
+```
+
+Sorting by the least-covered file is the useful reading, and the views at the top
+of that list are expected — a SwiftUI body is not a thing a test drives. What the
+first run found was `Providers/ClaudeCredentials.swift` at 20 per cent: the
+credential path for the provider most people have, deciding whether any Claude
+figure appears at all, with every decision it makes about what it read untested.
+The Keychain routes cannot be tested and should not be — they prompt, they depend
+on this machine's grants, and reading a real credential is not something a test
+does — but the decisions about what came back are pure, and one of them was wrong.
+
+A total is not a target. The figure sits near two thirds and most of the gap is
+views and Keychain and subprocess routes; chasing it would mean writing tests that
+assert what a test can reach rather than what matters.
 
 Check a harness against its live source:
 
@@ -447,6 +1251,36 @@ swift build --scratch-path /tmp/antarium-strict \
 - Stable logical session identity does not depend on process replacement when
   stronger session evidence exists.
 - Run-wrapper metadata stores argument count, never raw prompts or tokens.
+- One reply is counted once, however many records it was written across.
+- A change to how figures are counted is a cache format change. Both caches
+  store accumulated totals beside the offset they were read to, so bytes
+  already behind that offset are never counted again: without a version bump a
+  correction reaches only what a session writes next, and a long-running one
+  keeps its old figure indefinitely. `transcripts-v7.json` and
+  `harness-cache-v3.json` are both at their versions for that reason rather
+  than because their shape moved.
+
+**Why that last one needs saying.** Claude Code writes a transcript record per
+content block while a reply streams — thinking, text, each tool call — and
+every record repeats the whole of `message.usage`. Adding the records up adds
+the same reply up as many times as it had blocks; readers that do report
+totals inflated by around four times. The reply is identified by `message.id`
+together with `requestId`, and neither half is enough on its own: the id
+repeats across a resumed conversation, and the request is absent from older
+records. A record naming neither is counted, because it cannot be paired with
+anything and under-reporting real work is the worse of the two mistakes.
+
+The same records are *not* deduplicated for tool calls. They carry different
+content, so their tool calls are separate work — counting the reply once must
+not count its tools once. The check therefore sits between the two.
+
+The memory is bounded and per session, which is a deliberate limit rather than
+an oversight. It catches the repeats that inflate a row, because those are
+consecutive. It does not catch the same reply copied into another session's
+file when a conversation is resumed or branched. That duplication matters to a
+tool that adds sessions together; this app draws one row per session, and one
+row's figure is right either way. A memory complete enough to catch it would
+put every message id ever seen into the cache file.
 
 Pricing overrides use the explicit bundled shape at:
 
@@ -472,6 +1306,58 @@ $BIN --bench
 CI also evaluates a synthetic 20,000-record JSONL source. The time budget is a
 catastrophic-regression guardrail; exact cold, warm, and append byte/record
 counts are the stronger algorithmic assertions.
+
+### Agents shown on first run, and on upgrade
+
+The menu bar used to default to a fixed list written when three agents existed.
+`AgentAutoEnable` picks from evidence instead — signed in here, or sessions on
+disk — the first time no choice is recorded, and never rewrites one afterwards.
+At most four are switched on, strongest evidence first, so a Mac carrying
+traces of eight does not open to eight items.
+
+"Never rewrite a recorded choice" leaves one case uncovered: an agent that
+ships *after* the user chose is one they have never been asked about.
+`knownAgents` records every provider id an install has put in front of them, so
+a new provider can be told from a rejected one. A new provider that is signed
+in is adopted; one with sessions but no credential is not, because that item
+could only say "sign in". The cap still applies, so adopting cannot turn three
+items into ten. An install with no `knownAgents` yet records the current list
+and adopts nothing, since it cannot tell the two apart.
+
+    Antarium --detect-agents          # what a first run would switch on, and why
+    Antarium --detect-agents --apply  # write it, declining if a choice exists
+
+### Reading a large transcript history
+
+`BoundedTraceReader` reads at most 4 MB of one file per scan, so no single
+scan can block on a long history. A session's transcript is append-only and
+can reach hundreds of megabytes — two on the machine this was written on
+measured 193 MB and 105 MB in September 2026 — so absorbing one takes about
+fifty scans rather than one. The bound is the part that matters and the part
+that is checked: those two sizes are an observation from one machine, and
+the arithmetic follows from the constant rather than from them.
+
+While a file is behind, its stats carry `backlog` and the session reports
+that its usage figures are not yet available — deliberately, since a partial
+read is a wrong total, not a smaller one. The cursor advances monotonically and
+is persisted, so the work is never repeated and a relaunch resumes where the
+last process stopped.
+
+The practical shape, measured on a history of that size: the first scans cost
+roughly 100–170 ms and CPU sits near 10% of one core, falling to ~13 ms and
+under 2% once the backlog clears — around six minutes at the default interval.
+
+`--bench` seeds the harness folder before scanning, like every other
+command-line entry point, so it always measures the full shipped set. Pointing
+`ANTARIUM_HOME` at a directory containing one descriptor does not measure one
+descriptor — the other twenty-one are written back before the first pass. A
+subset has to be removed from `Resources/harnesses` and the app rebuilt.
+
+**This makes `--bench` on a machine with an unabsorbed backlog a measurement of
+catch-up throughput, not of steady state.** Run it repeatedly until
+`transcripts-v6.json` reports no file with `backlog` set before comparing
+builds, or the numbers describe how fast history is being consumed rather than
+what a scan costs.
 
 ## Diagnostics
 

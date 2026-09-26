@@ -12,11 +12,69 @@ import Foundation
 /// says what it would actually show.
 enum HarnessCheck {
 
+    /// Source fields only some kinds read, and which kinds those are.
+    ///
+    /// A key list catches a typo. It cannot catch a field that is spelled
+    /// correctly and ignored — a `limit` on a SQLite source, which bounds
+    /// newest *files* and so means nothing where there is one file, or a
+    /// `query` on a JSONL one. Both passed `--check` clean while doing
+    /// nothing, which is the same silence that let `quota.command` be
+    /// reported as no field at all, in the other direction.
+    static let sourceFieldKinds: [String: Set<HarnessDescriptor.Source.Kind>] = [
+        "glob": [.json, .jsonl], "limit": [.json, .jsonl],
+        "journal": [.json, .jsonl], "pathFields": [.json, .jsonl],
+        "manifest": [.json, .jsonl],
+        "query": [.sqlite], "columns": [.sqlite],
+        "args": [.command], "refreshEvery": [.command], "root": [.command],
+    ]
+
+    /// The same question for `selection`, which has its own `kind` and its own
+    /// three sets of fields. Read off the three functions in
+    /// `SessionSelection` rather than guessed: `id` and `filter` are shared
+    /// by the jsonFiles and command paths, and the sqlite path returns ids
+    /// straight out of a column without consulting either.
+    static let selectionFieldKinds: [String: Set<HarnessDescriptor.Selection.Kind>] = [
+        "glob": [.jsonFiles], "records": [.jsonFiles], "encodedJSON": [.jsonFiles],
+        "query": [.sqlite], "column": [.sqlite],
+        "command": [.command], "args": [.command], "root": [.command],
+        "id": [.jsonFiles, .command], "filter": [.jsonFiles, .command],
+    ]
+
+    /// And the third object with a `kind`: a quota credential.
+    ///
+    /// `requires` is absent deliberately — the decoder already refuses it on
+    /// anything but a `jsonFile`, because a guard that silently does nothing
+    /// is worse than no guard. This table is for the fields that are merely
+    /// quiet. `path` belongs to three of the four kinds: an `env` credential
+    /// falls back to it, and a `command` one has nothing to read.
+    static let credentialFieldKinds: [String: Set<String>] = [
+        "name": ["env"],
+        "field": ["jsonFile"],
+        "command": ["command"], "args": ["command"],
+        "path": ["env", "textFile", "jsonFile"],
+    ]
+
+    /// The fields a session map understands.
+    ///
+    /// Named once because it is used twice: a manifest carries a map of the
+    /// same type, and the second copy was written out by hand and lost
+    /// `focusTarget`. The schema says a manifest's map is the map — it is a
+    /// `$ref` to the same definition — and the decoder agrees, because
+    /// `Manifest.map` is of type `Map`. Only this list disagreed, and what it
+    /// told an author was worse than a refusal: "not a field; it will be
+    /// ignored", of a field that is read.
+    static let mapKeys: Set<String> = [
+        "cwd", "title", "model", "focusTarget", "contextWindow", "contextTokens", "timestamp",
+        "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
+        "toolMarker", "toolWhere", "toolCalls", "turnWhere", "skipUsageWhere", "turns", "subAgents", "status",
+        "pid", "sessionID", "inputIncludesCacheRead", "skipRepeatedUsage",
+    ]
+
     /// Every key the loader understands. The schema's authority lives here, so
     /// anything else in a file is a typo or a leftover.
-    private static let known: [String: Set<String>] = [
+    static let known: [String: Set<String>] = [
         "": ["$schema", "formatVersion", "id", "name", "process", "match", "matchProcessName", "source", "map", "quota",
-             "capabilities", "selection",
+             "capabilities", "selection", "focus", "contributes",
              "idleAfter", "staleAfter", "fallbackName", "mark", "note", "detached",
              "multiSession", "openTabsOnly",
              "enabled", "presentation", "compatibility"],
@@ -24,26 +82,24 @@ enum HarnessCheck {
                     "installationProbes"],
         "presentation": ["mark", "fallbackName", "sourceLabel"],
         "compatibility": ["level", "verifiedAt", "agentVersions", "fixture", "note"],
-        "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",
+        "source": ["kind", "path", "relocate", "glob", "limit", "query", "columns", "manifest", "filter",
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
-                   "journal"],
-        "map": ["cwd", "title", "model", "contextWindow", "contextTokens", "timestamp",
-                "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
-                "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns", "subAgents", "status", "pid", "sessionID",
-                "inputIncludesCacheRead"],
-        "quota": ["endpoint", "headers", "credential", "windows", "accountLabel",
-                  "setupHint", "signInCommand", "verified"],
-        "quota.credential": ["kind", "path", "field", "name", "command", "args"],
-        "quota.windows": ["root", "keys", "usedPercent", "percentRemaining", "used",
-                          "limit", "require", "labels", "windowSeconds", "resetsAt", "title"],
+                   "journal", "checkedAt"],
+        "map": mapKeys,
+        "quota": ["endpoint", "method", "body", "bodyList", "command", "args",
+                  "headers", "credential", "windows", "accountLabel",
+                  "setupHint", "signInCommand", "verified", "documentation", "checkedAt"],
+        "focus": ["command", "args"],
+        "quota.credential": ["kind", "path", "field", "name", "command", "args", "requires",
+                             "accountField"],
+        "quota.windows": ["root", "roots", "list", "key", "keys", "single", "balance",
+                          "currency", "usedPercent", "percentRemaining",
+                          "used", "remaining", "limit", "require", "criticalWhen", "criticalWhenEquals", "labels", "badges", "windowSeconds", "resetsAt",
+                          "title"],
         "selection": ["kind", "path", "glob", "records", "encodedJSON", "id", "filter",
                       "query", "column", "command", "args", "root"],
         "source.manifest": ["file", "map"],
-        "source.manifest.map": ["cwd", "title", "model", "contextWindow", "contextTokens",
-                                "timestamp", "inputTokens", "outputTokens", "cacheRead",
-                                "cacheWrite", "cost", "toolMarker", "toolWhere", "toolCalls", "turnWhere", "turns",
-                                "subAgents", "status", "pid", "sessionID",
-                                "inputIncludesCacheRead"],
+        "source.manifest.map": mapKeys,
         "map.status": ["whileNotEmpty", "field", "working", "idle"],
         "map.turns": ["path", "match"],
         "map.toolCalls": ["path", "match"],
@@ -51,9 +107,49 @@ enum HarnessCheck {
     ]
     private static let kinds: Set<String> = ["jsonl", "json", "sqlite", "command", "none"]
 
+    /// The fields accepted under one path, for the contract test that keeps
+    /// this table and `harness.schema.json` from drifting apart. A field the
+    /// schema allows but this rejects is reported to the user as a typo in
+    /// their own file; one this allows but the schema does not is silently
+    /// ignored by every editor that validates against the schema.
+    static func knownFields(at path: String) -> Set<String>? { known[path] }
+
     /// Pure structural validation, shared by the CLI and the regression suite.
     /// JSONDecoder intentionally ignores unknown keys; this is where a typo is
     /// turned into an actionable error instead of silently changing meaning.
+    /// The warning a `none` source that still names a path earns, or nothing.
+    ///
+    /// `claude-code` declares `kind: none` and `path: ~/.claude/sessions`, and
+    /// that is not a contradiction: its sessions come from
+    /// `AgentScan.claudeRows`, native code selected by *id*, and the path is the
+    /// root that reader uses and the one install detection looks for.
+    ///
+    /// For anybody else the same declaration reads nothing at all —
+    /// `AgentScan.rows` and `HarnessEngine.sessions` both return early on a
+    /// `none` kind — and nothing said so. An author who wrote it would see their
+    /// agent detected, listed in settings, and permanently without sessions.
+    ///
+    /// A function rather than an expression inside `run`, because `run` prints
+    /// and returns an exit code: a warning does not change that code, so the
+    /// only way to ask what it said would be to capture stdout.
+    static func unreadSourcePath(_ descriptor: HarnessDescriptor) -> String? {
+        guard descriptor.source.kind == .none, !descriptor.source.path.isEmpty,
+              !nativeSessionReaders.contains(descriptor.id) else { return nil }
+        let native = nativeSessionReaders.sorted().joined(separator: ", ")
+        return "source.kind is none and source.path names \(descriptor.source.path) — "
+            + "a none source reads no sessions, and the path is only read for the "
+            + "harnesses with a native reader (\(native)). Declare the kind this "
+            + "agent's files are, or leave the path empty"
+    }
+
+    /// Harnesses whose sessions are read by native code rather than by the
+    /// source they declare.
+    ///
+    /// One, and it is chosen by id in `AgentScan`, which is why this is a list
+    /// of facts rather than a capability an author can opt into. Named here so
+    /// the check above can say whose path is read and whose is not.
+    static let nativeSessionReaders: Set<String> = ["claude-code"]
+
     static func schemaProblems(in object: [String: Any]) -> [String] {
         var problems: [String] = []
 
@@ -88,7 +184,8 @@ enum HarnessCheck {
             }
         }
 
-        let capabilityFields: Set<String> = ["probe", "project", "inherited", "index", "keys"]
+        let capabilityFields: Set<String> = ["probe", "project", "inherited", "index",
+                                             "keys", "fileSuffixes"]
         let capabilityKinds = Set(Capability.Kind.allCases.map(\.rawValue))
         if let capabilities = object["capabilities"] as? [String: Any] {
             for (kind, raw) in capabilities {
@@ -123,11 +220,30 @@ enum HarnessCheck {
         return problems
     }
 
+    /// v0 keys left in a document that already declares v1.
+    ///
+    /// Migration folds each into its v1 section and drops it, so the line in
+    /// the file has no separate effect — but it is still there, reading as an
+    /// active setting. A genuine v0 document is not listed: there the key is
+    /// the only form there is, and migrating it is the point.
+    ///
+    /// Returned rather than printed so the rule can be tested without
+    /// capturing standard output, which is how the first version of its test
+    /// managed to pass whether or not the warning existed.
+    static func supersededKeys(in object: [String: Any]) -> [String] {
+        guard (object["formatVersion"] as? NSNumber)?.intValue
+                == HarnessDocument.currentVersion else { return [] }
+        return ["match", "matchProcessName", "mark", "fallbackName"]
+            .filter { object[$0] != nil }
+    }
+
     static func run(_ path: String) -> Int32 {
         var problems = 0, warnings = 0
         func fail(_ m: String) { print("  ✗ \(m)"); problems += 1 }
         func warn(_ m: String) { print("  ! \(m)"); warnings += 1 }
         func ok(_ m: String)   { print("  ✓ \(m)") }
+        // Neither a problem nor a warning: a thing the author could do next.
+        func note(_ m: String)  { print("  · \(m)") }
 
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         print("\nChecking \(url.lastPathComponent)\n")
@@ -158,6 +274,17 @@ enum HarnessCheck {
         // 1. Keys the loader would otherwise silently ignore.
         for problem in schemaProblems(in: object) { fail(problem) }
 
+        // A v1 file still carrying a v0 key has been half-migrated by hand.
+        // Migration folds it into the v1 key and drops it, so it no longer
+        // does anything on its own — but it is still sitting in the file,
+        // where it reads as an active matcher. Say so, rather than leaving
+        // the author to wonder which half is in force.
+        for legacy in supersededKeys(in: object) {
+            warn("\(legacy) is a v0 key. Its value is merged into the v1 "
+                 + "section on load, so the line in this file has no separate "
+                 + "effect and can be removed.")
+        }
+
         // 2. Does it decode at all?
         let document: HarnessDocument.Decoded
         do {
@@ -172,9 +299,61 @@ enum HarnessCheck {
             warn("format v\(old) is supported through an in-memory migration; rewrite it as v\(HarnessDocument.currentVersion) with the SDK")
         }
 
+        // A field the declared kind never reads. Spelled correctly, accepted
+        // by the key list, and doing nothing — which is worse than a typo,
+        // because a typo is at least reported.
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let source = object["source"] as? [String: Any] {
+            for key in source.keys.sorted() {
+                guard let kinds = sourceFieldKinds[key],
+                      !kinds.contains(descriptor.source.kind) else { continue }
+                let names = kinds.map(\.rawValue).sorted().joined(separator: " or ")
+                warn("source.\(key) is only read for a \(names) source, and this one is "
+                     + "\(descriptor.source.kind.rawValue) — it will be ignored")
+            }
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let selection = object["selection"] as? [String: Any],
+           let kind = descriptor.sessionSelection?.kind {
+            for key in selection.keys.sorted() {
+                guard let kinds = selectionFieldKinds[key], !kinds.contains(kind) else { continue }
+                let names = kinds.map(\.rawValue).sorted().joined(separator: " or ")
+                warn("selection.\(key) is only read for a \(names) selection, and this one "
+                     + "is \(kind.rawValue) — it will be ignored")
+            }
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let credential = (object["quota"] as? [String: Any])?["credential"]
+               as? [String: Any],
+           let kind = descriptor.quota?.credential?.kind {
+            for key in credential.keys.sorted() {
+                guard let kinds = credentialFieldKinds[key], !kinds.contains(kind)
+                else { continue }
+                let names = kinds.sorted().joined(separator: " or ")
+                warn("quota.credential.\(key) is only read for a \(names) credential, "
+                     + "and this one is \(kind) — it will be ignored")
+            }
+        }
+
         // 3. Which live processes it claims.
-        let processes = AgentScan.liveProcesses()
-        let claimed = processes.values.filter { descriptor.claims($0) }
+        let processes: [Int32:Processes.Info]
+        do { processes = try AgentScan.liveProcesses() }
+        catch {
+            fail("Local process discovery failed; running matches are unknown.")
+            return 1
+        }
+        // Sorted so two runs of --check on the same machine print the same
+        // report; a diagnostic that reorders itself is hard to diff.
+        let claimed = processes.values
+            .filter { descriptor.claims($0) }
+            .sorted { $0.pid < $1.pid }
+        // No catalogue entry for this line. `run` prints and returns an error
+        // count, and a warning does not change that count — so an entry deleting
+        // this call could only ever survive. The decision it calls has three
+        // entries of its own, which is where the rule actually lives.
+        if let message = Self.unreadSourcePath(descriptor) { warn(message) }
         if descriptor.match.isEmpty && descriptor.processNames.isEmpty {
             if descriptor.source.kind != .none {
                 warn("no process patterns — this file will never claim a process")
@@ -187,10 +366,132 @@ enum HarnessCheck {
                + claimed.prefix(3).map { ($0.path as NSString).lastPathComponent }.joined(separator: ", "))
         }
 
+        // A declared mark with no artwork silently falls back to a letter.
+        // That is the right behaviour, but a descriptor that declares one is
+        // stating something untrue, and the author cannot see it happen.
+        if let mark = descriptor.resolvedMark, !mark.isEmpty,
+           AppResources.bundle.url(forResource: mark, withExtension: "png",
+                                   subdirectory: "marks") == nil {
+            warn("presentation.mark \"\(mark)\" has no artwork in Resources/marks; "
+                 + "the row will show a letter instead")
+        }
+
+        // 3b. The quota block, which for a quota-only harness is the whole
+        //     point of the file and used to be reported on not at all: an
+        //     endpoint of "not a url" passed with no problems and failed at
+        //     the first fetch instead, which is the wrong moment to find out.
+        if let quota = descriptor.quota {
+            if let command = quota.command {
+                if CommandPath.resolve(command) != nil {
+                    ok("quota command \(([command] + (quota.args ?? [])).joined(separator: " "))")
+                } else {
+                    warn("quota.command \(command) was not found in the usual places"
+                         + " — fine if the agent lives somewhere else")
+                }
+            } else if let raw = quota.endpoint {
+                // The same rule the request uses. This insisted on https and
+                // so failed every self-hosted descriptor — http on a loopback
+                // port — which the runtime accepts and the documentation now
+                // tells people to write.
+                if let endpoint = URL(string: raw),
+                   UsageHTTP.endpointMayCarryACredential(endpoint),
+                   let host = endpoint.host {
+                    ok("quota endpoint \(host)")
+                } else {
+                    fail("quota.endpoint must be https, or http to this machine: \(raw)")
+                }
+            } else {
+                fail("quota declares neither an endpoint nor a command")
+            }
+            // A fixture beside the file, replayed. The five documented steps
+            // for adding a quota provider end at a command that only looks at
+            // the shipped descriptors, so an author working outside this
+            // repository could write a mapping and a fixture and have no way
+            // to run one against the other — which is the whole of what makes
+            // a provider testable without the service installed.
+            if let fixture = QuotaFixture.fixtureURL(besideDescriptorAt: url) {
+                if let report = QuotaFixture.verify(descriptor, fixture: fixture) {
+                    if report.passed {
+                        ok("quota fixture \(fixture.lastPathComponent): \(report.detail)")
+                    } else {
+                        fail("quota fixture \(fixture.lastPathComponent): \(report.detail)")
+                    }
+                }
+            } else {
+                note("no quota fixture beside this file — add "
+                     + "\(url.deletingPathExtension().lastPathComponent).quota-fixture.json "
+                     + "to check the mapping against a recorded reply, with nothing installed")
+            }
+
+            if let credential = quota.credential {
+                let missing: String?
+                switch credential.kind {
+                case "env":      missing = credential.name == nil ? "name" : nil
+                case "textFile": missing = credential.path == nil ? "path" : nil
+                case "jsonFile":
+                    missing = credential.path == nil ? "path" : (credential.field == nil ? "field" : nil)
+                case "command":  missing = credential.command == nil ? "command" : nil
+                default:
+                    fail("quota.credential.kind \"\(credential.kind)\" is not one of "
+                         + "command, env, jsonFile, textFile")
+                    missing = nil
+                }
+                if let missing {
+                    fail("quota.credential of kind \(credential.kind) needs \(missing)")
+                }
+            }
+            let map = quota.windows
+            let figure = [map.usedPercent, map.percentRemaining, map.balance].contains { $0 != nil }
+                || (map.used != nil && map.limit != nil)
+                || (map.remaining != nil && map.limit != nil)
+            if figure {
+                let shape = map.list != nil ? "a list" : (map.single != nil ? "one flat window" : "an object")
+                ok("quota windows read from \(shape)")
+            } else {
+                fail("quota.windows declares no figure: give usedPercent, percentRemaining, "
+                     + "used and limit, remaining and limit, or balance")
+            }
+            if map.list != nil && map.key == nil {
+                warn("quota.windows.list without key — windows will be numbered 0, 1, 2")
+            }
+            if map.single != nil && map.list != nil {
+                warn("quota.windows sets both single and list; list wins")
+            }
+            for (window, badge) in map.badges ?? [:] where badge.count > 4 || badge.isEmpty {
+                fail("quota.windows.badges.\(window) is \(badge.count) characters; "
+                     + "the menu bar fits four")
+            }
+            if let hint = quota.setupHint, hint.count > 48 {
+                warn("quota.setupHint is \(hint.count) characters and will truncate in the "
+                     + "first-run panel")
+            }
+        }
+
         // 4. The part that catches real mistakes: test every declared path
         //    against records the source actually produces.
         let (records, origin) = HarnessEngine.sampleRecords(descriptor)
         print("  · source: \(origin)")
+
+        // A session fixture declared by this descriptor, replayed from
+        // wherever it actually is. Somebody's own harness keeps it beside the
+        // file; looking only in the app meant a descriptor could claim
+        // `fixtureVerified` with its fixture sitting right there and be
+        // checked against nothing at all.
+        if let declared = descriptor.compatibility?.fixture, !declared.isEmpty {
+            let report = HarnessCompatibility.verifyFixture(
+                descriptor, in: AppResources.bundle,
+                beside: url.deletingLastPathComponent())
+            switch report.status {
+            case .fixtureVerified:
+                ok("session fixture \(declared): \(report.detail)")
+            case .incompatible:
+                fail("session fixture \(declared): \(report.detail)")
+            default:
+                note("session fixture \(declared): \(report.detail)")
+            }
+        } else if descriptor.compatibility?.level == .fixtureVerified {
+            fail("compatibility.level is fixtureVerified but no fixture is declared")
+        }
         if descriptor.source.kind != .none && records.isEmpty {
             warn("no records to check field paths against")
         }
@@ -243,7 +544,8 @@ enum HarnessCheck {
         let sessions = HarnessEngine.sessions(descriptor)
         if let newest = sessions.first {
             print("\n  Would show: project=\(newest.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "—") "
-                + "model=\(newest.model ?? "—") context=\(newest.contextTokens)"
+                + "model=\(newest.model ?? "—") "
+                + "context=\(newest.contextTokens.map(String.init) ?? "—")"
                 + " tools=\(newest.toolCalls) turns=\(newest.turns) "
                 + "cost=\(newest.costUSD > 0 ? Pricing.money(newest.costUSD) : "—")")
         } else if descriptor.source.kind != .none {
@@ -259,7 +561,7 @@ enum HarnessCheck {
     }
 
     private static let numeric: Set<String> = [
-        "inputTokens", "outputTokens", "cacheRead", "cacheWrite", "cost",
+        "inputTokens", "outputTokens", "totalTokens", "cacheRead", "cacheWrite", "cost",
         "contextWindow", "contextTokens", "pid",
     ]
 

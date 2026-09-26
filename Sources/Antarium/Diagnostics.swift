@@ -36,8 +36,21 @@ enum Diagnostics {
         let requested = args.firstIndex(of: "--once").flatMap { i -> String? in
             i + 1 < args.count && !args[i + 1].hasPrefix("-") ? args[i + 1] : nil
         }
-        let providers = requested.flatMap { ProviderRegistry.provider(id: $0) }.map { [$0] }
-            ?? ProviderRegistry.all
+        let providers: [UsageProvider]
+        if let requested {
+            // An id that names nothing used to fall through to every provider,
+            // so a typo printed ten reports and exited 0 — indistinguishable
+            // from asking for all of them on purpose.
+            guard let match = ProviderRegistry.provider(id: requested) else {
+                let known = ProviderRegistry.all.map(\.id).sorted().joined(separator: ", ")
+                FileHandle.standardError.write(Data(
+                    "No provider with id \"\(requested)\". Known providers: \(known)\n".utf8))
+                exit(2)
+            }
+            providers = [match]
+        } else {
+            providers = ProviderRegistry.all
+        }
 
         Task { @MainActor in
             var anySucceeded = false
@@ -93,6 +106,34 @@ enum Diagnostics {
     /// Renders a SwiftUI view once per appearance and writes the two side by
     /// side, each on the backdrop its theme would sit on. Every `--*` harness
     /// composed this by hand before; it is the same picture every time.
+    /// One agent as `--agents` prints it: the table row, then any reason its
+    /// figures are missing.
+    ///
+    /// A row of dashes has a reason and the row already knows it. Printing the
+    /// columns alone leaves the reader to guess whether the agent has done
+    /// nothing, the harness records nothing, or the transcript is still being
+    /// read — three different answers that look identical in a table. This
+    /// machine had two sessions reporting no cost because records slightly
+    /// over the read limit were skipped, and the table gave no hint of it.
+    static func agentLines(for r: AgentRow) -> [String] {
+        let ctx = r.contextFraction.map { String(format: "%.0f%%", $0 * 100) }
+            ?? (r.contextTokens.map { "\($0 / 1000)k" } ?? "—")
+        let ram = r.rssBytes.map { String(format: "%.0fMB", Double($0) / 1_048_576) } ?? "—"
+        let chips = r.context.present.map { $0.kind.label }.joined(separator: ",")
+        var lines = [tableRow([r.name, r.state.label, r.hostApp ?? "—",
+                               Pricing.shortName(r.model) ?? "—",
+                               ctx,
+                               r.toolCalls.map(String.init) ?? r.turns.map { "\($0)t" } ?? "—",
+                               r.costUSD.map { Pricing.money($0) } ?? "—",
+                               ram,
+                               chips.isEmpty ? "—" : chips])]
+        if let note = r.note, !note.isEmpty { lines.append("    \(note)") }
+        if let issue = r.localObservationIssue, !issue.isEmpty, issue != r.note {
+            lines.append("    \(issue)")
+        }
+        return lines
+    }
+
     @MainActor
     static func writeThemeSheet<V: View>(_ view: @autoclosure () -> V, to path: String,
                                          gap: CGFloat = 16) -> Bool {
@@ -132,13 +173,25 @@ enum Diagnostics {
         return true
     }
 
+    private static func scanOrExit() -> [AgentRow] {
+        do { return try AgentScan.scan() }
+        catch {
+            fputs("Local process discovery failed; no complete inventory is available.\n", stderr)
+            exit(1)
+        }
+    }
+
     /// `--dashboard out.png`
     @MainActor
     static func renderDashboardAndExit(to path: String) -> Never {
         Task { @MainActor in
             let store = AgentStore.shared
-            store.adoptForPreview(AgentScan.scan())
-            exit(writeThemeSheet(DashboardView(store: store, onSettings: {}, onTogglePin: {}),
+            store.adoptForPreview(scanOrExit())
+            // One column, so the sheet does not depend on the display that
+            // happened to be attached — the rule `SettingsView.unbounded`
+            // already states for the other panel.
+            exit(writeThemeSheet(DashboardView(store: store, onSettings: {}, onTogglePin: {},
+                                               singleColumn: true),
                                  to: path) ? 0 : 1)
         }
         RunLoop.main.run()
@@ -149,7 +202,7 @@ enum Diagnostics {
     @MainActor
     static func renderAlertAndExit(to path: String) -> Never {
         Task { @MainActor in
-            let rows = AgentScan.scan()
+            let rows = scanOrExit()
             guard let row = rows.first(where: { $0.state.rank <= 2 && $0.costUSD != nil })
                     ?? rows.first else { exit(1) }
             exit(writeThemeSheet(AgentAlert.previewCard(row), to: path, gap: 18) ? 0 : 1)
@@ -160,6 +213,14 @@ enum Diagnostics {
 
     @MainActor
     static func dumpAgentsAndExit() -> Never {
+        // The harness folder is the only copy, and it is what the app reads.
+        // Every diagnostic here reads it too, so every one of them has to put
+        // it there first — otherwise the first thing a new install sees from
+        // the command line is an empty agent table, an empty catalog and a
+        // scan reporting zero sessions, none of which says "nothing has been
+        // set up yet". The app seeds on start for exactly this reason; these
+        // entry points were the ones that did not.
+        HarnessDescriptor.seed()
         TranscriptStats.loadCache()
         HarnessEngine.loadCache()
         Task { @MainActor in
@@ -169,7 +230,7 @@ enum Diagnostics {
             if let i = CommandLine.arguments.firstIndex(of: "--focus"),
                i + 1 < CommandLine.arguments.count {
                 let want = CommandLine.arguments[i + 1].lowercased()
-                let rows = AgentScan.scan()
+                let rows = scanOrExit()
                 guard let row = rows.first(where: { $0.name.lowercased() == want })
                     ?? rows.first(where: { $0.name.lowercased().contains(want)
                         || $0.agentID.lowercased().contains(want) }) else {
@@ -187,7 +248,7 @@ enum Diagnostics {
             // Design harness: render the first-run screen.
             if let i = CommandLine.arguments.firstIndex(of: "--onboarding"),
                i + 1 < CommandLine.arguments.count {
-                let rows = AgentScan.scan()
+                let rows = scanOrExit()
                 let view = OnboardingView(harnesses: Onboarding.harnesses(),
                                           accounts: Onboarding.accounts(ProviderRegistry.all),
                                           sessions: rows.count, onDone: {})
@@ -196,30 +257,37 @@ enum Diagnostics {
 
             // `--log [n]` — where the log is, what level it is at, and the tail.
             if let i = CommandLine.arguments.firstIndex(of: "--log") {
-                let count = (i + 1 < CommandLine.arguments.count
-                             ? Int(CommandLine.arguments[i + 1]) : nil) ?? 40
-                let size = (try? FileManager.default
-                    .attributesOfItem(atPath: Log.url.path)[.size] as? Int).flatMap { $0 } ?? 0
+                let argument = i + 1 < CommandLine.arguments.count ? CommandLine.arguments[i + 1] : "40"
+                guard let count = Int(argument), (0...1_000).contains(count) else {
+                    print("Log line count must be an integer from 0 through 1000."); exit(2)
+                }
                 print("level : \(Log.level.name)   (ANTARIUM_LOG, or \"logLevel\" in config.json)")
-                print("file  : \(Log.url.path)  \(size / 1024)KB")
-                let text = (try? String(contentsOf: Log.url, encoding: .utf8)) ?? ""
-                let lines = text.split(separator: "\n")
-                print("---- last \(min(count, lines.count)) of \(lines.count) lines ----")
-                for line in lines.suffix(count) { print(line) }
-                exit(0)
+                print("file  : \(Log.url.path)")
+                do {
+                    let tail = try DiagnosticLogFile.tail(Log.url,lineCount:count)
+                    print("---- \(tail.lines.count) complete lines · bounded 64 KiB tail\(tail.truncated ? "; earlier or incomplete lines omitted" : "") ----")
+                    for line in tail.lines { print(line) }
+                    exit(0)
+                } catch {
+                    print("The log could not be read safely. It may be missing, linked, unavailable or changed during the read.")
+                    exit(1)
+                }
             }
 
             // `--status` — a single readout of what the tool thinks is true.
             if CommandLine.arguments.contains("--status") {
                 print("Antarium \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
                 print("  config    \(Config.url.path)")
+                // The message already says what happened and what to do; the
+                // gap was that this command never showed it.
+                if let issue = Config.issue { print("    ! \(issue)") }
                 print("  log       \(Log.url.path)  level=\(Log.level.name)")
                 let descriptors = HarnessDescriptor.all()
                 print("  harnesses \(descriptors.count) loaded from \(HarnessDescriptor.directory.path)")
                 if !HarnessDescriptor.failures.isEmpty {
                     for f in HarnessDescriptor.failures { print("    ! \(f)") }
                 }
-                let rows = AgentScan.scan()
+                let rows = scanOrExit()
                 var byHost: [String: Int] = [:]
                 for row in rows { byHost[row.hostApp ?? "—", default: 0] += 1 }
                 let working = rows.filter { if case .working = $0.state { return true }; return false }
@@ -238,7 +306,7 @@ enum Diagnostics {
             }
 
             if CommandLine.arguments.contains("--tmux") {
-                for row in AgentScan.scan() where row.hostApp == "tmux" {
+                for row in scanOrExit() where row.hostApp == "tmux" {
                     print("  \(row.name.padding(toLength: max(16, row.name.count), withPad: " ", startingAt: 0)) "
                         + "\(row.agentID.padding(toLength: 14, withPad: " ", startingAt: 0)) "
                         + "tmux=\(row.tmuxTarget ?? "— NONE")")
@@ -283,41 +351,83 @@ enum Diagnostics {
             }
 
             if CommandLine.arguments.contains("--bench") {
+                // What was measured, not just how long it took. Every entry
+                // point seeds the harness folder first, so pointing
+                // ANTARIUM_HOME at a directory holding one descriptor measures
+                // all of them — a number read as a per-harness cost when it
+                // was nothing of the kind.
+                let harnesses = HarnessDescriptor.all()
+                print("\(harnesses.count) harness(es) from \(HarnessDescriptor.directory.path)")
+                // Absorb transcript history before the clock starts. The
+                // budget is a statement about steady state, and a machine
+                // still catching up is not in it — but skipping the gate
+                // whenever that is true left it unreachable on most Macs.
+                // Draining first makes the measured passes the ones the
+                // budget is about.
+                var warmups = 0
+                while HarnessPerformanceBudget.needsWarmup(
+                          backlogged: TranscriptStats.backloggedCount(),
+                          passesRun: warmups) {
+                    _ = scanOrExit()
+                    warmups += 1
+                }
+                if warmups > 0 {
+                    print("\(warmups) warm-up pass(es) absorbed transcript history")
+                }
+                var passes: [Double] = []
                 for pass in 1...3 {
                     let t0 = ProcessInfo.processInfo.systemUptime
-                    let n = AgentScan.scan().count
+                    let n = scanOrExit().count
                     let ms = (ProcessInfo.processInfo.systemUptime - t0) * 1000
+                    passes.append(ms)
                     print(String(format: "pass %d: %6.1f ms  (%d sessions)", pass, ms, n))
+                }
+                let fastest = HarnessPerformanceBudget.steadyState(passes)
+                // Transcript history still being absorbed makes these numbers
+                // catch-up throughput rather than steady state, which is worth
+                // saying here rather than only in the documentation.
+                let behind = TranscriptStats.backloggedCount()
+                if behind > 0 {
+                    print("\(behind) transcript(s) still catching up — "
+                        + "these passes measure throughput, not steady state")
                 }
                 TranscriptStats.saveCache()
                 HarnessEngine.saveCache()
-                exit(0)
+                // The fastest pass, because the first is cold and the budget
+                // is about steady state. Reported either way, so a run that
+                // was not gated says so rather than looking like one that
+                // passed.
+                let verdict = HarnessPerformanceBudget.verdict(
+                    fastestMilliseconds: fastest, backlogged: behind)
+                print(String(format: "fastest %.1f ms against a budget of %.0f ms — %@",
+                             fastest, HarnessPerformanceBudget.scanMilliseconds,
+                             {
+                                 switch verdict {
+                                 case .within: return "within it"
+                                 case .over: return "OVER"
+                                 case .inconclusive:
+                                     // Over budget, but these passes were
+                                     // doing more than a steady-state scan
+                                     // does. Not a failure anybody could act
+                                     // on, and not a pass either.
+                                     return "over it, but not gated: still catching up"
+                                 }
+                             }() as String))
+                exit(verdict == .over ? 1 : 0)
             }
-            var rows = AgentScan.scan()
+            var rows = scanOrExit()
             if CommandLine.arguments.contains("--cloud") {
                 do {
                     rows = AgentScan.sorted(AgentScan.merge(
                         local: rows, cloud: try await CloudScan.codexTasks()))
                 } catch {
-                    fputs("cloud scan failed: \(error.localizedDescription)\n", stderr)
+                    fputs(CloudScan.issue(for:error) + "\n", stderr)
                 }
             }
             // Plain Swift padding: String(format:) with %s takes a pointer into
             // an NSString temporary that is freed before the format runs.
             print(tableRow(["NAME", "STATE", "HOST", "MODEL", "CONTEXT", "TOOLS", "COST", "RAM", "CONTEXT FILES"]))
-            for r in rows {
-                let ctx = r.contextFraction.map { String(format: "%.0f%%", $0 * 100) }
-                    ?? (r.contextTokens.map { "\($0 / 1000)k" } ?? "—")
-                let ram = r.rssBytes.map { String(format: "%.0fMB", Double($0) / 1_048_576) } ?? "—"
-                let chips = r.context.present.map { $0.kind.label }.joined(separator: ",")
-                print(tableRow([r.name, r.state.label, r.hostApp ?? "—",
-                                Pricing.shortName(r.model) ?? "—",
-                                ctx,
-                                r.toolCalls.map(String.init) ?? r.turns.map { "\($0)t" } ?? "—",
-                                r.costUSD.map { Pricing.money($0) } ?? "—",
-                                ram,
-                                chips.isEmpty ? "—" : chips]))
-            }
+            for r in rows { agentLines(for: r).forEach { print($0) } }
             // Every descriptor-driven harness, reported whether or not one is
             // running right now, so each reader is verifiable on its own.
             for d in HarnessDescriptor.all() {
@@ -325,7 +435,8 @@ enum Diagnostics {
                 if let newest = found.first {
                     print("\n\(d.id): \(found.count) sessions  newest "
                         + "cwd=\(newest.cwd ?? "—") model=\(newest.model ?? "—") "
-                        + "ctx=\(newest.contextTokens / 1000)k/\(newest.contextWindow.map { "\($0 / 1000)k" } ?? "—") "
+                        + "ctx=\(newest.contextTokens.map { "\($0 / 1000)k" } ?? "—")"
+                        + "/\(newest.contextWindow.map { "\($0 / 1000)k" } ?? "—") "
                         + "tools=\(newest.toolCalls) turns=\(newest.turns) subs=\(newest.subAgents) "
                         + "cost=\(Pricing.money(newest.costUSD)) "
                         + "last=\(newest.lastActivity.map { Format.age($0) } ?? "—")")

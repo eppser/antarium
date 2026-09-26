@@ -1,0 +1,828 @@
+import Foundation
+import Testing
+@testable import Antarium
+
+// MARK: - Auto-detection policy
+
+/// A stand-in provider, so the policy can be tested on a machine that has none
+/// of these agents installed.
+private final class StubProvider: UsageProvider, @unchecked Sendable {
+    let id: String
+    let displayName: String
+    let isConfigured: Bool
+    let setupHint = "stub"
+    let isVerified = false
+    init(_ id: String, configured: Bool) {
+        self.id = id
+        self.displayName = id
+        self.isConfigured = configured
+    }
+    func fetch() async throws -> Snapshot { throw ProviderError.unsupported("stub") }
+}
+
+@Test("Detection enables every agent with evidence and nothing else")
+func autoEnablePicksWhatIsPresent() {
+    let evidence = [
+        AgentAutoEnable.Evidence(id: "claude-code", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "copilot", signedIn: true, hasSessions: false),
+        AgentAutoEnable.Evidence(id: "zai", signedIn: false, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "cursor", signedIn: false, hasSessions: false),
+    ]
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["claude-code"])
+    #expect(chosen == ["claude-code", "copilot", "zai"])
+    #expect(!chosen.contains("cursor"))
+}
+
+@Test("A crowded Mac gets the strongest evidence, not everything at once")
+func autoEnableCapsTheBar() {
+    // Ten providers ship; a developer's Mac can carry traces of most of them.
+    // Ids are chosen so alphabetical order contradicts evidence order: the
+    // weakest sort first. An earlier version used ids that happened to sort
+    // the same way, so replacing the ranking with a plain id sort passed it.
+    let evidence = (1...8).map { index in
+        AgentAutoEnable.Evidence(id: "aaa-sessions-\(index)", signedIn: false, hasSessions: true)
+    } + [
+        AgentAutoEnable.Evidence(id: "zzz-both", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "yyy-credential", signedIn: true, hasSessions: false),
+    ]
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(chosen.count == AgentAutoEnable.limit)
+    // Signed-in-and-used first, then credential-only, before any of the eight
+    // that can only say "sign in" — despite sorting last alphabetically.
+    #expect(chosen.contains("zzz-both"))
+    #expect(chosen.contains("yyy-credential"))
+}
+
+/// Each rung of the ranking, on its own.
+///
+/// The cap test above proves the two strongest beat eight weak ones. It
+/// cannot tell 3 from 2, because both of them are chosen either way — there
+/// are only two. So whether "signed in and used here" outranks "signed in
+/// only", and whether sessions alone outrank nothing, were both free to
+/// change. On a Mac carrying traces of more than four agents, which the cap
+/// exists for, that is the difference between the right four and some four.
+///
+/// Ids are chosen so alphabetical order contradicts evidence order in every
+/// case: the tie-break is id, so a ranking that collapsed would hand the
+/// slots to the `aa-` group.
+@Test("Being used here outranks being merely signed in")
+func usedOutranksSignedIn() {
+    let evidence = (1...4).map {
+        AgentAutoEnable.Evidence(id: "zz-both-\($0)", signedIn: true, hasSessions: true)
+    } + (1...4).map {
+        AgentAutoEnable.Evidence(id: "aa-credential-\($0)", signedIn: true, hasSessions: false)
+    }
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(chosen.count == AgentAutoEnable.limit)
+    #expect(chosen.allSatisfy { $0.hasPrefix("zz-both") },
+            Comment(rawValue: "the bar went to \(chosen.sorted()) — an agent that is signed "
+                    + "in and used here did not outrank one that is only signed in"))
+}
+
+@Test("Being signed in outranks having left sessions")
+func signedInOutranksSessions() {
+    let evidence = (1...4).map {
+        AgentAutoEnable.Evidence(id: "zz-credential-\($0)", signedIn: true, hasSessions: false)
+    } + (1...4).map {
+        AgentAutoEnable.Evidence(id: "aa-sessions-\($0)", signedIn: false, hasSessions: true)
+    }
+    let chosen = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(chosen.allSatisfy { $0.hasPrefix("zz-credential") },
+            Comment(rawValue: "the bar went to \(chosen.sorted()) — an agent whose item can "
+                    + "only say \"sign in\" took a slot from one that can show a figure"))
+}
+
+/// And the rungs themselves, stated. Four values, each meaning something:
+/// signed in and used here is the clearest case, a credential with no
+/// sessions next, sessions with no credential last — that item can only say
+/// "sign in" until the user does something about it — and nothing at all
+/// scores nothing and is not present.
+@Test("The ranking has four rungs and they are in this order")
+func rungsAreOrdered() {
+    func strength(_ signedIn: Bool, _ sessions: Bool) -> Int {
+        AgentAutoEnable.Evidence(id: "x", signedIn: signedIn, hasSessions: sessions).strength
+    }
+    #expect(strength(true, true) > strength(true, false))
+    #expect(strength(true, false) > strength(false, true))
+    #expect(strength(false, true) > strength(false, false))
+    #expect(strength(false, false) == 0)
+    // And nothing at all is not present, so it never reaches the ranking.
+    #expect(AgentAutoEnable.Evidence(id: "x", signedIn: false, hasSessions: false).present
+            == false)
+}
+
+@Test("Two Macs with the same agents installed get the same bar")
+func autoEnableIsDeterministic() {
+    let evidence = (1...6).map {
+        AgentAutoEnable.Evidence(id: "agent-\($0)", signedIn: true, hasSessions: true)
+    }
+    let first = AgentAutoEnable.resolve(evidence, fallback: ["x"])
+    #expect(AgentAutoEnable.resolve(evidence.reversed(), fallback: ["x"]) == first)
+    #expect(AgentAutoEnable.resolve(evidence.shuffled(), fallback: ["x"]) == first)
+}
+
+@Test("A signed-out agent with sessions still earns a slot")
+func autoEnableCountsSessionsAlone() {
+    let only = [AgentAutoEnable.Evidence(id: "codex", signedIn: false, hasSessions: true)]
+    #expect(AgentAutoEnable.resolve(only, fallback: ["claude-code"]) == ["codex"])
+}
+
+@Test("A bare Mac still gets one item, so there is a way back into the app")
+func autoEnableNeverEmpties() {
+    let nothing = [
+        AgentAutoEnable.Evidence(id: "claude-code", signedIn: false, hasSessions: false),
+        AgentAutoEnable.Evidence(id: "codex", signedIn: false, hasSessions: false),
+    ]
+    #expect(AgentAutoEnable.resolve(nothing, fallback: ["claude-code", "codex"]) == ["claude-code"])
+    #expect(AgentAutoEnable.resolve([], fallback: []).isEmpty)
+}
+
+@Test("Evidence is read per provider, not per harness")
+func autoEnableEvidenceShape() {
+    let providers: [UsageProvider] = [StubProvider("a", configured: true),
+                                      StubProvider("b", configured: false)]
+    let evidence = AgentAutoEnable.evidence(providers: providers, sessionsPresent: ["b", "z"])
+    #expect(evidence == [
+        AgentAutoEnable.Evidence(id: "a", signedIn: true, hasSessions: false),
+        AgentAutoEnable.Evidence(id: "b", signedIn: false, hasSessions: true),
+    ])
+    // "z" has sessions but no provider, so it cannot become a menu bar item.
+    #expect(!evidence.contains { $0.id == "z" })
+}
+
+// MARK: - isConfigured must stay cheap
+
+@Test("A repeated isConfigured probe runs the expensive answer once")
+func configuredProbeMemoises() {
+    let key = "probe-test-\(UUID().uuidString)"
+    var calls = 0
+    let first = ConfiguredProbe.value(key, now: 1_000) { calls += 1; return true }
+    let second = ConfiguredProbe.value(key, now: 1_005) { calls += 1; return false }
+    #expect(first == true)
+    #expect(second == true)
+    #expect(calls == 1)
+
+    // Past the window it asks again.
+    let third = ConfiguredProbe.value(key, now: 1_000 + ConfiguredProbe.ttl + 1) {
+        calls += 1; return false
+    }
+    #expect(third == false)
+    #expect(calls == 2)
+
+    ConfiguredProbe.invalidate(key)
+    _ = ConfiguredProbe.value(key, now: 1_000 + ConfiguredProbe.ttl + 2) { calls += 1; return true }
+    #expect(calls == 3)
+}
+
+// MARK: - Quota mappings, without an account or a network
+
+@Test("Every shipped quota descriptor has a fixture and that fixture passes")
+func bundledQuotaFixturesPass() {
+    let descriptors = HarnessCLI.bundledDescriptors().filter { $0.quota != nil }
+    #expect(descriptors.count >= 9,
+            Comment(rawValue: "only \(descriptors.count) descriptors declare a quota, so the "
+                    + "loop below checks fewer mappings than ship"))
+    for descriptor in descriptors {
+        let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+        #expect(report != nil)
+        #expect(report?.passed == true, "\(descriptor.id): \(report?.detail ?? "no report")")
+    }
+}
+
+/// The window shapes, exercised directly. `windows(in:map:)` is the part that
+/// decides what a response even contains, so it is tested apart from the
+/// percentage arithmetic layered on top.
+@Test("A keyed object yields its windows in declared order")
+func keyedWindowsKeepDeclaredOrder() {
+    var map = HarnessDescriptor.Quota.Windows()
+    map.root = "quota"
+    map.keys = ["b", "a"]
+    let found = DescriptorProvider.windows(
+        in: ["quota": ["a": ["p": 1], "b": ["p": 2], "c": ["p": 3]]], map: map)
+    #expect(found.map(\.key) == ["b", "a"])
+}
+
+@Test("A list is keyed by the fields named, joined when one is ambiguous")
+func listWindowsUseCompositeKeys() {
+    var map = HarnessDescriptor.Quota.Windows()
+    map.list = "data.limits"
+    map.key = ["type", "unit"]
+    let json: [String: Any] = ["data": ["limits": [
+        ["type": "TOKENS_LIMIT", "unit": 3, "percentage": 10],
+        ["type": "TOKENS_LIMIT", "unit": 6, "percentage": 20],
+    ]]]
+    #expect(DescriptorProvider.windows(in: json, map: map).map(\.key)
+        == ["TOKENS_LIMIT-3", "TOKENS_LIMIT-6"])
+}
+
+/// The number is separated by something a compound name cannot contain.
+///
+/// It was a `-`, which is what a compound key joins with — so on the one
+/// descriptor that has both, Z.ai, numbering a duplicate produced a name in
+/// exactly the shape of a real one. See `listKey` and the comment beside the
+/// numbering for what that costs.
+@Test("Two list windows sharing a name stay distinct rather than collapsing")
+func listWindowsNumberDuplicates() {
+    var map = HarnessDescriptor.Quota.Windows()
+    map.list = "limits"
+    map.key = ["type"]
+    let json: [String: Any] = ["limits": [["type": "SAME"], ["type": "SAME"], ["type": "OTHER"]]]
+    #expect(DescriptorProvider.windows(in: json, map: map).map(\.key)
+        == ["SAME", "SAME#2", "OTHER"])
+    #expect(!DescriptorProvider.duplicateMark.contains("-"),
+            "the number is separated by the character a compound name joins with")
+}
+
+@Test("An unnamed list window is numbered rather than dropped")
+func listWindowsWithoutKeys() {
+    var map = HarnessDescriptor.Quota.Windows()
+    map.list = "limits"
+    let json: [String: Any] = ["limits": [["p": 1], ["p": 2]]]
+    #expect(DescriptorProvider.windows(in: json, map: map).map(\.key) == ["0", "1"])
+}
+
+@Test("Gauges with no reported window length keep the order they were declared in")
+func gaugeOrderIsStableWithoutWindowLengths() throws {
+    // Copilot reports no window length, so every sort key is equal. An unstable
+    // sort would let the menu bar reorder itself between refreshes.
+    let descriptor = try #require(
+        HarnessCLI.bundledDescriptors().first { $0.id == "copilot" })
+    let provider = try #require(DescriptorProvider(descriptor))
+    let response: [String: Any] = [
+        "copilot_plan": "test_plan",
+        "quota_snapshots": [
+            "chat": ["has_quota": true, "percent_remaining": 10],
+            "completions": ["has_quota": true, "percent_remaining": 20],
+            "premium_interactions": ["has_quota": true, "percent_remaining": 30],
+        ],
+    ]
+    let order = try provider.makeSnapshot(response).gauges.map(\.id)
+    for _ in 0..<50 {
+        #expect(try provider.makeSnapshot(response).gauges.map(\.id) == order)
+    }
+    #expect(order == ["chat", "completions", "premium_interactions"])
+}
+
+@Test("A wrong field path fails the fixture rather than charting nothing")
+func quotaFixtureCatchesABrokenMapping() {
+    let expected = QuotaFixture.Expectation(
+        accountLabel: "pro",
+        gauges: [.init(id: "week", badge: "7D", title: "Weekly",
+                       usedPercent: 50, windowSeconds: nil, resetsAt: nil)])
+    let actual = Snapshot(providerID: "x",
+                          gauges: [Gauge(id: "week", badge: "7D", title: "Weekly",
+                                         used: 0.25, resetsAt: nil, reportedSeverity: .normal)],
+                          extras: [], accountLabel: "pro", fetchedAt: Date())
+    let problems = QuotaFixture.differences(expected: expected, actual: actual)
+    #expect(problems.count == 1)
+    #expect(problems[0].contains("week used"))
+}
+
+// MARK: - Credit balances
+
+@Test("A balance carries no meter and never colours itself off a phantom fill")
+func balanceGaugeHasNoMeter() {
+    let balance = Gauge(id: "credits", badge: "BAL", title: "Credits", used: 0,
+                        resetsAt: nil, reportedSeverity: .normal,
+                        amount: Gauge.Amount(value: 0.02, currency: "USD"))
+    #expect(!balance.hasMeter)
+    // `used: 0` would otherwise read as "100% headroom, all is well" — which is
+    // exactly the false reassurance a balance-as-percentage gives.
+    #expect(balance.severity == .normal)
+    #expect(balance.amountText == "$0.02")
+
+    let metered = Gauge(id: "week", badge: "7D", title: "Weekly", used: 0,
+                        resetsAt: nil, reportedSeverity: .normal)
+    #expect(metered.hasMeter)
+    #expect(metered.amountText == nil)
+}
+
+@Test("A balance keeps the currency the service reported")
+func balanceKeepsItsCurrency() {
+    let yuan = Gauge(id: "CNY", badge: "CNY", title: "CNY", used: 0, resetsAt: nil,
+                     reportedSeverity: .normal,
+                     amount: Gauge.Amount(value: 8.25, currency: "CNY"))
+    // No symbol is invented for a currency we cannot render unambiguously.
+    #expect(yuan.amountText == "8.25 CNY")
+    #expect(Gauge.symbol(for: "usd") == "$")
+    #expect(Gauge.symbol(for: "CNY") == nil)
+}
+
+@Test("Large balances drop the cents; small ones keep them")
+func balanceFormatting() {
+    func text(_ value: Double) -> String? {
+        Gauge(id: "b", badge: "BAL", title: "B", used: 0, resetsAt: nil,
+              reportedSeverity: .normal,
+              amount: Gauge.Amount(value: value, currency: "USD")).amountText
+    }
+    #expect(text(99.5) == "$99.50")
+    #expect(text(100) == "$100")
+    #expect(text(1234.56) == "$1235")
+    #expect(text(0) == "$0.00")
+}
+
+@Test("A menu bar row for a balance asks for no bar")
+@MainActor
+func balanceRowHasNoFill() {
+    let snapshot = Snapshot(
+        providerID: "vercel-gateway",
+        gauges: [Gauge(id: "credits", badge: "BAL", title: "Credits", used: 0,
+                       resetsAt: nil, reportedSeverity: .normal,
+                       amount: Gauge.Amount(value: 95.5, currency: "USD")),
+                 Gauge(id: "week", badge: "7D", title: "Weekly", used: 0.4,
+                       resetsAt: nil, reportedSeverity: .normal)],
+        extras: [], accountLabel: nil, fetchedAt: Date())
+    let rows = StatusRender.rows(for: snapshot)
+    #expect(rows[0].fill == nil)
+    #expect(rows[0].percentText == "$95.50")
+    #expect(rows[1].fill != nil)
+}
+
+@Test("A flat response can be one window; a declared envelope that is missing is not the whole reply")
+func singleWindowAndMissingEnvelope() {
+    var flat = HarnessDescriptor.Quota.Windows()
+    flat.single = "credits"
+    let found = DescriptorProvider.windows(in: ["balance": 95.5], map: flat)
+    #expect(found.count == 1)
+    #expect(found[0].key == "credits")
+
+    // A declared root that does not resolve must yield nothing, not the entire
+    // response — otherwise every top-level key becomes a candidate window.
+    var rooted = HarnessDescriptor.Quota.Windows()
+    rooted.roots = ["data.windowLimits", "windowLimits"]
+    #expect(DescriptorProvider.windows(in: ["other": ["a": 1]], map: rooted).isEmpty)
+    #expect(DescriptorProvider.windows(in: ["windowLimits": ["a": ["used": 1]]], map: rooted)
+        .map(\.key) == ["a"])
+}
+
+@Test("Currency is read from the window when a path is given, kept literal otherwise")
+func currencyResolution() {
+    var map = HarnessDescriptor.Quota.Windows()
+    // No default. A descriptor declaring a balance must declare its currency
+    // — the decoder refuses one that does not — so an undeclared currency
+    // here means the rule was removed, not that dollars are a fair guess. It
+    // used to answer "USD", which turns a CNY balance into a dollar figure
+    // wrong by an exchange rate.
+    #expect(DescriptorProvider.currency(map, window: [:]) == "")
+    map.currency = "USD"
+    #expect(DescriptorProvider.currency(map, window: ["currency": "CNY"]) == "USD")
+    map.currency = "currency"
+    #expect(DescriptorProvider.currency(map, window: ["currency": "CNY"]) == "CNY")
+    // A declared path that resolves to nothing keeps the code asked for rather
+    // than silently relabelling the money as dollars.
+    #expect(DescriptorProvider.currency(map, window: [:]) == "currency")
+}
+
+@Test("A recorded choice is never overwritten, however weak or odd it is")
+func autoEnableNeverOverwritesAChoice() {
+    let evidence = [
+        AgentAutoEnable.Evidence(id: "claude-code", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "codex", signedIn: true, hasSessions: true),
+    ]
+    let fallback = ["claude-code", "codex"]
+
+    // Nothing recorded: choose.
+    #expect(AgentAutoEnable.decision(recorded: nil, evidence: evidence, fallback: fallback)
+        == ["claude-code", "codex"])
+
+    // Anything recorded — including a deliberately narrow choice, or one
+    // naming an agent that is not installed — is the user's and stands.
+    for recorded in [["codex"], ["not-installed"], [] as [String]] {
+        #expect(AgentAutoEnable.decision(recorded: recorded, evidence: evidence,
+                                         fallback: fallback) == nil,
+                "a recorded \(recorded) must not be rewritten")
+    }
+
+    // No providers at all: write nothing rather than an empty set.
+    #expect(AgentAutoEnable.decision(recorded: nil, evidence: [], fallback: []) == nil)
+}
+
+// MARK: - The settings list
+
+@Test("Agents found on this Mac sort above those that are not")
+@MainActor
+func settingsListGroupsByPresence() {
+    let providers: [UsageProvider] = [
+        StubProvider("zeta", configured: false),
+        StubProvider("alpha", configured: true),
+        StubProvider("beta", configured: false),
+    ]
+    let evidence = [
+        AgentAutoEnable.Evidence(id: "zeta", signedIn: false, hasSessions: false),
+        AgentAutoEnable.Evidence(id: "alpha", signedIn: true, hasSessions: true),
+        AgentAutoEnable.Evidence(id: "beta", signedIn: false, hasSessions: true),
+    ]
+    let rows = SettingsView.agentRows(providers: providers, enabled: ["alpha"],
+                                      evidence: evidence)
+    // Present first, alphabetical within each group.
+    #expect(rows.map(\.id) == ["alpha", "beta", "zeta"])
+    #expect(rows.map(\.present) == [true, true, false])
+    #expect(rows[0].enabled)
+    #expect(!rows[1].enabled)
+}
+
+@Test("Each row says why it is where it is")
+@MainActor
+func settingsListExplainsEachRow() {
+    let providers: [UsageProvider] = [StubProvider("a", configured: true)]
+    func detail(signedIn: Bool, sessions: Bool) -> String {
+        SettingsView.agentRows(
+            providers: providers, enabled: [],
+            evidence: [AgentAutoEnable.Evidence(id: "a", signedIn: signedIn,
+                                                hasSessions: sessions)])[0].detail
+    }
+    #expect(detail(signedIn: true, sessions: true) == "Signed in · sessions on this Mac")
+    #expect(detail(signedIn: true, sessions: false) == "Signed in")
+    #expect(detail(signedIn: false, sessions: true).hasPrefix("Sessions on this Mac · "))
+    // Not found: the row carries the provider's own setup hint, not a blank.
+    #expect(detail(signedIn: false, sessions: false) == "stub")
+}
+
+@Test("An unverified integration says so in the list")
+@MainActor
+func settingsListMarksUnverified() {
+    let rows = SettingsView.agentRows(
+        providers: [StubProvider("a", configured: true)], enabled: [],
+        evidence: [AgentAutoEnable.Evidence(id: "a", signedIn: true, hasSessions: false)])
+    // StubProvider reports isVerified == false, as every descriptor-backed
+    // provider does until its figures are checked against a live account.
+    #expect(rows[0].unverified)
+}
+
+@Test("A quota-only harness says so, and reports the evidence it actually has")
+func quotaOnlyHarnessRowIsHonest() throws {
+    let descriptors = HarnessCLI.bundledDescriptors()
+
+    // Copilot reads no sessions at all: it exists for the menu bar gauge.
+    // "Native metadata" — what an unqualified `none` source used to say —
+    // implied a reader that does not exist.
+    let copilot = try #require(descriptors.first { $0.id == "copilot" })
+    let quotaRow = HarnessRowPresentation(descriptor: copilot, edited: false)
+    #expect(quotaRow.sourceLabel == "Quota only")
+    #expect(quotaRow.compatibilityLabel == "Quota fixture verified")
+
+    // Claude Code has no descriptor source either, but for the opposite
+    // reason — it is read natively — and it declares no quota block, so it
+    // keeps the old label.
+    let claude = try #require(descriptors.first { $0.id == "claude-code" })
+    #expect(claude.quota == nil)
+    #expect(HarnessRowPresentation(descriptor: claude, edited: false).sourceLabel
+        == "Native metadata")
+
+    // Every quota-only descriptor must be able to say its mapping is verified.
+    var quotaOnly = 0
+    for descriptor in descriptors where descriptor.source.kind == .none && descriptor.quota != nil {
+        quotaOnly += 1
+        let row = HarnessRowPresentation(descriptor: descriptor, edited: false)
+        #expect(row.sourceLabel == "Quota only")
+        #expect(row.compatibilityLabel == "Quota fixture verified",
+                "\(descriptor.id) reported \(row.compatibilityLabel)")
+    }
+    #expect(quotaOnly >= 6, "expected the quota-only descriptors; saw \(quotaOnly)")
+}
+
+// MARK: - Process lookups derived once
+
+@Test("Derived process lookups match the enabled descriptors they come from")
+func derivedLookupsMatchTheirSource() {
+    // These are now read off the catalog snapshot rather than recomputed per
+    // call. The saving is only safe while they still say the same thing.
+    // Built from a catalog the test controls: comparing two derived values
+    // from an empty catalog agrees trivially, which is what happens on a
+    // machine where nothing has been seeded.
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("lookups-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    for (id, fragment) in [("one", "/opt/one/bin/one"), ("two", "/opt/two/bin/two")] {
+        let document: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id,
+            "process": ["pathContains": [fragment], "names": ["\(id)-bin"]],
+            "source": ["kind": "none", "path": ""],
+        ]
+        try? JSONSerialization.data(withJSONObject: document)
+            .write(to: root.appendingPathComponent("\(id).json"))
+    }
+    let snapshot = HarnessCatalog(directory: root).snapshot(force: true)
+    #expect(snapshot.enabled.count == 2, "the catalog under test must not be empty")
+    #expect(snapshot.matchFragments == snapshot.enabled.flatMap(\.match))
+    #expect(snapshot.processNames == Set(snapshot.enabled.flatMap(\.processNames)))
+
+    // And the shipped accessors agree with the catalog they read.
+    let live = HarnessDescriptor.all()
+    #expect(HarnessDescriptor.matchFragments() == live.flatMap(\.match))
+    #expect(HarnessDescriptor.processNamesAll() == Set(live.flatMap(\.processNames)))
+}
+
+@Test("A disabled descriptor contributes nothing to the process lookups")
+func disabledDescriptorsAreExcludedFromLookups() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("catalog-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    func write(_ id: String, enabled: Bool, fragment: String) throws {
+        let document: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id, "enabled": enabled,
+            "process": ["pathContains": [fragment], "names": ["\(id)-bin"]],
+            "source": ["kind": "none", "path": ""],
+        ]
+        try JSONSerialization.data(withJSONObject: document)
+            .write(to: root.appendingPathComponent("\(id).json"))
+    }
+    try write("live", enabled: true, fragment: "/live/agent")
+    try write("off", enabled: false, fragment: "/off/agent")
+
+    let snapshot = HarnessCatalog(directory: root).snapshot(force: true)
+    #expect(snapshot.descriptors.count == 2)
+    #expect(snapshot.enabled.map(\.id) == ["live"])
+    #expect(snapshot.matchFragments.contains("/live/agent"))
+    #expect(!snapshot.matchFragments.contains("/off/agent"))
+    #expect(snapshot.processNames.contains("live-bin"))
+    #expect(!snapshot.processNames.contains("off-bin"))
+    // And they agree with deriving them the long way, which is what the
+    // per-call versions used to do.
+    #expect(snapshot.matchFragments == snapshot.enabled.flatMap(\.match))
+    #expect(snapshot.processNames == Set(snapshot.enabled.flatMap(\.processNames)))
+}
+
+// MARK: - Setup hints have to be actions that work
+
+@Test("A provider whose only credential is an environment variable says so")
+func envCredentialHintsMentionTheLimitation() throws {
+    // An app launched from Finder inherits no shell, so "set FOO_API_KEY" is
+    // advice that silently does nothing for most users. A descriptor that can
+    // only read an environment variable has to say how to do it another way.
+    var examined = 0
+    for descriptor in HarnessCLI.bundledDescriptors() {
+        guard let quota = descriptor.quota,
+              quota.credential?.kind == "env" else { continue }
+        examined += 1
+        let hint = try #require(quota.setupHint, "\(descriptor.id) has no setup hint")
+        // The route has to be one that works however Antarium was launched.
+        // A key file under the settings directory qualifies, and is the one
+        // the descriptor itself reads: an `env` credential falls back to its
+        // `path`. Naming the harness file qualifies too — editing it to a
+        // file credential is still a route. Naming only the variable does not.
+        let offersAnAlternative = hint.contains("~/.antarium/keys/")
+            || hint.contains(".json") || hint.contains("textFile")
+            || hint.contains("jsonFile") || hint.contains("terminal")
+        #expect(offersAnAlternative,
+                "\(descriptor.id): an env-only credential must offer a route that works for an app launched from Finder — hint was: \(hint)")
+        // And it has to fit the panel it is drawn in, which is 380pt wide with
+        // the name beside it. A hint that truncates mid-word helps nobody.
+        #expect(hint.count <= 48,
+                "\(descriptor.id): hint is \(hint.count) characters and will truncate — \(hint)")
+        // And the route the hint names has to be one the descriptor can
+        // actually read. A hint pointing at a key file while the credential
+        // reads only a variable is advice that does nothing — which is the
+        // shape this whole test exists to prevent, one level further in.
+        if hint.contains("~/.antarium/keys/") {
+            let path = try #require(quota.credential?.path,
+                                    "\(descriptor.id): the hint names a key file the credential never reads")
+            #expect(hint.contains(path),
+                    "\(descriptor.id): the hint names \(hint) and the credential reads \(path)")
+        }
+    }
+    // Without this the test passes on an empty set, which is how it would read
+    // if every env credential were renamed or removed: green, and checking
+    // nothing at all.
+    #expect(examined > 0, "no shipped descriptor uses an env credential to check")
+}
+
+@Test("Every shipped quota provider offers a way to configure it")
+func everyQuotaProviderHasAHint() {
+    var examined = 0
+    for descriptor in HarnessCLI.bundledDescriptors() {
+        guard let quota = descriptor.quota else { continue }
+        examined += 1
+        let hint = quota.setupHint ?? ""
+        #expect(!hint.isEmpty, "\(descriptor.id) has no setup hint")
+        // A hint is shown where the user cannot act on a shell prompt, so it
+        // must name something concrete rather than restate the problem.
+        #expect(hint.count > 12, "\(descriptor.id): hint is too vague — \(hint)")
+    }
+    #expect(examined >= 7, "expected every shipped quota provider; saw \(examined)")
+}
+
+@Test("First run gives a row to accounts that work and a single line to the rest")
+func onboardingSummarisesUnconfiguredAccounts() {
+    func finding(_ id: String, signedIn: Bool) -> Onboarding.Finding {
+        Onboarding.Finding(id: id, name: id,
+                           detail: signedIn ? "signed in" : "not signed in",
+                           found: signedIn,
+                           hint: signedIn ? nil : "Add your API key to \(id).json.")
+    }
+    let accounts = [finding("claude-code", signedIn: true), finding("copilot", signedIn: true)]
+        + (1...8).map { finding("other-\($0)", signedIn: false) }
+
+    let split = Onboarding.partition(accounts)
+    #expect(split.signedIn.map(\.id) == ["claude-code", "copilot"])
+    #expect(split.connectable.count == 8)
+    // The panel is 380pt wide and says "Antarium is ready" at the top. Eight
+    // unchecked rows with a hint each is the thing this prevents.
+    #expect(split.signedIn.count < accounts.count)
+}
+
+// MARK: - Providers that ship after the user chose
+
+@Test("A provider that did not exist when the user chose is not a rejected one")
+func adoptionDistinguishesNewFromRejected() {
+    // Calls the production decision. The first version of this test carried
+    // its own copy of the rule, so mutating the real one — dropping the
+    // signed-in requirement — changed nothing and the test stayed green.
+    let adopt = AgentAutoEnable.adoptions
+
+    // Signed in and never offered: adopted.
+    #expect(adopt(["claude-code"], ["claude-code"],
+                  [("claude-code", true), ("copilot", true)]) == ["copilot"])
+
+    // Offered before and switched off: left alone, however plainly installed.
+    #expect(adopt(["claude-code", "copilot"], ["claude-code"],
+                  [("claude-code", true), ("copilot", true)]).isEmpty)
+
+    // New but not signed in: that item could only say "sign in".
+    #expect(adopt(["claude-code"], ["claude-code"],
+                  [("claude-code", true), ("zai", false)]).isEmpty)
+
+    // An install that has never recorded what it has shown cannot tell new
+    // from rejected, so it adopts nothing.
+    #expect(adopt([], ["claude-code"], [("copilot", true)]).isEmpty)
+
+    // A full bar is not expanded.
+    #expect(adopt(["a"], ["a", "b", "c", "d"],
+                  (1...6).map { ("new-\($0)", true) }).isEmpty)
+
+    // With one slot left, exactly one is taken — the first by id.
+    #expect(adopt(["a"], ["a", "b", "c"],
+                  [("new-b", true), ("new-a", true)]) == ["new-a"])
+}
+
+
+@Test("A fixture notices when the gauges come back in the wrong order")
+func quotaFixtureIsOrderSensitive() {
+    // Gauge order is what the menu bar draws, and the stable-sort fix exists
+    // to keep it steady. A comparison that matched rows by id rather than
+    // position would accept a reordering silently.
+    let expected = QuotaFixture.Expectation(accountLabel: nil, gauges: [
+        .init(id: "first", badge: "5H", title: "First", usedPercent: 10,
+              windowSeconds: nil, resetsAt: nil, amount: nil, currency: nil),
+        .init(id: "second", badge: "7D", title: "Second", usedPercent: 20,
+              windowSeconds: nil, resetsAt: nil, amount: nil, currency: nil),
+    ])
+    func gauge(_ id: String, _ badge: String, _ title: String, _ used: Double) -> Gauge {
+        Gauge(id: id, badge: badge, title: title, used: used, resetsAt: nil,
+              reportedSeverity: .normal)
+    }
+    let inOrder = Snapshot(providerID: "x",
+                           gauges: [gauge("first", "5H", "First", 0.10),
+                                    gauge("second", "7D", "Second", 0.20)],
+                           extras: [], accountLabel: nil, fetchedAt: Date())
+    #expect(QuotaFixture.differences(expected: expected, actual: inOrder).isEmpty)
+
+    let swapped = Snapshot(providerID: "x",
+                           gauges: [gauge("second", "7D", "Second", 0.20),
+                                    gauge("first", "5H", "First", 0.10)],
+                           extras: [], accountLabel: nil, fetchedAt: Date())
+    #expect(!QuotaFixture.differences(expected: expected, actual: swapped).isEmpty,
+            "a reordered set of gauges was accepted")
+}
+
+@Suite("Settings accounts for agents the first run passed over", .serialized)
+@MainActor
+struct AgentCountSummaryTests {
+
+    private func row(_ id: String, present: Bool, enabled: Bool) -> SettingsView.AgentRow {
+        SettingsView.AgentRow(id: id, name: id, enabled: enabled,
+                              detail: "", unverified: false, present: present)
+    }
+
+    @Test("A present agent that is switched off is counted, not hidden")
+    func shortfallIsNamed() {
+        // Five present, four enabled — the shape a first run leaves behind on
+        // a Mac with more agents than AgentAutoEnable.limit.
+        let rows = (1...4).map { row("on-\($0)", present: true, enabled: true) }
+            + [row("cut", present: true, enabled: false),
+               row("absent", present: false, enabled: false)]
+        #expect(SettingsView.agentCountSummary(rows) == "4 of 6 shown · 1 more found here")
+    }
+
+    @Test("Nothing is added when every agent found here is already shown")
+    func noShortfall() {
+        let rows = [row("on", present: true, enabled: true),
+                    row("absent", present: false, enabled: false)]
+        #expect(SettingsView.agentCountSummary(rows) == "1 of 2 shown")
+    }
+
+    @Test("An agent with no trace on this Mac is not reported as found")
+    func absentIsNotCounted() {
+        let rows = [row("on", present: true, enabled: true),
+                    row("a", present: false, enabled: false),
+                    row("b", present: false, enabled: false)]
+        #expect(SettingsView.agentCountSummary(rows) == "1 of 3 shown")
+    }
+
+    /// The limit is what creates the shortfall the line above reports, so
+    /// something has to hold it in place — otherwise raising `limit` past the
+    /// number of providers makes that line unreachable and the tests above
+    /// measure nothing. Stated over `resolve` itself rather than over
+    /// `ProviderRegistry.all`, whose size is whatever this Mac has seeded.
+    @Test("More present agents than the limit leaves some found and not shown")
+    func limitCutsPresentAgents() {
+        let found = (0...AgentAutoEnable.limit).map {
+            AgentAutoEnable.Evidence(id: "agent-\($0)", signedIn: true, hasSessions: true)
+        }
+        let chosen = AgentAutoEnable.resolve(found, fallback: [])
+        #expect(chosen.count == AgentAutoEnable.limit)
+        #expect(chosen.count < found.count)
+        let cut = found.filter { !chosen.contains($0.id) }
+        #expect(cut.count == 1)
+        let allPresent = cut.allSatisfy { $0.present }
+        #expect(allPresent, "the agent it passed over is present here")
+    }
+}
+
+/// "Has the user chosen which agents to show?" had two answers.
+///
+/// `Settings.enabledAgents` returned `["claude-code", "codex", "cursor"]` when
+/// nothing was recorded, and a separate `AgentAutoEnable.isUnconfigured` said
+/// nothing was recorded. Both were right by their own rule, and the combination put back
+/// the exact symptom auto-detection exists to fix — a bar opening to three
+/// fixed agents regardless of what the Mac has — in the one state where
+/// detection had not run yet.
+///
+/// These run against whatever this machine has recorded, which is the point:
+/// the property has to hold in both states, so neither a developer's
+/// configured Mac nor the bare home `verify.sh` runs the suite under can
+/// satisfy it by accident.
+@Suite("One answer to whether agents have been chosen")
+struct EnabledAgentsAgreementTests {
+
+    /// Nothing recorded means nothing enabled. This is the assertion the
+    /// fixed default broke, and it is written against the value rather than
+    /// against the machine — on a Mac with a choice recorded, a property test
+    /// of the no-choice case asserts nothing, which is how the fixed default
+    /// went back in without a single test noticing.
+    @Test("Nothing recorded means nothing enabled")
+    func absentRecordEnablesNothing() {
+        #expect(Settings.agents(recorded: nil).isEmpty,
+                "an agent is enabled that nobody chose")
+        #expect(Settings.unconfigured(recorded: nil))
+    }
+
+    /// Choosing nothing is a choice, and not the same as never choosing.
+    /// Collapsing the two would make a first run rewrite a bar the user had
+    /// deliberately emptied.
+    @Test("An empty record is a choice, not the absence of one")
+    func emptyRecordIsAChoice() {
+        #expect(Settings.unconfigured(recorded: []) == false)
+        #expect(Settings.agents(recorded: []).isEmpty)
+    }
+
+    @Test("A record is what is enabled, in every shape")
+    func recordIsHonoured() {
+        #expect(Settings.agents(recorded: ["codex"]) == ["codex"])
+        #expect(Settings.agents(recorded: ["b", "a", "b"]) == ["a", "b"])
+    }
+
+    /// The property the two used to break. Stated over the values rather than
+    /// read off this machine, so both states are covered wherever it runs.
+    @Test("Unconfigured always means empty", arguments: [
+        nil, [], ["codex"], ["codex", "cursor"],
+    ] as [[String]?])
+    func unconfiguredImpliesEmpty(_ recorded: [String]?) {
+        if Settings.unconfigured(recorded: recorded) {
+            #expect(Settings.agents(recorded: recorded).isEmpty)
+        }
+    }
+
+    /// And the live property is wired to the function rather than
+    /// reimplementing it.
+    @Test("The live setting reads through the same function")
+    func livePropertyAgrees() {
+        #expect(Settings.enabledAgents == Settings.agents(recorded: Settings.recordedAgents))
+    }
+
+    /// The empty set is not a hole in the menu bar. `shown` stands in the
+    /// first provider, which is what makes defaulting to empty safe — without
+    /// it, a fresh install before detection would have no items and no way
+    /// back into the app.
+    @Test("An empty choice still yields a menu bar item")
+    func emptyChoiceStillShowsSomething() {
+        let providers = ProviderRegistry.all
+        guard !providers.isEmpty else { return }
+        let shown = ProviderRegistry.shown(from: providers, enabled: [])
+        #expect(shown.count == 1)
+        #expect(shown.first?.id == providers.first?.id)
+    }
+
+    /// And a choice naming only agents that no longer exist is the same case.
+    @Test("A choice naming nothing that exists yields a menu bar item")
+    func staleChoiceStillShowsSomething() {
+        let providers = ProviderRegistry.all
+        guard !providers.isEmpty else { return }
+        let shown = ProviderRegistry.shown(from: providers,
+                                           enabled: ["an-agent-that-was-renamed"])
+        #expect(shown.count == 1)
+    }
+}

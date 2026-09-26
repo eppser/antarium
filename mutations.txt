@@ -1,0 +1,1136 @@
+# Mutations that a healthy test suite must catch.
+#
+# Each line is: name | file | sed expression
+#
+# This is not a bug hunt. Every mutation here has been confirmed to fail at
+# least one test, so a SURVIVED result means a test has been weakened or
+# deleted — the failure mode that is otherwise invisible, because a suite full
+# of tests that cannot fail is indistinguishable from a suite that passes.
+#
+# Blank lines and lines starting with # are ignored.
+# --- product rules a user would notice
+auto-enable cap 4 -> 100 | Sources/Antarium/Core/AgentAutoEnable.swift | s/static let limit = 4/static let limit = 100/
+adopt providers that are not signed in | Sources/Antarium/Core/AgentAutoEnable.swift | s/            guard provider.signedIn else { continue }/            if false { continue }/
+idle threshold 90s -> 1 hour | Sources/Antarium/Core/AgentScan.swift | s/static let idleAfter: TimeInterval = 90/static let idleAfter: TimeInterval = 3600/
+stale threshold 12h -> 1 minute | Sources/Antarium/Core/AgentScan.swift | s/static let staleAfter: TimeInterval = 12 \* 3600/static let staleAfter: TimeInterval = 60/
+severity critical threshold 15% -> 1% | Sources/Antarium/Core/UsageModel.swift | s/case ..<0.15: return .critical/case ..<0.01: return .critical/
+balance gauge colours itself | Sources/Antarium/Core/UsageModel.swift | s/hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity/max(reportedSeverity, Severity.forRemaining(remaining))/
+longest pricing prefix no longer wins | Sources/Antarium/Core/Pricing.swift | s/.sorted { \$0.prefix.count > \$1.prefix.count }/.sorted { $0.prefix.count < $1.prefix.count }/
+# --- data integrity
+absent balance charts as zero | Sources/Antarium/Providers/DescriptorProvider.swift | s/guard let value = FieldPath.number(window, path) else { continue }/let value = FieldPath.number(window, path) ?? 0/
+negative token counts accepted | Sources/Antarium/Core/TranscriptStats.swift | s/guard value >= 0 else { return nil }/if false { return nil }/
+cost priced despite a usage issue | Sources/Antarium/Core/TranscriptStats.swift | s/guard usageIssue == nil, !usageByModel.isEmpty else { return nil }/guard !usageByModel.isEmpty else { return nil }/
+a provider error erases its last reading | Sources/Antarium/Core/QuotaStore.swift | s/if let last { snapshots\[providerID\] = last }//
+detection treats missing as found | Sources/Antarium/Core/Onboarding.swift | s/let found = FileManager.default.fileExists(atPath: path)/let found = true/
+countdown loses its absent case | Sources/Antarium/UI/Format.swift | s/guard let date else { return "—" }/if date == nil { return "0m" }; guard let date else { return "—" }/
+# --- identity and change detection
+identity drops the session id | Sources/Antarium/Core/AgentIdentity.swift | s/digest("\\(sessionID)|\\(project)")/digest(project)/
+identity drops the harness | Sources/Antarium/Core/AgentIdentity.swift | s/return "\\(harness)-session-/return "session-/
+# --- safety boundaries
+a descriptor may displace a native provider | Sources/Antarium/Core/UsageProvider.swift | s/let taken = Set(native.map(\\.id))/let taken = Set<String>()/
+config directory world-readable | Sources/Antarium/Core/ConfigurationFile.swift | s/\[.posixPermissions: 0o700\]/[.posixPermissions: 0o755]/
+harness directory world-readable | Sources/Antarium/Core/HarnessSeed.swift | s/\[.posixPermissions:0o700\]/[.posixPermissions:0o755]/
+private write follows a symlink destination | Sources/Antarium/Core/PrivateFile.swift | s/guard info.st_mode \& S_IFMT == S_IFREG else { throw WriteError.invalidDestination }/_ = info.st_mode/
+argument NUL bytes allowed | Sources/Antarium/Core/LaunchArguments.swift | s/ \&\& !\$0.contains("\\0")//
+host safety check disabled | Sources/Antarium/Core/RemoteTmux.swift | s/func isSafeHost(_ host: String) -> Bool {/func isSafeHost(_ host: String) -> Bool { if true { return true };/
+# --- reading and performance
+usage response declared-length cap removed | Sources/Antarium/Core/BoundedResponse.swift | s/let refuse = response.expectedContentLength > Int64(limit)/let refuse = false/
+usage response running-total cap removed | Sources/Antarium/Core/BoundedResponse.swift | s/if entry.data.count + data.count > limit {/if false {/
+trace reader drops the newline from its cursor | Sources/Antarium/Core/BoundedTraceReader.swift | s/                    readOffset += 1/                    readOffset += 0/
+marker scan stops at the first marker | Sources/Antarium/Core/TranscriptStats.swift | s/            if tools \&\& usage \&\& schedule { break }/            if tools || usage || schedule { break }/
+# --- workspace harnesses
+workspace harnesses emit rows again | Sources/Antarium/Core/AgentScan.swift | s/        if descriptor.contributesFocusOnly { return \[\] }//
+focus substitutes nothing | Sources/Antarium/Core/Focus.swift | s/\$0.replacingOccurrences(of: "{focusTarget}", with: target)/$0/
+ambiguous directory resolved anyway | Sources/Antarium/Core/AgentScan.swift | s/rowsPerDirectory\[cwd\] == 1,/true,/
+# --- descriptors
+#
+# Most agent-specific facts are configuration, not code, and a wrong field
+# path is the most likely way a harness silently stops reporting. These are
+# caught by the fixture and probe suites rather than by a unit test.
+copilot drops the has_quota filter | Resources/harnesses/copilot.json | s/"require": {/"requireX": {/
+copilot percent field renamed | Resources/harnesses/copilot.json | s/"percentRemaining": "percent_remaining"/"percentRemaining": "percentRemaining"/
+zai loses the unit half of its window key | Resources/harnesses/zai.json | s/        "unit"/        "unitX"/
+minimax limit field renamed | Resources/harnesses/minimax.json | s/"limit": "current_interval_total_count"/"limit": "total_count"/
+deepseek assumes dollars | Resources/harnesses/deepseek.json | s/"currency": "currency"/"currency": "USD"/
+commandcode envelope path renamed | Resources/harnesses/commandcode.json | s/"data.windowLimits"/"data.windowLimitsX"/
+herdr focus target renamed | Resources/harnesses/herdr.json | s/"focusTarget": "tab_id"/"focusTarget": "tabId"/
+orca records path renamed | Resources/harnesses/orca.json | s/"root": "result.terminals"/"root": "terminals"/
+presence harness emits no rows | Sources/Antarium/Core/AgentScan.swift | s/            return presenceRows(descriptor, processes: processes)/            return []/
+presence rows invent a zero cost | Sources/Antarium/Core/AgentScan.swift | s/                    state: .unobserved,/                    state: .waiting,/
+gemini matcher widened to a path fragment | Resources/harnesses/gemini.json | s/"names": \[/"pathContains": ["\/bin\/gemini"], "names": [/
+copilot-cli sums cache reads into input | Resources/harnesses/copilot-cli.json | s/SUM(u.cache_read_tokens)/SUM(u.input_tokens)/
+copilot-cli takes the oldest model | Resources/harnesses/copilot-cli.json | s/ORDER BY u.id DESC LIMIT 1/ORDER BY u.id ASC LIMIT 1/
+copilot-cli loses its turn count | Resources/harnesses/copilot-cli.json | s/(SELECT COUNT(\*) FROM turns t WHERE t.session_id = s.id) AS turns/0 AS turns/
+openclaw counts cache reads as input | Resources/harnesses/openclaw.json | s/"inputTokens": "message.usage.input"/"inputTokens": "message.usage.cacheRead"/
+openclaw accumulates the context size | Resources/harnesses/openclaw.json | s/"message.usage.totalTokens"/"message.usage.input"/
+openclaw glob loses the agent level | Resources/harnesses/openclaw.json | s|"glob": "\*/sessions/\*.jsonl"|"glob": "*.jsonl"|
+presence agents vanish from first run | Sources/Antarium/Core/Onboarding.swift | s/            if descriptor.contributesPresenceOnly {/            if false {/
+benchmark hides an unabsorbed backlog | Sources/Antarium/Core/TranscriptStats.swift | s/return cache.values.filter { \$0.backlog == true }.count/return 0/
+record limit back below real transcripts | Sources/Antarium/Core/BoundedTraceReader.swift | s/maxRecord: Int = 2 \* 1_024 \* 1_024/maxRecord: Int = 1_024 * 1_024/
+agent rows hide why their figures are missing | Sources/Antarium/Diagnostics.swift | s/        if let note = r.note, !note.isEmpty { lines.append("    \\(note)") }//
+dashboard hides that totals are incomplete | Sources/Antarium/UI/Dashboard.swift | s|        let waiting = rows.filter(\\.awaitingHistory).count|        let waiting = 0|
+cache reads billed at the input rate | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheRead) / 1_000_000 \* rate.cacheRead|+ Double(usage.cacheRead) / 1_000_000 * rate.input|
+per-million divisor off by a thousand | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.input) / 1_000_000 \* rate.input|Double(usage.input) / 1_000 * rate.input|
+one-hour cache writes dropped from the bill | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheWrite1h) / 1_000_000 \* rate.cacheWrite1h||
+unexplained cache writes billed at the dearer rate | Sources/Antarium/Core/TranscriptStats.swift | s|let write5 = add(w5, max(0, writeTotal - classified))|let write5 = add(w5, 0)|
+an unpriced model silently drops out of the total | Sources/Antarium/Core/TranscriptStats.swift | s|.allSatisfy({ \$0.isFinite \&\& \$0 >= 0 }) else { return nil }|.allSatisfy({ $0.isFinite \&\& $0 >= 0 }) else { continue }|
+settings hides agents the first run passed over | Sources/Antarium/UI/SettingsView.swift | s|let waiting = rows.filter { \$0.present \&\& !\$0.enabled }.count|let waiting = 0|
+another vendor's token accepted as this one's | Sources/Antarium/Providers/DescriptorProvider.swift | s|for (path, required) in credential.requires ?? \[:\] {|for (path, required) in [String: String]() {|
+shipped shared-file credential left unguarded | Resources/harnesses/zai.json | s|"requires": {|"unused": {|
+credential follows a redirect to another host | Sources/Antarium/Core/BoundedResponse.swift | s|to.host?.lowercased() == fromHost,|to.host != nil,|
+same-host redirects refused too, breaking real endpoints | Sources/Antarium/Core/BoundedResponse.swift | s|completionHandler(request)$|completionHandler(nil)|
+unbounded gauges from a list response | Sources/Antarium/Providers/DescriptorProvider.swift | s|(FieldPath.first(json, path) as? \[Any\] ?? \[\]).prefix(maxWindows)|FieldPath.first(json, path) as? [Any] ?? []|
+unbounded gauges from an object response | Sources/Antarium/Providers/DescriptorProvider.swift | s|^                .prefix(maxWindows)$||
+response text clamp does nothing | Sources/Antarium/Providers/DescriptorProvider.swift | s|text.count <= maxResponseText ? text : String(text.prefix(maxResponseText))|text|
+window cap set below what real plans report | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 2|
+server sets the poll rate through resetsAt | Sources/Antarium/AgentItem.swift | s|let candidate = max(after, floor)|let candidate = after|
+stale reset dates become a reason to poll | Sources/Antarium/AgentItem.swift | s|guard after > now else { continue }||
+poll floor swallows real rollovers | Sources/Antarium/AgentItem.swift | s|static let minimumPollInterval: TimeInterval = 60|static let minimumPollInterval: TimeInterval = 3600|
+registry entry count unbounded | Sources/Antarium/Core/AgentScan.swift | s|guard entries.count <= 512 else { throw RegistryError.limit }||
+control characters allowed in a session cwd | Sources/Antarium/Core/AgentScan.swift | s|!cwd.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains(\$0) })|true|
+session cwd length unbounded | Sources/Antarium/Core/AgentScan.swift | s|cwd.utf8.count <= 4_096|cwd.utf8.count <= 1_000_000|
+an unusable pid is silently ignored | Sources/Antarium/Core/AgentScan.swift | s|if let raw = d\["pid"\], !(raw is NSNull), pid == nil { throw RegistryError.invalid }||
+no published status reads as busy | Sources/Antarium/Core/AgentScan.swift | s|default:      return nil|default:      return .working|
+published status ignored entirely | Sources/Antarium/Core/AgentScan.swift | s|case "busy":  return .working|case "busy":  return nil|
+registry timestamps unvalidated | Sources/Antarium/Core/AgentScan.swift | s|milliseconds <= 253_402_300_799_000 else { throw RegistryError.invalid }|milliseconds <= .infinity else { throw RegistryError.invalid }|
+negative registry timestamps accepted | Sources/Antarium/Core/AgentScan.swift | s|guard let milliseconds = FieldPath.numeric(raw), milliseconds >= 0,|guard let milliseconds = FieldPath.numeric(raw),|
+a dead process keeps its pid | Sources/Antarium/Core/AgentScan.swift | s|pid: alive ? pid : nil,|pid: pid,|
+sessions sharing an id collapse into one row | Sources/Antarium/Core/AgentScan.swift | s|sessionID: sessionID, cwd: cwd, pid: pid)|sessionID: sessionID, cwd: "", pid: nil)|
+a missing registry becomes a scan failure | Sources/Antarium/Core/AgentScan.swift | s|if errno == ENOENT { return \[\] }||
+application raised before the workspace manager | Sources/Antarium/Core/Focus.swift | s|if let pid = row.pid { steps.append(.app(pid: pid)) }|if let pid = row.pid { steps.insert(.app(pid: pid), at: 0) }|
+remote rows are routed to a local window | Sources/Antarium/Core/Focus.swift | s|guard canRevealLocally(row) else { return \[\] }||
+tmux tried after the application | Sources/Antarium/Core/Focus.swift | s|if let target = row.tmuxTarget, !target.isEmpty { steps.append(.tmux(target)) }||
+first run chooses without recording what it saw | Sources/Antarium/Core/AgentAutoEnable.swift | s|return (chosen, Set(evidence.map(\\.id)))|return (chosen, [])|
+first run records only what it enabled | Sources/Antarium/Core/AgentAutoEnable.swift | s|return (chosen, Set(evidence.map(\\.id)))|return (chosen, chosen)|
+adoption forgets what it saw when it adopts nothing | Sources/Antarium/Core/AgentAutoEnable.swift | s|seen.union(Set(providers.map(\\.id))))|seen)|
+a rejected agent is adopted again | Sources/Antarium/Core/AgentAutoEnable.swift | s|where !seen.contains(provider.id) \&\& !enabled.contains(provider.id) {|where !enabled.contains(provider.id) {|
+adoption ignores the bar cap | Sources/Antarium/Core/AgentAutoEnable.swift | s|var room = limit - enabled.count|var room = 99|
+an unsigned agent is adopted | Sources/Antarium/Core/AgentAutoEnable.swift | s|guard provider.signedIn else { continue }||
+model label carries the release date | Sources/Antarium/Core/Pricing.swift | s|while let last = parts.last, last.count >= 6, last.allSatisfy(\\.isNumber) {|while false, let last = parts.last, last.count >= 6, last.allSatisfy(\\.isNumber) {|
+date stripping eats the version too | Sources/Antarium/Core/Pricing.swift | s|last.count >= 6, last.allSatisfy(\\.isNumber)|last.allSatisfy(\\.isNumber)|
+provider prefix treated as the model name | Sources/Antarium/Core/Pricing.swift | s|if let slash = s.lastIndex(of: "/") { s = String(s\[s.index(after: slash)...\]) }||
+local bin dropped from the search again | Sources/Antarium/Core/CommandPath.swift | s|+ fallbacks + \[home + "/.local/bin"\]|+ fallbacks|
+a non-executable file counts as installed | Sources/Antarium/Core/CommandPath.swift | s|.first { FileManager.default.isExecutableFile(atPath: \$0) }|.first { FileManager.default.fileExists(atPath: $0) }|
+a command given as a path is not checked | Sources/Antarium/Core/CommandPath.swift | s|return FileManager.default.isExecutableFile(atPath: path) ? path : nil|return path|
+search order reversed | Sources/Antarium/Core/CommandPath.swift | s|return (places ?? Self.places)|return (places ?? Self.places).reversed()|
+claimed processes are not measured | Sources/Antarium/Core/AgentScan.swift | s|if fragments.contains(where: { candidate.contains(\$0) }) { return true }||
+claude credential file read unbounded again | Sources/Antarium/Providers/ClaudeCredentials.swift | s|BoundedFile.read(credentialsFile, maxBytes: 256 \* 1_024)|Data(contentsOf: credentialsFile)|
+codex reports signed in when the file merely exists | Sources/Antarium/Providers/CodexProvider.swift | s|ConfiguredProbe.value(id) { self.credentials() != nil }|FileManager.default.fileExists(atPath: codexHome.appendingPathComponent("auth.json").path)|
+codex sign-in forgets the API-key login | Sources/Antarium/Providers/CodexProvider.swift | s|?? auth?\["OPENAI_API_KEY"\] as? String|?? nil|
+credential output cap set absurdly low | Sources/Antarium/Providers/DescriptorProvider.swift | s|outputLimit: 8 \* 1_024|outputLimit: 8|
+credential output truncation passes as a token | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else { return nil }||
+live cache joins its own superseded list | Sources/Antarium/Core/TranscriptStats.swift | s|"transcripts-v4.json", "transcripts-v5.json",|"transcripts-v4.json", "transcripts-v5.json", "transcripts-v6.json",|
+the scanner measures everything | Sources/Antarium/Core/AgentScan.swift | s|return names.contains((candidate as NSString).lastPathComponent)|return true|
+negative usage accepted by the harness engine | Sources/Antarium/Core/HarnessEngine.swift | s|(FieldPath.int(record, path).map { \$0 >= 0 } != true) {|(FieldPath.int(record, path) == nil) {|
+a missing usage field fails the read | Sources/Antarium/Core/HarnessEngine.swift | s|let amount = path.flatMap { FieldPath.int(record, \$0) } ?? 0|let amount = path.flatMap { FieldPath.int(record, $0) } ?? -1|
+sparkline drawn newest-first | Sources/Antarium/Core/TranscriptStats.swift | s|buckets\[newest - (count - 1 - \$0)\] ?? 0|buckets[newest - $0] ?? 0|
+sparkline window shifted by one | Sources/Antarium/Core/TranscriptStats.swift | s|buckets\[newest - (count - 1 - \$0)\] ?? 0|buckets[newest - (count - $0)] ?? 0|
+unreadable clock yields a wrong-length window | Sources/Antarium/Core/TranscriptStats.swift | s|return Array(repeating: 0, count: count) }|return [] }|
+future buckets pulled into the window | Sources/Antarium/Core/TranscriptStats.swift | s|let newest = epoch / bucketSeconds|let newest = epoch / bucketSeconds + 50|
+remote host fills the dashboard unbounded | Sources/Antarium/Core/RemoteTmux.swift | s|if panes.count > maxRows {|if false {|
+remote row cap set below a real fleet machine | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 2|
+gemini headroom read as a percentage | Sources/Antarium/Providers/GeminiProvider.swift | s|used: min(max(1 - fraction, 0), 1),|used: min(max(fraction, 0), 1),|
+gemini token never refreshed before use | Sources/Antarium/Providers/GeminiProvider.swift | s|guard let expiresAt else { return false }|return false; guard let expiresAt else { return false }|
+gemini staleness margin removed | Sources/Antarium/Providers/GeminiProvider.swift | s|return expiresAt.timeIntervalSince(now) <= margin|return expiresAt.timeIntervalSince(now) <= 0|
+gemini buckets unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|buckets.prefix(maxBuckets)|buckets|
+gemini bucket text unclamped | Sources/Antarium/Providers/GeminiProvider.swift | s|text.count <= maxText ? text : String(text.prefix(maxText))|text|
+gemini credential file read unbounded | Sources/Antarium/Providers/GeminiProvider.swift | s|BoundedFile.read(url, maxBytes: 256 \* 1_024)|Data(contentsOf: url)|
+gemini charts a bucket with no fraction | Sources/Antarium/Providers/GeminiProvider.swift | s|guard !id.isEmpty else { continue }||
+amp meter inverted | Sources/Antarium/Providers/AmpProvider.swift | s|used: min(max(1 - amount / total, 0), 1),|used: min(max(amount / total, 0), 1),|
+amp reads a later price in the line | Sources/Antarium/Providers/AmpProvider.swift | s|guard let start = text.firstIndex(of: "\$") else { return nil }|guard let start = text.lastIndex(of: "$") else { return nil }|
+amp accepts a non-finite figure | Sources/Antarium/Providers/AmpProvider.swift | s|let value = Double(text\[start..<index\]), value.isFinite|let value = Double(text[start..<index])|
+amp charts a zero cap | Sources/Antarium/Providers/AmpProvider.swift | s|if let total, total > 0 {|if let total, total >= 0 {|
+amp line count unbounded | Sources/Antarium/Providers/AmpProvider.swift | s|.prefix(maxLines)||
+amp label length unbounded | Sources/Antarium/Providers/AmpProvider.swift | s|guard !label.isEmpty, label.count <= 64 else { continue }|guard !label.isEmpty else { continue }|
+amp requires no remaining marker | Sources/Antarium/Providers/AmpProvider.swift | s|guard line.contains("remaining"), let colon|guard let colon|
+kiro meter inverted | Sources/Antarium/Providers/KiroProvider.swift | s|used: min(max(used / total, 0), 1)|used: min(max(1 - used / total, 0), 1)|
+kiro reset year never rolls over | Sources/Antarium/Providers/KiroProvider.swift | s|if candidate > now { return candidate }|return candidate; if candidate > now { return candidate }|
+kiro reset resolved in local time | Sources/Antarium/Providers/KiroProvider.swift | s|calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt|calendar.timeZone = TimeZone(identifier: "Asia/Kolkata") ?? .gmt|
+kiro accepts an impossible month | Sources/Antarium/Providers/KiroProvider.swift | s|month >= 1, month <= 12,|month >= 1,|
+kiro colour codes not stripped | Sources/Antarium/Providers/KiroProvider.swift | s|let clean = stripANSI(text)|let clean = text|
+kiro charts a zero cap | Sources/Antarium/Providers/KiroProvider.swift | s|separator: "/"), total > 0 {|separator: "/"), total >= 0 {|
+kiro line count unbounded | Sources/Antarium/Providers/KiroProvider.swift | s|.prefix(maxLines)||
+kiro emoji becomes part of the label | Sources/Antarium/Providers/KiroProvider.swift | s|.drop { !\$0.isLetter }||
+claude binding week is the first not the worst | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|weeklies.max(by: { \$0.percent < \$1.percent })|weeklies.first|
+claude extras listed best first | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|.sorted { \$0.percent > \$1.percent }|.sorted { $0.percent < $1.percent }|
+claude binding week also listed as an extra | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|.filter { \$0 !== binding }||
+claude window with no reset borrows one | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|used: binding.percent / 100, resetsAt: binding.resetsAt,|used: binding.percent / 100, resetsAt: binding.resetsAt ?? sessionLimit.resetsAt,|
+claude percent used as a fraction | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|used: sessionLimit.percent / 100,|used: sessionLimit.percent,|
+cursor primary window is not the total | Sources/Antarium/Providers/CursorProvider.swift | s|let total = candidates.first { \$0.id == "total" }|let total: Gauge? = nil|
+cursor secondary windows listed best first | Sources/Antarium/Providers/CursorProvider.swift | s|.sorted { \$0.used > \$1.used }|.sorted { $0.used < $1.used }|
+cursor shows a window twice | Sources/Antarium/Providers/CursorProvider.swift | s|let extras = candidates.filter { !shown.contains(\$0.id) }|let extras = candidates|
+codex windows unsorted | Sources/Antarium/Providers/CodexProvider.swift | s|gauges.sort { (\$0.windowSeconds ?? .greatestFiniteMagnitude)|gauges.sort { (-(\$0.windowSeconds ?? 0))|
+codex empty response accepted | Sources/Antarium/Providers/CodexProvider.swift | s|guard !gauges.isEmpty else {|guard true else {|
+codex additional caps dropped | Sources/Antarium/Providers/CodexProvider.swift | s|let inner = extra\["rate_limit"\] as? \[String: Any\] ?? extra|let inner = extra|
+field path booleans counted as numbers | Sources/Antarium/Core/FieldPath.swift | s|if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }|if false { return nil }|
+field path accepts a non-finite total | Sources/Antarium/Core/FieldPath.swift | s|guard total.isFinite else { return nil }||
+field path last-element selector reads the first | Sources/Antarium/Core/FieldPath.swift | s%case .last: selected = array.suffix(1).map { \$0 }%case .last: selected = array.prefix(1).map { $0 }%
+field path model reads the oldest value | Sources/Antarium/Core/FieldPath.swift | s|each(record, path).compactMap { \$0 as? String }.last|each(record, path).compactMap { $0 as? String }.first|
+field path missing value becomes zero | Sources/Antarium/Core/FieldPath.swift | s|guard !found.isEmpty else { return nil }|if found.isEmpty { return 0 }|
+field path array selector ignores the suffix | Sources/Antarium/Core/FieldPath.swift | s%        guard !path.isEmpty else { return entries }%        guard false else { return entries }%
+field path integer total wraps | Sources/Antarium/Core/FieldPath.swift | s|guard !sum.overflow else { return nil }||
+check accepts an unknown descriptor field | Sources/Antarium/Core/HarnessCheck.swift | s|for problem in schemaProblems(in: object) { fail(problem) }||
+check accepts a plaintext usage endpoint | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   true,|
+check accepts a credential missing its path | Sources/Antarium/Core/HarnessCheck.swift | s|fail("quota.credential of kind \\(credential.kind) needs \\(missing)")||
+check reports a problem on a clean descriptor | Sources/Antarium/Core/HarnessCheck.swift | s|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }|func fail(_ m: String) { print("  ✗ \\(m)"); problems += 1 }; problems += 1|
+unreadable local source leaves stale rows looking live | Sources/Antarium/Core/AgentStore.swift | s|row.state = .unobserved; row.rssBytes = nil; row.localObservationIssue = issue|row.localObservationIssue = issue|
+a host that did not answer keeps its rows looking live | Sources/Antarium/Core/AgentStore.swift | s|var stale = row; stale.state = .unobserved; stale.remoteObservationIssue = result.issue|var stale = row; stale.remoteObservationIssue = result.issue|
+a removed host keeps its rows on the dashboard | Sources/Antarium/Core/AgentStore.swift | s|return (rows.filter { keep.contains(\$0.key) },|return (rows,|
+remote rows reorder as hosts answer | Sources/Antarium/Core/AgentStore.swift | s|RemoteTmux.normalizedHosts(hosts).flatMap { rowsByHost\[\$0\] ?? \[\] }|rowsByHost.values.flatMap { $0 }|
+a host answering clears no previous problem | Sources/Antarium/Core/AgentStore.swift | s|problems\[result.host\] = nil||
+a stopped agent is reported while still working | Sources/Antarium/Core/AgentStore.swift | s|guard was.state.rank > 2 else { return nil }||
+an unobserved agent is reported as stopped | Sources/Antarium/Core/AgentStore.swift | s|if case .unobserved = still.state { return nil }||
+sqlite negative usage accepted | Sources/Antarium/Core/HarnessEngine.swift | s|guard let amount = value.integer, amount >= 0 else {|guard let amount = value.integer else {|
+sqlite negative cost accepted | Sources/Antarium/Core/HarnessEngine.swift | s|if let amount = value.number, amount >= 0 { session.costUSD = amount; session.markNumeric("cost") }|if let amount = value.number { session.costUSD = amount; session.markNumeric("cost") }|
+shipped pricing table emptied | Resources/pricing.json | s|"models"|"modelsX"|
+command harness accepts truncated output | Sources/Antarium/Core/HarnessEngine.swift | s|guard result.completeOutput else {|guard true else {|
+command harness leaks output into its failure message | Sources/Antarium/Core/HarnessEngine.swift | s|reason = "command exit \\(result.exitCode ?? -1); private command output was omitted"|reason = "command exit \\(result.exitCode ?? -1): \\(result.stdout)"|
+command harness leaks output when it prints no JSON | Sources/Antarium/Core/HarnessEngine.swift | s|: "command did not return JSON")|: "command did not return JSON: \\(out)")|
+command harness sessions unbounded | Sources/Antarium/Core/HarnessEngine.swift | s|records.prefix(maxCommandSessions)|records|
+command harness session cap below a real workspace | Sources/Antarium/Core/HarnessEngine.swift | s|static let maxCommandSessions = 256|static let maxCommandSessions = 2|
+command harness refresh interval ignored | Sources/Antarium/Core/HarnessEngine.swift | s|Date().timeIntervalSince(hit.at) < every|false|
+command harness refresh interval defaulted away | Sources/Antarium/Core/HarnessEngine.swift | s|let every = d.source.refreshEvery ?? 30|let every = 0.0|
+cloud inventory count unbounded | Sources/Antarium/Core/CloudScan.swift | s|guard items.count <= 2_000 else { throw ParseError.capacityExceeded }||
+cloud accepts a paginated inventory as complete | Sources/Antarium/Core/CloudScan.swift | s|guard let cursor = value as? String, cursor.isEmpty else { throw ParseError.incompleteInventory }||
+cloud accepts has_more as complete | Sources/Antarium/Core/CloudScan.swift | s|!more.boolValue else { throw ParseError.incompleteInventory }|true else { throw ParseError.incompleteInventory }|
+sqlite hard row cap raised | Sources/Antarium/Core/BoundedSQLite.swift | s|let rowLimit = min(2_000,max(1,maxRows))|let rowLimit = max(1,maxRows)|
+sqlite row budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|guard rows.count < rowLimit else { throw ReadError.limitExceeded }||
+sqlite byte budget not enforced | Sources/Antarium/Core/BoundedSQLite.swift | s|guard size <= 65_536, bytes <= 4_194_304-size else { throw ReadError.limitExceeded }||
+seeding overwrites a file the user edited | Sources/Antarium/Core/HarnessSeed.swift | s|if let current, owned\[name\] != current { result.keptYours.append(name); continue }||
+seeding reports an edited file as updated | Sources/Antarium/Core/HarnessSeed.swift | s|{ result.keptYours.append(name); continue }|{ result.updated.append(name); continue }|
+seeding rewrites an unchanged file every launch | Sources/Antarium/Core/HarnessSeed.swift | s|if current == next { owned\[name\] = next; continue }||
+session fixture always passes | Sources/Antarium/Core/HarnessCompatibility.swift | s|let passed = actual == fixture.expected|let passed = true|
+session fixture ignores the expected values | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: passed ? .fixtureVerified : .incompatible,|return Report(status: .fixtureVerified,|
+missing fixture file reported as verified | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: .incompatible, detail: "fixture missing or unreadable: \\(fixturePath)",|return Report(status: .fixtureVerified, detail: "fixture missing or unreadable: \\(fixturePath)",|
+declared level reported as fixture verified | Sources/Antarium/Core/HarnessCompatibility.swift | s|return Report(status: declaration.level == .experimental ? .experimental : .declared,|return Report(status: .fixtureVerified,|
+quota fixture always passes | Sources/Antarium/Core/QuotaFixture.swift | s|return Report(id: descriptor.id, passed: problems.isEmpty,|return Report(id: descriptor.id, passed: true,|
+quota fixture tolerance swallows a wrong mapping | Sources/Antarium/Core/QuotaFixture.swift | s|static let tolerance = 0.005|static let tolerance = 1000.0|
+installation probes always pass | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if actual == probe.expected {|if true {|
+installation evaluator reports no failures | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|return Report(passed: passed, total: probes.count, failures: failures)|return Report(passed: probes.count, total: probes.count, failures: [])|
+a harness may ship with no positive probe | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if !probes.contains(where: \\.expected) {|if false {|
+a harness may ship with no negative probe | Sources/Antarium/Core/HarnessInstallationEvaluator.swift | s|if !probes.contains(where: { !\$0.expected }) {|if false {|
+grok prefers an unrefreshable credential | Sources/Antarium/Providers/GrokProvider.swift | s|return found.first { \$0.canRefresh } ?? found.first|return found.first|
+grok staleness margin removed | Sources/Antarium/Providers/GrokProvider.swift | s|return expiresAt.timeIntervalSince(now) <= margin|return expiresAt.timeIntervalSince(now) <= 0|
+grok products unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|.prefix(maxProducts)||
+grok product names unclamped | Sources/Antarium/Providers/GrokProvider.swift | s|text.count <= maxText ? text : String(text.prefix(maxText))|text|
+grok refresh posts to any host the file names | Sources/Antarium/Providers/GrokProvider.swift | s|url.scheme == "https", let host = url.host?.lowercased(),|url.scheme != nil, let host = url.host?.lowercased(),|
+grok credential file read unbounded | Sources/Antarium/Providers/GrokProvider.swift | s|BoundedFile.read(file ?? credentialsFile, maxBytes: 256 \* 1_024)|Data(contentsOf: file ?? credentialsFile)|
+grok credential missing issuer still refreshable | Sources/Antarium/Providers/GrokProvider.swift | s|refreshToken != nil \&\& issuer != nil \&\& clientID != nil|refreshToken != nil|
+grok credits charted as headroom | Sources/Antarium/Providers/GrokProvider.swift | s|used: min(max(used / 100, 0), 1), resetsAt: resets,|used: min(max(1 - used / 100, 0), 1), resetsAt: resets,|
+process table truncation accepted as complete | Sources/Antarium/Core/Processes.swift | s|if count < capacity { return Array(pids.prefix(Int(count))).filter { \$0 > 0 } }|return Array(pids.prefix(Int(count))).filter { $0 > 0 }|
+process count bound removed | Sources/Antarium/Core/Processes.swift | s|guard required < maximum else { throw ObservationError.capacityExceeded }||
+process retry loop unbounded | Sources/Antarium/Core/Processes.swift | s|for _ in 0..<3 {|while true {|
+open file paths unbounded | Sources/Antarium/Core/Processes.swift | s|let capacity = min((Int(requiredBytes) / itemSize) + 16, limit)|let capacity = (Int(requiredBytes) / itemSize) + 16|
+a future format version is migrated anyway | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|guard original <= HarnessConfig.currentFormatVersion else {|guard true else {|
+migration reports the wrong origin | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
+migration reports nothing was migrated | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
+loading rewrites the user's file | Sources/Antarium/Core/HarnessDocument.swift | s|guard let value = object\["formatVersion"\] else { return 0 }|guard let value = object["formatVersion"] else { return currentVersion }|
+a capability probe follows a symlink | Sources/Antarium/Core/ProjectContext.swift | s|info.st_mode \& S_IFMT == S_IFDIR|true|
+an empty file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return info.st_size > 0|return true|
+a multiline TOML string is read as configuration | Sources/Antarium/Core/ProjectContext.swift | s|guard !text.contains("\\"\\"\\""), !text.contains("'''") else { throw ProbeError.unsupported }||
+a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|
+bounded read returns nothing | Sources/Antarium/Core/BoundedFile.swift | s|^        return data$|        return Data()|
+bounded prefix ignores the requested length | Sources/Antarium/Core/BoundedFile.swift | s|count:Int(min(UInt64(limit),size))|count:Int(size)|
+directory listing returns nothing | Sources/Antarium/Core/BoundedDirectory.swift | s|^        return entries$|        return []|
+directory listing loses entry kinds | Sources/Antarium/Core/BoundedDirectory.swift | s|isRegular:info.st_mode \& S_IFMT == S_IFREG,|isRegular:true,|
+glob search returns unsorted | Sources/Antarium/Core/BoundedDirectory.swift | s|return found.sorted { \$0.path < \$1.path }|return Array(found)|
+sqlite query returns no rows | Sources/Antarium/Core/BoundedSQLite.swift | s|return Result(columns:columns,rows:rows)|return Result(columns:columns,rows:[])|
+shell captures no output | Sources/Antarium/Core/Shell.swift | s|return Result(stdout: string(capturedOut.data),|return Result(stdout: "",|
+private file written world readable | Sources/Antarium/Core/PrivateFile.swift | s|executable ? 0o700 : 0o600|executable ? 0o777 : 0o666|
+private file left at its temporary name | Sources/Antarium/Core/PrivateFile.swift | s|guard renameat(directory,temporary,directory,name) == 0 else { throw WriteError.failed }||
+usage http returns an empty object on success | Sources/Antarium/Core/UsageHTTP.swift | s|^        return obj$|        return [:]|
+usage http treats every status as success | Sources/Antarium/Core/UsageHTTP.swift | s|case 200...299: return|case 100...599: return|
+exact transcript match skipped | Sources/Antarium/Core/AgentScan.swift | s|if BoundedFile.isRegular(exact) { return exact }||
+resumed transcript matches any session | Sources/Antarium/Core/AgentScan.swift | s|record\["sessionId"\] as? String == sessionID { return candidate.url }|record["sessionId"] != nil { return candidate.url }|
+resumed search scans oldest first | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.modified > \$1.modified }|.sorted { $0.modified < $1.modified }|
+resumed search unbounded | Sources/Antarium/Core/AgentScan.swift | s|.prefix(8)||
+transcript search follows non-jsonl files | Sources/Antarium/Core/AgentScan.swift | s|\$0.isRegular \&\& \$0.url.pathExtension == "jsonl"|$0.isRegular|
+harness reader drops the cwd | Sources/Antarium/Core/HarnessEngine.swift | s|session.cwd = value.hasPrefix("file://")|session.cwd = ""; _ = value.hasPrefix("file://")|
+harness reader keeps a file URL as the cwd | Sources/Antarium/Core/HarnessEngine.swift | s|? (URL(string: value)?.path ?? value)|? value|
+harness reader accepts a placeholder model | Sources/Antarium/Core/HarnessEngine.swift | s|!value.isEmpty, !value.hasPrefix("<") { session.model = value }|!value.isEmpty { session.model = value }|
+harness reader drops the timestamp | Sources/Antarium/Core/HarnessEngine.swift | s|if let path = map.timestamp, let when = date(record, path) {|if false, let path = map.timestamp, let when = date(record, path) {|
+harness reader shows the whole prompt as a title | Sources/Antarium/Core/HarnessEngine.swift | s|session.title = value.split(separator: "\\n").first|session.title = value; _ = value.split(separator: "\\n").first|
+sqlite text column read as nothing | Sources/Antarium/Core/BoundedSQLite.swift | s|case .text(let value): return value|case .text: return nil|
+sqlite integer column read as nothing | Sources/Antarium/Core/BoundedSQLite.swift | s|case .integer(let value): return Int(exactly:value)|case .integer: return nil|
+sqlite numeric text not converted | Sources/Antarium/Core/BoundedSQLite.swift | s|case .text(let value): return Int(value)|case .text: return nil|
+sqlite numeric text not converted to a real | Sources/Antarium/Core/BoundedSQLite.swift | s|case .text(let value): result = Double(value)|case .text: result = nil|
+sqlite integer has no text form | Sources/Antarium/Core/BoundedSQLite.swift | s|case .integer(let value): return String(value)|case .integer: return nil|
+sqlite non-finite real read as text | Sources/Antarium/Core/BoundedSQLite.swift | s|case .real(let value): return value.isFinite ? String(value) : nil|case .real(let value): return String(value)|
+shell loses the exit code | Sources/Antarium/Core/Shell.swift | s|exitCode: status,|exitCode: 0,|
+remote pane walk is unbounded | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<maxPaneDepth {|while true {|
+remote rows built in whatever order | Sources/Antarium/Core/RemoteTmux.swift | s|for (pid, info) in processes.sorted(by: { \$0.key < \$1.key })|for (pid, info) in processes|
+remote pane walk stops at the process itself | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<maxPaneDepth {|for _ in 0..<1 {|
+selection filter ignored | Sources/Antarium/Core/SessionSelection.swift | s|guard accepted else { continue }||
+selection boolean filters stop matching | Sources/Antarium/Core/SessionSelection.swift | s|text = CFGetTypeID(value) == CFBooleanGetTypeID() ? (value.boolValue ? "true" : "false") : value.stringValue|text = value.stringValue|
+presence rows unsorted | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.pid < \$1.pid }|.sorted { _, _ in Bool.random() }|
+log timestamps follow the reader's clock preference | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")||
+log timestamps pinned to UTC rather than the machine | Sources/Antarium/Core/Log.swift | s|f.timeZone = timeZone|f.timeZone = TimeZone(identifier: "UTC")|
+a fixed date format ships unpinned | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")|f.timeZone = timeZone|
+sdk fixed date format ships unpinned | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|formatter.locale = Locale(identifier: "en_US_POSIX")||
+cwd matched by bytes rather than canonically | Sources/Antarium/Core/HarnessEngine.swift | s|if let match = all.first(where: { \$0.cwd == cwd }) { return match }|if let match = all.first(where: { Array((\$0.cwd ?? "").utf8) == Array(cwd.utf8) }) { return match }|
+cwd match falls back to an unrelated session | Sources/Antarium/Core/HarnessEngine.swift | s|return all.allSatisfy { \$0.cwd == nil } ? all.first : nil|return all.first|
+a closed view never releases its fast interval | Sources/Antarium/Core/AgentStore.swift | s|visibleObservers = max(0, visibleObservers + (visible ? 1 : -1))|visibleObservers = max(0, visibleObservers + (visible ? 1 : 0))|
+observer count goes negative and stays there | Sources/Antarium/Core/AgentStore.swift | s|visibleObservers = max(0, visibleObservers + (visible ? 1 : -1))|visibleObservers = visibleObservers + (visible ? 1 : -1)|
+scan interval ignores whether anything is visible | Sources/Antarium/Core/AgentStore.swift | s|visible > 0 ? min(Double(configured), 5) : Double(configured)|Double(configured)|
+scan interval always fast | Sources/Antarium/Core/AgentStore.swift | s|visible > 0 ? min(Double(configured), 5) : Double(configured)|5|
+watched interval raised to the cap | Sources/Antarium/Core/AgentStore.swift | s|visible > 0 ? min(Double(configured), 5) : Double(configured)|visible > 0 ? 5 : Double(configured)|
+remote sweep runs on every local scan | Sources/Antarium/Core/AgentStore.swift | s|guard force \|\| sinceLastAttempt >= minimumInterval else { return .skip }||
+remote sweeps overlap each other | Sources/Antarium/Core/AgentStore.swift | s|guard !running else { return .skip }||
+remote scanning continues after being switched off | Sources/Antarium/Core/AgentStore.swift | s|guard enabled, !hosts.isEmpty else { return .cancel }|guard !hosts.isEmpty else { return .cancel }|
+remote sweep skips instead of cancelling when off | Sources/Antarium/Core/AgentStore.swift | s|guard enabled, !hosts.isEmpty else { return .cancel }|guard enabled, !hosts.isEmpty else { return .skip }|
+remote results applied after being switched off | Sources/Antarium/Core/AgentStore.swift | s|enabled \&\& !hosts.isEmpty|true|
+remote results applied after the last host is removed | Sources/Antarium/Core/AgentStore.swift | s|enabled \&\& !hosts.isEmpty|enabled|
+a disabled provider keeps polling invisibly | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return ([],|
+a newly enabled provider is never added | Sources/Antarium/AppController.swift | s|wanted.filter { !currentSet.contains(\$0) })|[])|
+an unchanged provider is torn down and rebuilt | Sources/Antarium/AppController.swift | s|return (current.filter { !wantedSet.contains(\$0) },|return (current,|
+menu bar order is not the registry order | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return false|
+remote scanning defaults to on | Sources/Antarium/UI/Settings.swift | s|get { Config.bool("includeRemoteTmux") ?? false }|get { Config.bool("includeRemoteTmux") ?? true }|
+alerts default to on | Sources/Antarium/UI/Settings.swift | s|get { Config.bool("notifyOnIdle") ?? false }|get { Config.bool("notifyOnIdle") ?? true }|
+sounds default to on | Sources/Antarium/UI/Sounds.swift | s|Config.bool(event.settingsKey) ?? false|Config.bool(event.settingsKey) ?? true|
+scan interval unclamped | Sources/Antarium/UI/Settings.swift | s|get { min(max(Config.int("agentScanSeconds") ?? 10, 3), 600) }|get { Config.int("agentScanSeconds") ?? 10 }|
+a sub-minute span reads as zero | Sources/Antarium/UI/Fmt.swift | s|if seconds < 3600 { return "\\(max(1, Int(seconds / 60)))m" }|if seconds < 3600 { return "\\(Int(seconds / 60))m" }|
+a sub-minute countdown reads as zero | Sources/Antarium/UI/Format.swift | s|if s < 3600 { return "\\(max(1, Int(s / 60)))m" }|if s < 3600 { return "\\(Int(s / 60))m" }|
+a past reset counts down negatively | Sources/Antarium/UI/Format.swift | s|if s <= 0 { return "now" }||
+memory always reads in megabytes | Sources/Antarium/UI/Fmt.swift | s|return mb >= 1024 ? String(format: "%.1fGB", mb / 1024) : String(format: "%.0fMB", mb)|return String(format: "%.0fMB", mb)|
+the long reset drops its remainder | Sources/Antarium/UI/Format.swift | s|span = m > 0 ? "\\(h)h \\(m)m" : "\\(h)h"|span = "\\(h)h"|
+a looping agent counted as idle | Sources/Antarium/UI/CountItem.swift | s|case .working, .shell, .looping: working += 1|case .working, .shell: working += 1; case .looping: waiting += 1|
+an unobservable agent counted as ended | Sources/Antarium/UI/CountItem.swift | s|case .cloud, .unobserved: unknown += 1|case .cloud: unknown += 1; case .unobserved: ended += 1|
+the total leaves out the unknown | Sources/Antarium/UI/CountItem.swift | s|var total: Int { working + waiting + ended + unknown }|var total: Int { working + waiting + ended }|
+a shell counted as waiting | Sources/Antarium/UI/CountItem.swift | s|case .working, .shell, .looping: working += 1|case .working, .looping: working += 1; case .shell: waiting += 1|
+the bar fills the wrong way round | Sources/Antarium/Core/UsageModel.swift | s|var remaining: Double { Gauge.fraction(1 - used) }|var remaining: Double { Gauge.fraction(used) }|
+severity judged off the wrong end | Sources/Antarium/Core/UsageModel.swift | s|hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity|hasMeter ? max(reportedSeverity, Severity.forRemaining(used)) : reportedSeverity|
+a balance colours itself off a phantom fill | Sources/Antarium/Core/UsageModel.swift | s|hasMeter ? max(reportedSeverity, Severity.forRemaining(remaining)) : reportedSeverity|max(reportedSeverity, Severity.forRemaining(remaining))|
+a nearly spent window reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
+a nearly full window reads as complete | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||
+only the first two windows reach the bar | Sources/Antarium/UI/Renderer.swift | s|snapshot.gauges.prefix(2)|snapshot.gauges|
+name sort ignores case | Sources/Antarium/Core/AgentScan.swift | s|a.localizedCaseInsensitiveCompare(b) == .orderedAscending|a < b|
+harness grouping ignores the agent | Sources/Antarium/Core/AgentScan.swift | s|if \$0.agentID != \$1.agentID { return \$0.agentID < \$1.agentID }||
+recency tie-break runs backwards | Sources/Antarium/Core/AgentScan.swift | s|        if left != right { return left > right }|        if left != right { return left < right }|
+unknown host sorts first | Sources/Antarium/Core/AgentScan.swift | s|let a = \$0.hostApp ?? "\\u{10FFFF}", b = \$1.hostApp ?? "\\u{10FFFF}"|let a = $0.hostApp ?? "", b = $1.hostApp ?? ""|
+an unpriced row ties with a measured zero | Sources/Antarium/Core/AgentScan.swift | s|                let a = $0.costUSD ?? -1, b = $1.costUSD ?? -1|                let a = $0.costUSD ?? 0, b = $1.costUSD ?? 0|
+duplicate ids silently override each other | Sources/Antarium/Core/HarnessCatalog.swift | s|if descriptors.count == 1 { resolved.append(descriptors\[0\]) }|if true { resolved.append(descriptors[0]) }|
+a duplicate id is not reported | Sources/Antarium/Core/HarnessCatalog.swift | s|problems.append("Multiple harness files declare the same ID. The last unambiguous configuration is retained when available.")||
+the catalog is returned unsorted | Sources/Antarium/Core/HarnessCatalog.swift | s|resolved.sorted { \$0.id < \$1.id }|resolved|
+a process matches on a path fragment it does not contain | Sources/Antarium/Core/HarnessDescriptor.swift | s|if (rule.pathContains ?? \[\]).contains(where: { process.path.contains(\$0) }) { return true }||
+argv0 matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|return (rule.argv0Contains ?? \[\]).contains { process.argv0.contains(\$0) }|return false|
+process name matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|if processNames.contains(process.name) \|\| processNames.contains(argv0Base) { return true }||
+a descriptor claims every process | Sources/Antarium/Core/HarnessDescriptor.swift | s|func claims(_ process: Processes.Info) -> Bool {|func claims(_ process: Processes.Info) -> Bool { if true { return true };|
+cache eviction tie broken at random | Sources/Antarium/Core/CodexGoals.swift | s|: a.key < b.key|: Bool.random()|
+cache evicts the newest | Sources/Antarium/Core/CodexGoals.swift | s|a.value.checked < b.value.checked|a.value.checked > b.value.checked|
+cache evicts below its limit | Sources/Antarium/Core/CodexGoals.swift | s|guard cache.count >= limit else { return nil }||
+a calendar is taken from the reader | Sources/Antarium/Providers/KiroProvider.swift | s|var calendar = Calendar(identifier: .gregorian)|var calendar = Calendar.current|
+sdk date parsing uses the reader's calendar | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|formatter.calendar = Calendar(identifier: .iso8601)|formatter.calendar = Calendar.current|
+sdk accepts an unsupported format version | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|guard formatVersion == Self.currentFormatVersion else { throw ValidationError.unsupportedFormatVersion(formatVersion) }||
+sdk accepts an empty id | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.emptyID|return|
+sdk accepts an empty name | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.emptyName|return|
+sdk accepts an incomplete sqlite source | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.incompleteSQLiteSource|return|
+sdk accepts a command source with no command | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.missingCommand|return|
+sdk accepts multi-session without an identity | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|if !hasIdentity { throw ValidationError.multiSessionNeedsID }||
+sdk accepts open-file binding on a sqlite source | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|throw ValidationError.openSourceFileBindingNeedsFileSource|return|
+migration loses the process match | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|process\["pathContains"\] = merged(process\["pathContains"\],|process["pathContains"] = merged(nil,|
+migration prefers the superseded value | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|return (a + b).filter { seen.insert(\$0).inserted }|return (b + a).filter { seen.insert($0).inserted }|
+migration duplicates a shared fragment | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|return (a + b).filter { seen.insert(\$0).inserted }|return a + b|
+migration leaves the old key behind | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object.removeValue(forKey: "match")|object["match"]|
+migration invents an empty process block | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|if (process\["pathContains"\] as? \[String\])?.isEmpty != false {|if false {|
+migration loses the mark | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|presentation\["mark"\] = value||
+migration does not stamp the new version | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object\["formatVersion"\] = HarnessConfig.currentFormatVersion||
+a superseded key is not reported | Sources/Antarium/Core/HarnessCheck.swift | s|.filter { object\[\$0\] != nil }|.filter { _ in false }|
+fixture cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !passed { failed.append(descriptor.id) }||
+fixture cli skips every descriptor | Sources/Antarium/Core/HarnessCLI.swift | s|guard descriptor.source.kind != .none else { continue }|guard false else { continue }|
+fixture cli checks the ones with no source | Sources/Antarium/Core/HarnessCLI.swift | s|guard descriptor.source.kind != .none else { continue }|guard descriptor.source.kind == .none else { continue }|
+fixture cli prints more lines than it checked | Sources/Antarium/Core/HarnessCLI.swift | s|checked.append(descriptor.id)||
+fixture cli returns success despite failures | Sources/Antarium/Core/HarnessCLI.swift | s|summary.failed.isEmpty ? 0 : 1|0|
+fixture cli fails a clean run | Sources/Antarium/Core/HarnessCLI.swift | s|summary.failed.isEmpty ? 0 : 1|1|
+quota cli counts descriptors with no quota | Sources/Antarium/Core/HarnessCLI.swift | s|for descriptor in descriptors where descriptor.quota != nil {|for descriptor in descriptors {|
+quota cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !report.passed { failed.append(report.id) }||
+installation cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|            if !passed { failed.append(descriptor.id) }||
+a genuine v0 document is nagged | Sources/Antarium/Core/HarnessCheck.swift | s|(object\["formatVersion"\] as? NSNumber)?.intValue|(object["formatVersion"] as? NSNumber)?.intValue ?? HarnessDocument.currentVersion|
+a superseded key fails the check | Sources/Antarium/Core/HarnessCheck.swift | s|            warn("\\(legacy) is a v0 key.|            fail("\\(legacy) is a v0 key.|
+backoff exceeds the configured interval | Sources/Antarium/AgentItem.swift | s|min(interval, pow(2, Double(min(max(failures, 0), 4))) \* 60)|pow(2, Double(min(max(failures, 0), 4))) * 60|
+backoff never grows | Sources/Antarium/AgentItem.swift | s|pow(2, Double(min(max(failures, 0), 4))) \* 60|60|
+backoff doubling uncapped | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|max(failures, 0)|
+backoff negative on a negative count | Sources/Antarium/AgentItem.swift | s|min(max(failures, 0), 4)|min(failures, 4)|
+a documented cap drifts from the code | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxWindows = 64|static let maxWindows = 16|
+a documented remote cap drifts | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxRows = 256|static let maxRows = 64|
+a count is interpolated into a localized key | Sources/Antarium/UI/Dashboard.swift | s|Text(verbatim: "\\(store.rows.count)")|Text("\\(store.rows.count)")|
+capability filter ignored | Sources/Antarium/Core/ProjectContext.swift | s|return entries.filter { entry in|return entries; _ = { (entry: BoundedDirectory.Entry) in|
+capability filter applied when not asked for | Sources/Antarium/Core/ProjectContext.swift | s|guard !suffixes.isEmpty else { return entries }||
+finished agents are shown again | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|rows|
+the active filter hides everything | Sources/Antarium/Core/AgentStore.swift | s|rows.filter { if case .ended = \$0.state { return false } else { return true } }|[]|
+filtering happens before the stop alert | Sources/Antarium/Core/AgentStore.swift | s|noticeStops(in: fresh,|noticeStops(in: Self.active(fresh),|
+zed instructions read from the wrong file | Resources/harnesses/zed.json | s|".rules",|".rulez",|
+cursor instructions unfiltered | Resources/harnesses/cursor.json | s|".mdc"|".md"|
+suffix filter compares the extension only | Sources/Antarium/Core/ProjectContext.swift | s|entry.url.lastPathComponent.hasSuffix(\$0)|\$0.hasSuffix(entry.url.pathExtension)|
+content probe ignores the suffix filter | Sources/Antarium/Core/ProjectContext.swift | s|                    let entries = try entries(url, suffixes: rule.countedSuffixes)|                    let entries = try entries(url)|
+copilot prefers the shared agent file | Resources/harnesses/vscode.json | s|".github/copilot-instructions.md",|"AGENTS.md",|
+copilot scoped folder counts every file | Resources/harnesses/copilot-cli.json | s|".instructions.md"|".md"|
+remote pane walk gives up one level early | Sources/Antarium/Core/RemoteTmux.swift | s|static let maxPaneDepth = 8|static let maxPaneDepth = 7|
+grok accepts a lookalike issuer host | Sources/Antarium/Providers/GrokProvider.swift | s|host == "x.ai" \|\| host.hasSuffix(".x.ai")|host.hasSuffix("x.ai")|
+grok refresh ignores the scheme | Sources/Antarium/Providers/GrokProvider.swift | s|url.scheme == "https"|url.scheme != nil|
+descriptor json credential read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
+descriptor credential bound raised | Sources/Antarium/Providers/DescriptorProvider.swift | s|static let maxCredentialBytes = 256 \* 1_024|static let maxCredentialBytes = 512 * 1_024|
+a focus-only harness declares project context | Resources/harnesses/herdr.json | s|"contributes": "focus"|"capabilities": {"instruction": {"project": ["AGENTS.md"]}}, "contributes": "focus"|
+the gap marker claims a gap that is closed | docs/ECOSYSTEM.md | s|<!-- capability-gap: none -->|<!-- capability-gap: pi -->|
+gemini global context read as a project file | Resources/harnesses/gemini.json | s|"~/.gemini/GEMINI.md"|"GEMINI.md"|
+gemini skill folders in the wrong precedence | Resources/harnesses/gemini.json | s|"\.agents/skills"|".gemini/skills"|
+opencode prefers the claude fallback | Resources/harnesses/opencode.json | s|^        "AGENTS.md",$||
+opencode global rules read from the project | Resources/harnesses/opencode.json | s|"~/.config/opencode/AGENTS.md"|"AGENTS.md"|
+opencode skills miss the agents alias | Resources/harnesses/opencode.json | s|".agents/skills"|".opencode/skills"|
+content probe reports no folder count | Sources/Antarium/Core/ProjectContext.swift | s|return entries.isEmpty ? nil : (url, entries.count)|return entries.isEmpty ? nil : (url, 0)|
+cursor drops the documented agents file | Resources/harnesses/cursor.json | s|^        "AGENTS.md"$||
+cursor claims a file only the cli reads | Resources/harnesses/cursor.json | s|^        "AGENTS.md"$|        "AGENTS.md", "CLAUDE.md"|
+cursor cli loses its extra project file | Resources/harnesses/cursor-cli.json | s|^        "CLAUDE.md"$||
+kimi instructions prefer the generic file | Resources/harnesses/kimi.json | s|^        ".kimi-code/AGENTS.md",$||
+kimi skills miss the shared folder | Resources/harnesses/kimi.json | s|^        ".agents/skills"$||
+kimi mcp key renamed | Resources/harnesses/kimi.json | s|"mcpServers"|"servers"|
+kimi global instructions read from the project | Resources/harnesses/kimi.json | s|"~/.kimi-code/AGENTS.md"|".kimi-code/AGENTS.md"|
+openclaw persona not read as instructions | Resources/harnesses/openclaw.json | s|^        "SOUL.md"$||
+openclaw memory prefers the log folder | Resources/harnesses/openclaw.json | s|^        "MEMORY.md",$||
+openclaw managed skills read from the workspace | Resources/harnesses/openclaw.json | s|"~/.openclaw/skills"|"skills"|
+hermes context chain loses its head | Resources/harnesses/hermes.json | s|^        ".hermes.md",$||
+hermes personal override yields to the committed file | Resources/harnesses/hermes.json | s|^        "AGENTS.override.md",$||
+hermes persona read from the project | Resources/harnesses/hermes.json | s|"~/.hermes/SOUL.md"|"SOUL.md"|
+hermes memories read as skills | Resources/harnesses/hermes.json | s|"~/.hermes/memories"|"~/.hermes/skills"|
+the gap marker is missing entirely | docs/ECOSYSTEM.md | s|<!-- capability-gap: none -->||
+pi personal override yields to the committed file | Resources/harnesses/pi.json | s|^        "AGENTS.override.md",$||
+pi global instructions read from the project | Resources/harnesses/pi.json | s|"~/.pi/agent/AGENTS.md"|"AGENTS.md"|
+pi skills miss the shared project folder | Resources/harnesses/pi.json | s|^        ".agents/skills"$||
+an empty declared file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|
+claude-code project memory template unknown | Resources/harnesses/claude-code.json | s|{cwdSlug}|{projectSlug}|
+zed instruction path cannot be reached | Resources/harnesses/zed.json | s|"AGENTS.md"|"AGENTS.md/"|
+enabled agents default to a fixed list again | Sources/Antarium/UI/Settings.swift | s|recorded.map(Set.init) ?? \[\]|recorded.map(Set.init) ?? ["claude-code", "codex", "cursor"]|
+an empty choice reads as no choice | Sources/Antarium/UI/Settings.swift | s|static func unconfigured(recorded: \[String\]?) -> Bool { recorded == nil }|static func unconfigured(recorded: [String]?) -> Bool { (recorded ?? []).isEmpty }|
+claude code reads its body outside the bounded path | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|        try await UsageHTTP.getJSON(|        _ = try await session.data(for: URLRequest(url: endpoint)); return try await UsageHTTP.getJSON(|
+gauge title unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.title = Gauge.clamp(title, to: Gauge.maxTitle)|self.title = title|
+gauge badge unbounded | Sources/Antarium/Core/UsageModel.swift | s|self.badge = Gauge.clamp(badge, to: Gauge.maxBadge)|self.badge = badge|
+gauge backstop cuts an authored title | Sources/Antarium/Core/UsageModel.swift | s|static let maxTitle = 4_096|static let maxTitle = 64|
+a figure that is not a number is charted | Sources/Antarium/Core/UsageModel.swift | s|        self.used = Gauge.fraction(used)|        self.used = used|
+a window length that is not a number sorts | Sources/Antarium/Core/UsageModel.swift | s|self.windowSeconds = (windowSeconds?.isFinite == true) ? windowSeconds : nil|self.windowSeconds = windowSeconds|
+codex extra label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|(extra\["limit_name"\] as? String).map(clamped)|(extra["limit_name"] as? String)|
+codex plan label unclamped | Sources/Antarium/Providers/CodexProvider.swift | s|"\\(clamped(\$0)) plan"|"\\(\$0) plan"|
+a replaced provider keeps its session | Sources/Antarium/Core/UsageProvider.swift | s|                    doomed.append(replaced)||
+a removed descriptor keeps its session | Sources/Antarium/Core/UsageProvider.swift | s|            doomed.append(cached.provider)||
+releasing a session forgets nothing | Sources/Antarium/Core/BoundedResponse.swift | s|        UsageHTTP.forget(session)||
+a released session is cancelled mid flight | Sources/Antarium/Core/UsageHTTP.swift | s|session.finishTasksAndInvalidate()|session.invalidateAndCancel()|
+a quota may declare both an endpoint and a command | Sources/Antarium/Core/HarnessDocument.swift | s|            case (true, true):|            case (true, false):|
+a quota may declare neither | Sources/Antarium/Core/HarnessDocument.swift | s|            case (false, false):|            case (false, true):|
+a quota command may be a path | Sources/Antarium/Core/HarnessDocument.swift | s|if let command, command.contains("/") \|\| command.contains(" ") {|if let command, false, command.contains("/") {|
+a command quota reads as signed in when absent | Sources/Antarium/Providers/DescriptorProvider.swift | s|if let command = quota.command { return CommandPath.resolve(command) != nil }||
+a quota command output is unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | s|outputLimit: Self.maxCommandOutput|outputLimit: Int.max|
+a truncated quota reply is parsed anyway | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.completeOutput else {|guard true else {|
+a failed quota command is read as data | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard result.exitCode == 0 else {|guard true else {|
+an optional leaks into the exit status | Sources/Antarium/Providers/DescriptorProvider.swift | s|let status = result.exitCode.map(String.init) ?? "no status"|let status = String(describing: result.exitCode)|
+waking leaves the agent rows stale | Sources/Antarium/AppController.swift | s|        AgentStore.shared.wake()||
+waking keeps the old timer phase | Sources/Antarium/Core/AgentStore.swift | /func wake() {/,/^    }$/ s|reschedule()||
+waking forces the remote sweep | Sources/Antarium/Core/AgentStore.swift | /func wake() {/,/^    }$/ s|refresh()|refresh(force: true)|
+run records are never pruned | Sources/Antarium/Core/RunWrapper.swift | s|            prune(directory)||
+run record pruning is lexical | Sources/Antarium/Core/RunWrapper.swift | /static func doomed/,/^    }$/ s|return x == y ? a < b : x < y|return a < b|
+run record pruning drops the newest | Sources/Antarium/Core/RunWrapper.swift | s|return Array(ordered.dropLast(limit))|return Array(ordered.prefix(names.count - limit).reversed())|
+run record pruning removes what it did not write | Sources/Antarium/Core/RunWrapper.swift | s|.filter { \$0.hasSuffix(".json") }||
+the run record limit is raised without a decision | Sources/Antarium/Core/RunWrapper.swift | s|static let maxRecords = 500|static let maxRecords = 50_000|
+an unused agent is called not installed | Sources/Antarium/Core/Onboarding.swift | /guard !descriptor.source.path.isEmpty/,/^        }$/ s|: resolve(descriptor.processRule.names?.first ?? descriptor.id) != nil|: false|
+an unused agent earns a menu bar slot | Sources/Antarium/Core/Onboarding.swift | s|found: found, installedUnused: installed|found: found \|\| installed, installedUnused: installed|
+an absent agent is claimed to be absent | Sources/Antarium/Core/Onboarding.swift | s|: Self.absent),|: "not on this Mac"),|
+the three detection states are unordered | Sources/Antarium/Core/Onboarding.swift | s|func rank(_ f: Finding) -> Int { f.found ? 0 : (f.installedUnused ? 1 : 2) }|func rank(_ f: Finding) -> Int { f.found ? 0 : 1 }|
+the absence phrase claims absence | Sources/Antarium/Core/Onboarding.swift | s|static let absent = "no trace on this Mac"|static let absent = "not installed on this Mac"|
+the settings list spells absence itself | Sources/Antarium/UI/SettingsView.swift | s|Text(Onboarding.absent.prefix(1).uppercased() + Onboarding.absent.dropFirst())|Text("Not found on this Mac")|
+an env credential has no file fallback | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|guard let path = credential.path?.expandingTilde,|guard let path = String?.none,|
+an env key file is preferred to the variable | Sources/Antarium/Providers/DescriptorProvider.swift | s|               let value = ProcessInfo.processInfo.environment\[name\], !value.isEmpty {|               let value = ProcessInfo.processInfo.environment[name], value.isEmpty {|
+an env key file keeps its trailing newline | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)|let trimmed = raw|
+an env key file is read unbounded | Sources/Antarium/Providers/DescriptorProvider.swift | /case "env"/,/case "jsonFile"/ s|maxBytes: Self.maxCredentialBytes|maxBytes: Int.max|
+an env hint names a file nothing reads | Resources/harnesses/deepseek.json | s|^      "path": "~/.antarium/keys/deepseek"$|      "unusedPath": "~/.antarium/keys/deepseek"|
+openrouter reads the inference key variable | Resources/harnesses/openrouter.json | s|"kind": "textFile",|"kind": "env", "name": "OPENROUTER_API_KEY",|
+openrouter charts purchases as usage | Resources/harnesses/openrouter.json | s|"used": "data.total_usage",|"used": "data.total_credits",|
+openrouter divides by a missing limit | Sources/Antarium/Providers/DescriptorProvider.swift | s|let limit = FieldPath.number(window, limitPath), limit > 0 {|let limit = FieldPath.number(window, limitPath), limit >= 0 {|
+openrouter numbers claim to be verified | Resources/harnesses/openrouter.json | s|"verified": false|"verified": true|
+a balance may omit its currency | Sources/Antarium/Core/HarnessDocument.swift | s|                guard let currency, !currency.isEmpty else {|                guard true else {|
+an undeclared currency is assumed to be dollars | Sources/Antarium/Providers/DescriptorProvider.swift | s|guard let declared = map.currency else { return "" }|guard let declared = map.currency else { return "USD" }|
+moonshot charts a half instead of the gated figure | Resources/harnesses/moonshot.json | s|"balance": "data.available_balance"|"balance": "data.cash_balance"|
+moonshot numbers claim to be verified | Resources/harnesses/moonshot.json | s|"verified": false|"verified": true|
+the settings directory is created open | Sources/Antarium/Core/Config.swift | s|attributes: \[.posixPermissions: 0o700\])|attributes: nil)|
+an existing open settings directory is left open | Sources/Antarium/Core/Config.swift | s|guard current \& 0o077 != 0 else { return true }|guard current \& 0o077 == 0 else { return true }|
+the startup never secures the keys directory | Sources/Antarium/main.swift | s|^Config.secure(Config.keysDirectory)$||
+tightening locks the owner out | Sources/Antarium/Core/Config.swift | s|current \& ~0o077|current \& ~0o177|
+a note tells the user to paste a key into the descriptor | Resources/harnesses/deepseek.json | s|The key is read from DEEPSEEK_API_KEY|Paste the key straight into this file, or read it from DEEPSEEK_API_KEY|
+a note points at a key file nothing reads | Resources/harnesses/minimax.json | s|~/.antarium/keys/minimax otherwise|~/.antarium/keys/minimax-api otherwise|
+synthetic charts the ceiling as the spend | Resources/harnesses/synthetic.json | s|"used": "subscription.requests"|"used": "subscription.limit"|
+synthetic loses its renewal | Resources/harnesses/synthetic.json | s|"resetsAt": "subscription.renewsAt",||
+synthetic numbers claim to be verified | Resources/harnesses/synthetic.json | s|"verified": false|"verified": true|
+synthetic reads no key file | Resources/harnesses/synthetic.json | s|"path": "~/.antarium/keys/synthetic"|"path": "~/.antarium/keys/synthetic-api"|
+amp claims a failed path lookup means not installed | Sources/Antarium/Providers/AmpProvider.swift | s|Amp wasn't found in the usual places.|Amp isn't installed on this Mac.|
+kiro claims a failed path lookup means not installed | Sources/Antarium/Providers/KiroProvider.swift | s|Kiro wasn't found in the usual places.|Kiro isn't installed on this Mac.|
+the check warning claims absence | Sources/Antarium/Core/HarnessCheck.swift | s|was not found in the usual places"|is not on this Mac"|
+a posted quota goes out as a get | Sources/Antarium/Providers/DescriptorProvider.swift | s|if quota.resolvedMethod == .post {|if false {|
+a posted body drops the token substitution | Sources/Antarium/Providers/DescriptorProvider.swift | /static func postBody/,/^    }$/ s|Self.filled(\$0, token: token, account: account, forURL: false)|\$0|
+an unknown quota method reads as a get | Sources/Antarium/Core/HarnessDocument.swift | s|\["get", "post"\].contains(method.lowercased())|true|
+a body on a get is shipped and never sent | Sources/Antarium/Core/HarnessDocument.swift | s%                if method.lowercased() != "post" { try refuseBodyWithoutPost() }%                if false { try refuseBodyWithoutPost() }%
+a quota method is compared without folding case | Sources/Antarium/Core/HarnessDescriptor.swift | s|Method(rawValue: (method ?? "get").lowercased()) ?? .get|Method(rawValue: method ?? "get") ?? .get|
+a stop across a long gap is announced as fresh | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|true|
+a late sweep stops reporting | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= interval|
+the stop gap has no floor | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= interval * 3|
+the stop gap ignores a long interval | Sources/Antarium/Core/AgentStore.swift | s|gap <= max(interval \* 3, 60)|gap <= 60|
+stops are never announced | Sources/Antarium/Core/AgentStore.swift | /func announcements/,/^    }$/ s|return stopped(previous: previous, current: current)|return []|
+the announcement ignores the gap | Sources/Antarium/Core/AgentStore.swift | s|guard stopsAreNews(gap: gap, interval: interval) else { return \[\] }||
+a stale quota reading claims to be current | Sources/Antarium/Core/QuotaStore.swift | s|return now.timeIntervalSince(fetchedAt) > after|return false|
+a missing quota reading reads as fresh | Sources/Antarium/Core/QuotaStore.swift | s|guard let fetchedAt else { return true }|guard let fetchedAt else { return false }|
+a clock that went backwards makes a reading stale | Sources/Antarium/Core/QuotaStore.swift | s|return now.timeIntervalSince(fetchedAt) > after|return abs(now.timeIntervalSince(fetchedAt)) > after|
+the quota bar never mentions its age | Sources/Antarium/UI/Dashboard.swift | s|return figure + " — as of " + Format.age(fetchedAt)|return figure|
+the quota bar always mentions its age | Sources/Antarium/UI/Dashboard.swift | s|guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }||
+the quota staleness window is a day | Sources/Antarium/Core/QuotaStore.swift | s|nonisolated static let staleAfter: TimeInterval = 5 \* 60|nonisolated static let staleAfter: TimeInterval = 86_400|
+a remote agent is checked for a local process | Sources/Antarium/Core/AgentState.swift | s|if let remote = evidence.remote { return .cloud(remote) }||
+a dead process still reports what the files say | Sources/Antarium/Core/AgentState.swift | s|guard evidence.processAlive else { return .ended }||
+inference outranks the harness's own word | Sources/Antarium/Core/AgentState.swift | /switch evidence.published/,/case nil:      break/ s|case .working: return .working|case .working: break|
+a looping agent reads as waiting on you | Sources/Antarium/Core/AgentState.swift | s|case .waiting: return evidence.looping ? .looping : .waiting|case .waiting: return .waiting|
+an agent with no timestamp claims to be working | Sources/Antarium/Core/AgentState.swift | s|guard let last = evidence.lastActivity else { return evidence.looping ? .looping : .unobserved }|guard let last = evidence.lastActivity else { return .working }|
+the idle boundary is inclusive | Sources/Antarium/Core/AgentState.swift | s|return age > evidence.idleAfter ? quiet : .working|return age >= evidence.idleAfter ? quiet : .working|
+a quiet transcript still reads as working | Sources/Antarium/Core/AgentState.swift | s|return age > evidence.idleAfter ? quiet : .working|return .working|
+a time that is not a number is charted | Sources/Antarium/Core/AgentState.swift | s|guard age.isFinite, age >= 0, evidence.idleAfter.isFinite, evidence.idleAfter >= 0 else {|guard true else {|
+a shell sits below the wants-you threshold | Sources/Antarium/Core/AgentScan.swift | s|            case .shell:   return 3|            case .shell:   return 2|
+a looping agent is announced as stopped | Sources/Antarium/Core/AgentScan.swift | s|            case .looping: return 4|            case .looping: return 1|
+banners are unbounded again | Sources/Antarium/UI/AgentAlert.swift | s|max(0, showing + 1 - limit)|0|
+the banner limit is off by one | Sources/Antarium/UI/AgentAlert.swift | s|max(0, showing + 1 - limit)|max(0, showing - limit)|
+the banner surplus goes negative | Sources/Antarium/UI/AgentAlert.swift | s|max(0, showing + 1 - limit)|showing + 1 - limit|
+the banner limit is raised without a decision | Sources/Antarium/UI/AgentAlert.swift | s|nonisolated static let maxVisible = 5|nonisolated static let maxVisible = 500|
+the newest banner is retired instead of the oldest | Sources/Antarium/UI/AgentAlert.swift | s|showing.suffix(surplus(showing: showing.count, limit: limit))|showing.prefix(surplus(showing: showing.count, limit: limit))|
+a sweep plays one sound per agent | Sources/Antarium/Core/AgentStore.swift | s|        for row in finished { AgentAlert.shared.post(row) }|        for row in finished { AgentAlert.shared.post(row); Sounds.play(.agentStopped) }|
+a superseded scan may still publish | Sources/Antarium/Core/ScanGeneration.swift | s|isCurrent(generation) \&\& !cancelled|isCurrent(generation)|
+a cancelled scan may still publish | Sources/Antarium/Core/ScanGeneration.swift | s|isCurrent(generation) \&\& !cancelled|!cancelled|
+a new scan generation repeats the last | Sources/Antarium/Core/ScanGeneration.swift | s|latest \&+= 1||
+a missing file is indistinguishable from an unreadable one | Sources/Antarium/Core/FileStamp.swift | s|return errno == ENOENT \|\| errno == ENOTDIR ? "" : "unavailable:\\(errno)"|return ""|
+a non-json file changes the directory signature | Sources/Antarium/Core/FileStamp.swift | s|.filter { \$0.pathExtension == "json" }||
+a blank host is asked | Sources/Antarium/Core/RemoteSweep.swift | s|.filter { !\$0.isEmpty \&\& seen.insert(\$0).inserted }|.filter { seen.insert($0).inserted }|
+a repeated host is asked twice | Sources/Antarium/Core/RemoteSweep.swift | s|.filter { !\$0.isEmpty \&\& seen.insert(\$0).inserted }|.filter { !$0.isEmpty }|
+a host name keeps its surrounding spaces | Sources/Antarium/Core/RemoteSweep.swift | s|.map { \$0.trimmingCharacters(in:.whitespaces) }||
+an unusable destination is attempted | Sources/Antarium/Core/RemoteSweep.swift | s|guard isSafeHost(host) else {|guard true else {|
+the fleet limit is ignored | Sources/Antarium/Core/RemoteSweep.swift | s|let count = min(fleetLimit,unique.count)|let count = unique.count|
+the sweep always starts at the beginning | Sources/Antarium/Core/RemoteSweep.swift | s|let start = count == 0 ? 0 : max(0,startIndex) % count|let start = 0|
+a negative start index is used as given | Sources/Antarium/Core/RemoteSweep.swift | s|max(0,startIndex) % count|startIndex % count|
+the next sweep starts where this one did | Sources/Antarium/Core/RemoteSweep.swift | s|Sweep(results:results,nextIndex:count == 0 ? 0 : (start + taken) % count)|Sweep(results:results,nextIndex:start)|
+the time budget is ignored | Sources/Antarium/Core/RemoteSweep.swift | s|now - began >= span|false|
+a budget longer than the ceiling is honoured | Sources/Antarium/Core/RemoteSweep.swift | s|let span = duration.isFinite ? min(30,max(0,duration)) : 0|let span = duration.isFinite ? max(0,duration) : 0|
+a budget that is not a number runs for ever | Sources/Antarium/Core/RemoteSweep.swift | s|let span = duration.isFinite ? min(30,max(0,duration)) : 0|let span = min(30,max(0,duration))|
+a clock that goes backwards keeps the pass running | Sources/Antarium/Core/RemoteSweep.swift | s|\|\| now < began \|\| now - began >= span|\|\| now - began >= span|
+a cancelled pass keeps asking | Sources/Antarium/Core/RemoteSweep.swift | s|return cancellation() \|\||return false \|\||
+a long dead loop still reads as looping | Sources/Antarium/Core/LoopWatch.swift | s|return now.timeIntervalSince(wakeAt) < grace|return true|
+the loop grace is a day | Sources/Antarium/Core/LoopWatch.swift | s|static let grace: TimeInterval = 3600|static let grace: TimeInterval = 86_400|
+a stopped loop still reads as looping | Sources/Antarium/Core/LoopWatch.swift | s|guard !stopped, let wakeAt else { return false }|guard let wakeAt else { return false }|
+a declared goal is ignored | Sources/Antarium/Core/LoopWatch.swift | s|if declared != nil { return true }||
+a due loop is described with a countdown | Sources/Antarium/Core/LoopWatch.swift | s|guard seconds > 30 else { return "looping" }||
+a loop minutes away is rounded down to nothing | Sources/Antarium/Core/LoopWatch.swift | s|Int((seconds / 60).rounded())|Int(seconds / 60)|
+a dead loop is still described | Sources/Antarium/Core/LoopWatch.swift | s|guard isLooping(wakeAt: wakeAt, stopped: stopped, now: now), let wakeAt else { return nil }|guard let wakeAt else { return nil }|
+a loop hours away is described in minutes | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 { return "loops in \\(minutes)m" }|if true { return "loops in \\(minutes)m" }|
+the unit is chosen before the rounding | Sources/Antarium/Core/LoopWatch.swift | s|if seconds < 3600, minutes < 60 {|if seconds < 3600 {|
+a journal append replaces instead of adding | Sources/Antarium/Core/Journal.swift | s|            return kept + ((value as? \[Any\]) ?? \[\])|            return (value as? [Any]) ?? []|
+a journal set is treated as an append | Sources/Antarium/Core/Journal.swift | s|append: kind == 2|append: true|
+a journal append is treated as a set | Sources/Antarium/Core/Journal.swift | s|append: kind == 2|append: false|
+a journal patch with no path is applied to the root | Sources/Antarium/Core/Journal.swift | s|guard let path = line\["k"\] as? \[Any\], !path.isEmpty else { continue }|guard let path = line["k"] as? [Any] else { continue }|
+a journal index is unbounded | Sources/Antarium/Core/Journal.swift | s|index >= 0, index < 10_000|index >= 0|
+a journal index may be negative | Sources/Antarium/Core/Journal.swift | s|index >= 0, index < 10_000|index < 10_000|
+a journal patch cannot reach a new element | Sources/Antarium/Core/Journal.swift | s|while array.count <= index { array.append(\[String: Any\]()) }||
+a journal patch of nothing clears the element | Sources/Antarium/Core/Journal.swift | s|                                 truncate: truncate) ?? array\[index\]|                                 truncate: truncate) as Any|
+a journal snapshot is ignored | Sources/Antarium/Core/Journal.swift | s|document = line\["v"\] as? \[String: Any\] ?? document|document = [:]|
+a second remote sweep starts while one runs | Sources/Antarium/Core/RemoteScanController.swift | s|guard task == nil else { return }||
+a superseded sweep publishes anyway | Sources/Antarium/Core/RemoteScanController.swift | s|guard let self, self.generations.isCurrent(generation) else { return }|guard let self else { return }|
+a superseded sweep clears its replacement | Sources/Antarium/Core/RemoteScanController.swift | s|            defer { self.task = nil; self.activeHosts = nil }||
+a changed fleet keeps scanning the old one | Sources/Antarium/Core/RemoteScanController.swift | s|if let activeHosts, activeHosts != hosts { cancel() }||
+an unchanged fleet is cancelled anyway | Sources/Antarium/Core/RemoteScanController.swift | s|if let activeHosts, activeHosts != hosts { cancel() }|cancel()|
+the next sweep index is not carried forward | Sources/Antarium/Core/RemoteScanController.swift | s|self.nextIndex = sweep.nextIndex||
+opencode reads closed tabs as open | Sources/Antarium/Core/OpenCodeTabs.swift | s|records: "tabs"|records: "tabs.closed"|
+both guards against a stale sweep are removed | Sources/Antarium/Core/RemoteScanController.swift | s|        _ = generations.begin()||; s|            guard !Task.isCancelled else { return }||
+a log line keeps its control characters | Sources/Antarium/Core/DiagnosticLogFile.swift | s|CharacterSet.controlCharacters.contains(scalar) ? " " : String(scalar)|String(scalar)|
+a log line is unbounded | Sources/Antarium/Core/DiagnosticLogFile.swift | s|guard used + bytes.count <= cap else { break }||
+the log directory is created open | Sources/Antarium/Core/DiagnosticLogFile.swift | s|attributes:\[.posixPermissions:0o700\]|attributes:nil|
+the log directory follows a symlink | Sources/Antarium/Core/DiagnosticLogFile.swift | s|O_RDONLY \| O_DIRECTORY \| O_NOFOLLOW \| O_CLOEXEC \| O_NONBLOCK|O_RDONLY \| O_DIRECTORY \| O_CLOEXEC \| O_NONBLOCK|
+the log file follows a symlink | Sources/Antarium/Core/DiagnosticLogFile.swift | s|O_WRONLY \| O_CREAT \| O_APPEND \| O_NOFOLLOW \| O_CLOEXEC \| O_NONBLOCK|O_WRONLY \| O_CREAT \| O_APPEND \| O_CLOEXEC \| O_NONBLOCK|
+the log is written to a hard link | Sources/Antarium/Core/DiagnosticLogFile.swift | s|info.st_mode \& S_IFMT == S_IFREG, info.st_nlink == 1,|info.st_mode \& S_IFMT == S_IFREG,|
+the log permissions are not reasserted | Sources/Antarium/Core/DiagnosticLogFile.swift | s|guard fchmod(fd,0o600) == 0 else { return fail("permissions") }||
+the log never rotates | Sources/Antarium/Core/DiagnosticLogFile.swift | s|if info.st_size > maximumBytes - data.count {|if false {|
+a quota-only harness claims a session reader | Sources/Antarium/UI/HarnessRowPresentation.swift | s|let quotaOnly = descriptor.source.kind == .none \&\& descriptor.quota != nil|let quotaOnly = false|
+a session harness is called quota only | Sources/Antarium/UI/HarnessRowPresentation.swift | s|let quotaOnly = descriptor.source.kind == .none \&\& descriptor.quota != nil|let quotaOnly = descriptor.quota != nil|
+an edited harness reads as bundled | Sources/Antarium/UI/HarnessRowPresentation.swift | s|edited ? "edited" : "bundled"|"bundled"|
+the spoken row omits its compatibility | Sources/Antarium/UI/HarnessRowPresentation.swift | s|\[descriptor.name, sourceLabel, compatibilityLabel,|[descriptor.name, sourceLabel,|
+the configured probe never expires | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        now >= stamped|
+the configured probe trusts a clock that went backwards | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        now - stamped < window|
+the configured probe ttl is a day | Sources/Antarium/Core/ConfiguredProbe.swift | s|static let ttl: TimeInterval = 30|static let ttl: TimeInterval = 86_400|
+invalidating one key clears everything | Sources/Antarium/Core/ConfiguredProbe.swift | s|if let key { entries.removeValue(forKey: key) } else { entries.removeAll() }|entries.removeAll()|
+a declared source label is overruled | Sources/Antarium/UI/HarnessRowPresentation.swift | s|sourceLabel = descriptor.presentation?.sourceLabel|sourceLabel = nil ?? String?.none|
+a failed quota mapping reads as verified | Sources/Antarium/UI/HarnessRowPresentation.swift | s|report.map { \$0.passed ? "Quota fixture verified"|report.map { (\$0.passed \|\| true) ? "Quota fixture verified"|
+the configured probe never memoises | Sources/Antarium/Core/ConfiguredProbe.swift | s|        now >= stamped && now - stamped < window|        false|
+a harness with no fixture is called broken | Sources/Antarium/UI/HarnessRowPresentation.swift | s|if QuotaFixture.fixtureURL(for: descriptor.id, in: AppResources.bundle) == nil {|if false {|
+the validator forgets the quota command | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "bodyList", "command", "args",|"quota": ["endpoint", "method", "body", "bodyList",|
+the validator forgets the quota method | Sources/Antarium/Core/HarnessCheck.swift | s|"quota": \["endpoint", "method", "body", "bodyList", "command", "args",|"quota": ["endpoint", "command", "args",|
+the sdk cannot say a quota is posted | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var method: String?||
+the sdk cannot carry a posted body | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var body: \[String: String\]?||
+the sdk cannot filter a capability by suffix | Sources/AntariumHarnessSDK/HarnessConfig.swift | s|        public var fileSuffixes: \[String\]?||
+migration rebuilds from a known key list | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|var object = input|var object = input.filter { ["formatVersion","id","name","process","source","presentation"].contains($0.key) }|
+the sdk decoder drops presentation | Sources/AntariumHarnessSDK/HarnessConfigDecoding.swift | s|presentation = try values.decodeIfPresent(Presentation.self, forKey: .presentation)|presentation = nil|
+the sdk decoder drops quota | Sources/AntariumHarnessSDK/HarnessConfigDecoding.swift | s|quota = try values.decodeIfPresent(Quota.self, forKey: .quota)|quota = nil|
+the sdk decoder loses the schema default | Sources/AntariumHarnessSDK/HarnessConfigDecoding.swift | s|?? "../harness.schema.json"|?? ""|
+a bug report carries the machine's name | Sources/Antarium/Core/AppLinks.swift | s|Antarium \\(version) · macOS \\(system) · \\(architecture)|Antarium \\(version) · macOS \\(system) · \\(architecture) · \\(ProcessInfo.processInfo.hostName)|
+a bug report loses what a maintainer needs | Sources/Antarium/Core/AppLinks.swift | s|Antarium \\(version) · macOS \\(system) · \\(architecture)||
+a sign-in script does not quote its command | Sources/Antarium/Core/SignIn.swift | s|"'" + s.replacingOccurrences(of: "'", with: "'\\\\''") + "'"|s|
+a sign-in launcher does not remove itself | Sources/Antarium/Core/SignIn.swift | s|+ "/bin/rm -f -- \\(quoted(url.path))\\n"||
+plaintext is allowed anywhere | Sources/Antarium/Core/UsageHTTP.swift | s|        return scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host))|        return scheme == "https" \|\| scheme == "http"|
+plaintext to this machine is refused | Sources/Antarium/Core/UsageHTTP.swift | s|        return scheme == "https" \|\| (scheme == "http" \&\& Self.isLoopback(host))|        return scheme == "https"|
+a lookalike loopback host is trusted | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name.contains("localhost") \|\| name.contains("::1") { return true }|
+the unspecified address is trusted as loopback | Sources/Antarium/Core/UsageHTTP.swift | s|if name == "localhost" \|\| name == "::1" { return true }|if name == "localhost" \|\| name == "::1" \|\| name == "0.0.0.0" { return true }|
+the scan budget never fails | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|if fastestMilliseconds <= budget { return .within }|return .within|
+the scan budget is a tenth of a second | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|static let scanMilliseconds = 5_000.0|static let scanMilliseconds = 100.0|
+the benchmark ignores its own verdict | Sources/Antarium/Diagnostics.swift | s|exit(verdict == .over ? 1 : 0)|exit(0)|
+the budget gates on the last pass, not the fastest | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|passes.min() ?? .infinity|passes.last ?? .infinity|
+verify.sh stops gating on the benchmark | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "scan within budget" \|\| bad "scan is over its budget"||
+verify.sh stops gating on idle cost | verify.sh | s|            \|\| bad "idle cost is \$spent s per 30 s — the shape of a runaway loop"|            \|\| true|
+the https-only claim comes back | docs/TECHNICAL.md | s|A usage endpoint must be https, or http to this machine.|A usage endpoint must be `https` with a host.|
+the get-only claim comes back | docs/TECHNICAL.md | s|An endpoint quota may declare `method: "POST"`|A descriptor makes one authenticated GET and|
+the walkthrough loses its verification step | docs/TECHNICAL.md | s|`antarium --verify-harness-quota` replays all of|nothing replays all of|
+status stops reporting how many harnesses loaded | Sources/Antarium/Diagnostics.swift | s|harnesses \\(descriptors.count) loaded from|harnesses loaded from|
+a folder is revealed as a memory index | Sources/Antarium/Core/ProjectContext.swift | s|            guard info.st_mode \& S_IFMT == S_IFREG else { return false }||
+an empty index file is revealed | Sources/Antarium/Core/ProjectContext.swift | s|            return info.st_size > 0|            return true|
+a cost is charted from an unreadable transcript | Sources/Antarium/Core/TranscriptStats.swift | s|guard usageIssue == nil, !usageByModel.isEmpty else { return nil }|guard !usageByModel.isEmpty else { return nil }|
+no usage reads as no cost rather than no answer | Sources/Antarium/Core/TranscriptStats.swift | s|guard usageIssue == nil, !usageByModel.isEmpty else { return nil }|guard usageIssue == nil else { return nil }|
+cache reads are charged as input | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.cacheRead) / 1_000_000 \* rate.cacheRead|Double(usage.cacheRead) / 1_000_000 * rate.input|
+cache writes are not charged at all | Sources/Antarium/Core/TranscriptStats.swift | s|+ Double(usage.cacheWrite5m) / 1_000_000 \* rate.cacheWrite5m||
+the per-million divisor is per-thousand | Sources/Antarium/Core/TranscriptStats.swift | s|Double(usage.input) / 1_000_000 \* rate.input|Double(usage.input) / 1_000 * rate.input|
+a sliver of a cent reads as nothing | Sources/Antarium/Core/Pricing.swift | s|return usd > 0 ? "<\$0.01" : "\$0"|return "$0"|
+a negative rate is charted | Sources/Antarium/Core/TranscriptStats.swift | s|.allSatisfy({ \$0.isFinite \&\& \$0 >= 0 })|.allSatisfy({ \$0.isFinite })|
+money loses its cents | Sources/Antarium/Core/Pricing.swift | s|        if usd >= 0.01 { return String(format: "\$%.2f", usd) }||
+money picks its band before rounding | Sources/Antarium/Core/Pricing.swift | s|if ((usd \* 100).rounded() / 100) >= 10|if usd >= 10|
+money widens a band it has not reached | Sources/Antarium/Core/Pricing.swift | s|if ((usd \* 10).rounded() / 10) >= 100|if usd.rounded() >= 100|
+an age just under a minute reads as nought | Sources/Antarium/UI/Format.swift | s|"\\(max(1, Int(s / 60))) min ago"|"\\(Int(s / 60)) min ago"|
+a countdown just under a minute reads as nought | Sources/Antarium/UI/Format.swift | s|if s < 3600 { return "\\(max(1, Int(s / 60)))m" }|if s < 3600 { return "\\(Int(s / 60))m" }|
+an age rounds into a band it has not reached | Sources/Antarium/UI/Format.swift | s|if s < 3600 { return "\\(max(1, Int(s / 60))) min ago" }|if s < 3600 { return "\\(Int((s / 60).rounded())) min ago" }|
+an exact hour reads as an hour and no minutes | Sources/Antarium/UI/Format.swift | s|span = m > 0 ? "\\(h)h \\(m)m" : "\\(h)h"|span = "\\(h)h \\(m)m"|
+an exact day reads as a day and no hours | Sources/Antarium/UI/Format.swift | s|span = h > 0 ? "\\(d)d \\(h)h" : "\\(d)d"|span = "\\(d)d \\(h)h"|
+a file-only source field applies everywhere | Sources/Antarium/Core/HarnessCheck.swift | s|"glob": \[.json, .jsonl\], "limit": \[.json, .jsonl\],|"glob": [.json, .jsonl, .sqlite], "limit": [.json, .jsonl, .sqlite],|
+a sqlite-only source field applies everywhere | Sources/Antarium/Core/HarnessCheck.swift | s|"query": \[.sqlite\], "columns": \[.sqlite\],|"query": [.sqlite, .jsonl], "columns": [.sqlite, .jsonl],|
+the path field is reported as inapplicable | Sources/Antarium/Core/HarnessCheck.swift | s|"manifest": \[.json, .jsonl\],|"manifest": [.json, .jsonl], "path": [.command],|
+a selection glob applies to every kind | Sources/Antarium/Core/HarnessCheck.swift | s|"glob": \[.jsonFiles\], "records": \[.jsonFiles\], "encodedJSON": \[.jsonFiles\],|"glob": [.jsonFiles, .sqlite], "records": [.jsonFiles], "encodedJSON": [.jsonFiles],|
+a sqlite selection is said to read a record filter | Sources/Antarium/Core/HarnessCheck.swift | s|"id": \[.jsonFiles, .command\], "filter": \[.jsonFiles, .command\],|"id": [.jsonFiles, .command, .sqlite], "filter": [.jsonFiles, .command, .sqlite],|
+the source applicability table is never read | Sources/Antarium/Core/HarnessCheck.swift | s|guard let kinds = sourceFieldKinds\[key\],|guard let kinds = Optional(Set<HarnessDescriptor.Source.Kind>()),|
+an env credential is said not to read a file | Sources/Antarium/Core/HarnessCheck.swift | s|"path": \["env", "textFile", "jsonFile"\],|"path": ["textFile", "jsonFile"],|
+a credential name applies to every kind | Sources/Antarium/Core/HarnessCheck.swift | s|"name": \["env"\],|"name": ["env", "jsonFile", "textFile", "command"],|
+the credential table is never read | Sources/Antarium/Core/HarnessCheck.swift | s|guard let kinds = credentialFieldKinds\[key\], !kinds.contains(kind)|guard let kinds = Optional(Set<String>()), !kinds.contains(kind)|
+status never mentions an unreadable settings file | Sources/Antarium/Diagnostics.swift | s|                if let issue = Config.issue { print("    ! \\(issue)") }||
+a launch says nothing about an unreadable settings file | Sources/Antarium/AppController.swift | s|        if let issue = Config.issue { Log.warn("config", issue) }||
+verify.sh stops checking damaged files | verify.sh | s|\[ "\$status" -eq 0 \] \&\& ok "it still starts" \|\| bad "a damaged file stopped it starting"||
+a failed save is not reported | Sources/Antarium/Core/ConfigurationFile.swift | s|            failure = "Settings were not saved. The configuration may have changed or be unwritable. Your existing file has been preserved; choose Reload and try again."||
+benchmark measures without draining its backlog | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        backlogged > 0 \&\& passesRun < limit|        false|
+benchmark warm-up never stops | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        backlogged > 0 \&\& passesRun < limit|        true|
+a backlogged run over budget fails instead of concluding nothing | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .over|
+a run over budget is waved through | Sources/Antarium/Core/HarnessPerformanceBudget.swift | s|        return backlogged == 0 ? .over : .inconclusive|        return .inconclusive|
+detection is not consulted at all | Sources/Antarium/Core/AgentAutoEnable.swift | s|        Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|        []|
+detection reports every harness as installed | Sources/Antarium/Core/AgentAutoEnable.swift | s|Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|Set(Onboarding.harnesses(descriptors).map(\\.id))|
+the first run ignores what detection found | Sources/Antarium/Core/AgentAutoEnable.swift | s|            evidence: evidence(providers: providers, sessionsPresent: sessions),|            evidence: evidence(providers: providers, sessionsPresent: []),|
+the first run treats every agent as used here | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains($0.id))|                     hasSessions: true)|
+the first run drops the agents it was given | Sources/Antarium/Core/AgentAutoEnable.swift | s|            fallback: providers.map(\\.id))|            fallback: [])|
+an absurd request count crashes instead of being refused | Sources/Antarium/Providers/CursorProvider.swift | s|case let v as Double: return Int(exactly: v.rounded())|case let v as Double: return Int(v)|
+cursor buckets keep whatever order the dictionary gave | Sources/Antarium/Providers/CursorProvider.swift | s|gauges.sorted { (\$0.used, \$1.id) > (\$1.used, \$0.id) }|gauges.sorted { $0.used > $1.used }|
+an absurd window is accepted | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value > 0|
+a zero-length window is a window | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value >= 0, value <= maxWindowSeconds|
+codex reads its reset date unbounded | Sources/Antarium/Providers/CodexProvider.swift | s|            resets = FieldPath.epoch(at)|            resets = Date(timeIntervalSince1970: at)|
+the descriptor badge converts an unbounded window | Sources/Antarium/Providers/DescriptorProvider.swift | s|        guard let seconds = FieldPath.seconds(raw)|        guard let seconds = raw, seconds > 0|
+a gauge keeps a figure outside the range it documents | Sources/Antarium/Core/UsageModel.swift | s|        self.used = Gauge.fraction(used)|        self.used = used.isFinite ? used : 0|
+the last agent can be switched off | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }||
+every settings change is refused | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }|        return .refuse(AgentToggle.lastOne)|
+switching an agent on removes it instead | Sources/Antarium/UI/Settings.swift | s|        if on { next.insert(id) } else { next.remove(id) }|        if on { next.remove(id) } else { next.insert(id) }|
+the settings toggle decides for itself again | Sources/Antarium/UI/SettingsView.swift | s|        .disabled(refusal != nil)||
+the menu bar colour follows the meter mode | Sources/Antarium/UI/Renderer.swift | s|                severity: g.severity)|                severity: mode == .used ? g.severity : Severity.forRemaining(g.used))|
+the bar ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: g.hasMeter ? g.used : nil,|
+a balance draws a bar after all | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: (mode == .used ? g.used : g.remaining),|
+the figure ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),|                    ?? g.usedPercentText,|
+a declared mark is ignored | Sources/Antarium/UI/Glyphs.swift | s|        if let declared = descriptors.first(where: { \$0.id == agentID })?.resolvedMark {|        if let declared: String = nil {|
+any descriptor lends its mark | Sources/Antarium/UI/Glyphs.swift | s|descriptors.first(where: { \$0.id == agentID })?.resolvedMark|descriptors.first?.resolvedMark|
+the alias table is skipped | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return agentID|
+every agent wears its alias whether it has one or not | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return alias[agentID] ?? "claude-code"|
+a signed hex is read as a colour | Sources/Antarium/UI/AgentStyle.swift | s|        guard s.count == 6, s.allSatisfy(\\.isHexDigit),|        guard s.count == 6,|
+any length of hex is a colour | Sources/Antarium/UI/AgentStyle.swift | s|        guard s.count == 6, s.allSatisfy(\\.isHexDigit),|        guard s.allSatisfy(\\.isHexDigit),|
+a negative row walks the palette backwards | Sources/Antarium/UI/AgentStyle.swift | s|        let row = max(0, index)|        let row = index|
+every row is the first row | Sources/Antarium/UI/AgentStyle.swift | s|        let row = max(0, index)|        let row = 0|
+the blue channel is the red one | Sources/Antarium/UI/AgentStyle.swift | s|blue: CGFloat(v \& 0xFF) / 255, alpha: 1)|blue: CGFloat((v >> 16) \& 0xFF) / 255, alpha: 1)|
+the dashboard may sit above the screen | Sources/Antarium/UI/PanelPlacement.swift | s|        origin.y = clamp(origin.y, low: visible.minY + margin, high: topY)|        origin.y = max(origin.y, visible.minY + margin)|
+the dashboard may sit below the screen | Sources/Antarium/UI/PanelPlacement.swift | s|        origin.y = clamp(origin.y, low: visible.minY + margin, high: topY)|        origin.y = min(origin.y, topY)|
+a narrow screen pushes the dashboard off its left edge | Sources/Antarium/UI/PanelPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
+a saved position is never respected | Sources/Antarium/UI/PanelPlacement.swift | s|        if userMoved, let saved {|        if false, let saved = saved {|
+a saved position wins before it is moved | Sources/Antarium/UI/PanelPlacement.swift | s|        if userMoved, let saved {|        if let saved {|
+a position that is not a number becomes a frame | Sources/Antarium/UI/PanelPlacement.swift | s|        guard value.isFinite else { return low }||
+a barely started window reads as untouched | Sources/Antarium/UI/Renderer.swift | s|        return max(1, min(n, Int((clamped \* Double(n)).rounded())))|        return min(n, Int((clamped * Double(n)).rounded()))|
+a figure that is not a number fills the bar | Sources/Antarium/UI/Renderer.swift | s|        guard fill.isFinite else { return 0 }||
+an empty window lights a beam anyway | Sources/Antarium/UI/Renderer.swift | s|        guard clamped > 0 else { return 0 }||
+the bar reads backwards | Sources/Antarium/UI/Renderer.swift | s|        return max(1, min(n, Int((clamped \* Double(n)).rounded())))|        return max(1, min(n, n - Int((clamped * Double(n)).rounded())))|
+the dashboard order is not total | Sources/Antarium/Core/AgentScan.swift | s|        return a.id < b.id|        return false|
+the clamp stops preferring the low end | Sources/Antarium/UI/PanelPlacement.swift | s|        return high <= low ? low : min(max(value, low), high)|        return min(max(value, low), high)|
+sorting by spend leaves ties to chance | Sources/Antarium/Core/AgentScan.swift | s|                if a != b { return a > b }|                return a > b; if false {}|
+an unmeasured context reads as empty | Sources/Antarium/Core/HarnessEngine.swift | s|        var contextTokens: Int? { measuredContext }|        var contextTokens: Int? { measuredContext ?? 0 }|
+a malformed journal kind replaces the document | Sources/Antarium/Core/Journal.swift | s|            } else { continue }|            } else { kind = 0 }|
+an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int {|
+a journal line with no kind is skipped | Sources/Antarium/Core/Journal.swift | s|            if line\["kind"\] == nil { kind = 0 }|            if false { kind = 0 }|
+a token in the endpoint goes in unencoded | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{token}", with: encode(token))|            out = out.replacingOccurrences(of: "{token}", with: token)|
+a token in the endpoint is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{token}", with: encode(token))||
+a total may be declared beside a split | Sources/Antarium/Core/HarnessDocument.swift | s|            guard split.isEmpty else {|            guard true else {|
+a combined figure is never accumulated | Sources/Antarium/Core/HarnessEngine.swift | s|                    if let total = accumulated(session.totalTokens ?? 0, path: path) {|                    if let total = accumulated(0, path: path) {|
+a combined figure is not observed | Sources/Antarium/Core/HarnessEngine.swift | s|                            ("totalTokens",map.totalTokens)\] {|] {|
+a row shows a combined figure it never read | Sources/Antarium/Core/AgentScan.swift | s|            row.totalTokens = session.hasNumeric("totalTokens") ? session.totalTokens : nil|            row.totalTokens = session.totalTokens|
+an account id goes into a url unencoded | Sources/Antarium/Providers/DescriptorProvider.swift | s|            forURL ? (value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? value)|            forURL ? value|
+an account id is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{account}", with: encode(account))||
+an account field is accepted on any credential | Sources/Antarium/Core/HarnessDocument.swift | s|               (credential?\["kind"\] as? String) != "jsonFile" {|               false {|
+a placeholder with no field is accepted | Sources/Antarium/Core/HarnessDocument.swift | s|               accountField?.isEmpty != false {|               false {|
+a numeric account id is not an account id | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if let number = FieldPath.first(object, field) as? NSNumber { return number.stringValue }%%
+a credential file from another vendor is trusted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            else { return false }|            else { return true }|
+the validator insists on https again | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   endpoint.scheme == "https",|
+a fixture beside a descriptor is never replayed | Sources/Antarium/Core/HarnessCheck.swift | s|            if let fixture = QuotaFixture.fixtureURL(besideDescriptorAt: url) {|            if let fixture: URL = nil {|
+a failing fixture beside a descriptor passes | Sources/Antarium/Core/HarnessCheck.swift | s|                        fail("quota fixture \\(fixture.lastPathComponent): \\(report.detail)")|                        ok("quota fixture \\(fixture.lastPathComponent): \\(report.detail)")|
+any file counts as the fixture | Sources/Antarium/Core/QuotaFixture.swift | s|        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil|        return candidate|
+a session fixture beside a descriptor is never found | Sources/Antarium/Core/HarnessCompatibility.swift | s|        guard let beside, !path.contains(".."), !path.hasPrefix("/") else { return nil }|        return nil; guard let beside = beside else { return nil }|
+a claim of fixtureVerified needs no fixture | Sources/Antarium/Core/HarnessCheck.swift | s|        } else if descriptor.compatibility?.level == .fixtureVerified {||
+differing fixture values are not named | Sources/Antarium/Core/HarnessCompatibility.swift | s|                return text(want) == text(got) ? nil : "\\(key) \\(text(got)) ≠ \\(text(want))"|                return nil|
+
+the walkthrough stops naming the fixture a reader must write | docs/TECHNICAL.md | s|id>.quota-fixture.json|id>.nothing.json|
+the worked example stops saying when it charts nothing | docs/TECHNICAL.md | s|`max_budget` is frequently `null`|A budget is frequently absent|
+the worked example maps the wrong field | docs/TECHNICAL.md | s|      "used": "info.spend",|      "used": "info.token",|
+the configured probe drops its lock | Sources/Antarium/Core/ConfiguredProbe.swift | /static func value/,/^        return value$/ s|        lock.lock()||; /static func value/,/^        return value$/ s|        defer { lock.unlock() }||
+the transcript cache drops its lock on read | Sources/Antarium/Core/TranscriptStats.swift | /static func of/,/^        if stats.readerState == nil/ s|        lock.lock()||; /static func of/,/^        if stats.readerState == nil/ s|        lock.unlock()||
+the configured probe recomputes under contention | Sources/Antarium/Core/ConfiguredProbe.swift | s|        if let entry = entries\[key\],|        if false, let entry = entries[key],|
+the session engine drops its lock on read | Sources/Antarium/Core/HarnessEngine.swift | /static func sessions/,/^    }/ s|        lock.lock()||; /static func sessions/,/^    }/ s|        lock.unlock()||
+the provider registry drops its lock | Sources/Antarium/Core/UsageProvider.swift | /static func providers/,/^    }/ s|            lock.lock()||; /static func providers/,/^    }/ s|            lock.unlock()||
+the provider registry forgets its cache | Sources/Antarium/Core/UsageProvider.swift | s|            if let cached = fromDescriptors\[descriptor.id\],|            if let cached: (signature: String, provider: DescriptorProvider) = nil,|
+a fixture run returns the machine's own sessions | Sources/Antarium/Core/HarnessEngine.swift | s|        if let hit = cache\[descriptor.id\], hit.fingerprint == fingerprint,|        if let hit = cache[descriptor.id],|
+a fixture run leaves its parsed files behind | Sources/Antarium/Core/HarnessCompatibility.swift | s|                HarnessEngine.forget(under: root, id: descriptor.id)||
+forgetting one tree forgets every tree | Sources/Antarium/Core/HarnessEngine.swift | s|        files = files.filter { !\$0.key.contains(prefix) }|        files.removeAll()|
+the harness cache leaves its old versions behind | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json", "harness-cache-v2.json"\]|    static let supersededCacheFilenames: [String] = []|
+the harness cleanup deletes the live cache | Sources/Antarium/Core/HarnessEngine.swift | s|    static let supersededCacheFilenames = \["harness-cache-v1.json", "harness-cache-v2.json"\]|    static let supersededCacheFilenames = ["harness-cache-v1.json", cacheFilename]|
+only the app secures the settings folder | Sources/Antarium/main.swift | s|^Config.secure(Config.directory)$||
+an open folder is left open | Sources/Antarium/Core/Config.swift | s|            guard current \& 0o077 != 0 else { return true }|            guard false else { return true }|
+a successful login change complains anyway | Sources/Antarium/Core/LaunchAtLogin.swift | s|        guard requested != achieved else { return nil }||
+the login refusal always reads as switching on | Sources/Antarium/Core/LaunchAtLogin.swift | s|        let action = requested ? "switch this on" : "switch this off"|        let action = "switch this on"|
+the login refusal drops the system's reason | Sources/Antarium/Core/LaunchAtLogin.swift | s|        let reason = error.map { "macOS refused: \\($0)" }|        let reason: String? = nil ?? Optional("macOS refused.")|
+a refused login switch says nothing | Sources/Antarium/Core/LaunchAtLogin.swift | s|        guard requested != achieved else { return nil }|        if true { return nil }|
+the settings panel hides the refusal | Sources/Antarium/UI/SettingsView.swift | s|                   subtitle: LaunchAtLogin.refusal|                   subtitle: Optional<String>.none|
+the first-run screen is never redrawn | Sources/Antarium/AppController.swift | s|            hosting.rootView = screen(sessions: rows.count)||
+the first-run screen keeps the count item's callback | Sources/Antarium/AppController.swift | s|            previousRowsChanged?(rows)||
+the borrowed callback is never handed back | Sources/Antarium/AppController.swift | s|                AgentStore.shared.onRowsChanged = previousRowsChanged||
+the redrawn first-run screen is not resized | Sources/Antarium/AppController.swift | s|            self.onboardingPanel?.setContentSize(hosting.fittingSize)||
+a host's answer is filed under whoever replied first | Sources/Antarium/Core/RemoteSweep.swift | s|            lock.lock(); values\[index\] = result; lock.unlock()|            lock.lock(); values[values.count] = result; lock.unlock()|
+every host is asked twice | Sources/Antarium/Core/RemoteSweep.swift | s|            guard taken < count else { return nil }|            guard taken < count * 2 else { return nil }|
+an unchartable answer is told to sign in again | Sources/Antarium/Core/UsageModel.swift | s|        if suggestsSignIn { return setupHint }|        if suggestsSignIn \|\| true { return setupHint }|
+the unchartable hint stops saying why | Sources/Antarium/Core/UsageModel.swift | s|                 + "Signing in again will not change it."|                 + ""|
+the menu decides the advice for itself again | Sources/Antarium/AgentItem.swift | s|        let hint = err.hint(setupHint: provider.setupHint)|        let hint = provider.setupHint|
+a harness certifies itself by declaring it | Sources/Antarium/Core/HarnessCompatibility.swift | s|            let passed = actual == fixture.expected|            let passed = true|
+a claim of verification needs no fixture | Sources/Antarium/Core/HarnessDocument.swift | s|            try requireText("fixture", in: compatibility, at: "compatibility.")||
+a claim of verification needs no date | Sources/Antarium/Core/HarnessDocument.swift | s|            try requireText("verifiedAt", in: compatibility, at: "compatibility.")||
+a provider writes back the token it refreshed | Sources/Antarium/Providers/GrokProvider.swift | s|        hold(fresh)|        hold(fresh); try? Data().write(to: URL(fileURLWithPath: "/tmp/antarium-probe"))|
+a deaf subprocess is only asked to stop | Sources/Antarium/Core/Shell.swift | s|                kill(process.processIdentifier, SIGKILL)||
+the credential reader never escalates | Sources/Antarium/Providers/ClaudeCredentials.swift | s|            if process.isRunning { kill(process.processIdentifier, SIGKILL) }||
+the credential kill outlives the call | Sources/Antarium/Providers/ClaudeCredentials.swift | s|        force.cancel()||
+an empty remote reply verifies four properties of nothing | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|            return accepted \&\& !rows.isEmpty ? 0 : 1|            return accepted ? 0 : 1|
+a refused remote reply is reported as verified | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|            return accepted \&\& !rows.isEmpty ? 0 : 1|            return 0|
+the remote verifier hides how much it saw | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|         "verified":accepted \&\& !rows.isEmpty,|         "verified":true,|
+the help offers a command nothing implements | Sources/Antarium/Core/LaunchArguments.swift | s|      --detect-agents \[--apply\]      Report what a first run would switch on|      --detect-agents [--apply]      Report what a first run would switch on\n      --activity-demo                 Synthetic activity|
+a removed command is accepted again | Sources/Antarium/Core/LaunchArguments.swift | s|        let single:Set<String> = \["--help","-h","--status"|        let single:Set<String> = ["--help","-h","--activity-demo","--status"|
+a mode is accepted with neither documentation nor a reason | Sources/Antarium/Core/LaunchArguments.swift | s|        modes\["--remote-tmux"\] = Mode(maximum:256)|        modes["--remote-tmux"] = Mode(maximum:256); modes["--undocumented-mode"] = Mode()|
+the remote pair stops being documented | Sources/Antarium/Core/LaunchArguments.swift | s|      --verify-remote-discovery-reply <file>||
+the readme drops a shipped tool | README.md | s|^- Gemini CLI$||
+the readme invents a tool | README.md | s|^- Zed$|- Zed\n- Emacs Agent|
+the readme miscounts what ships | README.md | s|ships harnesses for 26 tools|ships harnesses for 11 tools|
+the app signals an agent it discovered | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func stopAgent(_ pid: Int32) { kill(pid, SIGTERM) }\n    static func sorted(|
+the app reaches a host nobody asked for | Sources/Antarium/Core/AppLinks.swift | s|    static let repository = URL(string: "https://github.com/eppser/antarium")!|    static let repository = URL(string: "https://telemetry.example.net/collect")!|
+the readme stops naming the gate | README.md | s|^./verify.sh$|./test.sh|
+contributing stops naming the gate | CONTRIBUTING.md | s|^./verify.sh$|./test.sh|
+the guide stops requiring verification | AGENTS.md | s|^## Required verification$|## Suggested verification|
+a spoken cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|values.append("estimated cost \\(Pricing.money(cost))")|values.append("cost \\(Pricing.money(cost))")|
+a drawn cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|                        "Estimated list-price cost of every session's tokens. "|                        "Cost of every session's tokens. "|
+the readme stops calling cost an estimate | README.md | s|clearly presented as an estimate|presented plainly|
+a new command is launched from nowhere | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func sweep() { _ = Shell.execute("/usr/bin/curl", ["-s", "https://example.invalid"]) }\n    static func sorted(|
+a vendor cli becomes an absolute path | Sources/Antarium/Providers/AmpProvider.swift | s|CommandPath.resolve("amp")|CommandPath.resolve("/opt/homebrew/bin/amp")|
+the reference drops the context tokens field | docs/TECHNICAL.md | /^| .contextTokens/d
+the reference drops the context window field | docs/TECHNICAL.md | /^| .contextWindow/d
+the reference drops a credential kind | docs/TECHNICAL.md | s|jsonFile|a file|g
+the footer counts sentences again | Sources/Antarium/UI/Dashboard.swift | s|        let waiting = rows.filter(\\.awaitingHistory).count|        let waiting = rows.filter { ($0.note ?? "").contains("still being read") }.count|
+a backlogged row is not marked | Sources/Antarium/Core/AgentScan.swift | s|        row.awaitingHistory = session.sourceBacklogged == true|        row.awaitingHistory = false|
+a transcript backlog is not marked | Sources/Antarium/Core/AgentScan.swift | s|        row.awaitingHistory = stats.isBacklogged|        row.awaitingHistory = false|
+the remote verifier reads a state's label again | Sources/Antarium/Core/RemoteDiscoveryEvaluation.swift | s|         "allStatesUnknown":rows.allSatisfy(\\.state.isUnobserved),|         "allStatesUnknown":rows.allSatisfy { $0.state.label == "Unknown" },|
+any state counts as unobserved | Sources/Antarium/Core/AgentScan.swift | s|            if case .unobserved = self { return true }|            return true; if case .unobserved = self { return true }|
+a found agent is not reported as found | Sources/Antarium/UI/SettingsView.swift | s|        let waiting = rows.filter { \$0.present \&\& !\$0.enabled }.count|        let waiting = 0|
+the window cap moves and the reference does not | Sources/Antarium/Providers/DescriptorProvider.swift | s|    static let maxWindows = 64|    static let maxWindows = 640|
+the remote row cap moves and the reference does not | Sources/Antarium/Core/RemoteTmux.swift | s|    static let maxRows = 256|    static let maxRows = 2560|
+the command session cap moves and the reference does not | Sources/Antarium/Core/HarnessEngine.swift | s|    static let maxCommandSessions = 256|    static let maxCommandSessions = 2560|
+the reference stops listing the caps | docs/TECHNICAL.md | s|The caps are|The limits include|
+a harness reads nothing and reports nothing | Resources/harnesses/zed.json | s|"kind": "sqlite"|"kind": "none"|
+the quota fixture rule checks one mapping | Tests/AntariumTests/AutoEnableAndQuotaFixtureTests.swift | s|    let descriptors = HarnessCLI.bundledDescriptors().filter { \$0.quota != nil }|    let descriptors = HarnessCLI.bundledDescriptors().filter { $0.quota != nil \&\& $0.id == "zai" }|
+the probe evidence rule examines no probes | Tests/AntariumTests/HarnessInstallationEvaluationTests.swift | s|            for probe in descriptor.processRule.installationProbes.orEmpty {|            for probe in descriptor.processRule.installationProbes.orEmpty.prefix(0) {|
+the quota help drops the plan | Sources/Antarium/UI/Dashboard.swift | s|            ?? "\\(gauge.title): \\(gauge.usedPercentText) of included \\(plan ?? "plan") usage"|            ?? "\\(gauge.title): \\(gauge.usedPercentText) of included usage"|
+a balance help says used rather than left | Sources/Antarium/UI/Dashboard.swift | s|        let figure = gauge.amountText.map { "\\(gauge.title): \\(\$0) left" }|        let figure = gauge.amountText.map { "\\(gauge.title): \\($0) used" }|
+a stale reading hides its age | Sources/Antarium/UI/Dashboard.swift | s|        return figure + " — as of " + Format.age(fetchedAt)|        return figure|
+a cloud report replaces a local observation | Sources/Antarium/Core/AgentScan.swift | s|        for row in local + cloud where seen.insert(row.id).inserted {|        for row in cloud + local where seen.insert(row.id).inserted {|
+a remote row forgets which host it came from | Sources/Antarium/Core/RemoteTmux.swift | s|            var row = AgentRow(id: "\\(tag):\\(host):\\(pane.target)",|            var row = AgentRow(id: "\\(tag):\\(pane.target)",|
+a cost no longer says which prices it used | Sources/Antarium/UI/Dashboard.swift | s|        return text + " Rates as of \\(asOf)."|        return text|
+an undated table leaves a dangling sentence | Sources/Antarium/UI/Dashboard.swift | /^        guard let asOf, !asOf.trimmingCharacters/,+1d
+the pricing table is read for its rates and not its day | Sources/Antarium/Core/Pricing.swift | s|asOf: day(mine: myFile.asOf, bundled: bundledFile.asOf)|asOf: nil|
+a corrected table is dated to the day the app was built | Sources/Antarium/Core/Pricing.swift | s|^        mine ?? bundled$|        bundled ?? mine|
+a whitespace-only date still reads as a date | Sources/Antarium/UI/Dashboard.swift | s|guard let asOf, !asOf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty|guard let asOf|
+the termination scan looks for a spelling nothing uses | Tests/AntariumTests/PrivacyClaimsTests.swift | s|where line.contains(".terminate()") {|where line.contains(".terminateXX()") {|
+the credential watchdog terminates a process it did not start | Sources/Antarium/Providers/ClaudeCredentials.swift | s|if process.isRunning { process.terminate() }|if process.isRunning { Process().terminate() }|
+the shell timeout terminates a process it did not start | Sources/Antarium/Core/Shell.swift | s|^            process.terminate()$|            Process().terminate()|
+a Finder-launched app searches nowhere for an agent | Sources/Antarium/Core/CommandPath.swift | s|static let fallbacks = \["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"\]|static let fallbacks: [String] = []|
+homebrew is dropped from the search path | Sources/Antarium/Core/CommandPath.swift | s|\["/opt/homebrew/bin", "/usr/local/bin"|["/usr/local/bin"|
+a declared fallback is never actually searched | Sources/Antarium/Core/CommandPath.swift | s|+ fallbacks + \[home + "/.local/bin"\]|+ [home + "/.local/bin"]|
+a long fractional second is accumulated until it traps | Sources/Antarium/Core/UsageHTTP.swift | s|let significant = min(end, 20 + maxFractionDigits)|let significant = end|
+digits past the ninth are never looked at | Sources/Antarium/Core/UsageHTTP.swift | s|guard let raw = digits(20..<significant), allDigits(significant..<end)|guard let raw = digits(20..<significant)|
+the fraction is scaled by the digits present, not the digits read | Sources/Antarium/Core/UsageHTTP.swift | s|fraction = Double(raw) / pow(10, Double(significant - 20))|fraction = Double(raw) / pow(10, Double(end - 20))|
+a long fraction is refused rather than read | Sources/Antarium/Core/UsageHTTP.swift | s|guard end > 20 else { return nil }|guard end > 20, end <= 20 + maxFractionDigits else { return nil }|
+a cloud task's title reaches the row unbounded | Sources/Antarium/Core/CloudScan.swift | s|                    return String((item\[k\] as! String).prefix(maxText))|                    return (item[k] as! String)|
+the clamp drops the value instead of shortening it | Sources/Antarium/Core/CloudScan.swift | s|return String((item\[k\] as! String).prefix(maxText))|return String((item[k] as! String).prefix(0))|
+the display clamp is applied to the identifier too | Sources/Antarium/Core/CloudScan.swift | s|guard let id = identifier(\["id", "task_id", "uuid"\])|guard let id = string(["id", "task_id", "uuid"])|
+the text bound is wide enough to be no bound | Sources/Antarium/Core/CloudScan.swift | s|    static let maxText = 64|    static let maxText = 100000|
+a cloud status wraps the pill onto a second line | Sources/Antarium/UI/Dashboard.swift | /^                .lineLimit(1)$/,+1d
+the pill is sized for a label it does not hold | Sources/Antarium/UI/Dashboard.swift | s|    static let pill: CGFloat = 68|    static let pill: CGFloat = 48|
+the pill column is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let pill: CGFloat = 68|    static let pill: CGFloat = 140|
+the cost column is too narrow for a real figure | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 44|
+the cost column is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 160|
+a negative context becomes a negative percentage | Sources/Antarium/Core/AgentScan.swift | s|        guard let contextTokens, contextTokens >= 0,|        guard let contextTokens,|
+an invalid context reads as an empty one | Sources/Antarium/Core/AgentScan.swift | s|        guard let contextTokens, contextTokens >= 0,|        guard let contextTokens = contextTokens.map({ max(0, $0) }),|
+an empty context is refused along with the invalid ones | Sources/Antarium/Core/AgentScan.swift | s|contextTokens >= 0,|contextTokens > 0,|
+a database column reporting a negative count is trusted | Sources/Antarium/Core/HarnessEngine.swift | s|                    guard let amount = value.integer, amount >= 0 else {|                    guard let amount = value.integer else {|
+a trace path reporting a negative count is trusted | Sources/Antarium/Core/HarnessEngine.swift | s|               (FieldPath.int(record, path).map { $0 >= 0 } != true) {|               (FieldPath.int(record, path) == nil) {|
+the meter slot is too narrow for a full bar | Sources/Antarium/UI/Dashboard.swift | s|    static let meter: CGFloat = 65|    static let meter: CGFloat = 40|
+the meter slot is mostly empty space | Sources/Antarium/UI/Dashboard.swift | s|    static let meter: CGFloat = 65|    static let meter: CGFloat = 150|
+the blank reserve carries its own width again | Sources/Antarium/UI/Dashboard.swift | s|Color.clear.frame(width: RowMetrics.meter, height: 1)|Color.clear.frame(width: 61, height: 1)|
+the context bar stops aligning to the slot | Sources/Antarium/UI/Dashboard.swift | /^        .frame(minWidth: RowMetrics.meter, alignment: .trailing)$/d
+a balance is truncated to the slot rather than growing | Sources/Antarium/UI/Dashboard.swift | s|.frame(minWidth: RowMetrics.meter, alignment: .trailing)|.frame(width: RowMetrics.meter, alignment: .trailing)|
+the row name is pinned to its ideal width again | Sources/Antarium/UI/Dashboard.swift | s|                Text(row.coreName).font(.system(size: 11.5, weight: .semibold))|                Text(row.coreName).font(.system(size: 11.5, weight: .semibold)).fixedSize(horizontal: true, vertical: false)|
+the name stops being served before the path | Sources/Antarium/UI/Dashboard.swift | s|                    .layoutPriority(1)|                    .layoutPriority(0)|
+the row is furniture with a gap left for the name | Sources/Antarium/UI/Dashboard.swift | s|    static let cost: CGFloat = 78|    static let cost: CGFloat = 200|
+the panel no longer states its own width | Sources/Antarium/UI/Dashboard.swift | s|    static let panelFull: CGFloat = 600|    static let panelFull: CGFloat = 320|
+a long name is cut from the wrong end | Sources/Antarium/UI/Dashboard.swift | s|^                    .truncationMode(.tail)$|                    .truncationMode(.head)|
+a long list widens the panel without splitting the rows | Sources/Antarium/UI/Dashboard.swift | s|ForEach(PanelPlacement.column(column, of: columns,|ForEach(PanelPlacement.column(0, of: 1,|
+the columns are filled across instead of down | Sources/Antarium/UI/PanelPlacement.swift | s|        let start = index \* base + min(index, extra)|        let start = index|
+a panel wider than the screen is allowed | Sources/Antarium/UI/PanelPlacement.swift | s|        guard visibleWidth \* maxScreenShare >= 2 \* panel + 2 \* margin else { return 1 }||
+the uneven column leans right | Sources/Antarium/UI/PanelPlacement.swift | s|        let length = base + (index < extra ? 1 : 0)|        let length = base + (index >= count - extra ? 1 : 0)|
+a settings section reaches no tab at all | Sources/Antarium/UI/SettingsView.swift | s|                    if tab == .dashboard \|\| unbounded {|                    if false \&\& tab == .dashboard {|
+the sounds section is lost between two tabs | Sources/Antarium/UI/SettingsView.swift | /^                        section("Sounds") { soundControls }$/d
+a rendered sheet shows only the open tab | Sources/Antarium/UI/SettingsView.swift | s|                    if tab == .advanced \|\| unbounded {|                    if tab == .advanced {|
+the panel is too narrow for its own instructions | Sources/Antarium/UI/SettingsView.swift | s|    static let width: CGFloat = 520|    static let width: CGFloat = 400|
+a tab carries an icon that does not exist | Sources/Antarium/UI/SettingsView.swift | s|            case .advanced:  return "slider.horizontal.3"|            case .advanced:  return "slider.horizontal.9"|
+two tabs share the same icon | Sources/Antarium/UI/SettingsView.swift | s|            case .dashboard: return "rectangle.grid.1x2"|            case .dashboard: return "gearshape"|
+an unreadable reply does not say what it held | Sources/Antarium/Providers/DescriptorProvider.swift | s|            guard offered.isEmpty else {|            guard true else {|
+the names repeated back are unbounded in number | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .prefix(Self.maxNamedInError)|                .prefix(100000)|
+the names repeated back are unbounded in length | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .map { Self.clamped(\$0.key) }|                .map { \$0.key }|
+an empty reply is described as holding windows | Sources/Antarium/Providers/DescriptorProvider.swift | s|                .filter { !\$0.isEmpty }||
+a plan label is drawn at whatever length the vendor sent | Sources/Antarium/UI/Dashboard.swift | s|                             maxWidth: RowMetrics.planLabel)|)|
+the plan label is wide enough to push the row off its panel | Sources/Antarium/UI/Dashboard.swift | s|    static let planLabel: CGFloat = 62|    static let planLabel: CGFloat = 300|
+a stat wraps and makes its row taller | Sources/Antarium/UI/Dashboard.swift | /^                .lineLimit(1).truncationMode(.tail)$/d
+the second line is measured against the wrong panel | Sources/Antarium/UI/Dashboard.swift | s|    static let rowInset: CGFloat = 7|    static let rowInset: CGFloat = 40|
+the list inset is charged to every column | Sources/Antarium/UI/Dashboard.swift | s|        return (panel - 2 \* inset - gutter \* (count - 1)) / count|        return (panel - 2 \* inset \* count - gutter \* (count - 1)) / count|
+the gutter is not taken out of the columns | Sources/Antarium/UI/Dashboard.swift | s|        return (panel - 2 \* inset - gutter \* (count - 1)) / count|        return (panel - 2 \* inset) / count|
+a column count of zero divides by zero | Sources/Antarium/UI/Dashboard.swift | s|        let count = CGFloat(max(1, columns))|        let count = CGFloat(columns)|
+the agent subtitle is cut off instead of wrapping | Sources/Antarium/UI/SettingsView.swift | s|                            .lineLimit(2)|                            .lineLimit(1)|
+the wrapped subtitle has no height to wrap into | Sources/Antarium/UI/SettingsView.swift | /^                            .fixedSize(horizontal: false, vertical: true)$/d
+a rendered sheet widens with the display it is taken on | Sources/Antarium/Diagnostics.swift | s|                                               singleColumn: true),|),|
+the single-column escape does nothing | Sources/Antarium/UI/Dashboard.swift | s|        guard !singleColumn else { return 1 }||
+the budget charges one gap too few | Sources/Antarium/UI/Dashboard.swift | s|        let gaps = CGFloat(lineOneChildren - 1 + max(0, extraChildren))|        let gaps = CGFloat(lineOneChildren - 2 + max(0, extraChildren))|
+the optional children cost the name nothing | Sources/Antarium/UI/Dashboard.swift | s|            - gap \* gaps - max(0, extraWidth)|            - gap \* gaps|
+the row is counted as having fewer children than it draws | Sources/Antarium/UI/Dashboard.swift | s|    static let lineOneChildren = 7|    static let lineOneChildren = 6|
+the wide header leaves its controls at one end | Sources/Antarium/UI/Dashboard.swift | s|            if columns > 1 { Spacer(minLength: 4) }||
+the column divider takes part in the layout | Sources/Antarium/UI/Dashboard.swift | s|                    .overlay(alignment: .topLeading) {|                    .padding(0).background {|
+the divider is drawn down the middle of a column | Sources/Antarium/UI/Dashboard.swift | s|                                    + RowMetrics.gutter / 2)|                                    - RowMetrics.gutter / 2)|
+the label column is sized for a panel that is gone | Sources/Antarium/UI/SettingsView.swift | s|    static let labelColumn: CGFloat = 44|    static let labelColumn: CGFloat = 78|
+a label is cut off by its own column | Sources/Antarium/UI/SettingsView.swift | s|    static let labelColumn: CGFloat = 44|    static let labelColumn: CGFloat = 30|
+the settings header is a poster again | Sources/Antarium/UI/SettingsView.swift | s|                        .frame(width: 20, height: 20)|                        .frame(width: 56, height: 56)|
+labels start together instead of ending together | Sources/Antarium/UI/SettingsView.swift | s|alignment: .trailing)$|alignment: .leading)|
+the undocumented note loses the date it was checked | Resources/harnesses/opencode.json | s|checked 2026-09-22, opencode.ai|checked recently, opencode.ai|
+a mapping both cites a reference and claims there is none | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas", "unusedNote": "published nowhere",|
+the synthetic mapping stops saying where it was read from | Resources/harnesses/synthetic.json | /"documentation": "https/d
+an uncited mapping stops saying why | Resources/harnesses/copilot.json | s|is published nowhere|is undocumented|
+a mapping is neither checked nor recorded as uncheckable | Resources/harnesses/minimax.json | s|The endpoint is published nowhere|The endpoint is undocumented|
+the partition is satisfied by excusing everything | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"note2": "published nowhere",|
+the z.ai note loses the date it was established | Resources/harnesses/zai.json | s|checked 2026-09-22, docs.z.ai|checked, docs.z.ai|
+a vendor's currency reaches the menu bar unbounded | Sources/Antarium/Core/UsageModel.swift | s|                   currency: Gauge.clamp(\$0.currency, to: Gauge.maxCurrency))|                   currency: \$0.currency)|
+the currency bound is no tighter than a sentence | Sources/Antarium/Core/UsageModel.swift | s|    static let maxCurrency = 8|    static let maxCurrency = 64|
+a balance of three hundred digits is printed in full | Sources/Antarium/Core/UsageModel.swift | s|        if magnitude >= Gauge.plainAmountLimit {|        if false {|
+an ordinary balance is printed in scientific notation | Sources/Antarium/Core/UsageModel.swift | s|    static let plainAmountLimit = 1e12|    static let plainAmountLimit = 10.0|
+a value that is not a number reaches the formatter | Sources/Antarium/Core/UsageModel.swift | s|            Amount(value: \$0.value.isFinite ? \$0.value : 0,|            Amount(value: \$0.value,|
+every extreme at once is not actually rendered | Sources/Antarium/UI/Renderer.swift | s|        return w + hPad|        return 0|
+the two-row item measures only its first row | Sources/Antarium/UI/Renderer.swift | s|        max(minPercentW, rows.map { measure(\$0.percentText, percentFont).width }.max() ?? 0)|        max(minPercentW, rows.first.map { measure(\$0.percentText, percentFont).width } ?? 0)|
+a window name reaches the menu at any length | Sources/Antarium/AgentItem.swift | s|            string: Self.menuTitle(g.title) + "\\n",|            string: g.title + "\\n",|
+the menu title bound is wide enough to be none | Sources/Antarium/AgentItem.swift | s|    static let maxMenuTitle = 120|    static let maxMenuTitle = 4096|
+an authored window name is cut anyway | Sources/Antarium/AgentItem.swift | s|    static let maxMenuTitle = 120|    static let maxMenuTitle = 10|
+a cut title says nothing about being cut | Sources/Antarium/AgentItem.swift | s|        return String(title.prefix(maxMenuTitle - 1)) + "…"|        return String(title.prefix(maxMenuTitle))|
+the cut lands in the middle of a character | Sources/Antarium/AgentItem.swift | s|        return String(title.prefix(maxMenuTitle - 1)) + "…"|        return String(decoding: title.utf8.prefix(maxMenuTitle - 1), as: UTF8.self) + "…"|
+first run chooses without recording what it offered | Sources/Antarium/Core/AgentAutoEnable.swift | /Settings.enabledAgents = record.enabled/{n;/^        known = record.known$/d;}
+a later launch records only when it adopted something | Sources/Antarium/Core/AgentAutoEnable.swift | /if !record.adopted.isEmpty/{n;s|^        known = record.known$|        if !record.adopted.isEmpty { known = record.known }|;}
+a sound is saved under a name nothing reads | Sources/Antarium/UI/Sounds.swift | s|Config.set("soundName.\\(event.rawValue)", name)|Config.set("soundChoice.\\(event.rawValue)", name)|
+the dashboard position is saved under a name nothing reads | Sources/Antarium/UI/Settings.swift | s|Config.set("dashboardOrigin", \[p.x, p.y\])|Config.set("dashboardPoint", [p.x, p.y])|
+a setting is read under a name nothing writes | Sources/Antarium/UI/Sounds.swift | s|Config.string("soundName.\\(rawValue)")|Config.string("soundPick.\\(rawValue)")|
+the sort order is saved under a name nothing reads | Sources/Antarium/UI/Settings.swift | s|Config.set("agentSort"|Config.set("agentOrder"|
+a manifest map drifts from the session map again | Sources/Antarium/Core/HarnessCheck.swift | s|        "source.manifest.map": mapKeys,|        "source.manifest.map": mapKeys.subtracting(["focusTarget"]),|
+the validator knows a field the schema forbids | Sources/Antarium/Core/HarnessCheck.swift | s|        "pid", "sessionID", "inputIncludesCacheRead",|        "pid", "sessionID", "inputIncludesCacheRead", "notAField",|
+the schema allows a field the validator calls a typo | Resources/harness.schema.json | s|"focusTarget": {|"focusTargetX": {|
+the validator drops a field the schema declares | Sources/Antarium/Core/HarnessCheck.swift | s|        "cwd", "title", "model", "focusTarget", "contextWindow"|        "cwd", "title", "model", "contextWindow"|
+a section the schema does not describe is accepted | Sources/Antarium/Core/HarnessCheck.swift | s|        "source.manifest": \["file", "map"\],|        "source.manifest": ["file", "map"],\n        "activity": ["rules", "tools"],|
+a section is left out of the comparison | Sources/Antarium/Core/HarnessCheck.swift | s|        "map": mapKeys,|        "map": mapKeys, "notInSchema.at.all": ["x"],|
+the app stops launching a command the allowlist still permits | Sources/Antarium/Core/RemoteTmux.swift | s|for path in \["/opt/homebrew/bin/sshpass", "/usr/local/bin/sshpass", "/usr/bin/sshpass"\]|for path in ["/opt/homebrew/bin/nothing", "/usr/local/bin/nothing", "/usr/bin/nothing"]|
+a CLI is no longer launched but is still allowed | Sources/Antarium/Providers/KiroProvider.swift | s|"kiro-cli"|"kiro-cli-gone"|
+a quota provider loses the fixture that is its only check | Resources/harnesses/synthetic.json | s|"id": "synthetic"|"id": "synthetic-renamed"|
+a session fixture is named but not shipped | Resources/harnesses/codex.json | s|"fixture": "harness-fixtures/codex.json"|"fixture": "harness-fixtures/codex-gone.json"|
+every agent without artwork draws one letter again | Sources/Antarium/UI/Glyphs.swift | s|        if capitals.count >= 2 { return String(capitals.prefix(2)) }|        if false { return String(capitals.prefix(2)) }|
+a drawn label is taken from the id rather than the name | Sources/Antarium/UI/Glyphs.swift | s|        let name = descriptors.first { \$0.id == agentID }?.name ?? agentID|        let name = agentID|
+a drawn label grows past what the glyph holds | Sources/Antarium/UI/Glyphs.swift | s|        return String(letters.prefix(2)).uppercased()|        return String(letters.prefix(4)).uppercased()|
+the menu bar item stops naming itself to a screen reader | Sources/Antarium/AgentItem.swift | s|        statusItem.button?.setAccessibilityLabel(provider.displayName)||
+a settings toggle stops saying whether it is on | Sources/Antarium/UI/SettingsView.swift | /^        .accessibilityValue(on ? "on" : "off")$/d
+a settings toggle announces as a plain button | Sources/Antarium/UI/SettingsView.swift | /^        .accessibilityAddTraits(on ? \[.isButton, .isSelected\] : .isButton)$/d
+a capability button opens a file under no name | Sources/Antarium/UI/Dashboard.swift | s|                    .accessibilityLabel("Open \\(capability.kind.label)")||
+a sort option stops saying whether it is chosen | Sources/Antarium/UI/Dashboard.swift | s|                .accessibilityValue(selected ? "Selected" : "Not selected")||
+a sort option loses its name | Sources/Antarium/UI/Dashboard.swift | s|                .accessibilityLabel("Sort by \\(option.title)")||
+the row name is pinned again, further down the chain | Sources/Antarium/UI/Dashboard.swift | s|^                    .layoutPriority(1)$|                    .layoutPriority(1)\n                    .fixedSize(horizontal: true, vertical: false)|
+the subtitle loses the height it wraps into | Sources/Antarium/UI/SettingsView.swift | /^                            .fixedSize(horizontal: false, vertical: true)$/d
+the settings header is a stack of rows again | Sources/Antarium/UI/SettingsView.swift | s|            HStack(spacing: 7) {|            VStack(spacing: 7) {|
+two letters are drawn at the size of one | Sources/Antarium/UI/Glyphs.swift | s|height \* (label.count > 1 ? 0.52 : 0.72)|height * 0.72|
+a single letter is shrunk to fit two | Sources/Antarium/UI/Glyphs.swift | s|height \* (label.count > 1 ? 0.52 : 0.72)|height * 0.52|
+an ssh call sends a command from somewhere else | Sources/Antarium/Core/RemoteTmux.swift | s|                                 "--", host, remoteCommand\],|                                 "--", host, remoteCommand + ""],|
+the argument list stops separating options from the host | Sources/Antarium/Core/RemoteTmux.swift | s|\["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "--", host, remoteCommand\]|["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, remoteCommand]|
+a host beginning with a dash is accepted | Sources/Antarium/Core/RemoteTmux.swift | s|!trimmed.hasPrefix("-"),|true,|
+the host list is normalised on only one side | Sources/Antarium/UI/Settings.swift | s|        get { RemoteTmux.normalizedHosts(Config.strings("remoteTmuxHosts") ?? \[\]) }|        get { Config.strings("remoteTmuxHosts") ?? [] }|
+a shell metacharacter is accepted in a host | Sources/Antarium/Core/RemoteTmux.swift | /^            && trimmed.rangeOfCharacter(from: CharacterSet(charactersIn:/d
+a host with whitespace in the middle is accepted | Sources/Antarium/Core/RemoteTmux.swift | s|        return !trimmed.contains(where: { \$0.isWhitespace })|        return true \&\& !false|
+a second resource directory is excluded unremarked | .gitignore | s|^Resources/marks/\*.png$|Resources/marks/*.png\nResources/quota-fixtures/*.json|
+the artwork stops explaining why it is absent | Resources/marks/README.md | s|ignored by Git|managed separately|
+the artwork readme stops naming the fallback | Resources/marks/README.md | s|vector or initial-letter fallbacks|other marks|
+the list splits while one column still fits | Sources/Antarium/UI/PanelPlacement.swift | s|        if contentHeight <= room { return 1 }|        if contentHeight <= 0 { return 1 }|
+the list never splits however long it gets | Sources/Antarium/UI/PanelPlacement.swift | s|        guard rowCount > 1 else { return 1 }|        return 1; guard rowCount > 1 else { return 1 }|
+a row is costed at the wrong height | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitch: CGFloat = 40|    static let rowPitch: CGFloat = 20|
+the panel chrome is not counted against the screen | Sources/Antarium/UI/Dashboard.swift | s|        chrome + CGFloat(max(0, count))|        CGFloat(max(0, count))|
+a compact row is costed as a full one | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitchReduced: CGFloat = 23|    static let rowPitchReduced: CGFloat = 40|
+a turned-down provider stops being accounted for | docs/ECOSYSTEM.md | s|Chutes publishes|Something publishes|
+the nearest miss is no longer identified | docs/ECOSYSTEM.md | s|most worth revisiting|interesting|
+a verdict loses the day it was established | docs/ECOSYSTEM.md | s|Chutes was re-checked on 2026-09-22|Chutes was re-checked recently|
+the reader takes a different budget than the guide states | Sources/Antarium/Core/BoundedTraceReader.swift | s|    static let bytesPerScan = 4 \* 1_024 \* 1_024|    static let bytesPerScan = 8 * 1_024 * 1_024|
+the guide stops stating the read budget | docs/TECHNICAL.md | s|at most 4 MB of one file per scan|at most a few megabytes per file per scan|
+a measured figure stops saying where it came from | docs/TECHNICAL.md | s|the machine this was written on|a machine|
+the measured sizes stop being marked as an observation | docs/TECHNICAL.md | s|observation from one machine|note|
+the refusal is shared across threads on trust again | Sources/Antarium/Core/LaunchAtLogin.swift | s|    @MainActor private(set) static var refusal: String?|    nonisolated(unsafe) private(set) static var refusal: String?|
+a state answers a question by default again | Sources/Antarium/Core/AgentScan.swift | s|            case .waiting, .ended, .unobserved, .cloud, .looping: return false|            default: return false|
+an error answers a question by default | Sources/Antarium/Core/UsageModel.swift | s|        case .accessDenied, .transport, .badResponse, .unsupported: return false|        default: return false|
+a looping agent is counted as busy | Sources/Antarium/Core/AgentScan.swift | s|            case .working, .shell: return true|            case .working, .shell, .looping: return true|
+the sort stops putting busy rows first | Sources/Antarium/Core/AgentScan.swift | s|                if \$0.state.isBusy != \$1.state.isBusy { return \$0.state.isBusy }||
+a shell is no longer counted as busy | Sources/Antarium/Core/AgentScan.swift | s|            case .working, .shell: return true|            case .working: return true; case .shell: return false|
+being used here stops outranking being merely signed in | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (true, true):  return 3|            case (true, true):  return 2|
+sessions alone stop counting as evidence | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (false, true): return 1|            case (false, true): return 0|
+the ranking collapses to two rungs | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (true, false): return 2|            case (true, false): return 1|
+the repository carries a machine name again | README.md | s|"build-box", "10.0.0.4"|"someones-imac", "10.0.0.4"|
+the README misstates how many providers ship | README.md | s|18 providers|12 providers|
+the README misstates how many mappings were verified | README.md | s|five were compared field by field|two were compared field by field|
+the guard stops reading what git tracks | Tests/AntariumTests/NoMachineIdentityTests.swift | s|git.arguments = \["-C", root.path, "ls-files"\]|git.arguments = ["-C", root.path, "ls-files", "--", "nothing"]|
+a tilde naming another account is glued onto this one | Sources/Antarium/Core/HarnessDescriptor.swift | s|^        return self$|        return home + dropFirst()|
+the expansion stops happening at all | Sources/Antarium/Core/HarnessDescriptor.swift | s|        if hasPrefix("~/") { return home + dropFirst() }|        if false { return home + dropFirst() }|
+a bare tilde stops meaning this account | Sources/Antarium/Core/HarnessDescriptor.swift | s|        if self == "~" { return home }|        if self == "~" { return self }|
+the percentage trusts its argument | Sources/Antarium/Core/UsageModel.swift | s|let p = Gauge.fraction(fraction) \* 100|let p = fraction * 100|
+the shared fraction clamp lets a non-finite figure through | Sources/Antarium/Core/UsageModel.swift | s|value.isFinite ? Swift.min(Swift.max(value, 0), 1) : 0|Swift.min(Swift.max(value, 0), 1)|
+a sliver used reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
+a sliver left reads as none left | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||
+a path is shortened on a bare string prefix | Sources/Antarium/Core/HarnessDescriptor.swift| s|guard hasPrefix(home + "/") else { return self }|guard hasPrefix(home) else { return self }|
+an unusable home still shortens paths | Sources/Antarium/Core/HarnessDescriptor.swift| s|guard !home.isEmpty, home != "/" else { return self }||
+the home itself is shown as an empty tilde path | Sources/Antarium/Core/HarnessDescriptor.swift| s|if self == home { return "~" }||
+a path outside the home is shortened anyway | Sources/Antarium/Core/HarnessDescriptor.swift| s|guard hasPrefix(home + "/") else { return self }||
+a countdown to an unreadable time is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "—" }||
+a reset at an unreadable time is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "reset time unknown" }||
+an activity time too far back is charted | Sources/Antarium/UI/Format.swift | s|        guard canDisplay(s) else { return "unknown" }||
+an unreadable duration is charted | Sources/Antarium/UI/Fmt.swift | s|        guard Format.canDisplay(seconds) else { return "—" }||
+the interval bound only checks the sign | Sources/Antarium/UI/Format.swift | s|        seconds.isFinite \&\& abs(seconds) <= maxInterval|        seconds.isFinite|
+an unrecognised menu bar item jumps to the front | Sources/Antarium/AppController.swift | s|            let a = registry.firstIndex(of: \$0) ?? registry.count|            let a = registry.firstIndex(of: $0) ?? 0|
+menu bar items that tie are left to reshuffle | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return a < b|
+the menu bar order ignores the registry | Sources/Antarium/AppController.swift | s|            return a == b ? \$0 < \$1 : a < b|            return $0 < $1|
+sessions with the same activity are left to reshuffle | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return x > y|
+the session order ignores recency | Sources/Antarium/Core/HarnessEngine.swift | s|        return x == y ? a.orderingKey < b.orderingKey : x > y|        return a.orderingKey < b.orderingKey|
+a session falls back to no identity at all | Sources/Antarium/Core/HarnessEngine.swift | s|        var orderingKey: String { sessionID ?? sourceFile ?? cwd ?? title ?? "" }|        var orderingKey: String { sessionID ?? "" }|
+a rostered provider quietly stops reading its usage api | Resources/harnesses/zai.json | s/"quota"/"quotaWithheld"/
+the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/15 of the 20 are read for usage here/14 of the 20 are read for usage here/
+the document stops naming the roster it is measured against | docs/ECOSYSTEM.md | s/ClaudeBar/that other app/g
+the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/11 of the 26 never appear in it/9 of the 22 never appear in it/
+a shipped quota drops the credential that proves an account exists | Resources/harnesses/zai.json | s/"credential"/"credentialWithheld"/
+the sessions half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains(\$0.id))|                     hasSessions: false)|
+the signed-in half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     signedIn: \$0.signedIn,|                     signedIn: false,|
+a first run fills one slot instead of the cap | Sources/Antarium/Core/AgentAutoEnable.swift | s|            .prefix(limit)|            .prefix(1)|
+a provider is dropped before it can be weighed | Sources/Antarium/Core/AgentAutoEnable.swift | s|        providers.map {|        providers.dropLast().map {|
+
+a probe stamps its answer after the caller that asked for it | Sources/Antarium/Core/ConfiguredProbe.swift | s|entries\[key\] = Entry(value: value, at: now)|entries[key] = Entry(value: value, at: now + 1)|
+a credential kind the token reader cannot use is blessed | Resources/harnesses/deepseek.json | s/"kind": "env"/"kind": "keychain"/
+the first-run cap is one agent | Sources/Antarium/Core/AgentAutoEnable.swift | s|    static let limit = 4|    static let limit = 1|
+a provider recorded as a gap ships after all | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s|Entry("Alibaba", nil, .absent, documentedAs: "Alibaba Model Studio"),|Entry("Moonshot", nil, .absent),|
+a covered provider stops replaying its fixture | Resources/harnesses/moonshot.json | s|"quota"|"quotaGone"|
+a test file loses its contents and the suite stays green | Tests/AntariumTests/TildeExpansionTests.swift | s/.*//
+an env credential names no variable and no fallback file | Resources/harnesses/deepseek.json | s|"name": "DEEPSEEK_API_KEY"|"nameGone": "DEEPSEEK_API_KEY"|; s|"path": "~/.antarium/keys/deepseek"|"pathGone": "~/.antarium/keys/deepseek"|
+a json credential names no field to read | Resources/harnesses/zai.json | s|"field": "env.ANTHROPIC_AUTH_TOKEN"|"fieldGone": "env.ANTHROPIC_AUTH_TOKEN"|
+a json credential names no file to read | Resources/harnesses/opencode.json | s|"path": "~/.local/share/opencode/auth.json"|"pathGone": "~/.local/share/opencode/auth.json"|
+a command credential names no command | Resources/harnesses/copilot.json | s|"command": "gh"|"commandGone": "gh"|
+the vibe session cost is read from the wrong field | Resources/harnesses/mistral.json | s|"cost": "stats.session_cost"|"cost": "stats.cost"|
+the vibe token count is read from the wrong field | Resources/harnesses/mistral.json | s|"totalTokens": "stats.session_total_llm_tokens"|"totalTokens": "stats.total_tokens"|
+the vibe log reader looks for the name the vendor comment uses | Resources/harnesses/mistral.json | s|"glob": "\*/meta.json"|"glob": "*/metadata.json"|
+the fixture stops checking the running total it now records | Resources/harness-fixtures/mistral.json | s|"totalTokens": 4096|"totalTokens": null|
+a credit-billed plan shows an empty bar again | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-3",||
+a credit window borrows the wrong label | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-3": "Session (5 hours)"|"CREDIT_LIMIT-3": "Weekly"|
+a credit window borrows the wrong badge | Resources/harnesses/zai.json | s|"CREDIT_LIMIT-6": "7D"|"CREDIT_LIMIT-6": "5H"|
+minimax counts left are read as counts spent again | Resources/harnesses/minimax.json | s|"remaining": "current_interval_usage_count"|"used": "current_interval_usage_count"|
+a remaining count is not subtracted from its limit | Sources/Antarium/Providers/DescriptorProvider.swift | s|                percent = (limit - min(max(remaining, 0), limit)) / limit \* 100|                percent = min(max(remaining, 0), limit) / limit * 100|
+a window declaring only a remaining count is called figureless | Sources/Antarium/Core/HarnessCheck.swift | s|                \|\| (map.remaining != nil \&\& map.limit != nil)||
+the schema refuses a remaining count | Resources/harness.schema.json | s|"remaining": {|"remainingWithheld": {|
+an unlimited allowance is charted as a meter at nought | Resources/harnesses/copilot.json | s|"unlimited": false|"unlimited": true|
+an absent window flag stops reading as false | Sources/Antarium/Providers/DescriptorProvider.swift | s%                   (Self.flag(\$0.key, window: window, root: json) ?? false) != \$0.value%                   (Self.flag($0.key, window: window, root: json) ?? true) != $0.value%
+an unspendable deepseek balance reads as money in the bank | Resources/harnesses/deepseek.json | s|"criticalWhen": {|"criticalWhenWithheld": {|
+a spent window flag is read with the wrong sense | Resources/harnesses/deepseek.json | s|"is_available": false|"is_available": true|
+a flag stated once for the response is not seen by its windows | Sources/Antarium/Providers/DescriptorProvider.swift | s%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)%        (FieldPath.first(window, key) as? Bool)%
+the fixture stops checking what a provider reported | Sources/Antarium/Core/QuotaFixture.swift | s|            if reported != (row.severity ?? "normal") {|            if false {|
+an empty balance says nothing about itself | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }||
+a balance with money in it is judged as empty | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 {|        if let amount, amount.value <= 1000 {|
+an empty balance is merely low | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }|        if let amount, amount.value <= 0 { return .low }|
+a limits entry naming only its kind is refused again | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|guard let group = dict\["group"\] as? String ?? ParsedLimit.group(forKind: named),|guard let group = dict["group"] as? String,|
+a scoped week is filed under the session group | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|            case "weekly_all", "weekly_scoped": return "weekly"|            case "weekly_all", "weekly_scoped": return "session"|
+a session window is filed under the weekly group | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s|            case "session": return "session"|            case "session": return "weekly"|
+a quota mapping stops saying when it was last read | Resources/harnesses/synthetic.json | s|"checkedAt"|"checkedAtWithheld"|
+a reading is dated in the future | Resources/harnesses/moonshot.json | s|"checkedAt": "2026-09-25"|"checkedAt": "2099-01-01"|
+a reading is dated in a shape no calendar reads | Resources/harnesses/openrouter.json | s|"checkedAt": "2026-09-25"|"checkedAt": "25 September"|
+the schema accepts any text as a reading date | Resources/harness.schema.json | s|"pattern": "\^\[0-9\]{4}-\[0-9\]{2}-\[0-9\]{2}\$",||
+a streamed reply is counted once per content block again | Sources/Antarium/Core/TranscriptStats.swift | s|            if stats.countedUsage.contains(key) { return }||
+the reply key forgets which request it belonged to | Sources/Antarium/Core/TranscriptStats.swift | s|        for byte in "\\(id ?? "")\|\\(request ?? "")".utf8 {|        for byte in "\\(id ?? "")".utf8 {|
+the memory of counted replies holds nothing | Sources/Antarium/Core/TranscriptStats.swift | s|    static let recentUsageMemory = 512|    static let recentUsageMemory = 0|
+a reply identifying itself is treated as anonymous | Sources/Antarium/Core/TranscriptStats.swift | s#        guard id != nil || request != nil else { return nil }#        return nil#
+a codex event written twice is counted twice | Resources/harnesses/codex.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
+a repeated record is never recognised as one | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = false|
+every record is treated as a repeat of the last | Sources/Antarium/Core/HarnessEngine.swift | s|                repeated = figures == session.lastCountedUsage|                repeated = true|
+the engine repeats-rule ignores what the harness declared | Sources/Antarium/Core/HarnessEngine.swift | s|        if countable, map.skipRepeatedUsage == true {|        if countable {|
+a codex desktop event written twice is counted twice | Resources/harnesses/codex-desktop.json | s|"skipRepeatedUsage": true|"skipRepeatedUsage": false|
+a corrected source stops dating the reading that corrected it | Resources/harnesses/codex.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
+a source is both dated and called unread | Tests/AntariumTests/SessionProvenanceTests.swift | s|    static let unread: Set<String> = \[\]|    static let unread: Set<String> = ["codex"]|
+the unread list is padded with a source that maps nothing | Tests/AntariumTests/SessionProvenanceTests.swift | s|    static let unread: Set<String> = \[\]|    static let unread: Set<String> = ["herdr"]|
+a session reading is dated in the future | Resources/harnesses/mistral.json | s|"checkedAt": "2026-09-24"|"checkedAt": "2099-01-01"|
+kimi adds its running total to the turns it sums | Resources/harnesses/kimi.json | s|"skipUsageWhere"|"skipUsageWhereWithheld"|
+kimi refuses the wrong scope | Resources/harnesses/kimi.json | s|"usageScope": "session"|"usageScope": "turn"|
+an empty exclusion rule skips every record | Sources/Antarium/Core/HarnessEngine.swift | s|        if let skip = map.skipUsageWhere, !skip.isEmpty {|        if let skip = map.skipUsageWhere {|
+a record excluded from the sums is excluded from the file | Sources/Antarium/Core/HarnessEngine.swift | s|                guard countable, !repeated else { return current }|                guard countable, !repeated else { return nil }|
+a running total is added to the turns it sums | Sources/Antarium/Core/HarnessEngine.swift | s|            countable = !skip.allSatisfy { string(record, \$0.key) == \$0.value }|            countable = true|
+a retried request stays beside the one that replaced it | Sources/Antarium/Core/Journal.swift | s|            let kept = truncate.map { Array(existing.prefix(\$0)) } ?? existing|            let kept = existing|
+a push with no index truncates everything | Sources/Antarium/Core/Journal.swift | s|            let kept = truncate.map { Array(existing.prefix(\$0)) } ?? existing|            let kept = Array(existing.prefix(truncate ?? 0))|
+a deleted request is still counted | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int, (0...2).contains(declared) {|
+a delete empties the document instead of its target | Sources/Antarium/Core/Journal.swift | s|        guard let head = path.first else { return nil }|        return nil; guard let head = path.first else { return nil }|
+a delete of an absent path removes something else | Sources/Antarium/Core/Journal.swift | s|            guard var array = node as? \[Any\], index < array.count else { return node }|            guard var array = node as? [Any] else { return node }|
+
+the roster reads a fork as the product it forked | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%!shipped.contains(name)%!shipped.contains(where: { $0.contains(name) || name.contains($0) })%
+a session source maps figures and dates nothing | Resources/harnesses/pi.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
+the compact panel is the same width as the full one | Sources/Antarium/UI/Dashboard.swift | s|    static let panelReduced: CGFloat = 400|    static let panelReduced: CGFloat = 600|
+a compact row is as tall as a full one | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitchReduced: CGFloat = 23|    static let rowPitchReduced: CGFloat = 40|
+a spent balance is drawn like a funded one | Sources/Antarium/UI/Renderer.swift | s|        guard row.fill == nil, row.severity == .critical else { return .labelColor }|        return .labelColor; guard row.fill == nil, row.severity == .critical else { return .labelColor }|
+a metered row has its figure recoloured too | Sources/Antarium/UI/Renderer.swift | s|        guard row.fill == nil, row.severity == .critical else { return .labelColor }|        guard row.severity == .critical else { return .labelColor }|
+a funded balance is drawn as spent | Sources/Antarium/UI/Renderer.swift | s|        guard row.fill == nil, row.severity == .critical else { return .labelColor }|        guard row.fill == nil else { return .labelColor }|
+a row never says why its figures are missing | Sources/Antarium/UI/Dashboard.swift | s|        if let note = row.note, !note.isEmpty { values.append(note) }||
+an empty reason is spoken as a pause | Sources/Antarium/UI/Dashboard.swift | s|        if let note = row.note, !note.isEmpty { values.append(note) }|        values.append(row.note ?? "")|
+the reason is spoken before the figures it explains | Sources/Antarium/UI/Dashboard.swift | s|        var values = \[row.coreName, row.state.label\]|        var values = [row.coreName, row.state.label, row.note ?? ""].filter { !$0.isEmpty }|
+an unobserved row keeps its reason to itself | Sources/Antarium/Core/AgentScan.swift | s|        guard state.isUnobserved else { return nil }|        return nil; guard state.isUnobserved else { return nil }|
+a row whose state is known explains itself anyway | Sources/Antarium/Core/AgentScan.swift | s|        guard state.isUnobserved else { return nil }||
+a remote row is explained as a local one | Sources/Antarium/Core/AgentScan.swift | s|        return isRemote ? remoteObservationDetail : localObservationIssue|        return localObservationIssue|
+the reason is repeated when the note already says it | Sources/Antarium/UI/Dashboard.swift | s|        if let why = row.unobservedReason, !why.isEmpty, why != row.note {|        if let why = row.unobservedReason, !why.isEmpty {|
+the reason never reaches the listener | Sources/Antarium/UI/Dashboard.swift | s|        if let why = row.unobservedReason, !why.isEmpty, why != row.note {|        if false, let why = row.unobservedReason, !why.isEmpty {|
+a remote row is offered every local action | Sources/Antarium/Core/Focus.swift | s|        if !row.isRemote {|        if true {|
+a remote path is copied without its host | Sources/Antarium/Core/Focus.swift | s|        return "\\(host):\\(row.cwd)"|        return row.cwd|
+a remote tmux session is attached to locally | Sources/Antarium/Core/Focus.swift | s|        if row.tmuxTarget != nil, !row.isRemote { allowed.insert(.attachTmux) }|        if row.tmuxTarget != nil { allowed.insert(.attachTmux) }|
+a row with no directory still offers to copy it | Sources/Antarium/Core/Focus.swift | s|        guard !row.cwd.isEmpty else { return allowed }||
+the open-directory action stops refusing a remote row | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.openDirectory) else { return false }||
+the open-terminal action stops refusing a remote row | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.openInTerminal) else { return false }||
+the copy action stops naming the machine | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.copyPath), let path = pathToCopy(for: row)|        let path = row.cwd; guard actions(for: row).contains(.copyPath), true|
+disposal no longer refuses later readings | Sources/Antarium/Core/QuotaStore.swift | s|        retired.insert(providerID)||
+the store retires every provider at once | Sources/Antarium/Core/QuotaStore.swift | s|        retired.insert(providerID)|        retired.insert(providerID); retired.insert("other")|
+a misspelled filter reads as every element | Sources/Antarium/Core/FieldPath.swift | s%case .malformed: return \[\]%case .malformed: selected = array%
+a filter needs only one of its clauses | Sources/Antarium/Core/FieldPath.swift | s%clauses.allSatisfy { comparable(lookup(entry, \$0.path)) == \$0.value }%clauses.contains { comparable(lookup(entry, $0.path)) == $0.value }%
+a filter with an empty half is still a filter | Sources/Antarium/Core/FieldPath.swift | s%guard !key.isEmpty, !value.isEmpty else { return .malformed }%guard !key.isEmpty else { return .malformed }%
+a flag compares as the number it is carried by | Sources/Antarium/Core/FieldPath.swift | s%            return number.boolValue ? "true" : "false"%            return String(number.intValue)%
+an integral number compares as a decimal | Sources/Antarium/Core/FieldPath.swift | s%        if number == number.rounded(), let integer = Int(exactly: number) {%        if false, let integer = Int(exactly: number) {%
+a container path cannot see its own filter | Sources/Antarium/Core/FieldPath.swift | s%path.contains("\[") ? each(record, path).first : lookup(record, path)%lookup(record, path)%
+only the first bracket in a path is a filter | Sources/Antarium/Core/FieldPath.swift | s%return entries.flatMap { each(\$0, path) }%return entries.compactMap { lookup($0, path) }%
+a filter ignores the clauses it was given | Sources/Antarium/Core/FieldPath.swift | s%clauses.allSatisfy { comparable(lookup(entry, \$0.path)) == \$0.value }%clauses.allSatisfy { _ in true }%
+a malformed filter ships without complaint | Sources/Antarium/Core/HarnessDocument.swift | s%                guard FieldPath.selection(String(inner)) != .malformed else {%                guard true else {%
+an unclosed bracket ships without complaint | Sources/Antarium/Core/HarnessDocument.swift | s%                guard let close = rest\[open...\].firstIndex(of: "\]") else {%                guard let close = rest[open...].firstIndex(of: "]") ?? rest.indices.last else {%
+a body key declared twice is resolved by luck | Sources/Antarium/Core/HarnessDocument.swift | s%            guard both.isEmpty else {%            guard true else {%
+a posted list body is sent on a GET | Sources/Antarium/Core/HarnessDocument.swift | s%            let declaredBody = \["body", "bodyList"\].filter { quota\[\$0\] != nil }%            let declaredBody = ["body"].filter { quota[$0] != nil }%
+the list half of a body is dropped | Sources/Antarium/Providers/DescriptorProvider.swift | s%        for (key, value) in quota.bodyList ?? \[:\] { body\[key\] = value }%%
+a declared window key is only ever a member name | Sources/Antarium/Providers/DescriptorProvider.swift | s%                    (FieldPath.first(container, key) as? \[String: Any\]).map { (key, \$0) }%                    (container[key] as? [String: Any]).map { (key, $0) }%
+a list body may hold anything at all | Sources/Antarium/Core/HarnessDocument.swift | s%                          .allSatisfy { \$0 is String } ?? false }) else {%                          .allSatisfy { _ in true } ?? true }) else {%
+an unstated flag is a stated no | Sources/Antarium/Providers/DescriptorProvider.swift | s%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool) ?? false%
+a requirement is unmet by silence rather than met | Sources/Antarium/Providers/DescriptorProvider.swift | s%                   (Self.flag(\$0.key, window: window, root: json) ?? false) != \$0.value%                   Self.flag($0.key, window: window, root: json) != $0.value%
+a flag key is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)%        (window[key] as? Bool) ?? (root[key] as? Bool)%
+a half-resolved compound name is a name | Sources/Antarium/Providers/DescriptorProvider.swift | s%            guard let part = name(window, path) else { return "\\(index)" }%            guard let part = name(window, path) else { continue }%
+a duplicate is numbered with the compound separator | Sources/Antarium/Providers/DescriptorProvider.swift | s%    static let duplicateMark = "#"%    static let duplicateMark = "-"%
+a key part is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%        let value = FieldPath.first(window, path)%        let value = FieldPath.lookup(window, path)%
+a list row with no key fields is not numbered | Sources/Antarium/Providers/DescriptorProvider.swift | s%        guard let paths, !paths.isEmpty else { return "\\(index)" }%        guard let paths else { return "\(index)" }%
+a declared title is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%                    ?? map.title.flatMap { FieldPath.first(window, \$0) as? String }.map(Self.clamped)%                    ?? map.title.flatMap { FieldPath.lookup(window, $0) as? String }.map(Self.clamped)%
+a declared currency is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if let found = FieldPath.first(window, declared) as? String, !found.isEmpty {%        if let found = FieldPath.lookup(window, declared) as? String, !found.isEmpty {%
+a title is classified as text rather than a path | Sources/Antarium/Core/HarnessDescriptor.swift | s%            static let nonPathFields: Set<String> = \["single", "labels", "badges"\]%            static let nonPathFields: Set<String> = ["single", "labels", "badges", "title"]%
+a window name is classified as a path | Sources/Antarium/Core/HarnessDescriptor.swift | s%            static let nonPathFields: Set<String> = \["single", "labels", "badges"\]%            static let nonPathFields: Set<String> = ["labels", "badges"]%
+a credential field is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%            return FieldPath.first(object, field) as? String%            return FieldPath.lookup(object, field) as? String%
+a requires guard is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%            guard let found = FieldPath.first(object, path) as? String,%            guard let found = FieldPath.lookup(object, path) as? String,%
+an account field is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if let text = FieldPath.first(object, field) as? String, !text.isEmpty { return text }%        if let text = FieldPath.lookup(object, field) as? String, !text.isEmpty { return text }%
+an account label is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%accountLabel: quota.accountLabel.flatMap { FieldPath.first(json, \$0) as? String },%accountLabel: quota.accountLabel.flatMap { FieldPath.lookup(json, $0) as? String },%
+a credential path goes unvalidated | Sources/Antarium/Core/HarnessDescriptor.swift | s%                \[field, accountField\].compactMap { \$0 } + (requires ?? \[:\]).keys%                [field, accountField].compactMap { $0 }%
+the validator looks only at the windows | Sources/Antarium/Core/HarnessDescriptor.swift | s%            windows.fieldPaths + (credential?.fieldPaths ?? \[\])%            windows.fieldPaths + []%
+a pid path is only ever a flat member | Sources/Antarium/Core/HarnessEngine.swift | s%        if let path = map.pid, let value = FieldPath.first(record,path) {%        if let path = map.pid, let value = FieldPath.lookup(record,path) {%
+a counted collection is only ever a flat member | Sources/Antarium/Core/FieldPath.swift | s%        switch first(record, path) {%        switch lookup(record, path) {%
+a count presence check is only ever a flat member | Sources/Antarium/Core/HarnessEngine.swift | s%            let value = FieldPath.first(record,path)%            let value = FieldPath.lookup(record,path)%
+a selection records path is only ever a flat member | Sources/Antarium/Core/SessionSelection.swift | s%                  var value = FieldPath.first(root, recordsPath)%                  var value = FieldPath.lookup(root, recordsPath)%
+a selection root is only ever a flat member | Sources/Antarium/Core/SessionSelection.swift | s%            guard let nested = FieldPath.first(dictionary, root) else { return nil }%            guard let nested = FieldPath.lookup(dictionary, root) else { return nil }%
+a selection filter key is only ever a flat member | Sources/Antarium/Core/SessionSelection.swift | s%                guard let raw = FieldPath.first(record, path) else { return false }%                guard let raw = FieldPath.lookup(record, path) else { return false }%
+a command source root is only ever a flat member | Sources/Antarium/Core/HarnessEngine.swift | s%                   let nested = FieldPath.first(dict, path) as? \[\[String: Any\]\] {%                   let nested = FieldPath.lookup(dict, path) as? [[String: Any]] {%
+a stated word never marks a window spent | Sources/Antarium/Providers/DescriptorProvider.swift | s%        return flagsHold \&\& wordsHold ? .critical : .normal%        return flagsHold ? .critical : .normal%
+a flag no longer marks a window spent | Sources/Antarium/Providers/DescriptorProvider.swift | s%        return flagsHold \&\& wordsHold ? .critical : .normal%        return wordsHold ? .critical : .normal%
+a rule naming nothing marks every window spent | Sources/Antarium/Providers/DescriptorProvider.swift | s%        guard !flags.isEmpty \|\| !words.isEmpty else { return .normal }%        guard true else { return .normal }%
+a stated word is compared loosely | Sources/Antarium/Providers/DescriptorProvider.swift | s%             ?? FieldPath.comparable(FieldPath.first(root, \$0.key))) == \$0.value%             ?? FieldPath.comparable(FieldPath.first(root, $0.key)))?.contains($0.value) ?? false%
+an unstated word is a stated one | Sources/Antarium/Providers/DescriptorProvider.swift | s%             ?? FieldPath.comparable(FieldPath.first(root, \$0.key))) == \$0.value%             ?? FieldPath.comparable(FieldPath.first(root, $0.key)) ?? $0.value) == $0.value%
+a window state does not beat the reply | Sources/Antarium/Providers/DescriptorProvider.swift | s%            (FieldPath.comparable(FieldPath.first(window, \$0.key))%            (FieldPath.comparable(FieldPath.first(root, $0.key))%
+opencode stops noticing a rate limit | Resources/harnesses/opencode.json | s%"criticalWhenEquals": {%"criticalWhenEqualsUnused": {%
+a relocation variable is ignored | Sources/Antarium/Core/HarnessDescriptor.swift | s%                  let raw = environment\[relocate.env\]?%                  let raw = environment["ANTARIUM_NEVER_SET"]?%
+an empty relocation variable moves the path | Sources/Antarium/Core/HarnessDescriptor.swift | s%                  !raw.isEmpty%                  true%
+a relocation prefix is a plain string prefix | Sources/Antarium/Core/HarnessDescriptor.swift | s%            guard path == relocate.replaces \|\| path.hasPrefix(relocate.replaces + "/")%            guard path.hasPrefix(relocate.replaces)%
+a relocated root doubles its separator | Sources/Antarium/Core/HarnessDescriptor.swift | s%            while root.hasSuffix("/") { root.removeLast() }%            while root.count > 1, root.hasSuffix("/") { root.removeLast() }%
+a relocated path of nothing is the empty path | Sources/Antarium/Core/HarnessDescriptor.swift | s%            return joined.isEmpty ? "/" : joined.expandingTilde%            return joined.expandingTilde%
+a relocated variable holding a tilde is not expanded | Sources/Antarium/Core/HarnessDescriptor.swift | s%            return joined.isEmpty ? "/" : joined.expandingTilde%            return joined.isEmpty ? "/" : joined%
+an impossible relocation ships | Sources/Antarium/Core/HarnessDocument.swift | s%            guard path == replaces \|\| path.hasPrefix(replaces + "/") else {%            guard true else {%
+codex reads its sessions from the wrong home | Resources/harnesses/codex.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
+a rewritten fixture path keeps its relocation | Sources/Antarium/Core/HarnessCompatibility.swift | s%            source\["relocate"\] = nil%%
+a shared data directory is not held to its variable | Tests/AntariumTests/NativeRelocationTests.swift | s%    static let sharedDirectories: \[String: \[String\]\] = \["codex": \["codex-desktop"\]\]%    static let sharedDirectories: [String: [String]] = [:]%
+every provider claims a relocation it does not honour | Sources/Antarium/Core/UsageProvider.swift | s%    var relocationVariable: String? { nil }%    var relocationVariable: String? { "CODEX_HOME" }%
+codex-desktop reads its sessions from the wrong home | Resources/harnesses/codex-desktop.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
+a capability path ignores its agent relocation | Sources/Antarium/Core/ProjectContext.swift | s%                let relocated = HarnessDescriptor.Source.resolve(%                let relocated = substituted.expandingTilde; _ = HarnessDescriptor.Source.resolve(%
+a project path is relocated too | Sources/Antarium/Core/ProjectContext.swift | s%            if substituted.hasPrefix("~") {%            if true {%
+a credential expiry is read as seconds | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let expiry = (oauth\["expiresAt"\] as? Double).map { Date(timeIntervalSince1970: \$0 / 1000) }%        let expiry = (oauth["expiresAt"] as? Double).map { Date(timeIntervalSince1970: $0) }%
+a credential stating no expiry is expired | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        guard let expiresAt else { return false }%        guard let expiresAt else { return true }%
+a credential expiring exactly now is still live | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        return expiresAt <= now%        return expiresAt < now%
+an expired credential is tried before a live one | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            if aExpired != bExpired { return !aExpired }%            if aExpired != bExpired { return aExpired }%
+a credential of unknown expiry is tried last | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            case (.some, .none): return true%            case (.some, .none): return false%
+the same credential from two stores is two | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let unique = tokens.filter { seen.insert(\$0.accessToken).inserted }%        let unique = tokens%
+the credential order depends on the order found | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            return left.offset < right.offset%            return left.offset > right.offset%
+an empty credential token is a credential | Sources/Antarium/Providers/ClaudeCredentials.swift | s%              let token = oauth\["accessToken"\] as? String, !token.isEmpty%              let token = oauth["accessToken"] as? String%
+a set reshapes an object into an array | Sources/Antarium/Core/Journal.swift | /if let index = head as? Int, index >= 0, index < 10_000 {/,/^            return array/ s%            guard mayBuildArray(node) else { return node }%%
+a set reshapes an array into an object | Sources/Antarium/Core/Journal.swift | s%            guard mayBuildObject(node) else { return node }%%
+a push discards what it cannot append to | Sources/Antarium/Core/Journal.swift | /guard append else { return value }/,/let existing = node/ s%            guard mayBuildArray(node) else { return node }%%
+a patch can no longer create what is absent | Sources/Antarium/Core/Journal.swift | s%    static func mayBuildObject(_ node: Any?) -> Bool { node == nil \|\| node is \[String: Any\] }%    static func mayBuildObject(_ node: Any?) -> Bool { node is [String: Any] }%
+a negative push index truncates | Sources/Antarium/Core/Journal.swift | s%            let truncate = (line\["i"\] as? Int).flatMap { \$0 >= 0 ? \$0 : nil }%            let truncate = (line["i"] as? Int)%
+a push adds the value it was given as one element | Sources/Antarium/Core/Journal.swift | s%            return kept + ((value as? \[Any\]) ?? \[\])%            return kept + ((value as? [Any]) ?? [value as Any])%
+a push can no longer create the array it appends to | Sources/Antarium/Core/Journal.swift | s%    static func mayBuildArray(_ node: Any?) -> Bool { node == nil \|\| node is \[Any\] }%    static func mayBuildArray(_ node: Any?) -> Bool { node is [Any] }%
+any node may be built over | Sources/Antarium/Core/Journal.swift | s%    static func mayBuildArray(_ node: Any?) -> Bool { node == nil \|\| node is \[Any\] }%    static func mayBuildArray(_ node: Any?) -> Bool { true }%
+the native reader is warned about its own path | Sources/Antarium/Core/HarnessCheck.swift | s%              !nativeSessionReaders.contains(descriptor.id) else { return nil }%              true else { return nil }%
+a quota-only harness is warned about a path it has not got | Sources/Antarium/Core/HarnessCheck.swift | s%        guard descriptor.source.kind == .none, !descriptor.source.path.isEmpty,%        guard descriptor.source.kind == .none,%
+the native reader list is empty | Sources/Antarium/Core/HarnessCheck.swift | s%    static let nativeSessionReaders: Set<String> = \["claude-code"\]%    static let nativeSessionReaders: Set<String> = []%
+a presence-only agent is said to have sessions | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "sessions here"%
+an agent that keeps sessions is said to be merely installed | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "installed here"%
+every harness is treated as keeping sessions | Sources/Antarium/Core/HarnessCLI.swift | s%.filter { !\$0.contributesPresenceOnly }.map%.map%
+the roster forgets when it was read | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-26"%    static let rosterReadAt = "not a date"%
+the roster date goes backwards | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-26"%    static let rosterReadAt = "2020-01-01"%
+the roster forgets where it came from | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%        "repos/tddworks/ClaudeBar/contents/Sources/Domain/Provider"%        ""%
+a codex flag is read as a figure | Sources/Antarium/Providers/CodexProvider.swift | s%                if let n = d\[k\] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { continue }%%
+a codex flag abandons the candidate list | Sources/Antarium/Providers/CodexProvider.swift | s%                if let n = d\[k\] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { continue }%                if let n = d[k] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { return nil }%
+a codex window in minutes is taken as seconds | Sources/Antarium/Providers/CodexProvider.swift | s%            ?? FieldPath.seconds(number(\["windowDurationMins"\]).map { \$0 \* 60 })%            ?? FieldPath.seconds(number(["windowDurationMins"]))%
+a codex window in minutes is not read at all | Sources/Antarium/Providers/CodexProvider.swift | s%            ?? FieldPath.seconds(number(\["windowDurationMins"\]).map { \$0 \* 60 })%%
+a camelcase codex reset is not read | Sources/Antarium/Providers/CodexProvider.swift | s%        if let at = number(\["reset_at", "resets_at_epoch", "resetsAt"\]) {%        if let at = number(["reset_at", "resets_at_epoch"]) {%
+a camelcase codex reset date is not read | Sources/Antarium/Providers/CodexProvider.swift | s%        } else if let iso = (d\["resets_at"\] as? String) ?? (d\["resetsAt"\] as? String) {%        } else if let iso = (d["resets_at"] as? String) {%
+the bar colours by the number rather than the status | Sources/Antarium/UI/Renderer.swift | s%                severity: g.severity)%                severity: Severity.forRemaining(g.remaining))%
+a status-driven critical never reaches the row | Sources/Antarium/UI/Renderer.swift | s%                severity: g.severity)%                severity: .normal)%
+marking a window spent also moves its bar | Sources/Antarium/UI/Renderer.swift | s%            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,%            Row(fill: g.hasMeter ? (g.severity == .critical ? 1 : (mode == .used ? g.used : g.remaining)) : nil,%
+kimi loses the connect protocol header | Resources/harnesses/kimi.json | s%"connect-protocol-version": "1",%%
+kimi sends a browser user agent | Resources/harnesses/kimi.json | s%"User-Agent": "Antarium"%"User-Agent": "Mozilla/5.0 Chrome/143"%
+kimi posts to a different method | Resources/harnesses/kimi.json | s%BillingService/GetUsages%BillingService/ListUsages%
+kimi claims its figures were checked | Resources/harnesses/kimi.json | s%"verified": false%"verified": true%

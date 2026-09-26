@@ -1,0 +1,83 @@
+{
+  "note": "Synthetic. Shape follows Command Code's documented billing/credits payload, wrapped in the `data` envelope it uses. Every value is invented.",
+  "verifiedAt": "2026-09-20",
+  "cases": [
+    {
+      "name": "a full report",
+      "response": {
+        "data": {
+          "credits": {
+            "monthlyCredits": 8.5,
+            "purchasedCredits": 0,
+            "freeCredits": 0,
+            "planId": "individual-go"
+          },
+          "windowLimits": {
+            "fiveHour": {
+              "used": 10,
+              "cap": 40,
+              "resetAt": 1790000000000
+            },
+            "weekly": {
+              "used": 50,
+              "cap": 200,
+              "resetAt": 1790500000000
+            },
+            "monthly": {
+              "used": 1,
+              "cap": 0,
+              "resetAt": 1790500000000
+            }
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "fiveHour",
+            "badge": "5H",
+            "title": "Session (5 hours)",
+            "usedPercent": 25,
+            "resetsAt": "2026-09-21T14:13:20Z"
+          },
+          {
+            "id": "weekly",
+            "badge": "7D",
+            "title": "Weekly",
+            "usedPercent": 25,
+            "resetsAt": "2026-09-27T09:06:40Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a reply with no windows in it",
+      "response": {
+        "data": {
+          "windowLimits": {}
+        }
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply whose every cap is zero",
+      "response": {
+        "data": {
+          "windowLimits": {
+            "fiveHour": {
+              "used": 10,
+              "cap": 0,
+              "resetAt": 1790000000000
+            }
+          }
+        }
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply missing the envelope entirely",
+      "response": {},
+      "expectError": "unsupported"
+    }
+  ]
+}

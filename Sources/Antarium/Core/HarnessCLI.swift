@@ -50,16 +50,163 @@ enum HarnessCLI {
                     try? HarnessDocument.decode($0).descriptor
                 }
             }
-        var failures = 0
+        let summary = fixtureSummary(descriptors, in: AppResources.bundle)
+        for line in summary.lines { print(line) }
+        return exitCode(for: summary)
+    }
+
+    /// The release gate counts the ticks but decides on this. It cannot be
+    /// reached from a test while every shipped fixture passes, so it is a
+    /// function of the summary rather than a line inside the command.
+    static func exitCode(for summary: FixtureSummary) -> Int32 {
+        summary.failed.isEmpty ? 0 : 1
+    }
+
+    /// One line per descriptor and the ids that failed.
+    ///
+    /// Returned rather than printed so the aggregation can be tested: the
+    /// release gate counts the ticks but decides on the exit code, so a
+    /// verifier that reports every failure and still returns zero would pass
+    /// it. Four mutations of this aggregation survived before it was a
+    /// function.
+    struct FixtureSummary {
+        let lines: [String]
+        let checked: [String]
+        let failed: [String]
+    }
+
+    static func fixtureSummary(_ descriptors: [HarnessDescriptor],
+                               in bundle: Bundle) -> FixtureSummary {
+        var lines: [String] = [], checked: [String] = [], failed: [String] = []
         for descriptor in descriptors {
+            // A descriptor with no session source has no fixture to replay;
+            // its quota mapping is checked by the other verifier.
             guard descriptor.source.kind != .none else { continue }
-            let report = HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle)
+            let report = HarnessCompatibility.verifyFixture(descriptor, in: bundle)
             let passed = report.status == .fixtureVerified
-            print("\(passed ? "✓" : "✗") \(descriptor.id): \(report.detail)"
+            checked.append(descriptor.id)
+            if !passed { failed.append(descriptor.id) }
+            lines.append("\(passed ? "✓" : "✗") \(descriptor.id): \(report.detail)"
                 + (report.verifiedAt.map { " (\($0))" } ?? ""))
-            if !passed { failures += 1 }
         }
-        return failures == 0 ? 0 : 1
+        return FixtureSummary(lines: lines, checked: checked, failed: failed)
+    }
+
+    /// Replays a recorded response shape through every descriptor's `quota`
+    /// mapping. No account, no network, no installed agent — a wrong field
+    /// path fails here rather than on a stranger's Mac.
+    static func verifyBundledQuota() -> Int32 {
+        let descriptors = bundledDescriptors().filter { $0.quota != nil }
+        let summary = quotaSummary(bundledDescriptors(), in: AppResources.bundle)
+        for line in summary.lines { print(line) }
+        if descriptors.isEmpty { print("no descriptor declares a quota block") }
+        return exitCode(for: summary)
+    }
+
+    /// A descriptor that declares quota and yields no report is a failure,
+    /// not something to pass over. The `continue` this replaces skipped it
+    /// silently, so a mapping that could not even be attempted counted as
+    /// fine.
+    static func quotaSummary(_ descriptors: [HarnessDescriptor],
+                             in bundle: Bundle) -> FixtureSummary {
+        var lines: [String] = [], checked: [String] = [], failed: [String] = []
+        // Filtered here rather than by the caller, so "produced no report"
+        // means something definite: every descriptor reaching the loop
+        // declares a quota block, and one that then yields nothing has a
+        // mapping that could not even be attempted.
+        for descriptor in descriptors where descriptor.quota != nil {
+            checked.append(descriptor.id)
+            guard let report = QuotaFixture.verify(descriptor, in: bundle) else {
+                failed.append(descriptor.id)
+                lines.append("✗ \(descriptor.id): declares quota but produced no report")
+                continue
+            }
+            if !report.passed { failed.append(report.id) }
+            lines.append("\(report.passed ? "✓" : "✗") \(report.id): \(report.detail)"
+                + (report.verifiedAt.map { " (\($0))" } ?? ""))
+        }
+        return FixtureSummary(lines: lines, checked: checked, failed: failed)
+    }
+
+    /// Reports what a first run would switch on, and why.
+    ///
+    /// Read-only unless `apply` is given, and even then it goes through
+    /// `applyIfNeeded`, which declines when a choice already exists — so
+    /// running it against a live installation cannot overwrite one.
+    /// The harnesses whose evidence on disk is a session store rather than an
+    /// installed command.
+    ///
+    /// A function rather than a line inside the printing loop, so the filter can
+    /// be asked: dropping it puts every harness in the set, the wording above
+    /// goes back to claiming sessions for `gemini`, and nothing that only reads
+    /// stdout could tell.
+    static func sessionKeepingIDs(_ descriptors: [HarnessDescriptor]) -> Set<String> {
+        Set(descriptors.filter { !$0.contributesPresenceOnly }.map(\.id))
+    }
+
+    /// What the report says about one agent's evidence.
+    ///
+    /// Split out so the wording can be asked, and it needed asking. This printed
+    /// "sessions here" for every agent whose evidence was found on disk — which
+    /// includes `gemini`, declared `contributes: presence`, keeping no session
+    /// record at all. `Onboarding` writes "no session record" into the detail
+    /// beside it, so two lines of one report disagreed, and the one a user reads
+    /// to understand why their bar looks the way it does was the untrue one.
+    ///
+    /// The rank is unaffected and deliberately so: an agent installed here is
+    /// evidence the user has it, which is what `hasSessions` is used for. Only
+    /// the word was wrong.
+    static func evidenceSummary(_ item: AgentAutoEnable.Evidence,
+                               keepsSessions: Bool) -> String {
+        let here = keepsSessions ? "sessions here" : "installed here"
+        switch (item.signedIn, item.hasSessions) {
+        case (true, true):   return "signed in, \(here)"
+        case (true, false):  return "signed in"
+        case (false, true):  return "\(here), not signed in"
+        case (false, false): return Onboarding.absent
+        }
+    }
+
+    static func detectAgents(apply: Bool = false) -> Int32 {
+        HarnessDescriptor.seed()
+        let providers = ProviderRegistry.all
+        let sessions = AgentAutoEnable.sessionsPresent()
+        let evidence = AgentAutoEnable.evidence(providers: providers, sessionsPresent: sessions)
+        let chosen = AgentAutoEnable.resolve(evidence, fallback: providers.map(\.id))
+        print("settings   \(Config.directory.path)")
+        print("providers  \(providers.count), showing at most \(AgentAutoEnable.limit)")
+        print("recorded   " + (Settings.unconfigured(recorded: Settings.recordedAgents)
+            ? "nothing yet — a first run would choose"
+            : "a choice already exists and would be left alone"))
+        let keepsSessions = Self.sessionKeepingIDs(HarnessDescriptor.all())
+        for item in evidence.sorted(by: { ($0.strength, $1.id) > ($1.strength, $0.id) }) {
+            let why = Self.evidenceSummary(item, keepsSessions: keepsSessions.contains(item.id))
+            print("\(chosen.contains(item.id) ? "●" : "○") \(item.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \(why)")
+        }
+        if apply {
+            // The same scan it just explained, not a second one. Reading the
+            // disk again here meant the reasoning printed above and the
+            // choice written below came from two separate looks at the
+            // machine, which can disagree — an agent started between them is
+            // listed as absent and enabled anyway, and the output is then a
+            // report of a decision nobody made.
+            if let written = AgentAutoEnable.applyIfNeeded(providers: providers,
+                                                           sessions: sessions) {
+                print("wrote      enabledAgents = \(written.sorted().joined(separator: ", "))")
+            } else {
+                print("wrote      nothing — a recorded choice is the user's to change")
+            }
+        }
+        return 0
+    }
+
+    /// Every shipped descriptor, decoded once.
+    static func bundledDescriptors() -> [HarnessDescriptor] {
+        (AppResources.bundle.urls(forResourcesWithExtension: "json", subdirectory: "harnesses") ?? [])
+            .compactMap { url in
+                (try? Data(contentsOf: url)).flatMap { try? HarnessDocument.decode($0).descriptor }
+            }
+            .sorted { $0.id < $1.id }
     }
 
     /// Deterministically checks every declared install layout without running
@@ -80,14 +227,29 @@ enum HarnessCLI {
             }
             .sorted { $0.id < $1.id }
 
-        var failures = 0
+        let summary = installationSummary(descriptors)
+        for line in summary.lines { print(line) }
+        return exitCode(for: summary)
+    }
+
+    /// A descriptor that claims processes must carry probes that pass. Zero
+    /// probes is a failure rather than a vacuous success — that is what
+    /// `report.total > 0` is for, and it had nothing holding it.
+    static func installationSummary(_ descriptors: [HarnessDescriptor]) -> FixtureSummary {
+        var lines: [String] = [], checked: [String] = [], failed: [String] = []
         for descriptor in descriptors {
             let report = HarnessInstallationEvaluator.evaluate(descriptor)
+            // `total > 0` cannot decide this on its own: an empty probe list
+            // already fails the evaluator's "no positive probe" and "no
+            // negative probe" rules, so `failures.isEmpty` implies probes of
+            // both polarities exist. Kept as a statement of intent; no
+            // mutation of it can be caught.
             let passed = report.failures.isEmpty && report.total > 0
-            print("\(passed ? "✓" : "✗") \(descriptor.id): \(report.passed)/\(report.total) probes"
+            checked.append(descriptor.id)
+            if !passed { failed.append(descriptor.id) }
+            lines.append("\(passed ? "✓" : "✗") \(descriptor.id): \(report.passed)/\(report.total) probes"
                 + (report.failures.isEmpty ? "" : " — \(report.failures.joined(separator: "; "))"))
-            if !passed { failures += 1 }
         }
-        return failures == 0 ? 0 : 1
+        return FixtureSummary(lines: lines, checked: checked, failed: failed)
     }
 }

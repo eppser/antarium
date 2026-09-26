@@ -11,9 +11,13 @@ Swift 5.9-compatible toolchain.
 ```bash
 git clone https://github.com/eppser/antarium.git
 cd antarium
-./test.sh
-./build.sh
+./verify.sh
 ```
+
+`./verify.sh` is the gate this project requires before a change is
+finished; it runs the suite, the strict-concurrency build and `./build.sh`
+among much else. While you are working, `./test.sh` runs the suite alone
+and is quicker.
 
 The app is assembled at `dist/Antarium.app` with a local ad-hoc signature.
 
@@ -44,6 +48,17 @@ submit logos or other artwork extracted from installed applications. Antarium's
 vector/initial fallbacks keep contributed harnesses functional without them.
 
 ## Verification
+
+```bash
+./verify.sh
+```
+
+That runs the three commands below and a good deal more — the suite on a
+machine that has never run Antarium and in a timezone that is not UTC, every
+shipped harness through `--check`, the assembled app inspected for the
+resources it asks its bundle for, a first run through the real app path, and
+the scan benchmark. Run the parts directly only when you want one of them on
+its own:
 
 ```bash
 ./test.sh

@@ -76,7 +76,7 @@ struct CoreBehaviorTests {
                                                      lastActivity: old), now: now).label, "Working")
         XCTAssertEqual(AgentStateMachine.state(.init(published: .waiting,
                                                      lastActivity: recent), now: now).label, "Waiting")
-        XCTAssertEqual(AgentStateMachine.state(.init(), now: now).label, "Waiting")
+        XCTAssertEqual(AgentStateMachine.state(.init(), now: now).label, "Unknown")
         XCTAssertEqual(AgentStateMachine.state(.init(lastActivity: recent), now: now).label, "Working")
         XCTAssertEqual(AgentStateMachine.state(.init(lastActivity: old), now: now).label, "Waiting")
         XCTAssertEqual(AgentStateMachine.state(.init(published: .waiting,
@@ -132,7 +132,10 @@ struct CoreBehaviorTests {
 
         var context = HarnessEngine.Session()
         context.inputTokens = 5_000
-        XCTAssertEqual(context.contextTokens, 0, "Lifetime traffic is not context occupancy")
+        // Blank, not zero. Lifetime traffic is not context occupancy, and a
+        // figure nobody measured is not an empty context — the row, `--check`
+        // and the fixtures all have a way of saying "not read".
+        XCTAssertEqual(context.contextTokens, nil, "Lifetime traffic is not context occupancy")
         context.measuredContext = 4_200
         XCTAssertEqual(context.contextTokens, 4_200)
     }
@@ -240,5 +243,274 @@ struct CoreBehaviorTests {
         let state = #"{"tabs":[{"type":"session","sessionId":"one"},{"type":"settings"}]}"#
         try Data(state.utf8).write(to: root.appendingPathComponent("opencode.window.a.dat"))
         XCTAssertEqual(OpenCodeTabs.open(in: root), ["one"])
+    }
+}
+
+/// The two thresholds that decide what a row says about an agent. They are
+/// product decisions, not implementation details, and nothing was pinning
+/// them: stretching the idle threshold from 90 seconds to an hour, or
+/// shrinking the stale one from twelve hours to a minute, changed no test
+/// while changing what every row reports.
+@Suite("Activity thresholds")
+struct ActivityThresholdTests {
+
+    @Test("Quiet longer than the idle threshold reads as waiting, not working")
+    func idleThresholdDecidesTheState() {
+        let now = Date()
+        func state(quietFor seconds: TimeInterval) -> AgentRow.State {
+            AgentStateMachine.state(.init(
+                processAlive: true, published: nil,
+                lastActivity: now.addingTimeInterval(-seconds),
+                idleAfter: AgentScan.idleAfter, looping: false))
+        }
+        // Just inside the window is still work in progress; past it, the agent
+        // is waiting on the person rather than busy.
+        #expect(state(quietFor: 1).isBusy)
+        #expect(state(quietFor: AgentScan.idleAfter - 1).isBusy)
+        #expect(!state(quietFor: AgentScan.idleAfter + 1).isBusy)
+        #expect(!state(quietFor: 3600).isBusy)
+
+        // The shipped value itself: long enough to cover a model thinking,
+        // short enough that a finished agent does not keep claiming to work.
+        #expect(AgentScan.idleAfter == 90)
+    }
+
+    @Test("A detached harness goes stale; a CLI agent never does")
+    func staleThresholdAppliesOnlyToDetachedHarnesses() throws {
+        func descriptor(detached: Bool) throws -> HarnessDescriptor {
+            var document: [String: Any] = [
+                "formatVersion": 1, "id": "example", "name": "Example",
+                "process": [:], "source": ["kind": "none", "path": ""],
+            ]
+            if detached { document["detached"] = true }
+            return try HarnessDocument.decode(
+                JSONSerialization.data(withJSONObject: document)).descriptor
+        }
+        let now = Date()
+        let app = try descriptor(detached: true)
+        let cli = try descriptor(detached: false)
+
+        #expect(!AgentScan.isStale(now.addingTimeInterval(-60), app, now: now))
+        #expect(!AgentScan.isStale(now.addingTimeInterval(-AgentScan.staleAfter + 60), app, now: now))
+        #expect(AgentScan.isStale(now.addingTimeInterval(-AgentScan.staleAfter - 60), app, now: now))
+
+        // A CLI agent's running process is the evidence, so age never retires
+        // it — Zed kept a row for a thread last touched two days earlier, and
+        // that is the case this rule exists for, not this one.
+        #expect(!AgentScan.isStale(now.addingTimeInterval(-90 * 24 * 3600), cli, now: now))
+        // Absent activity is not old activity.
+        #expect(!AgentScan.isStale(nil, app, now: now))
+
+        // Long enough to cover a lunch break, short enough that yesterday's
+        // work does not read as today's.
+        #expect(AgentScan.staleAfter == 12 * 3600)
+    }
+}
+
+/// A harness that publishes its own status is stating evidence, and evidence
+/// outranks inference. Dropping the mapping entirely left every test green,
+/// because the state machine then falls back to guessing from activity time —
+/// which reads a freshly idle agent as busy.
+@Suite("Declared status reaches the session", .serialized)
+struct DeclaredStatusTests {
+
+    private func session(status: [String: Any], record: [String: Any]) throws
+        -> HarnessEngine.Session? {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("status-\(UUID().uuidString)")
+        let project = root.appendingPathComponent("Project")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data((String(decoding: try JSONSerialization.data(withJSONObject: record),
+                         as: UTF8.self) + "\n").utf8)
+            .write(to: project.appendingPathComponent("session.jsonl"))
+
+        let document: [String: Any] = [
+            "formatVersion": 1, "id": "status-example", "name": "Status Example",
+            "process": [:],
+            "source": ["kind": "jsonl", "path": root.path, "glob": "*/*.jsonl"],
+            "map": ["status": status, "timestamp": "timestamp"],
+        ]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: document)).descriptor
+        HarnessEngine.resetCaches()
+        return HarnessEngine.sessions(descriptor).first
+    }
+
+    @Test("A declared working value is carried through, not inferred")
+    func declaredWorkingIsCarried() throws {
+        let working = try session(status: ["field": "state", "working": ["busy"], "idle": ["ready"]],
+                                  record: ["state": "busy", "timestamp": "2026-09-20T12:00:00Z"])
+        #expect(working?.isWorking == true)
+    }
+
+    @Test("A declared idle value survives recent activity")
+    func declaredIdleBeatsRecency() throws {
+        // The record is timestamped now, so inference alone would call this
+        // busy. The harness says otherwise and the harness wins.
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let idle = try session(status: ["field": "state", "working": ["busy"], "idle": ["ready"]],
+                               record: ["state": "ready", "timestamp": stamp])
+        #expect(idle?.isWorking == false)
+    }
+
+    @Test("A non-empty collection means working, an empty one means idle")
+    func whileNotEmptyDecidesFromACollection() throws {
+        // The shape the VS Code harness uses: Copilot publishes an array of
+        // requests in flight, so "is that array empty?" is the status.
+        let busy = try session(status: ["whileNotEmpty": "pending"],
+                               record: ["pending": [["id": 1]],
+                                        "timestamp": "2026-09-20T12:00:00Z"])
+        #expect(busy?.isWorking == true)
+
+        // Empty is a reading, not an absence: the agent has nothing in flight.
+        let quiet = try session(status: ["whileNotEmpty": "pending"],
+                                record: ["pending": [] as [Any],
+                                         "timestamp": ISO8601DateFormatter().string(from: Date())])
+        #expect(quiet?.isWorking == false)
+    }
+
+    @Test("A value in neither list leaves the state unstated rather than guessed")
+    func unknownValueStaysUnstated() throws {
+        let unknown = try session(status: ["field": "state", "working": ["busy"], "idle": ["ready"]],
+                                  record: ["state": "reticulating", "timestamp": "2026-09-20T12:00:00Z"])
+        #expect(unknown?.isWorking == nil)
+    }
+}
+
+/// Cancellation is cooperative, so a superseded scan keeps running and
+/// finishes with rows it is no longer entitled to publish. Four call sites in
+/// AgentStore ask the same question before committing anything; this is the
+/// question.
+@Suite("Scan publication gate")
+struct ScanGenerationTests {
+
+    /// The ownership test the scan's cleanup rests on.
+    ///
+    /// A scan releases the two flags that say one is running — `isScanning`
+    /// and the task handle — only if its own generation still owns them. That
+    /// condition is the whole of the rule: a superseded scan clearing them
+    /// would hide the scan that replaced it, and would let the next periodic
+    /// one stack on top, because a periodic scan is skipped precisely when the
+    /// handle is non-nil.
+    ///
+    /// The other half is what happens if the release is skipped rather than
+    /// wrongly performed: the handle stays non-nil for ever, every periodic
+    /// scan returns early, and the dashboard stops refreshing for the rest of
+    /// the session. Not a stuck spinner — a stopped clock.
+    @Test("Only the current generation may release the scan")
+    func onlyCurrentMayRelease() {
+        var generations = ScanGeneration()
+        let first = generations.begin()
+        #expect(generations.isCurrent(first), "a generation that just began does not own the scan")
+        let second = generations.begin()
+        #expect(!generations.isCurrent(first),
+                "a superseded generation still claims the scan, so it would clear a live one")
+        #expect(generations.isCurrent(second))
+    }
+
+    /// And being cancelled does not take ownership away, which is why the
+    /// release is keyed on currency rather than on `mayPublish`. A scan
+    /// cancelled while current still has to put the flags back, or nothing
+    /// ever will.
+    @Test("A cancelled current generation still owns the scan")
+    func cancelledCurrentStillOwns() {
+        var generations = ScanGeneration()
+        let only = generations.begin()
+        #expect(!generations.mayPublish(only, cancelled: true),
+                "a cancelled scan may not publish")
+        #expect(generations.isCurrent(only),
+                "a cancelled scan lost ownership, so the flags would stay set for ever")
+    }
+
+    @Test("Only the newest generation may publish")
+    func onlyTheNewestPublishes() {
+        var generations = ScanGeneration()
+        let first = generations.begin()
+        #expect(generations.mayPublish(first, cancelled: false))
+
+        // A forced refresh replaces the generation. The first scan is still
+        // running — cancellation is cooperative — and must not commit.
+        let second = generations.begin()
+        #expect(!generations.mayPublish(first, cancelled: false))
+        #expect(generations.mayPublish(second, cancelled: false))
+    }
+
+    @Test("Cancellation and supersession are different, and either one stops a publish")
+    func bothHalvesMatter() {
+        var generations = ScanGeneration()
+        let generation = generations.begin()
+        // Current but cancelled: the store was stopped mid-scan.
+        #expect(!generations.mayPublish(generation, cancelled: true))
+        // Superseded but not cancelled: a forced refresh moved on without the
+        // old task noticing. Dropping either half of the condition lets one of
+        // these through.
+        _ = generations.begin()
+        #expect(!generations.mayPublish(generation, cancelled: false))
+    }
+
+    @Test("A generation from the future cannot publish")
+    func futureGenerationsAreRefused() {
+        var generations = ScanGeneration()
+        let first = generations.begin()
+        #expect(!generations.mayPublish(first + 1, cancelled: false))
+        #expect(generations.current == first)
+
+        // The initial value does compare current before anything has begun.
+        // That is the contract — "this generation is the latest" — and it is
+        // unreachable in practice because begin() always precedes the ticket
+        // it hands out. Stated here because the first version of this test
+        // asserted the opposite from assumption rather than from the code,
+        // and an unreachable case is worth naming rather than quietly
+        // asserting either way.
+        let fresh = ScanGeneration()
+        #expect(fresh.mayPublish(0, cancelled: false))
+        #expect(!fresh.mayPublish(0, cancelled: true))
+    }
+}
+
+/// Which cached read to drop when the cache is full. Picking whichever the
+/// dictionary yields first is not merely non-reproducible: it can evict the
+/// entry about to be read again, and then do it once more next time, so a
+/// machine with enough state files never keeps the ones it actually uses.
+@Suite("Cache eviction drops the oldest, not an arbitrary entry")
+struct CodexGoalsEvictionTests {
+
+    private func cache(_ entries: [(String, TimeInterval)]) -> [String: CodexGoals.Cached] {
+        var out: [String: CodexGoals.Cached] = [:]
+        for (key, checked) in entries {
+            out[key] = CodexGoals.Cached(fingerprint: key, checked: checked,
+                                         result: .success([:]))
+        }
+        return out
+    }
+
+    @Test("Below the limit, nothing is evicted")
+    func belowLimitKeepsEverything() {
+        #expect(CodexGoals.victim(in: cache([("a", 1), ("b", 2)]), limit: 8) == nil)
+        #expect(CodexGoals.victim(in: [:], limit: 1) == nil)
+    }
+
+    @Test("At the limit, the least recently checked goes")
+    func oldestIsEvicted() {
+        let full = cache([("newest", 300), ("oldest", 100), ("middle", 200)])
+        #expect(CodexGoals.victim(in: full, limit: 3) == "oldest")
+    }
+
+    /// Two entries checked at the same instant still give one answer, so a
+    /// full cache does not evict a different entry each time it is asked.
+    @Test("A tie is broken deterministically")
+    func tiesAreStable() {
+        let tied = cache([("beta", 100), ("alpha", 100), ("gamma", 100)])
+        let first = CodexGoals.victim(in: tied, limit: 3)
+        #expect(first == "alpha")
+        for _ in 0..<5 { #expect(CodexGoals.victim(in: tied, limit: 3) == first) }
+    }
+
+    @Test("A cache past its limit still evicts exactly one")
+    func overLimit() {
+        let over = cache((0..<40).map { ("k\($0)", TimeInterval(40 - $0)) })
+        #expect(CodexGoals.victim(in: over, limit: 32) == "k39",
+                "the oldest is the one checked longest ago")
     }
 }

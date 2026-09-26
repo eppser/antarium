@@ -3,18 +3,64 @@
   "id": "opencode",
   "name": "opencode",
   "process": {
-    "pathContains": ["OpenCode.app/Contents/MacOS/OpenCode", "/bin/opencode"],
-    "names": ["opencode"],
+    "pathContains": [
+      "OpenCode.app/Contents/MacOS/OpenCode",
+      "/bin/opencode"
+    ],
+    "names": [
+      "opencode"
+    ],
     "installationProbes": [
-      { "method": "curl", "path": "/fixture/home/.opencode/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "npm", "path": "/fixture/lib/node_modules/opencode-ai/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "homebrew", "path": "/opt/homebrew/Cellar/opencode/1.2.3/bin/opencode", "name": "opencode", "argv0": "opencode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "desktop", "path": "/Applications/OpenCode.app/Contents/MacOS/OpenCode", "name": "OpenCode", "argv0": "OpenCode", "expected": true, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" },
-      { "method": "desktop-helper", "path": "/Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper", "name": "OpenCode Helper", "argv0": "OpenCode Helper", "expected": false, "evidence": "https://github.com/anomalyco/opencode", "verifiedAt": "2026-08-26" }
+      {
+        "method": "curl",
+        "path": "/fixture/home/.opencode/bin/opencode",
+        "name": "opencode",
+        "argv0": "opencode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "npm",
+        "path": "/fixture/lib/node_modules/opencode-ai/bin/opencode",
+        "name": "opencode",
+        "argv0": "opencode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "homebrew",
+        "path": "/opt/homebrew/Cellar/opencode/1.2.3/bin/opencode",
+        "name": "opencode",
+        "argv0": "opencode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "desktop",
+        "path": "/Applications/OpenCode.app/Contents/MacOS/OpenCode",
+        "name": "OpenCode",
+        "argv0": "OpenCode",
+        "expected": true,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "desktop-helper",
+        "path": "/Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper",
+        "name": "OpenCode Helper",
+        "argv0": "OpenCode Helper",
+        "expected": false,
+        "evidence": "https://github.com/anomalyco/opencode",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
-    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/opencode.json"
   },
   "source": {
@@ -36,7 +82,7 @@
     ]
   },
   "detached": true,
-  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id.",
+  "note": "The desktop app's executable is OpenCode.app/Contents/MacOS/OpenCode. Only the main process matches; Electron helpers live under Contents/Frameworks. It is detached because the app process directory is not the project it has open. One process hosts every tab, so it is multiSession. The database keeps closed sessions; selection declares the independent window-state evidence for which ids are open. If state cannot be read, recent sessions are reported instead. Sub-sessions are excluded by parent_id. Zen quota comes from opencode.ai's own usage endpoint, which reports the account rather than this machine. The rolling window's length is not stated in the response, so its badge says ROLL rather than claiming a duration. The key is read from opencode's auth store; an XDG_DATA_HOME override is not followed \u2014 set quota.credential.path in ~/.antarium/harnesses/opencode.json if you use one. Rules are AGENTS.md, with CLAUDE.md read only when there is no AGENTS.md, and the global pair is ~/.config/opencode/AGENTS.md then ~/.claude/CLAUDE.md \u2014 the declared order is the documented precedence, so the file shown is the one opencode actually used. Skills are read from three project folders and the same three under home. Not declared: the walk up to the git worktree, and the instructions list in opencode.json, which can name arbitrary globs and remote URLs; a probe at the session's working directory can see neither, and showing nothing is better than showing the wrong file. The Claude-compatible paths can be switched off with OPENCODE_DISABLE_CLAUDE_CODE, in which case they read as present when opencode is ignoring them. The endpoint is published nowhere; checked 2026-09-22, opencode.ai/docs/zen documents the models and the pricing and carries no usage or quota reference. The fixture is the whole of the check. Cross-read 2026-09-24 against ClaudeBar's OpenCodeAPIUsageProbe: same endpoint, same three windows, and `percent` is consumption in both \u2014 its header documents that explicitly, which is worth more than the field's name. That difference is acted on as of 2026-09-26. Each window also carries `status`, either \"ok\" or \"rate-limited\", and `criticalWhenEquals` now says so: a rate-limited window is marked spent. The figure is left as the service reported it. That probe forces a rate-limited window to nothing left whatever percentage it states, and whether such a window ever reports under 100 is still not established \u2014 so writing that clamp would be inventing a number for exactly the case where the flag and the figure disagree. Marking the window and reporting the service's own percentage needs no guess about which of the two is wrong, and tells the user more than either half alone. The earlier note here said descriptors had no way to say a window is exhausted; that was true when it was written and stopped being true when `criticalWhen` arrived, for a flag \u2014 what was actually missing was the same rule for a field stating a word.",
   "multiSession": true,
   "selection": {
     "kind": "jsonFiles",
@@ -46,7 +92,75 @@
     "encodedJSON": true,
     "id": "sessionId",
     "filter": {
-      "type": ["session"]
+      "type": [
+        "session"
+      ]
+    }
+  },
+  "quota": {
+    "endpoint": "https://opencode.ai/zen/go/v1/usage",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.local/share/opencode/auth.json",
+      "field": "opencode-go.key"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "root": "usage",
+      "keys": [
+        "rolling",
+        "weekly",
+        "monthly"
+      ],
+      "usedPercent": "percent",
+      "criticalWhenEquals": {
+        "status": "rate-limited"
+      },
+      "resetsAt": "resetsAt",
+      "labels": {
+        "rolling": "Rolling",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      },
+      "badges": {
+        "rolling": "ROLL",
+        "weekly": "7D",
+        "monthly": "30D"
+      }
+    },
+    "setupHint": "Run `opencode auth login` and pick OpenCode Zen.",
+    "signInCommand": "opencode auth login",
+    "verified": false,
+    "checkedAt": "2026-09-26"
+  },
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "inherited": [
+        "~/.config/opencode/AGENTS.md",
+        "~/.claude/CLAUDE.md"
+      ]
+    },
+    "skills": {
+      "probe": "directory",
+      "project": [
+        ".opencode/skills",
+        ".claude/skills",
+        ".agents/skills"
+      ],
+      "inherited": [
+        "~/.config/opencode/skills",
+        "~/.claude/skills",
+        "~/.agents/skills"
+      ]
     }
   }
 }

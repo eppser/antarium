@@ -175,7 +175,7 @@ struct ExtensibilityAndReleaseTests {
             }
         #expect(observedOpenFiles.contains(workingFile.resolvingSymlinksInPath().path))
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let working = HarnessEngine.session(descriptor,
                                             boundToOpenFiles: [workingFile.path])
         let waiting = HarnessEngine.session(descriptor,
@@ -266,7 +266,7 @@ struct HarnessEvaluationTests {
         try Data(initial.utf8).write(to: file)
         let value = try descriptor(root: root, id: "metrics-\(UUID().uuidString)")
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let cold = HarnessEngine.evaluate(value)
         #expect(cold.sessions.first?.inputTokens == 1_000)
         #expect(cold.sessions.first?.outputTokens == 2_000)
@@ -306,7 +306,7 @@ struct HarnessEvaluationTests {
         try Data(String(repeating: line, count: count).utf8).write(to: file)
         let value = try descriptor(root: root, id: "budget-\(UUID().uuidString)")
 
-        HarnessEngine.resetCaches(includingParsedFiles: true)
+        HarnessEngine.resetCaches()
         let result = HarnessEngine.evaluate(value)
         #expect(result.metrics.recordsParsed == count)
         #expect(result.metrics.elapsedMilliseconds < HarnessPerformanceBudget.coldJSONLMilliseconds,
@@ -319,9 +319,11 @@ struct HarnessEvaluationTests {
         defer { HarnessEngineTestIsolation.lock.unlock() }
         let urls = AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
+        var checked = 0
         for url in urls {
             let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
             guard descriptor.source.kind != .none else { continue }
+            checked += 1
             let report = HarnessCompatibility.verifyFixture(descriptor, in: AppResources.bundle)
             #expect(report.status == .fixtureVerified,
                     "\(descriptor.id): \(report.detail)")
@@ -329,6 +331,11 @@ struct HarnessEvaluationTests {
             #expect(report.expected == report.actual,
                     "\(descriptor.id) fixture numbers differ")
         }
+        // Every assertion above is inside a loop with a `continue` in it, so
+        // a bundle that failed to load, or a day when every harness happened
+        // to be quota-only, would leave this test green having checked
+        // nothing.
+        #expect(checked >= 10, "only \(checked) data-backed harnesses were checked")
     }
 }
 
@@ -441,9 +448,29 @@ struct UIAndReleaseContractTests {
                credential.kind == "command", let command = credential.command {
                 commands.append("\(descriptor.id):credential \(([command] + (credential.args ?? [])).joined(separator: " "))")
             }
+            // A quota command runs on every refresh, so it belongs under the
+            // same gate as the ones run during a scan.
+            if let quota = descriptor.quota, let command = quota.command {
+                commands.append("\(descriptor.id):quota \(([command] + (quota.args ?? [])).joined(separator: " "))")
+            }
+            // A focus command is run when a row is clicked, so it belongs
+            // under the same gate as the ones run during a scan.
+            if let focus = descriptor.focus {
+                commands.append("\(descriptor.id):focus \(([focus.command] + (focus.args ?? [])).joined(separator: " "))")
+            }
         }
 
-        #expect(commands.sorted() == ["copilot:credential gh auth token"])
+        // Every command a shipped harness may run, listed here so adding one
+        // is a decision rather than a side effect. All three read state and
+        // write nothing: `gh auth token` prints a token, and the two workspace
+        // managers print their live pane inventory as JSON.
+        #expect(commands.sorted() == [
+            "copilot:credential gh auth token",
+            "herdr:focus herdr tab focus {focusTarget}",
+            "herdr:source herdr api snapshot",
+            "orca:focus orca terminal switch --terminal {focusTarget}",
+            "orca:source orca terminal list --json",
+        ])
     }
 
     @Test("The public repository uses the standard MIT license")
@@ -502,5 +529,293 @@ struct UIAndReleaseContractTests {
         #expect(script.contains("stapler staple"))
         #expect(script.contains("spctl --assess"))
         #expect(script.contains("SHA256"))
+    }
+}
+
+/// Whether a benchmark run is one to gate on.
+///
+/// `verify.sh` printed three timings and checked none of them, so a scan that
+/// became ten times slower appeared underneath "All checks passed". This app
+/// was rebuilt because a scan was costing 54% of a core sustained; that shape
+/// of failure is exactly what a guardrail is for.
+@Suite("The scan budget")
+struct ScanBudgetTests {
+
+    @Test("A fast scan is within budget")
+    func fastIsAcceptable() {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: 350, backlogged: 0))
+    }
+
+    /// The boundary is inclusive: a run landing exactly on the budget has not
+    /// exceeded it.
+    @Test("A scan exactly at the budget passes, one past it does not")
+    func boundaryIsInclusive() {
+        let budget = HarnessPerformanceBudget.scanMilliseconds
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: budget, backlogged: 0))
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: budget + 1, backlogged: 0) == false)
+    }
+
+    /// A machine still absorbing transcript history is measuring catch-up
+    /// throughput, which is legitimately slower and depends on whatever the
+    /// developer has been running. Failing on that would fail for a reason
+    /// nobody can act on.
+    @Test("A backlogged run is not gated", arguments: [1, 5, 400])
+    func backloggedIsNotGated(_ behind: Int) {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: 60_000, backlogged: behind),
+                "a catch-up run was failed for being slow")
+    }
+
+    /// A timing that is not a number is not a passing timing. There is no
+    /// guard for this and no catalogue entry: NaN and infinity already
+    /// compare false against the budget, so a guard would be a line nothing
+    /// could catch. The behaviour is still worth pinning.
+    @Test("A timing that is not a number fails", arguments: [
+        Double.nan, .infinity,
+    ])
+    func nonFiniteFails(_ value: Double) {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: value, backlogged: 0) == false)
+    }
+
+    /// The budget is about steady state, and the first pass is cold — it
+    /// builds the caches the others read. Gating on the last pass instead
+    /// would gate on whatever the machine was doing during it.
+    @Test("The budget is measured against the fastest pass")
+    func steadyStateIsTheFastest() {
+        #expect(HarnessPerformanceBudget.steadyState([900, 340, 410]) == 340)
+        #expect(HarnessPerformanceBudget.steadyState([340]) == 340)
+    }
+
+    /// The half of the gate that survives a backlog. A pass still absorbing
+    /// history does the steady-state scan plus a read budget per transcript,
+    /// so finishing under the budget anyway says something about steady
+    /// state — and that is the case nearly every run is in.
+    @Test("A backlogged run that comes in under budget is still a pass")
+    func backloggedButFastIsGated() {
+        #expect(HarnessPerformanceBudget.verdict(fastestMilliseconds: 340,
+                                                 backlogged: 3) == .within)
+    }
+
+    /// And the half that does not. An over-budget run that was catching up
+    /// may be perfectly fast once it has, so failing on it would fail for a
+    /// reason nobody could act on.
+    @Test("A backlogged run that is over budget concludes nothing")
+    func backloggedAndSlowIsInconclusive() {
+        #expect(HarnessPerformanceBudget.verdict(fastestMilliseconds: 99_000,
+                                                 backlogged: 1) == .inconclusive)
+    }
+
+    @Test("A drained run that is over budget fails")
+    func drainedAndSlowIsOver() {
+        #expect(HarnessPerformanceBudget.verdict(fastestMilliseconds: 99_000,
+                                                 backlogged: 0) == .over)
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(fastestMilliseconds: 99_000,
+                                                          backlogged: 0) == false)
+    }
+
+    /// Draining before measuring is what makes the gate reachable. Without
+    /// it, `scanIsAcceptable` waves through any machine carrying a backlog —
+    /// which is most of them — so a scan ten times slower than its budget
+    /// passed silently.
+    @Test("A backlog is drained before the clock starts")
+    func warmupDrainsBacklog() {
+        #expect(HarnessPerformanceBudget.needsWarmup(backlogged: 3, passesRun: 0))
+        #expect(HarnessPerformanceBudget.needsWarmup(backlogged: 1, passesRun: 4))
+    }
+
+    @Test("A run with nothing catching up spends no passes warming up")
+    func noBacklogNoWarmup() {
+        #expect(!HarnessPerformanceBudget.needsWarmup(backlogged: 0, passesRun: 0))
+    }
+
+    /// A transcript appended to as fast as it is read never drains. The bound
+    /// is written out rather than derived from `maxWarmupPasses`, because a
+    /// test that says "the limit is the limit" holds for every limit and so
+    /// asserts nothing about this one.
+    @Test("Warming up gives up after five passes rather than never finishing")
+    func warmupIsBounded() {
+        #expect(HarnessPerformanceBudget.maxWarmupPasses == 5)
+        #expect(!HarnessPerformanceBudget.needsWarmup(backlogged: 99, passesRun: 5),
+                "the drain loop would run for ever on a transcript being written to")
+    }
+
+    @Test("A run with no passes is not a fast run")
+    func noPassesIsNotFast() {
+        #expect(HarnessPerformanceBudget.scanIsAcceptable(
+            fastestMilliseconds: HarnessPerformanceBudget.steadyState([]),
+            backlogged: 0) == false)
+    }
+
+    /// Generous on purpose. A budget near what a healthy machine shows would
+    /// fail on a busy laptop and be switched off, which is worse than a
+    /// budget that only catches catastrophe.
+    @Test("The budget is far above a healthy scan")
+    func budgetIsGenerous() {
+        #expect(HarnessPerformanceBudget.scanMilliseconds >= 5_000)
+    }
+}
+
+/// The benchmark acts on its own verdict.
+///
+/// Checked in the source because `--bench` runs three full scans and exits,
+/// which the suite does not do. The budget rule above says what acceptable
+/// means; this says the command does something about it, which is the half
+/// that was missing for the life of the step — verify.sh printed three
+/// timings and checked none of them.
+@Suite("The benchmark exits on its verdict")
+struct BenchmarkVerdictContractTests {
+
+    @Test("--bench exits non-zero when the scan is over budget")
+    func benchExitsOnVerdict() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Antarium/Diagnostics.swift"), encoding: .utf8)
+        let bench = try #require(text.range(of: #"contains("--bench")"#),
+                                 "the benchmark command was renamed")
+        // The block is long — three timed scans, a cache save and the
+        // verdict — so the window has to reach past it. Measured rather than
+        // guessed: 2,000 characters stopped short of the exit and the test
+        // failed for the wrong reason.
+        let body = String(text[bench.lowerBound...].prefix(4_000))
+        #expect(body.contains("HarnessPerformanceBudget.verdict"),
+                "the benchmark reaches no verdict")
+        #expect(body.contains("exit(verdict == .over ? 1 : 0)"),
+                "the benchmark reaches a verdict and exits zero regardless")
+        #expect(body.contains("HarnessPerformanceBudget.needsWarmup"),
+                "the benchmark measures before absorbing its backlog")
+        #expect(body.contains("HarnessPerformanceBudget.steadyState"),
+                "the benchmark picks its own pass to judge")
+    }
+
+    /// And verify.sh acts on the exit status rather than only printing it,
+    /// which is what it did before.
+    @Test("verify.sh checks the benchmark's status")
+    func verifyChecksTheStatus() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(contentsOf: root.appendingPathComponent("verify.sh"),
+                              encoding: .utf8)
+        #expect(text.contains("scan is over its budget"),
+                "the benchmark step reports timings and gates on nothing")
+    }
+}
+
+/// The cost of sitting there, which is a different question from the cost of
+/// one scan.
+///
+/// The failure this project was rebuilt around was not a slow scan but a
+/// frequent one: 408 minutes of CPU over fifteen hours, which is 44% of a
+/// core sustained, from a loop running far more often than it should. The
+/// scan benchmark times a single pass and cannot see that. A verify step
+/// measures what the app costs while idle, and this holds that the step
+/// reaches a verdict rather than printing a number.
+@Suite("Idle cost is measured and gated")
+struct IdleCostContractTests {
+
+    private func verifyScript() throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent("verify.sh"),
+                          encoding: .utf8)
+    }
+
+    @Test("verify.sh measures sustained cost and fails on it")
+    func idleCostIsGated() throws {
+        let text = try verifyScript()
+        #expect(text.contains("Sustained cost while idle"),
+                "nothing measures what the app costs while it sits there")
+        #expect(text.contains("the shape of a runaway loop"),
+                "the idle measurement reports a number and gates on nothing")
+        #expect(text.contains("resident size"),
+                "nothing watches memory, which was the other half of the failure")
+    }
+
+    /// The first thirty seconds are cold caches and first-run detection,
+    /// which are legitimately busy. Measuring them would set a budget around
+    /// startup rather than around steady state.
+    @Test("The measurement is of the second half, not the first")
+    func measuresSteadyState() throws {
+        let text = try verifyScript()
+        #expect(text.contains("second thirty"),
+                "the idle budget includes startup, which is not steady state")
+    }
+}
+
+/// Every shipped harness is verified offline by one mechanism or the other.
+///
+/// Two suites cover the two kinds: a data-backed harness must have a passing
+/// dated session fixture, and one declaring a quota must have a passing
+/// quota fixture. Between them they check all twenty-five — but they
+/// partition by `source.kind`, and nothing said the partition was
+/// exhaustive. A descriptor with no session source and no quota block sits
+/// in neither: it decodes, it ships, and no fixture anywhere replays it.
+///
+/// There is a third kind the two suites do not see, and finding it was the
+/// point: a descriptor that exists for presence alone — a name, a mark, a
+/// process rule — whose figures come from a provider written in Swift.
+/// Claude and Gemini are both, because a keychain and an OAuth refresh are
+/// not things a descriptor can describe. They are covered, by mapping tests
+/// and by mutations, and this asks for the provider rather than a fixture.
+///
+/// This is the promise that the whole catalogue can be checked without
+/// installing a single one of these agents, stated as one property rather
+/// than inferred from two and a gap.
+@Suite("No shipped harness escapes both fixtures")
+struct EveryHarnessIsVerifiedOfflineTests {
+
+    @Test("Each one is covered by a session fixture or a quota fixture")
+    func everyHarnessHasEvidence() throws {
+        let descriptors = HarnessCLI.bundledDescriptors()
+        #expect(descriptors.count >= 20, "only \(descriptors.count) harnesses were read")
+
+        var session = 0, quota = 0, native: [String] = []
+        for descriptor in descriptors {
+            let hasSession = descriptor.source.kind != .none
+            let hasQuota = descriptor.quota != nil
+            switch (hasSession, hasQuota) {
+            case (true, _):
+                // Checked by the session fixture suite above.
+                session += 1
+                #expect(descriptor.compatibility?.fixture?.isEmpty == false,
+                        Comment(rawValue: "\(descriptor.id) reads sessions and declares no fixture"))
+            case (false, true):
+                // Checked by the quota fixture suite.
+                quota += 1
+                let report = QuotaFixture.verify(descriptor, in: AppResources.bundle)
+                #expect(report?.passed == true,
+                        Comment(rawValue: "\(descriptor.id): \(report?.detail ?? "no report")"))
+            case (false, false):
+                // The third kind, and the one the two suites do not see: a
+                // descriptor that exists for presence — a name, a mark, a
+                // process rule — whose figures come from a provider written
+                // in Swift. Claude and Gemini are both of these, because
+                // their credentials are a keychain and an OAuth refresh.
+                // Covered, but by mapping tests and mutations rather than by
+                // a fixture, so that is what is asked of them here.
+                native.append(descriptor.id)
+                #expect(ProviderRegistry.all.contains { $0.id == descriptor.id },
+                        Comment(rawValue: "\(descriptor.id) reads nothing, reports nothing "
+                                + "and has no provider behind it, so nothing verifies it"))
+            }
+        }
+        // The list this used to assert over was never appended to — the third
+        // branch appends to `native` and asserts a provider inline, which is
+        // the check it stood in for. An assertion over a list nothing fills
+        // reads exactly like a guard and is not one, so it is gone rather
+        // than left to reassure.
+        // Each kind must be non-empty, or this passes by everything
+        // happening to be one of them.
+        #expect(session >= 10, "only \(session) harnesses read sessions")
+        #expect(quota >= 5, "only \(quota) harnesses declare a quota")
+        #expect(!native.isEmpty, "no presence-only harness was seen")
+        #expect(session + quota + native.count == descriptors.count)
     }
 }

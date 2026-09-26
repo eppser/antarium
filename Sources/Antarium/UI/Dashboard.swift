@@ -1,6 +1,111 @@
 import SwiftUI
 import AppKit
 
+/// The fixed column widths in a dashboard row.
+///
+/// They were literals inside three private views, which made them untestable
+/// and made "does the content fit?" a question nobody had asked. Named here
+/// so a test can measure the text that goes in them against the space they
+/// give it — in both directions, because a column far wider than its content
+/// is dead space repeated down every row, and that is most of why the panel
+/// is narrow and deep.
+enum RowMetrics {
+    /// Dot, gap, label and the capsule's padding. The widest state this app
+    /// names is "Unknown".
+    static let pill: CGFloat = 68
+    /// Every figure the money formatter can print, beside every duration
+    /// `Fmt.duration` can print.
+    static let cost: CGFloat = 78
+    /// The meter slot: a context bar, an account bar, or the reserve that
+    /// stands in for both when a row has neither.
+    ///
+    /// A *minimum*, not a fixed width. The three things that occupy it
+    /// measured 29.9pt to 64.3pt — a balance figure alone, a bar with a
+    /// percentage beside it — and the reserve was 61pt, which matched none of
+    /// the common cases. Everything after the row's spacer is pushed right by
+    /// what precedes it, so the cost column landed in a different place
+    /// depending on which meter its row happened to have, and the figures did
+    /// not line up down the list.
+    ///
+    /// A minimum rather than a frame because the content is a number: a
+    /// balance wider than this must grow rather than truncate, since a
+    /// shortened figure is a wrong figure. 65 covers every realistic one.
+    static let meter: CGFloat = 65
+
+    /// The panel's own width, in each mode. Reduced drops the whole second
+    /// line, so the full width would be a gap down the middle of every row.
+    static let panelFull: CGFloat = 600
+    static let panelReduced: CGFloat = 400
+
+    /// The rest of a row's first line that is not the name or the path: the
+    /// harness glyph, the gaps between the five items, the spacer's floor,
+    /// and the insets the list and the row each add.
+    static let glyph: CGFloat = 12
+    static let gap: CGFloat = 6
+    static let spacerFloor: CGFloat = 4
+    static let rowInset: CGFloat = 7
+    static let listInset: CGFloat = 6
+    /// Between two columns of rows.
+    static let gutter: CGFloat = 12
+
+    /// What one more row adds to the panel's height, and what the panel costs
+    /// before any rows at all. Measured against the real view rather than
+    /// estimated, and there is a test that re-measures them.
+    static let rowPitch: CGFloat = 40
+    static let rowPitchReduced: CGFloat = 23
+    static let chrome: CGFloat = 63
+
+    /// The height a single column of `count` rows would want.
+    static func singleColumnHeight(rows count: Int, reduced: Bool) -> CGFloat {
+        chrome + CGFloat(max(0, count)) * (reduced ? rowPitchReduced : rowPitch)
+    }
+    /// One column's inner width — what a row actually gets.
+    ///
+    /// The list's horizontal inset is applied once, to the stack of columns,
+    /// not to each column. Subtracting it from every column charged it twice
+    /// and left the two-column panel 12pt wider than the content inside it:
+    /// exact at one column, so the error only appeared in the layout the
+    /// panel had just gained.
+    ///
+    /// Stated as a function with an identity the test asserts — the columns,
+    /// the gutters between them and the two insets add up to the panel.
+    static func columnInner(panel: CGFloat, columns: Int, inset: CGFloat) -> CGFloat {
+        let count = CGFloat(max(1, columns))
+        return (panel - 2 * inset - gutter * (count - 1)) / count
+    }
+
+    /// The plan label on a row's second line. Matched to the widest model
+    /// name, which is what occupies that slot when a model is known — so the
+    /// line's width does not depend on which of the two a row happens to
+    /// have, nor on how long a vendor's name for its plan is.
+    static let planLabel: CGFloat = 62
+
+    /// Views on a row's first line that are always there, in full mode: the
+    /// harness glyph, the name, the path, the spacer, the cost, the meter and
+    /// the state pill.
+    static let lineOneChildren = 7
+
+    /// What is left for the name and the path once everything of fixed width
+    /// has taken its share. Stated so that widening a column is checked
+    /// against the space there is, rather than discovered on somebody's Mac.
+    ///
+    /// `extras` is for the three children that are conditional — the host
+    /// capsule, the tmux glyph and the one marking a remote or cloud session.
+    /// The first version of this charged five gaps for a line that has six
+    /// even when nothing optional is present, and nine when everything is,
+    /// and ignored the width of the optional children entirely. So it
+    /// overstated the budget by 6pt on the plainest row and by rather more
+    /// than that on a tmux session running on another machine — which is
+    /// precisely the row whose name has least room.
+    static func nameBudget(panel: CGFloat = panelFull,
+                           extraChildren: Int = 0, extraWidth: CGFloat = 0) -> CGFloat {
+        let gaps = CGFloat(lineOneChildren - 1 + max(0, extraChildren))
+        return panel - 2 * listInset - 2 * rowInset
+            - (glyph + cost + meter + pill + spacerFloor)
+            - gap * gaps - max(0, extraWidth)
+    }
+}
+
 /// Reports a measured height up through the view tree.
 private struct HeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
@@ -47,9 +152,45 @@ struct DashboardView: View {
         max(200, (NSScreen.main?.visibleFrame.height ?? 900) - 130)
     }
 
-    /// Reduced mode drops the whole second line, so the full width would just
-    /// be a gap in the middle of every row. Narrow the panel to match.
-    private var panelWidth: CGFloat { reduced ? 400 : 600 }
+    /// Remembered only so the column count has hysteresis: a list of live
+    /// agents crosses the boundary constantly, and without a previous value
+    /// the panel changes width under the pointer every time it does.
+    @State private var columnCount = 1
+
+    /// One column's width. Reduced mode drops the whole second line, so the
+    /// full width would just be a gap in the middle of every row.
+    private var columnWidth: CGFloat {
+        reduced ? RowMetrics.panelReduced : RowMetrics.panelFull
+    }
+
+    /// Renders one column whatever the list holds.
+    ///
+    /// The same escape `SettingsView.unbounded` is, and for the same reason
+    /// it was written: the column count consults `NSScreen`, so a sheet
+    /// rendered for comparison would be one column on a laptop and two on a
+    /// desk, and two runs on two machines would produce different images.
+    /// A preview nobody can compare is not a preview.
+    var singleColumn = false
+
+    /// Decided from the row count, which is known before any layout happens.
+    /// Deriving it from the width available would close a loop with the
+    /// height this panel measures and reports back up.
+    private var columns: Int {
+        guard !singleColumn else { return 1 }
+        let screen = NSScreen.main?.visibleFrame
+        return PanelPlacement.columns(
+            rowCount: store.rows.count, previous: columnCount,
+            contentHeight: RowMetrics.singleColumnHeight(rows: store.rows.count,
+                                                         reduced: reduced),
+            panel: columnWidth,
+            visibleWidth: screen?.width ?? columnWidth,
+            visibleHeight: screen?.height ?? .greatestFiniteMagnitude)
+    }
+
+    private var panelWidth: CGFloat {
+        let count = CGFloat(columns)
+        return columnWidth * count + RowMetrics.gutter * (count - 1)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,15 +201,53 @@ struct DashboardView: View {
                 placeholder
             } else {
                 ScrollView(.vertical, showsIndicators: listHeight > maxListHeight) {
-                    VStack(spacing: 1) {
-                        ForEach(store.rows) { row in
-                            AgentRowView(row: row, reduced: reduced, hoveredID: $hoveredID)
+                    // Column-major, so reading down one column and then the
+                    // next reproduces the sort. A row-major fill would put
+                    // the second row beside the first instead of beneath it,
+                    // and the order the user chose would stop being the order
+                    // the list reads in — which is also the order VoiceOver
+                    // walks it.
+                    HStack(alignment: .top, spacing: RowMetrics.gutter) {
+                        ForEach(0..<columns, id: \.self) { column in
+                            VStack(spacing: 1) {
+                                ForEach(PanelPlacement.column(column, of: columns,
+                                                              rows: store.rows.count), id: \.self) {
+                                    AgentRowView(row: store.rows[$0], reduced: reduced,
+                                                 hoveredID: $hoveredID)
+                                }
+                                // Holds a short column's rows at the top
+                                // rather than spreading them down its height.
+                                if columns > 1 { Spacer(minLength: 0) }
+                            }
+                            .frame(width: RowMetrics.columnInner(
+                                panel: panelWidth, columns: columns,
+                                inset: reduced ? 5 : 6))
                         }
                     }
                     .padding(.horizontal, reduced ? 5 : 6).padding(.vertical, 5)
+                    // A hairline down the gutter, drawn over the stack rather
+                    // than inside it: a divider between the columns would
+                    // take a gutter's spacing on each side, which would widen
+                    // the content past the panel and break the arithmetic
+                    // that says the two agree. Two 588pt columns twelve
+                    // points apart otherwise read as one very wide row with a
+                    // seam in it.
+                    .overlay(alignment: .topLeading) {
+                        if columns > 1 {
+                            let inset = reduced ? RowMetrics.listInset - 1 : RowMetrics.listInset
+                            Rectangle().fill(Color.primary.opacity(0.08))
+                                .frame(width: 1)
+                                .offset(x: inset + RowMetrics.columnInner(
+                                    panel: panelWidth, columns: columns, inset: inset)
+                                    + RowMetrics.gutter / 2)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .modifier(MeasureHeight())
                 }
                 .onPreferenceChange(HeightKey.self) { listHeight = $0 }
+                .onChange(of: store.rows.count) { _ in columnCount = columns }
+                .onAppear { columnCount = columns }
                 // Definite height: everything the rows need, capped at the screen.
                 .frame(height: min(max(listHeight, 30), maxListHeight))
             }
@@ -110,11 +289,19 @@ struct DashboardView: View {
             if !reduced {
                 Text("Antarium").font(.system(size: 13, weight: .semibold)).fixedSize()
             }
-            Text("\(store.rows.count)")
+            Text(verbatim: "\(store.rows.count)")
                 .font(.system(size: reduced ? 12 : 10, weight: .semibold))
                 .foregroundStyle(reduced ? .secondary : .tertiary)
                 .fixedSize()
 
+            // At two columns the header is twice as wide and its contents
+            // are not: the identity on the left and the actions on the right
+            // left seven hundred points of nothing between them, in a strip
+            // twenty-eight points tall. A second spacer moves the controls
+            // that belong to the *list* into that space, so the bar reads as
+            // leading identity, centred controls, trailing actions — rather
+            // than two small islands at opposite ends.
+            if columns > 1 { Spacer(minLength: 4) }
             SortControl(sort: sort, iconsOnly: reduced) { store.setSort($0) }
                 .padding(.leading, 2)
 
@@ -183,16 +370,61 @@ struct DashboardView: View {
 
             if store.totalCost > 0 {
                 Label(Pricing.money(store.totalCost), systemImage: "creditcard")
-                    .help("Estimated list-price cost of every session's tokens. "
-                        + "On a subscription plan this is a size signal, not a bill.")
+                    .help(DashboardView.pricedAt(
+                        "Estimated list-price cost of every session's tokens. "
+                        + "On a subscription plan this is a size signal, not a bill."))
             }
             if store.totalRAM > 0 { Label(Fmt.bytes(store.totalRAM), systemImage: "memorychip") }
+            // Why some rows have no figures. It is on each row's tooltip too,
+            // but that needs knowing to hover: the totals beside this are
+            // incomplete while any session is still being read, and a cost of
+            // $670 appearing later is a worse surprise than a line saying it
+            // is coming.
+            if let waiting = Self.rowsAwaitingHistory(store.rows) {
+                Label(waiting, systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.tertiary)
+                    .help("These sessions have history still to read. Their tokens, "
+                        + "tool calls and cost are withheld until it is finished, "
+                        + "rather than shown low.")
+            }
             Spacer()
             Spacer()
             Text(store.scannedAt.map { Format.age($0) } ?? "—").foregroundStyle(.tertiary)
         }
         .font(.system(size: 9.5)).foregroundStyle(.secondary)
         .padding(.horizontal, 9).padding(.vertical, 5)
+    }
+}
+
+extension DashboardView {
+    /// How many rows are withholding figures because their history is still
+    /// being read, or nil when none are.
+    ///
+    /// Counted from the fact the scan recorded, not from the sentence it
+    /// wrote. Matching "still being read" in the note tied this to prose
+    /// produced in two other files: rewording either moved the count, and a
+    /// different note containing the phrase would have joined it.
+    /// Appends the day the rates were taken, when the table says.
+    ///
+    /// An estimate rests on prices from a particular day, and a vendor can
+    /// change theirs. Saying which day is the difference between "this is
+    /// approximate" and "this is approximate, and here is what it is
+    /// approximating".
+    /// The day is a parameter so the undated case is reachable from a test.
+    /// It was not: the bundled table always carries a day, so a test calling
+    /// `pricedAt(plain)` exercised only the dated branch, and its assertion
+    /// that the result held no dangling "as of ." was true of the dated
+    /// sentence too. Deleting the guard left every test passing.
+    static func pricedAt(_ text: String, asOf: String? = Pricing.asOf) -> String {
+        guard let asOf, !asOf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return text }
+        return text + " Rates as of \(asOf)."
+    }
+
+    static func rowsAwaitingHistory(_ rows: [AgentRow]) -> String? {
+        let waiting = rows.filter(\.awaitingHistory).count
+        guard waiting > 0 else { return nil }
+        return waiting == 1 ? "1 still reading" : "\(waiting) still reading"
     }
 }
 
@@ -254,7 +486,7 @@ private struct SortControl: View {
 /// One agent. Two lines normally; in reduced mode a single line carrying only
 /// name, context, status and when it last replied. One view rather than two
 /// near-identical ones.
-private struct AgentRowView: View {
+struct AgentRowView: View {
     let row: AgentRow
     var reduced = false
     @Binding var hoveredID: AgentRow.ID?
@@ -270,9 +502,20 @@ private struct AgentRowView: View {
                                             appearance: NSApp.effectiveAppearance))
                     .resizable().frame(width: 12, height: 12)
 
+                // No `fixedSize` here. It was `horizontal: !reduced`, which
+                // in full mode pins the name to its ideal width and overrides
+                // the two modifiers above it — so the name could not truncate
+                // however long it was. `coreName` is a directory's last path
+                // component, which macOS allows up to 255 bytes, and past
+                // roughly fifty characters the row demanded more than the
+                // 600pt panel it sits in.
+                //
+                // `layoutPriority(1)` already expresses the intent the fixed
+                // size was reaching for: the name is served before the path,
+                // so it only gives way once there is nothing else left to
+                // give. Reduced mode has always worked this way.
                 Text(row.coreName).font(.system(size: 11.5, weight: .semibold))
                     .lineLimit(1)
-                    .fixedSize(horizontal: !reduced, vertical: false)
                     .truncationMode(.tail)
                     .layoutPriority(1)
                 // Where it is running, before the path: it is the thing that
@@ -316,9 +559,10 @@ private struct AgentRowView: View {
                                window: row.contextWindow)
                 } else if let gauge = quotaStore.primaryGauge(for: row.agentID) {
                     AccountQuotaBar(gauge: gauge,
-                                    plan: quotaStore.snapshot(for: row.agentID)?.accountLabel)
+                                    plan: quotaStore.snapshot(for: row.agentID)?.accountLabel,
+                                    fetchedAt: quotaStore.fetchedAt(for: row.agentID))
                 } else {
-                    Color.clear.frame(width: 61, height: 1)
+                    Color.clear.frame(width: RowMetrics.meter, height: 1)
                 }
                 StatePill(state: row.state)
                 if reduced { LastReply(date: row.lastActivity, width: 52) }
@@ -332,7 +576,8 @@ private struct AgentRowView: View {
                     if let model = Pricing.shortName(row.model) {
                         Stat("cpu", model)
                     } else if let plan = quotaStore.snapshot(for: row.agentID)?.accountLabel {
-                        Stat("creditcard", plan, help: "\(plan) plan")
+                        Stat("creditcard", plan, help: "\(plan) plan",
+                             maxWidth: RowMetrics.planLabel)
                     }
                     if let tools = row.toolCalls {
                         Stat("hammer", Fmt.count(tools), help: "\(tools) tool calls")
@@ -348,6 +593,15 @@ private struct AgentRowView: View {
                     }
                     if let down = row.receivedTokens {
                         Stat("arrow.down", Fmt.count(down), help: "\(down) tokens received")
+                    }
+                    // A harness that reports one combined figure gets an
+                    // icon of its own. Drawing it under the up arrow would
+                    // say it was all sent, which is the misreading the
+                    // separate field exists to avoid.
+                    if let total = row.totalTokens {
+                        Stat("arrow.up.arrow.down", Fmt.count(total),
+                             help: "\(total) tokens in total — this agent does not report "
+                                 + "sent and received separately")
                     }
                     if let ram = row.rssBytes { Stat("memorychip", Fmt.bytes(ram)) }
                     LastReply(date: row.lastActivity)
@@ -385,12 +639,33 @@ private struct AgentRowView: View {
     private var tooltip: String {
         var lines = [row.sessionName.isEmpty ? row.coreName : row.sessionName, row.cwd]
         if let note = row.note { lines.append(note) }
-        if let t = row.tmuxTarget { lines.append("tmux \(t) — click to jump there") }
-        else if row.pid != nil { lines.append("Click to bring its terminal to the front") }
+        if let why = row.unobservedReason, why != row.note { lines.append(why) }
+        // Promised only where it can be kept. A remote row carries the other
+        // machine's pid, so this said "click to bring its terminal to the
+        // front" about a process on a different computer, and the click did
+        // nothing.
+        let allowed = Focus.actions(for: row)
+        if let t = row.tmuxTarget, allowed.contains(.attachTmux) {
+            lines.append("tmux \(t) — click to jump there")
+        } else if row.pid != nil, allowed.contains(.goToWindow) {
+            lines.append("Click to bring its terminal to the front")
+        } else if row.isRemote, let host = row.remoteHost {
+            lines.append("Running on \(host) — this Mac cannot bring it forward")
+        }
         return lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
-    private var accessibilitySummary: String {
+    private var accessibilitySummary: String { Self.summary(for: row) }
+
+    /// What a screen reader says about one row.
+    ///
+    /// A function of the row rather than a property of the view, so it can be
+    /// asserted without rendering anything. The omission it was written to fix
+    /// — the reason a row's figures are missing — could otherwise only be
+    /// checked by reading this file as text, and a test that greps its own
+    /// source proves the line exists rather than that the sentence contains
+    /// it.
+    static func summary(for row: AgentRow) -> String {
         var values = [row.coreName, row.state.label]
         if let host = row.hostApp { values.append(host) }
         if !row.displayPath.isEmpty { values.append(row.displayPath) }
@@ -400,7 +675,26 @@ private struct AgentRowView: View {
         }
         if let tools = row.toolCalls { values.append("\(tools) tool calls") }
         if let turns = row.turns { values.append("\(turns) turns") }
-        if let cost = row.costUSD { values.append("cost \(Pricing.money(cost))") }
+        // "Estimated", spoken. The figure carries that word in its help
+        // everywhere it is drawn, and this summary is the help — a reader
+        // who hears the row has no tooltip to fall back on, so a bare
+        // figure is the one place the estimate reads as a measurement.
+        if let cost = row.costUSD { values.append("estimated cost \(Pricing.money(cost))") }
+        // Why the figures above are missing, when they are. A row whose usage
+        // could not be read has them nilled rather than zeroed — the right
+        // choice, and a silent one: the reason goes to the tooltip, and the
+        // sentence three lines up already says that a reader who hears the row
+        // has no tooltip to fall back on. So a listener heard a row with no
+        // tokens, no cost and no explanation, while a hover explained it.
+        // Spoken last, because it is an aside about the figures rather than
+        // one of them.
+        if let note = row.note, !note.isEmpty { values.append(note) }
+        // And why its state is unknown, for the same reason: a row that says
+        // "unobserved" and nothing else leaves the listener with the word and
+        // not the cause.
+        if let why = row.unobservedReason, !why.isEmpty, why != row.note {
+            values.append(why)
+        }
         return values.joined(separator: ", ")
     }
 }
@@ -413,25 +707,30 @@ private struct RowActions: View {
     var body: some View {
         // For a tmux session, attaching is the thing you actually want, so it
         // goes first and is what Return picks.
-        if let target = row.tmuxTarget {
+        // Only what the row permits. A remote row's `cwd` belongs to another
+        // machine, so opening it here opens this machine's copy — see
+        // `Focus.actions(for:)` for why that is worse than failing.
+        let allowed = Focus.actions(for: row)
+        if let target = row.tmuxTarget, allowed.contains(.attachTmux) {
             Button("Attach to tmux Session") { Focus.attachTmux(target) }
         }
-        if !row.cwd.isEmpty {
+        if allowed.contains(.goToWindow) {
             Button("Go to Window") { Focus.reveal(row) }
+        }
+        if allowed.contains(.openDirectory) || allowed.contains(.openInTerminal)
+            || allowed.contains(.copyPath) {
             Divider()
-            Button("Open Directory") {
-                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: row.cwd)])
-            }
-            Button("Open in Terminal") {
-                let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
-                NSWorkspace.shared.open([URL(fileURLWithPath: row.cwd)],
-                                        withApplicationAt: terminal,
-                                        configuration: NSWorkspace.OpenConfiguration())
-            }
-            Button("Copy Path") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(row.cwd, forType: .string)
-            }
+        }
+        // The buttons hide what the row does not permit; the actions refuse it
+        // as well. Either alone would be a rule somebody can forget.
+        if allowed.contains(.openDirectory) {
+            Button("Open Directory") { Focus.openDirectory(row) }
+        }
+        if allowed.contains(.openInTerminal) {
+            Button("Open in Terminal") { Focus.openInTerminal(row) }
+        }
+        if allowed.contains(.copyPath) {
+            Button("Copy Path") { Focus.copyPath(row) }
         }
         let files = row.context.present
         if !files.isEmpty {
@@ -467,6 +766,9 @@ private func stateTint(_ state: AgentRow.State) -> Color {
     case .shell:   return .purple
     case .ended:   return .secondary
     case .cloud:   return .blue
+    // Not observed is not idle. It reads as secondary rather than borrowing
+    // another state's colour, so an unknown never looks like a fact.
+    case .unobserved: return .secondary
     }
 }
 
@@ -535,6 +837,9 @@ private struct CapabilityDot: View {
             if let url = capability.url {
                 Button { NSWorkspace.shared.open(url) } label: { icon }
                     .buttonStyle(.plain)
+                    // The icon is the whole of the button, so without this it
+                    // opens a file under no name at all.
+                    .accessibilityLabel("Open \(capability.kind.label)")
                     .help("\(capability.kind.label)\(capability.scope == .inherited ? " (inherited)" : "") — \(url.path)\nClick to open")
             } else {
                 icon.help("\(capability.kind.label) — not present")
@@ -550,7 +855,7 @@ private struct CapabilityDot: View {
                 .overlay(Image(systemName: capability.kind.symbol)
                     .font(.system(size: 8, weight: .medium)).foregroundStyle(stroke))
             if capability.count > 1 {
-                Text("\(min(capability.count, 99))")
+                Text(verbatim: "\(min(capability.count, 99))")
                     .font(.system(size: 6.5, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 1.8).padding(.vertical, 0.3)
                     .background(Capsule().fill(Color.accentColor))
@@ -623,17 +928,35 @@ private struct StatePill: View {
         return HStack(spacing: 3) {
             Circle().fill(tint).frame(width: 5, height: 5)
                 .opacity(dim ? 0.25 : 1)
+            // One line, always — the same rule `LastReply` states above, and
+            // for the same reason: a pill that wraps makes its row taller than
+            // its neighbours and breaks the rhythm of the list.
+            //
+            // The six built-in labels all fit `width`. A cloud task's label is
+            // whatever the service calls its status, capitalised — "Completed"
+            // measures 67.8pt against a 68pt frame and "In_progress" 72.9pt —
+            // so this is not a theoretical case, and without a line limit
+            // those wrapped instead of truncating.
             Text(state.label).font(.system(size: 9, weight: isLive ? .semibold : .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 5).padding(.vertical, 1.5)
         .background(Capsule().fill(tint.opacity(0.18)))
-        .frame(width: 68, alignment: .trailing)
+        .frame(width: RowMetrics.pill, alignment: .trailing)
     }
 }
 
 /// Spend, with the window it accrued over — "$167" alone invites the question
 /// "since when?", and the answer is the session's own lifetime.
+///
+/// Every pair the two formatters can produce for a real session fits
+/// `RowMetrics.cost`; the widest is "$99.9 / 23.9h" at 64.0pt. The line limit
+/// is for the pair that is not real — a corrupt start date yields a duration
+/// in the millions of days, and that wrapped, making the row taller than its
+/// neighbours.
 private struct CostLabel: View {
     let cost: Double?
     let over: TimeInterval?
@@ -652,19 +975,35 @@ private struct CostLabel: View {
                     }
                 }
                 .help(over.map {
-                    "Estimated list-price cost of this session's tokens, over \(Fmt.duration($0))"
-                } ?? "Estimated list-price cost of this session's tokens")
+                    DashboardView.pricedAt(
+                        "Estimated list-price cost of this session's tokens, over "
+                        + Fmt.duration($0))
+                } ?? DashboardView.pricedAt("Estimated list-price cost of this session's tokens"))
+                // Below the help, not above it: a cost figure has to have the
+                // word "estimated" within thirteen lines of it, and two
+                // modifiers in between pushed this one out by a line.
+                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("")
             }
         }
-        .frame(width: 78, alignment: .trailing)
+        .frame(width: RowMetrics.cost, alignment: .trailing)
     }
 }
 
 private struct ContextBar: View {
     let fraction: Double
     let tokens: Int?, window: Int?
+    /// Pure, so what the bar claims can be checked without drawing it.
+    static func help(gauge: Gauge, plan: String?, fetchedAt: Date?,
+                     now: Date = Date()) -> String {
+        let figure = gauge.amountText.map { "\(gauge.title): \($0) left" }
+            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage"
+        guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }
+        return figure + " — as of " + Format.age(fetchedAt)
+    }
+
     private var tint: Color { fraction > 0.85 ? .red : (fraction > 0.6 ? .orange : .green) }
     var body: some View {
         HStack(spacing: 3.5) {
@@ -672,19 +1011,39 @@ private struct ContextBar: View {
                 Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
                 Capsule().fill(tint).frame(width: max(2, 34 * fraction), height: 4)
             }
-            Text("\(Int(fraction * 100))%")
+            Text(verbatim: "\(Int(fraction * 100))%")
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary).fixedSize()
         }
+        .frame(minWidth: RowMetrics.meter, alignment: .trailing)
         .help(tokens.map { "\($0 / 1000)k of \((window ?? 0) / 1000)k context used" } ?? "Context")
     }
 }
 
 /// Account included-usage from a quota provider when the session has no
 /// per-transcript context figure to draw.
-private struct AccountQuotaBar: View {
+/// Internal rather than private so `help` can be checked: what this bar
+/// claims about a figure is the part worth testing, and it cannot be read off
+/// a rendered view.
+struct AccountQuotaBar: View {
     let gauge: Gauge
     let plan: String?
+    /// When the reading was taken. The store keeps the last good snapshot
+    /// when a refresh fails, so this bar can outlive the figure behind it by
+    /// hours — the menu says "Updated ten minutes ago" and this drew the same
+    /// number with nothing at all.
+    let fetchedAt: Date?
+
+    private var isStale: Bool { QuotaStore.isStale(fetchedAt) }
+
+    /// Pure, so what the bar claims can be checked without drawing it.
+    static func help(gauge: Gauge, plan: String?, fetchedAt: Date?,
+                     now: Date = Date()) -> String {
+        let figure = gauge.amountText.map { "\(gauge.title): \($0) left" }
+            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage"
+        guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }
+        return figure + " — as of " + Format.age(fetchedAt)
+    }
 
     private var tint: Color {
         switch gauge.severity {
@@ -696,29 +1055,56 @@ private struct AccountQuotaBar: View {
 
     var body: some View {
         HStack(spacing: 3.5) {
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
-                Capsule().fill(tint).frame(width: max(2, 34 * gauge.used), height: 4)
+            // A credit balance has no denominator, so it shows the figure and
+            // no meter rather than a full bar that means nothing.
+            if gauge.hasMeter {
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.13)).frame(width: 34, height: 4)
+                    Capsule().fill(tint).frame(width: max(2, 34 * gauge.used), height: 4)
+                }
             }
-            Text(gauge.usedPercentText)
+            Text(gauge.amountText ?? gauge.usedPercentText)
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary).fixedSize()
         }
-        .help("\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage")
+        // Dimmed rather than hidden or marked with a warning: the figure is
+        // still the best there is, and the reason it is old — a refresh that
+        // keeps failing — is already reported where failures belong. This
+        // only stops it claiming to be current.
+        .frame(minWidth: RowMetrics.meter, alignment: .trailing)
+        .opacity(isStale ? 0.45 : 1)
+        .help(Self.help(gauge: gauge, plan: plan, fetchedAt: fetchedAt))
     }
 }
 
 private struct Stat: View {
     let symbol: String, text: String, help: String?
-    init(_ symbol: String, _ text: String, help: String? = nil) {
-        self.symbol = symbol; self.text = text; self.help = help
+    /// A ceiling, for the one of these whose text is not a figure.
+    ///
+    /// Everything else here is `Fmt.count` or a model name, both short and
+    /// both bounded by their own formatter. The plan label is not: it is
+    /// whatever the vendor calls the plan, clamped to 64 characters on its
+    /// way out of the provider — which is right for a tooltip and far too
+    /// wide for a row. "GLM Coding Plan Lite" is a real one, and it is 49pt
+    /// wider than the longest model name, against a line with 8pt to spare.
+    var maxWidth: CGFloat?
+    init(_ symbol: String, _ text: String, help: String? = nil, maxWidth: CGFloat? = nil) {
+        self.symbol = symbol; self.text = text; self.help = help; self.maxWidth = maxWidth
     }
     var body: some View {
         HStack(spacing: 2) {
             Image(systemName: symbol).font(.system(size: 8))
+            // One line, like every other cell in this row. `fixedSize` alone
+            // does not prevent a wrap, it prevents a *shrink* — the text
+            // still wraps if it is given less width than it wants, and a
+            // taller cell makes a taller row.
             Text(text).font(.system(size: 9.5).monospacedDigit())
+                .lineLimit(1).truncationMode(.tail)
         }
-        .foregroundStyle(.secondary).fixedSize().help(help ?? "")
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: maxWidth == nil, vertical: true)
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .help(help ?? "")
     }
 }
 

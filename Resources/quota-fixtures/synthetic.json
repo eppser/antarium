@@ -1,0 +1,85 @@
+{
+  "note": "Synthetic. Shape follows Synthetic's documented quotas payload \u2014 subscription.{limit,requests,renewsAt}. Every value is invented.",
+  "verifiedAt": "2026-09-21",
+  "cases": [
+    {
+      "name": "a fresh period spends nothing",
+      "response": {
+        "subscription": {
+          "limit": 135,
+          "requests": 0,
+          "renewsAt": "2026-10-21T14:36:14.288Z"
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "subscription",
+            "badge": "SUB",
+            "title": "Subscription",
+            "usedPercent": 0,
+            "resetsAt": "2026-10-21T14:36:14Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a fifth of the period spent",
+      "response": {
+        "subscription": {
+          "limit": 100,
+          "requests": 20,
+          "renewsAt": "2026-10-21T14:36:14.288Z"
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "subscription",
+            "badge": "SUB",
+            "title": "Subscription",
+            "usedPercent": 20,
+            "resetsAt": "2026-10-21T14:36:14Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an exhausted subscription reads full, not absent",
+      "response": {
+        "subscription": {
+          "limit": 135,
+          "requests": 135,
+          "renewsAt": "2026-10-21T14:36:14.288Z"
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "subscription",
+            "badge": "SUB",
+            "title": "Subscription",
+            "usedPercent": 100,
+            "resetsAt": "2026-10-21T14:36:14Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an account with no subscription charts nothing",
+      "response": {
+        "subscription": {
+          "limit": 0,
+          "requests": 0,
+          "renewsAt": "2026-10-21T14:36:14.288Z"
+        }
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply with no subscription charts nothing",
+      "response": {},
+      "expectError": "unsupported"
+    }
+  ]
+}

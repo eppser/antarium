@@ -1,4 +1,5 @@
 import Foundation
+import AntariumHarnessSDK
 
 /// A coding agent described by data rather than code.
 ///
@@ -7,8 +8,8 @@ import Foundation
 /// and token counts. Describing that in JSON means a new harness is a file, not
 /// a Swift provider — and the built-in ones are readable examples.
 ///
-/// Built-ins ship in the app bundle; anything in `~/.antarium/harnesses/*.json`
-/// is loaded too and overrides a built-in with the same `id`.
+/// Startup seeds managed defaults from the app bundle. The user directory is
+/// authoritative; duplicate IDs are reported rather than silently overriding.
 struct HarnessDescriptor: Codable {
     var formatVersion: Int?
     /// Stable key, also the glyph name in Resources/marks.
@@ -155,11 +156,25 @@ struct HarnessDescriptor: Codable {
         var index: String?
         /// Candidate object keys, TOML keys, or TOML table prefixes.
         var keys: [String]?
+        /// When a path is a directory: only entries whose names end with one
+        /// of these count.
+        ///
+        /// Some conventions are a folder where the agent reads one kind of
+        /// file and ignores the rest — Cursor reads `.cursor/rules/*.mdc` and
+        /// states that a plain `.md` there is ignored, and Copilot's scoped
+        /// instructions must end `.instructions.md`. Counting every entry
+        /// would report the capability for a folder the agent never reads.
+        ///
+        /// Suffixes rather than extensions, because `.instructions.md` is not
+        /// an extension: the path extension of `style.instructions.md` is
+        /// `md`, which would not tell it from a file Copilot ignores.
+        var fileSuffixes: [String]?
 
         var resolvedProbe: Probe { probe ?? .content }
         var projectPaths: [String] { project ?? [] }
         var inheritedPaths: [String] { inherited ?? [] }
         var objectKeys: [String] { keys ?? [] }
+        var countedSuffixes: [String] { fileSuffixes ?? [] }
     }
 
     struct Quota: Codable {
@@ -167,7 +182,12 @@ struct HarnessDescriptor: Codable {
         struct Credential: Codable {
             /// `jsonFile` — read `field` out of a JSON file.
             /// `textFile` — the whole file is the token.
-            /// `env`      — an environment variable named by `name`.
+            /// `env`      — an environment variable named by `name`, and
+            ///              then the file at `path` when that is unset. The
+            ///              fallback is not optional decoration: an app
+            ///              launched from Finder inherits the launchd session
+            ///              environment rather than a shell's, so a variable
+            ///              exported in a shell profile is invisible to it.
             /// `command`  — run `command` with `args`; its output is the token.
             ///              A menu bar app launched from Finder inherits no
             ///              shell environment, so `gh auth token` reaches a
@@ -178,22 +198,159 @@ struct HarnessDescriptor: Codable {
             var name: String?
             var command: String?
             var args: [String]?
+            /// Other fields in the same file that must hold for this token to
+            /// belong to this vendor, as field path → required substring
+            /// (compared case-insensitively).
+            ///
+            /// Needed when the credential lives somewhere shared. Z.ai's plan
+            /// is driven through Claude Code, so its token is whatever sits in
+            /// `env.ANTHROPIC_AUTH_TOKEN` — a field Kimi, MiniMax, a corporate
+            /// gateway and a plain Anthropic key all use too. Without a second
+            /// field to check, any of those reads as a Z.ai sign-in and gets
+            /// sent to Z.ai's endpoint. `jsonFile` only; the validator rejects
+            /// it elsewhere, because a guard that silently does nothing is
+            /// worse than no guard.
+            var requires: [String: String]?
+            /// A second value in the same file: the account or organisation
+            /// this token belongs to, for a service that scopes usage under
+            /// one.
+            ///
+            /// `GET /v1/accounts/{account_id}/quotas` is a common shape, and
+            /// until now a descriptor could not describe it at all — the
+            /// identifier is not in the URL and a descriptor declares one
+            /// endpoint, not a call to discover the next. Vendors that scope
+            /// this way generally write the id beside the token, which is
+            /// where the Codex provider reads its own from, so the file the
+            /// credential already opens is usually the answer.
+            ///
+            /// `jsonFile` only, for the same reason `requires` is: on the
+            /// other kinds there is no second field to read, and a setting
+            /// that silently does nothing is worse than none.
+            var accountField: String?
+
+            /// Every string here that `FieldPath` resolves against the
+            /// credential file or the reply.
+            ///
+            /// `requires` is documented as a map of *field path* to required
+            /// substring, and `field` and `accountField` are read the same way —
+            /// `zai` already declares `env.ANTHROPIC_AUTH_TOKEN`. They resolved
+            /// flatly until 2026-09-26, so a filter in any of them would have
+            /// been accepted and then matched nothing.
+            ///
+            /// `path` is a filesystem path and `name` an environment variable's
+            /// name; neither is a path into JSON. `command` and `args` are a
+            /// program and its arguments.
+            var fieldPaths: [String] {
+                [field, accountField].compactMap { $0 } + (requires ?? [:]).keys
+            }
+
+            /// Fields above that are not field paths into JSON.
+            static let nonPathFields: Set<String> = ["kind", "path", "name", "command", "args"]
         }
         /// Where the windows live in the response, and what each field is called.
         struct Windows: Codable {
             /// Dot-path to the object holding the windows.
             var root: String?
-            /// Which members of it are windows. Omit to take all of them.
+            /// Candidate paths, tried in order, for a service that sometimes
+            /// wraps its payload in an envelope and sometimes does not —
+            /// Command Code returns `windowLimits` at the top level or under
+            /// `data` depending on the call. Guessing one would make the
+            /// gauges silently vanish on the other shape. `root` is the
+            /// single-candidate shorthand; giving both tries `roots` first.
+            var roots: [String]?
+            /// Dot-path to an *array* of windows, for the services that report
+            /// one — Z.ai's `data.limits`, MiniMax's `model_remains`. A list
+            /// has no member names of its own, so `key` says which field
+            /// inside each element names it. Supersedes `root` when both are
+            /// given.
+            var list: String?
+            /// Field paths inside each list element that name that window.
+            /// Several are joined with "-" where one alone is ambiguous: Z.ai
+            /// reports two `TOKENS_LIMIT` rows and distinguishes them only by
+            /// `unit`, so keying on `type` alone silently collapses the weekly
+            /// cap into the session one. Without any key the elements are
+            /// numbered, which reads badly in a menu.
+            var key: [String]?
+            /// Which members are windows. Omit to take all of them. For an
+            /// object this also fixes their order; for a list the response's
+            /// own order is kept.
             var keys: [String]?
             /// 0–100. Some APIs report what is left instead of what is spent;
             /// give `percentRemaining` for those rather than making the author
             /// do arithmetic a config file cannot express.
             var usedPercent: String?
             var percentRemaining: String?
+            /// Path to a credit balance: a figure with no denominator. A
+            /// window mapped this way draws its amount and no bar, because a
+            /// balance cannot honestly be a percentage of anything.
+            var balance: String?
+            /// Currency of `balance`. A path into the window when the service
+            /// states one, otherwise a literal code such as "USD". Assuming
+            /// dollars would misreport a CNY balance by an exchange rate.
+            var currency: String?
+            /// Names the container itself as one window, for the flat
+            /// responses that have no per-window object at all — Vercel's
+            /// credits endpoint is `{"balance": …}` and nothing more.
+            var single: String?
             /// Some APIs report counts rather than a percentage. Give both and
             /// the ratio is worked out — a window whose limit is missing is
             /// skipped, because "0 of nothing" is not 0%.
             var used: String?
+            /// Counts left rather than counts spent, against the same
+            /// `limit`.
+            ///
+            /// Needed because a service can report either, and one of them
+            /// reports the wrong one under the other's name: MiniMax's
+            /// `current_interval_usage_count` is what remains, which the
+            /// endpoint's own name — `coding_plan/remains` — says more
+            /// plainly than the field does. Read as consumption it inverts
+            /// the bar, and inverts it in the direction that matters: the
+            /// meter reads comfortable while the quota runs out.
+            var remaining: String?
+            /// Flags that mean this window is spent, whatever its figure says.
+            ///
+            /// `Gauge` already reserves a channel for this — a balance "never
+            /// colours itself urgent off its own figure, only a severity the
+            /// provider actually reported" — and until now no descriptor
+            /// could report one, so the channel existed and nothing could
+            /// reach it.
+            ///
+            /// DeepSeek is the case that needs it. Its response carries
+            /// `is_available`, documented as whether the balance is enough to
+            /// make API calls, and a balance that cannot be spent is not the
+            /// same as money in the bank. Read like any other flag: from the
+            /// window if it is there, otherwise from the response, which is
+            /// where DeepSeek states it.
+            var criticalWhen: [String: Bool]?
+            /// The same rule for a field that states a word rather than a flag.
+            ///
+            /// `criticalWhen` compares booleans, and a service that reports a
+            /// state does not always report it as one. OpenCode gives each
+            /// window a `status` of "ok" or "rate-limited", and the note on that
+            /// harness recorded the gap as "descriptors have no way to say a
+            /// window is exhausted" — which was true when it was written and is
+            /// now only half true.
+            ///
+            /// This marks the window spent and leaves the figure alone. The
+            /// tool this app is measured against forces a rate-limited window to
+            /// nothing left whatever percentage it reports, and whether such a
+            /// window ever reports under 100 is not established — so writing
+            /// that clamp would be inventing a number for the case where the
+            /// flag and the figure disagree. Reporting what the service said and
+            /// marking it spent needs no such guess.
+            ///
+            /// Compared exactly, not as a substring and not case-insensitively:
+            /// these are enum values, and "ok" must not match "not-ok". The
+            /// comparison is `FieldPath.comparable`, so a state stated as a
+            /// number matches a rule written as text — the same rule a path
+            /// filter uses.
+            ///
+            /// Conjunction with `criticalWhen`, not an alternative to it: a
+            /// descriptor declaring both is critical when everything it named
+            /// holds. Nothing shipped needs "either", and reading two blocks as
+            /// "or" while each is internally "and" would be a rule nobody could
+            /// predict.
+            var criticalWhenEquals: [String: String]?
             var limit: String?
             /// Windows to skip unless every pair matches — Copilot lists a
             /// premium tier that a free plan simply does not have.
@@ -201,19 +358,165 @@ struct HarnessDescriptor: Codable {
             /// What to call each window. Without it the badge is the first
             /// letters of the key, which reads as "CHA" and "COM".
             var labels: [String: String]?
+            /// What to *draw* for each window, when the label is too long to
+            /// abbreviate well. A label is truncated to three letters for the
+            /// menu bar, which turns "Premium" into "PRE" and "Tools" into
+            /// "TOO"; naming the badge outright avoids inventing a word.
+            var badges: [String: String]?
             var windowSeconds: String?
             var resetsAt: String?
             var title: String?
+
+            /// Every string in this block that `FieldPath` will resolve.
+            ///
+            /// Enumerated beside the declarations rather than inside the
+            /// validator, which would otherwise be a second copy of the list
+            /// above kept aligned by hand. `WindowFieldPathTests` reflects over
+            /// this struct and fails when a field is added without being
+            /// classified here, so the two cannot drift apart quietly.
+            ///
+            /// The exceptions are the fields that name a *window* rather than
+            /// reaching into a reply. `single` is the name given to the one
+            /// window a flat response has; the keys of `labels` and `badges`
+            /// are window ids, matched against the name a window already has.
+            /// A bracket group in any of those would be a bracket group in an
+            /// identifier, which is not a filter anyone meant.
+            ///
+            /// `keys` is included, which takes explaining, because it means two
+            /// things. Against an object response it names members, and a
+            /// member may be reached by a path; against a list response it
+            /// matches the name `key` derived for each element, which is not a
+            /// path at all. Either way a bracket group in it is only ever a
+            /// filter or a mistake, and that is all the validator looks at.
+            ///
+            /// `currency` is included for the same reason: it is a path into the
+            /// reply *or* a literal code like "USD", and a literal has no
+            /// bracket in it to check.
+            ///
+            /// `title` was on the exception list, wrongly — it reads as text
+            /// because it ends up drawn in a menu, and it is a path to the text
+            /// rather than the text. The reflection test below only proves every
+            /// field is classified, not that it is classified right; what caught
+            /// this was `WindowPathFilterTests`, which writes a filter into each
+            /// field the classification calls a path and insists it resolves.
+            var fieldPaths: [String] {
+                var paths = [root, list, usedPercent, percentRemaining, balance,
+                             currency, used, remaining, limit,
+                             windowSeconds, resetsAt, title].compactMap { $0 }
+                paths += roots ?? []
+                paths += key ?? []
+                paths += keys ?? []
+                paths += (criticalWhen ?? [:]).keys
+                paths += (criticalWhenEquals ?? [:]).keys
+                paths += (require ?? [:]).keys
+                return paths
+            }
+
+            /// Fields above that name a window rather than reaching into a
+            /// reply. Named so a test can hold the classification against the
+            /// struct itself.
+            static let nonPathFields: Set<String> = ["single", "labels", "badges"]
         }
-        let endpoint: String
+        /// An https URL to read the figures from. Optional because some
+        /// services no longer offer one.
+        var endpoint: String?
+        /// A command to read the figures from instead, as argv. Its stdout
+        /// must be the JSON the `windows` map describes.
+        ///
+        /// Some agents have stopped answering over HTTP at all. Antigravity's
+        /// embedded server began rejecting every tokenless request once its
+        /// CLI stopped publishing the CSRF token it generates, and the
+        /// working path became `agy -p /usage --output-format json`. A model
+        /// that can only describe an endpoint cannot describe that, so an
+        /// agent whose mapping is perfectly expressible still needed native
+        /// code — which is the opposite of what this file is for.
+        ///
+        /// Run through `Shell.execute` like every other harness command:
+        /// argv, never a shell, bounded in time and output, and listed in the
+        /// allowlist test beside the rest.
+        var command: String?
+        var args: [String]?
+        /// `GET` or `POST`. Absent means GET.
+        ///
+        /// Not every usage API is a GET. Codebuff posts to
+        /// `/api/v1/usage`, and Kimi's server endpoint is a POST whose
+        /// windows nest two levels deep — both were unreachable by a model
+        /// that could only describe a GET, for a reason that has nothing to
+        /// do with whether their mapping is expressible.
+        var method: String?
+        /// The body of a POST, as flat string values. `{token}` is replaced
+        /// the same way it is in `headers`.
+        ///
+        /// Flat on purpose: every posted usage body seen so far is a handful
+        /// of scalars, and a nested one can be added when something needs it
+        /// rather than guessed at now.
+        var body: [String: String]?
+        /// The same body, for the keys whose value is a list of strings.
+        ///
+        /// Something needed it. Kimi's billing endpoint is a Connect-RPC call
+        /// whose body is `{"scope":["FEATURE_CODING"]}`, and posting the string
+        /// `"FEATURE_CODING"` where an array belongs is not a near miss to a
+        /// typed gateway — it is a different request.
+        ///
+        /// A second field rather than a nested value type, because the nesting
+        /// that exists in the wild is one level of array of strings. A general
+        /// JSON value would decode shapes no endpoint asks for and would have
+        /// to answer what `{token}` substitution means inside them; this
+        /// answers nothing it does not have to.
+        ///
+        /// No `{token}` substitution: a credential is a scalar, and every
+        /// list-valued field seen is a set of literal scope names. The
+        /// validator refuses a key given in both halves, so the merge below
+        /// cannot depend on which one is applied second.
+        var bodyList: [String: [String]]?
         var headers: [String: String]?
         var credential: Credential?
         let windows: Windows
         var accountLabel: String?
+
+        /// Every field path this block declares, wherever it declares one.
+        ///
+        /// The validator asks the quota rather than the windows, so a malformed
+        /// filter in a credential guard or in `accountLabel` is refused where it
+        /// is written too. `accountLabel` is a path into the reply — Copilot
+        /// names `copilot_plan`.
+        var fieldPaths: [String] {
+            windows.fieldPaths + (credential?.fieldPaths ?? [])
+                + [accountLabel].compactMap { $0 }
+        }
         var setupHint: String?
+    /// Where the response shape this maps was read from.
+    ///
+    /// A descriptor with `verified: false` has never been held against a live
+    /// account, so the only way to check it without one is to read the
+    /// vendor's own reference and compare. That reference was consulted when
+    /// each mapping was written and then not written down, which left the
+    /// check possible in principle and not in practice. An https URL to the
+    /// page that states the response schema.
+        var documentation: String?
+        /// The day this mapping's figures were last read against something
+        /// outside this repository, as `yyyy-MM-dd`.
+        ///
+        /// Not the same question as `compatibility.verifiedAt`, which dates a
+        /// fixture. A fixture is written from the mapping it tests, so it
+        /// proves the mapping is applied and says nothing about whether it is
+        /// right — five of the seventeen mappings here were wrong behind a
+        /// green one, and MiniMax's expectations were the exact mirror of the
+        /// truth for months. This dates the other check: a vendor reference,
+        /// or somebody else's implementation of the same API.
+        var checkedAt: String?
         /// Shell command that signs this agent in again, offered in the menu
         /// when the credential is what failed.
         var signInCommand: String?
+        enum Method: String { case get, post }
+        /// The declared method, or GET. Parsed once here rather than compared
+        /// as a string at the call site, where a typo would read as GET and
+        /// the descriptor would quietly fetch the wrong way — the decoder
+        /// refuses anything else, and this is the reading it refuses against.
+        var resolvedMethod: Method {
+            Method(rawValue: (method ?? "get").lowercased()) ?? .get
+        }
+
         /// Whether these numbers have been checked against the real service.
         /// Unverified providers say so rather than quietly showing figures
         /// nobody has confirmed.
@@ -238,6 +541,46 @@ struct HarnessDescriptor: Codable {
     var mark: String?
     var presentation: Presentation?
 
+    /// How to bring one of this harness's sessions to the front.
+    ///
+    /// A tmux pane is focused by attaching to it, and a desktop app by raising
+    /// it — both of which Antarium knows how to do. A workspace manager that
+    /// owns its own panes knows neither: Herdr focuses a tab through its
+    /// socket API, Orca switches terminals through its CLI. Both publish a
+    /// command for it, so the command is configuration and running it is not.
+    ///
+    /// `{focusTarget}` in an argument is replaced with the session's
+    /// `map.focusTarget` value. Nothing else is substituted, and the command
+    /// is executed directly rather than through a shell.
+    struct Focus: Codable {
+        let command: String
+        var args: [String]?
+    }
+
+    var focus: Focus?
+
+    /// What this harness contributes to the picture.
+    ///
+    /// A workspace manager hosts other agents rather than being one. Herdr and
+    /// Orca each report their panes, and every pane is already a row from the
+    /// agent's own harness — the Claude session in a Herdr pane is the same
+    /// conversation Claude Code reports. Emitting both shows every agent
+    /// twice, once with its real figures and once as an empty duplicate.
+    ///
+    /// `focus` means: read these records, use them to say how each session is
+    /// raised, and make no rows of your own.
+    /// `presence` is for an agent that keeps no durable session record.
+    /// Gemini CLI writes a project marker and nothing else — no transcript, no
+    /// token counts, no cost — so the running process is the only evidence
+    /// there is. A row for it says the agent is working in a directory and
+    /// leaves every figure absent, which is the truth; omitting it entirely
+    /// would say the opposite.
+    enum Contribution: String, Codable { case sessions, focus, presence }
+    var contributes: Contribution?
+    var contributesFocusOnly: Bool { contributes == .focus }
+    /// Rows come from the process table alone; no source is read.
+    var contributesPresenceOnly: Bool { contributes == .presence }
+
     struct Presentation: Codable {
         var mark: String?
         var fallbackName: String?
@@ -261,6 +604,77 @@ struct HarnessDescriptor: Codable {
     }
 
     struct Source: Codable {
+
+        /// An environment variable that moves this harness's data directory.
+        ///
+        /// Three harnesses recorded the absence of this as a known limitation —
+        /// `KIMI_CODE_HOME`, `HERMES_HOME`, `OPENCLAW_PROFILE`, each noted as
+        /// something "a descriptor cannot read", each reading as absent rather
+        /// than wrong. The worse case was not in a note at all: `CodexProvider`
+        /// honours `CODEX_HOME` and the codex harness read `~/.codex/sessions`
+        /// regardless, so a developer who moves their Codex home saw their quota
+        /// and none of their sessions. Two halves of one agent disagreeing about
+        /// where it lives.
+        ///
+        /// `replaces` is the prefix the variable stands in for, stated rather
+        /// than guessed: `CODEX_HOME` is the whole of `~/.codex`, and a rule
+        /// that inferred the prefix from the path would have to decide how much
+        /// of it to keep. The validator refuses a `replaces` that is not a
+        /// prefix of the path, because a relocation that can never fire is a
+        /// declaration that silently does nothing.
+        struct Relocation: Codable {
+            /// The variable's name. Unset or empty means no relocation.
+            let env: String
+            /// The path prefix it replaces.
+            let replaces: String
+        }
+        var relocate: Relocation?
+
+        /// Where this harness reads, after any relocation it declares.
+        var resolvedPath: String { resolved(path) }
+
+        /// Any other path this harness declares, after the same relocation.
+        ///
+        /// `source.paths` names files beside the session store — Codex's
+        /// autonomous-goal database is `~/.codex/goals_1.sqlite` — and they move
+        /// with the directory. Relocating the session root and not these left a
+        /// relocated Codex showing its sessions and reporting its loop state as
+        /// unavailable, which is the same half-fix one level down.
+        func resolved(_ path: String,
+                      environment: [String: String] = ProcessInfo.processInfo.environment)
+            -> String {
+            Self.resolve(path, relocate: relocate, environment: environment)
+        }
+
+        /// Pure, so the rule can be tested against a machine that has none of
+        /// these agents installed and no such variable set — which is every
+        /// machine this suite runs on.
+        static func resolve(_ path: String, relocate: Relocation?,
+                            environment: [String: String]) -> String {
+            guard let relocate,
+                  let raw = environment[relocate.env]?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty
+            else { return path.expandingTilde }
+            // A boundary, not a string prefix. `abbreviatingHome` made exactly
+            // this mistake in reverse: a home of `/Users/sam` matched
+            // `/Users/sammy`. A rule replacing `~/.codex` must not fire on
+            // `~/.codex-backup`.
+            guard path == relocate.replaces || path.hasPrefix(relocate.replaces + "/")
+            else { return path.expandingTilde }
+            // Trailing slashes stripped, all of them, because the suffix
+            // carries its own separator. Shell users write both forms, and
+            // `//sessions` is a different path to some readers. Stripping
+            // uniformly rather than keeping a single slash means `SOME_HOME=/`
+            // gives `/sessions` instead of `//sessions`; the only value that
+            // strips to nothing is the root itself, and a root with nothing
+            // after it is the root.
+            var root = raw
+            while root.hasSuffix("/") { root.removeLast() }
+            let joined = root + path.dropFirst(relocate.replaces.count)
+            return joined.isEmpty ? "/" : joined.expandingTilde
+        }
+
         /// jsonl — one record per line; json — one object; sqlite — one query.
         let kind: Kind
         /// Directory holding sessions (jsonl/json), or the database file.
@@ -268,6 +682,18 @@ struct HarnessDescriptor: Codable {
         /// True for an append-only journal of snapshot-plus-patches, folded
         /// back into one document before mapping. See `Journal`.
         var journal: Bool?
+        /// The day this source's records were last read against something
+        /// outside this repository, as `yyyy-MM-dd`.
+        ///
+        /// The session counterpart of `quota.checkedAt`, and needed for the
+        /// same reason: a session fixture is written from the map it tests, so
+        /// it proves the map is applied and cannot notice that the records
+        /// mean something else. Two agents were over-reporting tokens behind
+        /// green fixtures — Claude repeating a reply across content blocks,
+        /// Codex re-emitting an event verbatim — and neither was found by a
+        /// fixture. Both were found by reading what another tool had to handle
+        /// to read the same files.
+        var checkedAt: String?
         /// Shell-style glob under `path`, e.g. "*/*.jsonl". jsonl/json only.
         var glob: String?
         /// Maximum newest files to parse. Defaults to 40; a single-window app
@@ -286,7 +712,30 @@ struct HarnessDescriptor: Codable {
         /// Extra directories a reader needs beyond `path`. Claude's transcripts
         /// live in a different tree from its session registry, and both should
         /// be fixable in the file if Claude ever moves them.
-        var paths: [String: String]?
+        private var paths: [String: String]?
+
+        /// Names of the extra paths this source declares.
+        var declaredPathNames: [String] { (paths ?? [:]).keys.sorted() }
+
+        /// A path this source declares beside its session store, relocated.
+        ///
+        /// The map itself is private, and that is the point rather than tidiness.
+        /// Two call sites read it directly and forgot the relocation: Codex keeps
+        /// its autonomous-goal database under the root `CODEX_HOME` moves, so a
+        /// relocated Codex showed its sessions and reported its loop state as
+        /// unavailable. Both mutations for that survived, because the decision was
+        /// tested and the one-line pass-through at each call site was not, and
+        /// reaching those takes a live scan against real processes.
+        ///
+        /// Making the unresolved value unreachable removes the class instead of
+        /// testing for it: there is no longer an unrelocated path to pass by
+        /// mistake. The two catalogue entries are gone with it — a mutation that
+        /// cannot be written is better than one that can only survive.
+        func declaredPath(_ name: String,
+                          environment: [String: String] = ProcessInfo.processInfo.environment)
+            -> String? {
+            paths?[name].map { resolved($0, environment: environment) }
+        }
         /// sqlite only. Newest session first, LIMIT 1.
         var query: String?
         /// sqlite only: what each selected column means.
@@ -328,6 +777,8 @@ struct HarnessDescriptor: Codable {
     /// rather than showing a guess.
     struct Map: Codable {
         var cwd: String?
+        /// Path to whatever `focus.command` needs to raise this session.
+        var focusTarget: String?
         var contextWindow: String?
         /// What the harness says is currently in the context, as one or more
         /// fields summed. The newest record wins — unlike the token counts,
@@ -337,10 +788,35 @@ struct HarnessDescriptor: Codable {
         var timestamp: String?
         var inputTokens: String?
         var outputTokens: String?
+        /// One figure covering everything, for a harness that reports no
+        /// split.
+        ///
+        /// Some stores keep a single running count and nothing else. Mapping
+        /// that into `inputTokens` would say it was all uploaded, which is
+        /// wrong in a way nobody reading the row could see; leaving it out
+        /// throws away the only figure the harness has. It is its own field
+        /// so the row can show a total as a total, and a descriptor declaring
+        /// it alongside the split is refused rather than silently preferring
+        /// one — nothing can tell whether such a total includes the other two.
+        var totalTokens: String?
         var cacheRead: String?
         /// True when `inputTokens` already counts the cached part, so it is not
         /// added a second time when working out what was actually uploaded.
         var inputIncludesCacheRead: Bool?
+        /// `true` where the source re-emits a record it has already written,
+        /// carrying the same figures again.
+        ///
+        /// Codex does. Its rollout files repeat a `token_count` event
+        /// verbatim — the same `last_token_usage`, the same totals — and a
+        /// reader that sums every record sums those twice. Measured on a real
+        /// rollout by somebody who had one: ninety-four events, twelve of them
+        /// re-emissions, and a fifteen per cent overcount for adding them all.
+        ///
+        /// Declared per harness rather than applied to all, because it trades
+        /// one error for another: two consecutive turns that genuinely spent
+        /// exactly the same tokens are indistinguishable from a repeat, and
+        /// only a source known to repeat itself is worth paying that for.
+        var skipRepeatedUsage: Bool?
         var cacheWrite: String?
         var cost: String?
         var title: String?
@@ -352,6 +828,25 @@ struct HarnessDescriptor: Codable {
         var toolCalls: Count?
         /// Records to count as conversation turns, e.g. {"type": "message"}.
         var turnWhere: [String: String]?
+        /// Records whose usage figures must not be counted, for a source
+        /// that writes more than one kind of them.
+        ///
+        /// Kimi Code writes `usage.record` lines in two scopes: `turn`
+        /// carries what one turn spent, `session` carries the running total
+        /// so far. Adding both adds the running total to the turns it is
+        /// already the sum of. Nothing in the figures separates them — both
+        /// records carry the same field names in the same place, and the only
+        /// difference is a sibling field naming the kind.
+        ///
+        /// Stated as an exclusion rather than a rule about what to keep,
+        /// because keeping only what matches would discard the records of an
+        /// older format that names no scope at all, and under-reporting real
+        /// work is the worse mistake. A record that does not match is counted.
+        ///
+        /// Different from `source.filter`, which decides whether a record is
+        /// read: a record excluded here is still read for its model, its
+        /// timestamp and everything else it carries.
+        var skipUsageWhere: [String: String]?
         /// Where working/waiting is recorded, when the harness says so.
         var status: Status?
         /// The harness's own id for this session, used to match it against
@@ -401,69 +896,16 @@ struct HarnessDescriptor: Codable {
         Config.directory.appendingPathComponent("harnesses")
     }
 
-    nonisolated(unsafe) private static var cached:
-        (stamp: String, checked: Date, list: [HarnessDescriptor],
-         fragments: [String], names: Set<String>)?
-    private static let lock = NSLock()
+    private static let catalog = HarnessCatalog(directory:directory,defaults:bundled(),
+        schema:AppResources.bundle.url(forResource:"harness.schema",withExtension:"json"),readme:readme)
 
-    /// Cached: the scan asks whether a path belongs to a harness once per
-    /// process, and re-reading every descriptor each time meant hundreds of
-    /// decodes per pass.
-    nonisolated(unsafe) private static var hasSeeded = false
-
-    static func all() -> [HarnessDescriptor] {
-        lock.lock()
-        let needsSeed = !hasSeeded
-        hasSeeded = true
-        lock.unlock()
-        if needsSeed { seed() }
-
-        // `isAgent` asks this once per running process, so the directory stat
-        // that checks for edits would otherwise run hundreds of times a scan.
-        // Once a second is often enough to pick up a file someone just saved.
-        lock.lock()
-        if let cached, cached.checked.timeIntervalSinceNow > -1 {
-            lock.unlock(); return cached.list
-        }
-        lock.unlock()
-
-        let stamp = FileStamp.ofDirectory(directory)
-        lock.lock()
-        if let cached, cached.stamp == stamp {
-            self.cached = (stamp, Date(), cached.list, cached.fragments, cached.names)
-            lock.unlock()
-            return cached.list
-        }
-        lock.unlock()
-
-        let list = load()
-        let fragments = list.flatMap(\.match)
-        let names = Set(list.flatMap(\.processNames))
-        lock.lock(); cached = (stamp, Date(), list, fragments, names); lock.unlock()
-        return list
-    }
-
-    /// Every executable-path fragment any descriptor matches on, flattened once
-    /// so a per-process check is one pass over a small array.
-    static func matchFragments() -> [String] {
-        _ = all()
-        lock.lock(); defer { lock.unlock() }
-        return cached?.fragments ?? []
-    }
-
-    /// Process names declared by any descriptor, matched exactly rather than as
-    /// substrings — an interpreted agent's executable is `node`, and only
-    /// argv[0] says which agent it is.
-    static func processNamesAll() -> Set<String> {
-        _ = all()
-        lock.lock(); defer { lock.unlock() }
-        return cached?.names ?? []
-    }
-
-    /// Drop the cache so an edited descriptor takes effect on the next scan.
-    static func reload() {
-        lock.lock(); cached = nil; lock.unlock()
-    }
+    /// Read-only, bounded and cached; startup explicitly seeds shipped defaults.
+    static func all() -> [HarnessDescriptor] { catalog.snapshot().enabled }
+    /// Both are derived once when the catalog changes, not per caller: the
+    /// process scan asks for them once per process.
+    static func matchFragments() -> [String] { catalog.snapshot().matchFragments }
+    static func processNamesAll() -> Set<String> { catalog.snapshot().processNames }
+    static func reload() { catalog.invalidate() }
 
     /// Puts the shipped harnesses in your folder, and keeps them current.
     ///
@@ -477,82 +919,15 @@ struct HarnessDescriptor: Codable {
     /// "untouched" is decided. Delete a file and it comes back; edit it and it
     /// is yours for good.
     @discardableResult
-    static func seed() -> (added: [String], updated: [String], keptYours: [String]) {
-        var added: [String] = [], updated: [String] = [], kept: [String] = []
-        let manifest = directory.appendingPathComponent(".seed.json")
-        var seeded = (try? Data(contentsOf: manifest))
-            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] } ?? [:]
-
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        } catch {
-            NSLog("Antarium: couldn't create %@ — %@", directory.path, error.localizedDescription)
-            return ([], [], [])
+    static func seed(in targetDirectory:URL = directory, sources:[URL]? = nil) -> HarnessSeed.Result {
+        let result = targetDirectory == directory && sources == nil
+            ? catalog.seed()
+            : HarnessSeed.run(directory:targetDirectory,sources:sources ?? bundled(),
+                schema:AppResources.bundle.url(forResource:"harness.schema",withExtension:"json"),readme:readme)
+        if targetDirectory == directory, !result.added.isEmpty || !result.updated.isEmpty {
+            Log.info("harness", "Default files added: \(result.added.count); updated: \(result.updated.count); user-owned: \(result.keptYours.count).")
         }
-
-        // Harnesses point one directory up to this editor schema. It is
-        // app-owned rather than user-owned, so the current version can replace
-        // it safely whenever the descriptor format grows.
-        if let schema = AppResources.bundle.url(
-            forResource: "harness.schema", withExtension: "json"),
-           let data = try? Data(contentsOf: schema) {
-            try? data.write(to: Config.directory.appendingPathComponent(
-                "harness.schema.json"), options: .atomic)
-        }
-
-        // The previous design exported read-only copies here. It is tool-made
-        // and no longer read; leaving it behind would just be a second copy to
-        // wonder about.
-        let legacy = directory.appendingPathComponent("builtin")
-        if FileManager.default.fileExists(atPath: legacy.path) {
-            try? FileManager.default.removeItem(at: legacy)
-        }
-
-        for source in bundled() {
-            let name = source.lastPathComponent
-            guard let shipped = try? Data(contentsOf: source) else { continue }
-            let destination = directory.appendingPathComponent(name)
-            let shippedSum = checksum(shipped)
-
-            guard let existing = try? Data(contentsOf: destination) else {
-                if (try? shipped.write(to: destination, options: .atomic)) != nil {
-                    seeded[name] = shippedSum
-                    added.append(name)
-                }
-                continue
-            }
-            let existingSum = checksum(existing)
-            if existingSum == shippedSum { seeded[name] = shippedSum; continue }  // already current
-            if seeded[name] == existingSum {
-                // Untouched since we wrote it, and we now ship something newer.
-                if (try? shipped.write(to: destination, options: .atomic)) != nil {
-                    seeded[name] = shippedSum
-                    updated.append(name)
-                }
-            } else {
-                kept.append(name)                       // edited — leave it alone
-            }
-        }
-
-        if let data = try? JSONSerialization.data(withJSONObject: seeded, options: [.sortedKeys]) {
-            try? data.write(to: manifest, options: .atomic)
-        }
-        try? readme.write(to: directory.appendingPathComponent("README.txt"),
-                          atomically: true, encoding: .utf8)
-        if !added.isEmpty || !updated.isEmpty {
-            NSLog("Antarium: harnesses seeded %d, updated %d, yours %d",
-                  added.count, updated.count, kept.count)
-        }
-        return (added, updated, kept)
-    }
-
-    /// FNV-1a. Not for security — just "is this byte-for-byte what we wrote?",
-    /// and it has to mean the same thing on every launch, which `hashValue`
-    /// does not.
-    private static func checksum(_ data: Data) -> String {
-        var hash: UInt64 = 0xcbf29ce484222325
-        for byte in data { hash ^= UInt64(byte); hash &*= 0x100000001b3 }
-        return String(hash, radix: 16)
+        return result
     }
 
     private static let readme = """
@@ -570,7 +945,15 @@ struct HarnessDescriptor: Codable {
             /Applications/Antarium.app/Contents/MacOS/Antarium --check <file>
 
         It reports typos, field paths that match nothing in your real data, and
-        what it would show. The format is documented in the Antarium README.
+        what it would show.
+
+        For a harness with a quota block, put a recorded reply beside it as
+        <name>.quota-fixture.json and --check will run your mapping against
+        it. That needs nothing installed and no account.
+
+        harness.schema.json next to this folder is the authority on the format,
+        and most editors will use it for completion and validation. The fields
+        are explained in docs/TECHNICAL.md under "Harness files".
 
         """
 
@@ -584,65 +967,80 @@ struct HarnessDescriptor: Codable {
               let seeded = try? JSONSerialization.jsonObject(with: manifest) as? [String: String],
               let recorded = seeded["\(id).json"]
         else { return true }                       // never shipped: entirely theirs
-        return recorded != checksum(data)
+        return recorded != HarnessSeed.checksum(data)
     }
 
-    /// Files that failed to load this pass, for the settings panel to show.
-    /// A skipped harness used to be a log line nobody saw.
-    nonisolated(unsafe) private static var failureStorage: [String] = []
-    static var failures: [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return failureStorage
-    }
-
-    /// Built-ins first, then user files, which win on id collision.
-    private static func load() -> [HarnessDescriptor] {
-        var byID: [String: HarnessDescriptor] = [:]
-        var found: [String] = []
-        defer {
-            lock.lock()
-            failureStorage = found
-            lock.unlock()
-        }
-        // Only the user's folder. The bundle seeds it and is not read again —
-        // one copy, so "which file is real?" always has one answer.
-        for url in user() {
-            let descriptor: HarnessDescriptor
-            do {
-                descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
-            } catch {
-                let detail = "\(url.lastPathComponent): \(error.localizedDescription)"
-                found.append(detail)
-                NSLog("Antarium: skipping harness %@ — %@", url.lastPathComponent,
-                      error.localizedDescription)
-                continue
-            }
-            guard descriptor.isEnabled else { continue }
-            byID[descriptor.id] = descriptor
-        }
-        return byID.values.sorted { $0.id < $1.id }
-    }
+    /// Visible configuration degradation, independent of retained descriptors.
+    static var failures: [String] { catalog.issues }
 
     private static func bundled() -> [URL] {
         AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses") ?? []
     }
 
-    private static func user() -> [URL] {
-        ((try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil)) ?? [])
-            // `.seed.json` is bookkeeping, not a harness.
-            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix(".") }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-    }
+
 }
 
 extension String {
     /// Expands a leading `~` so descriptors can be written the way people think.
+    /// `~` and `~/…` become this account's home. Everything else is left
+    /// exactly as written.
+    ///
+    /// It used to expand any leading tilde by dropping one character and
+    /// prepending the home directory, which is right for `~/x` and wrong for
+    /// everything else: `~other/x` became `/Users/<you>other/x` and `~~/x`
+    /// became `/Users/<you>~/x`. Neither is a path anybody meant, and the
+    /// first is not even the thing a shell would produce — `~other` is that
+    /// account's home, not a string glued onto yours.
+    ///
+    /// A fabricated path usually resolves to nothing, which is a harness
+    /// quietly reporting no sessions. But this also expands the command a
+    /// descriptor names before `CommandPath` looks it up, and a fabricated
+    /// path that happens to exist is something this app would run.
+    ///
+    /// Left unchanged rather than expanded through `NSString`, which does
+    /// support `~other`: reading another account's home is not something a
+    /// descriptor should be able to ask for by typo, and a path that stays
+    /// `~other/x` resolves to nothing and says so.
     var expandingTilde: String {
-        hasPrefix("~")
-            ? FileManager.default.homeDirectoryForCurrentUser.path + dropFirst()
-            : self
+        guard hasPrefix("~") else { return self }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if self == "~" { return home }
+        if hasPrefix("~/") { return home + dropFirst() }
+        return self
+    }
+
+    /// The inverse: a path shortened to `~/…` for display.
+    ///
+    /// Beside its inverse because they were written apart and made the same
+    /// mistake apart. This one tested `hasPrefix(home)` — a plain string
+    /// prefix, where what it meant was "inside this directory". A home whose
+    /// last component is `se` matched a checkout under a sibling account
+    /// named `sebastian`, and the row showed `~bastian/project`: not a short
+    /// form of anything, and not a path. Sibling accounts whose names extend
+    /// one another are ordinary — a home beside its own `-backup` is enough.
+    ///
+    /// For a while the two mistakes cancelled, and `~bastian/project`
+    /// expanded back to the right path by going wrong in the other
+    /// direction. Neither was right, and the expansion was fixed first.
+    ///
+    /// There were three copies: the dashboard row, the first-run panel, and
+    /// this. They agreed on the bug. Only a whole leading component is
+    /// replaced now, so the tilde means what a shell would take it to mean
+    /// and the result reads back through `expandingTilde` unchanged.
+    ///
+    /// Takes the home rather than reading it, because the case that was
+    /// wrong cannot be built from whatever home the test machine has: it
+    /// needs a second account whose name extends this one's, and naming a
+    /// real account is what this repository's fixtures may not do.
+    func abbreviatingHome(_ home: String) -> String {
+        guard !isEmpty else { return "" }
+        // A home of `/` would make every absolute path a tilde path, and an
+        // empty one would make the prefix test match everything. Neither is
+        // ordinary, and both are cheaper to refuse than to reason about.
+        guard !home.isEmpty, home != "/" else { return self }
+        if self == home { return "~" }
+        guard hasPrefix(home + "/") else { return self }
+        return "~" + dropFirst(home.count)
     }
 }

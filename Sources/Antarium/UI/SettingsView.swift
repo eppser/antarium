@@ -14,32 +14,119 @@ struct SettingsView: View {
     @State private var passwordHost: String?
     @State private var passwordEntry = ""
     @State private var showRemoteHelp = false
+    @State private var tab: Tab = .general
+
+    /// The panel's width.
+    ///
+    /// It was 420, which is narrower than the dashboard it configures, and a
+    /// `Toggle`'s subtitle here is held to one line — those subtitles carry
+    /// each provider's `setupHint`, which is the one string that tells a user
+    /// how to fix a provider that is not signed in. At 420 they truncated, so
+    /// the panel was hiding its own instructions.
+    static let width: CGFloat = 520
+
+    /// The label column in front of a segmented control or a stepper.
+    ///
+    /// It was 78pt and left-aligned, chosen when the panel was 420. The
+    /// widest label this panel has is "Agents" at 36.5pt, so more than half
+    /// of that column was empty and every control started an inch from its
+    /// own name. Sized to the widest label with a little air, and
+    /// right-aligned, which is what a macOS settings form does: the label
+    /// ends where the control begins, so the pair reads as one thing.
+    static let labelColumn: CGFloat = 44
+    /// Settings arrived as seven sections in one scrolling column — about
+    /// 1,600pt of content against a 13" display's 715, so two fifths of it
+    /// was reachable at a time and the section you wanted was usually off
+    /// screen. Four tabs is the shape macOS uses for this, in Safari, in
+    /// Terminal, in Xcode: a sidebar starts earning its keep at about eight
+    /// panes, and here it would spend a third of the width on four words.
+    ///
+    /// The pairs are not arbitrary. Menu Bar and Refresh both answer "what
+    /// does this do while I am not looking". Dashboard and Sounds both
+    /// configure the panel and what it announces. Remote tmux and Harnesses
+    /// are both "teach it to see something new", and both are the sections
+    /// that grow without bound.
+    enum Tab: String, CaseIterable, Identifiable {
+        case general, agents, dashboard, advanced
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .general:   return "General"
+            case .agents:    return "Agents"
+            case .dashboard: return "Dashboard"
+            case .advanced:  return "Advanced"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .general:   return "gearshape"
+            case .agents:    return "person.2"
+            case .dashboard: return "rectangle.grid.1x2"
+            case .advanced:  return "slider.horizontal.3"
+            }
+        }
+    }
+
+    /// Renders every section at full height instead of scrolling.
+    ///
+    /// The panel is capped at the screen's height so it scrolls on a small
+    /// display, which is right in the app and wrong for `--settings`: the
+    /// image then depends on whichever screen happened to be attached, and two
+    /// runs on two machines produce different sheets with different sections
+    /// missing. A preview nobody can compare is not a preview.
+    var unbounded = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
+            // Every section at once when rendering a sheet: a preview that
+            // shows one tab is a preview of one tab.
+            if !unbounded {
+                tabBar
+                Divider().opacity(0.4)
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    section("Menu Bar") { menuBarControls }
-                    section("Agents") { agentControls }
-                    section("Dashboard") { dashboardControls }
-                    section("Remote tmux", help: Self.remoteHelp,
-                            showing: $showRemoteHelp) { remoteTmuxControls }
-                    section("Refresh") { refreshControls }
-                    section("Sounds") { soundControls }
-                    section("Harnesses") { harnessControls }
+                    if let issue = Config.issue {
+                        Label(issue, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .accessibilityLabel("Settings need attention. \(issue)")
+                    }
+                    if tab == .general || unbounded {
+                        section("Menu Bar") { menuBarControls }
+                        section("Refresh") { refreshControls }
+                    }
+                    if tab == .agents || unbounded {
+                        section("Agents") { agentControls }
+                    }
+                    if tab == .dashboard || unbounded {
+                        section("Dashboard") { dashboardControls }
+                        section("Sounds") { soundControls }
+                    }
+                    if tab == .advanced || unbounded {
+                        section("Remote tmux", help: Self.remoteHelp,
+                                showing: $showRemoteHelp) { remoteTmuxControls }
+                        section("Harnesses") { harnessControls }
+                    }
                 }
                 .padding(14)
             }
             // Show the whole thing where the screen allows; scroll only if not.
-            .frame(maxHeight: max(320, (NSScreen.main?.visibleFrame.height ?? 900) - 160))
+            .frame(maxHeight: unbounded
+                ? .infinity
+                : max(320, (NSScreen.main?.visibleFrame.height ?? 900) - 160))
 
             Divider().opacity(0.4)
             footer
         }
-        .frame(width: 420)
+        .frame(width: SettingsView.width)
         .fixedSize(horizontal: false, vertical: true)
         // Rebuild when a setting changes, wherever it was changed.
         .id("\(model.revision)-\(settingsBus.revision)")
@@ -53,22 +140,27 @@ struct SettingsView: View {
         .flatMap { NSImage(contentsOf: $0) }
 
     private var header: some View {
-        // Centred, with the close button floated over the corner rather than
-        // sharing the row: in a row it would pull the mark and the name off
-        // centre by its own width.
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 1) {
+        // One row, the way a title bar is.
+        //
+        // This was a centred stack — a 56pt mark over the name over the word
+        // "Settings" — which came to about a hundred points. That was the
+        // whole of the panel's navigation when the panel was one long scroll.
+        // It is not any more: the tab bar below carries that now, and four
+        // levels of chrome stacked before the first control is a fifth of the
+        // General tab spent on saying where you already are.
+        //
+        // Roughly sixty points back, in a panel that has five hundred.
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 7) {
                 if let mark = Self.mark {
                     Image(nsImage: mark).resizable().interpolation(.high)
-                        .frame(width: 56, height: 56)
+                        .frame(width: 20, height: 20)
                         .accessibilityHidden(true)
                 }
-                Text("Antarium").font(.system(size: 17, weight: .semibold))
+                Text("Antarium").font(.system(size: 13, weight: .semibold))
                 Text("Settings").font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer(minLength: 30)
             }
-            // Centred as a unit, which is why it is a frame around the stack
-            // rather than alignment inside it.
-            .frame(maxWidth: .infinity)
 
             // Where a close button belongs. Quitting Antarium is a different
             // thing and stays in the footer.
@@ -76,7 +168,7 @@ struct SettingsView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 24, height: 24)
                     .background(Circle().fill(Color.primary.opacity(0.07)))
                     .contentShape(Rectangle())
             }
@@ -84,7 +176,7 @@ struct SettingsView: View {
             .help("Close settings")
             .accessibilityLabel("Close settings")
         }
-        .padding(.horizontal, 14).padding(.vertical, 5)
+        .padding(.horizontal, 14).padding(.vertical, 7)
     }
 
 
@@ -256,6 +348,34 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
+    /// The tab strip. Each tab is a button rather than a segmented `Picker`
+    /// so the icon and the word sit together, which is how the system's own
+    /// preference windows read — and so the selected one can carry a filled
+    /// background instead of a segment border.
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(Tab.allCases) { item in
+                let selected = tab == item
+                Button { tab = item } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: item.symbol).font(.system(size: 14))
+                        Text(item.title).font(.system(size: 10, weight: selected ? .semibold : .regular))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(selected ? 0.1 : 0)))
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+    }
+
     private func section<Content: View>(_ title: String,
                                         @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -364,9 +484,11 @@ struct SettingsView: View {
                         .onSubmit { addRemoteHost() }
                     Button("Add") { addRemoteHost() }
                         .font(.system(size: 11))
-                        .disabled(!RemoteTmux.isSafeHost(newRemoteHost))
+                        .disabled(!RemoteTmux.isSafeHost(newRemoteHost) || Settings.remoteTmuxHosts.count >= RemoteTmux.fleetLimit)
                 }
 
+                Text("Up to 256 machines. Four connections run at once; larger fleets are checked in rotating passes.")
+                    .font(.system(size:10)).foregroundStyle(.secondary)
                 let typed = newRemoteHost.trimmingCharacters(in: .whitespaces)
                 if !typed.isEmpty, !RemoteTmux.isSafeHost(typed) {
                     // Otherwise Add simply greys out and the reason is a
@@ -463,6 +585,7 @@ struct SettingsView: View {
         // with "-" is parsed by ssh as an option, and -oProxyCommand= runs a
         // command on this Mac.
         guard !host.isEmpty, RemoteTmux.isSafeHost(host),
+              Settings.remoteTmuxHosts.count < RemoteTmux.fleetLimit,
               !Settings.remoteTmuxHosts.contains(host) else { return }
         model.update { Settings.remoteTmuxHosts = Settings.remoteTmuxHosts + [host] }
         newRemoteHost = ""
@@ -497,7 +620,8 @@ struct SettingsView: View {
             // after the attempt: a registration macOS refuses springs the
             // switch back rather than showing a preference that is not real.
             Toggle(title: "Open at Login",
-                   subtitle: "Start Antarium when you log in to this Mac",
+                   subtitle: LaunchAtLogin.refusal
+                       ?? "Start Antarium when you log in to this Mac",
                    on: LaunchAtLogin.isEnabled) { on in
                 LaunchAtLogin.set(on)
                 model.update { }
@@ -511,7 +635,7 @@ struct SettingsView: View {
     private var accentSwatches: some View {
         HStack(spacing: 6) {
             Text("Accent").font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: SettingsView.labelColumn, alignment: .trailing)
             ForEach(Accents.all, id: \.id) { accent in
                 let selected = accent.id == Settings.accent
                 Button { model.update { Settings.accent = accent.id } } label: {
@@ -530,21 +654,125 @@ struct SettingsView: View {
         }
     }
 
+    /// One provider as the settings list needs it. Built once per redraw
+    /// rather than asking each provider three questions from inside the loop.
+    struct AgentRow: Identifiable {
+        let id: String
+        let name: String
+        let enabled: Bool
+        let detail: String
+        let unverified: Bool
+        /// Whether this Mac shows any sign of the agent at all.
+        let present: Bool
+    }
+
+    /// Eighteen providers ship, and on most Macs only a few are real. Splitting
+    /// the list on that means the ones you have are at the top and the rest are
+    /// still there to switch on, rather than a flat list where "not signed in"
+    /// is the most common line.
+    static func agentRows(providers: [UsageProvider], enabled: Set<String>,
+                          evidence: [AgentAutoEnable.Evidence]) -> [AgentRow] {
+        let byID = Dictionary(uniqueKeysWithValues: evidence.map { ($0.id, $0) })
+        return providers.map { provider in
+            let found = byID[provider.id]
+            let detail: String
+            switch (found?.signedIn ?? false, found?.hasSessions ?? false) {
+            case (true, true):   detail = "Signed in · sessions on this Mac"
+            case (true, false):  detail = "Signed in"
+            case (false, true):  detail = "Sessions on this Mac · " + provider.setupHint
+            case (false, false): detail = provider.setupHint
+            }
+            return AgentRow(id: provider.id, name: provider.displayName,
+                            enabled: enabled.contains(provider.id),
+                            detail: detail, unverified: !provider.isVerified,
+                            present: found?.present ?? false)
+        }
+        .sorted { ($0.present ? 0 : 1, $0.name.lowercased())
+                < ($1.present ? 0 : 1, $1.name.lowercased()) }
+    }
+
+    /// "4 of 10 shown" reads the same on a Mac with four agents as on one
+    /// where a fifth was found and cut: the first run enables at most
+    /// `AgentAutoEnable.limit`, strongest evidence first, and says nothing
+    /// about the ones it passed over. This line is the only place they are
+    /// accounted for, and the only reason the user would know there is
+    /// anything left to switch on.
+    static func agentCountSummary(_ rows: [AgentRow]) -> String {
+        let shown = rows.filter(\.enabled).count
+        let waiting = rows.filter { $0.present && !$0.enabled }.count
+        let base = "\(shown) of \(rows.count) shown"
+        return waiting == 0 ? base : base + " · \(waiting) more found here"
+    }
+
     private var agentControls: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            ForEach(ProviderRegistry.all, id: \.id) { provider in
-                Toggle(title: provider.displayName,
-                       subtitle: provider.isConfigured ? nil : provider.setupHint,
-                       on: Settings.enabledAgents.contains(provider.id)) { on in
+        let providers = ProviderRegistry.all
+        let enabled = Settings.enabledAgents
+        let rows = Self.agentRows(
+            providers: providers, enabled: enabled,
+            evidence: AgentAutoEnable.evidence(providers: providers,
+                                               sessionsPresent: AgentAutoEnable.sessionsPresent()))
+        let here = rows.filter(\.present)
+        let elsewhere = rows.filter { !$0.present }
+
+        // One column, though seventeen toggles is a tall section and the
+        // design review twice recommended splitting it.
+        //
+        // The first argument against was width: each subtitle carries the
+        // provider's setup hint, and halving the line would truncate them.
+        // That argument is gone — the subtitle wraps now. The one that
+        // remains is plainer. This is a list of checkboxes you scan for the
+        // one you want, and column-major reading makes "the next agent
+        // after this one" mean the row below on the left and then jump to
+        // the top on the right. The present/absent split below already does
+        // the work that the height was being spent on.
+        return VStack(alignment: .leading, spacing: 7) {
+            ForEach(here) { agentToggle($0) }
+            if !elsewhere.isEmpty {
+                Text(Onboarding.absent.prefix(1).uppercased() + Onboarding.absent.dropFirst())
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+                ForEach(elsewhere) { agentToggle($0) }
+            }
+            HStack(spacing: 6) {
+                Button("Detect installed agents") {
                     model.update {
-                        var set = Settings.enabledAgents
-                        if on { set.insert(provider.id) } else { set.remove(provider.id) }
-                        // Never leave an empty menu bar — there'd be no way back.
-                        if !set.isEmpty { Settings.enabledAgents = set }
+                        ConfiguredProbe.invalidate()
+                        AgentAutoEnable.apply(providers: ProviderRegistry.all)
                     }
+                }
+                .controlSize(.small)
+                .help("Switch on every agent that is signed in or has sessions on this Mac, and switch off the rest.")
+                Spacer()
+                Text(Self.agentCountSummary(rows))
+                    .font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func agentToggle(_ row: AgentRow) -> some View {
+        // Said before the click rather than after it. Switching this one off
+        // is refused when it is the only agent left, and the toggle used to
+        // spring back with no explanation at all.
+        let refusal = row.enabled
+            ? Settings.toggling(row.id, on: false, in: Settings.enabledAgents).refusal
+            : nil
+        return Toggle(title: row.name + (row.unverified ? " · unverified" : ""),
+                      subtitle: refusal ?? row.detail,
+                      on: row.enabled) { on in
+            model.update {
+                if case .apply(let set) = Settings.toggling(
+                    row.id, on: on, in: Settings.enabledAgents) {
+                    Settings.enabledAgents = set
                 }
             }
         }
+        .disabled(refusal != nil)
+        .help(refusal
+            ?? (row.unverified
+                ? "\(row.name): the mapping is checked against a recorded response, but the figures have not been confirmed against a live account."
+                : row.detail))
     }
 
     private var dashboardControls: some View {
@@ -633,7 +861,7 @@ private struct Segmented: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: SettingsView.labelColumn, alignment: .trailing)
             HStack(spacing: 1) {
                 ForEach(options, id: \.1) { option in
                     let selected = option.1 == current
@@ -667,12 +895,12 @@ private struct Stepper: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: SettingsView.labelColumn, alignment: .trailing)
             HStack(spacing: 1) {
                 ForEach(Array(range), id: \.self) { n in
                     let selected = n == value
                     Button { onChange(n) } label: {
-                        Text("\(n)")
+                        Text(verbatim: "\(n)")
                             .font(.system(size: 10, weight: selected ? .semibold : .regular)
                                 .monospacedDigit())
                             .frame(width: 20, height: 18)
@@ -700,6 +928,11 @@ private struct Toggle: View {
     let onChange: (Bool) -> Void
 
     var body: some View {
+        // The state is drawn — a filled box with a tick — and was drawn only.
+        // This is a `Button` wearing a checkbox, so without a trait and a
+        // value it announces as "button" and a screen reader has no way to
+        // say which agents are switched on. That is the whole of what this
+        // panel is for.
         Button { onChange(!on) } label: {
             HStack(spacing: 8) {
                 ZStack {
@@ -714,8 +947,23 @@ private struct Toggle: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.system(size: 11.5))
                     if let subtitle {
+                        // Two lines, and it wraps rather than truncating.
+                        //
+                        // This is where an agent's setup hint is drawn, and
+                        // an agent that is not signed in but has sessions
+                        // here gets a composed one: "Sessions on this Mac · "
+                        // in front of the hint. For Codex that is 467pt of a
+                        // 424pt line, so the instruction for fixing the very
+                        // thing the row is reporting was cut off mid-path —
+                        // at 420pt and still at 520. A wrap costs one line of
+                        // height on the few rows that need it. A truncation
+                        // costs the reader the instruction, and widening the
+                        // panel far enough to hold the longest of them is not
+                        // something a panel can do: the login-item refusal
+                        // below is a whole sentence.
                         Text(subtitle).font(.system(size: 9.5)).foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()
@@ -723,6 +971,8 @@ private struct Toggle: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityValue(on ? "on" : "off")
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
         .accessibilityLabel(title)
         .accessibilityValue(on ? "On" : "Off")
         .accessibilityHint(subtitle ?? "")

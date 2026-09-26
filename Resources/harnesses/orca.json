@@ -1,0 +1,83 @@
+{
+  "formatVersion": 1,
+  "id": "orca",
+  "name": "Orca",
+  "note": "A desktop workspace that runs agents in its own managed terminals. Sessions come from `orca terminal list --json`, which reports the live terminals with the agent each one is running; the Electron app's own storage is a browser profile and not a session record. Focus goes through `orca terminal switch`, because raising the application would show whichever tab it had open rather than the session that was clicked. The agent actually running in a terminal is `agentIdentity`, so a Codex pane and a Claude pane are told apart rather than both reported as Orca.",
+  "process": {
+    "pathContains": [
+      "/Orca.app/Contents/MacOS/Orca"
+    ],
+    "names": [
+      "Orca"
+    ],
+    "installationProbes": [
+      {
+        "method": "application bundle",
+        "path": "/Applications/Orca.app/Contents/MacOS/Orca",
+        "name": "Orca",
+        "argv0": "/Applications/Orca.app/Contents/MacOS/Orca",
+        "expected": true,
+        "evidence": "https://orca.computer/",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: an Electron helper of the same app",
+        "path": "/Applications/Orca.app/Contents/Frameworks/Orca Helper.app/Contents/MacOS/Orca Helper",
+        "name": "Orca Helper",
+        "argv0": "Orca Helper",
+        "expected": false,
+        "evidence": "https://orca.computer/",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: the bundled computer-use agent",
+        "path": "/Applications/Orca.app/Contents/Resources/Orca Computer Use.app/Contents/MacOS/orca-computer-use-macos",
+        "name": "orca-computer-use-macos",
+        "argv0": "orca-computer-use-macos",
+        "expected": false,
+        "evidence": "https://orca.computer/",
+        "verifiedAt": "2026-09-20"
+      }
+    ]
+  },
+  "compatibility": {
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-09-20",
+    "fixture": "harness-fixtures/orca.json",
+    "note": "Read through the published CLI command schema; validate against a running instance with --check."
+  },
+  "source": {
+    "kind": "command",
+    "path": "",
+    "command": "orca",
+    "args": [
+      "terminal",
+      "list",
+      "--json"
+    ],
+    "root": "result.terminals",
+    "refreshEvery": 10
+  },
+  "map": {
+    "cwd": "worktreePath",
+    "title": "title",
+    "sessionID": "handle",
+    "focusTarget": "handle",
+    "timestamp": "lastOutputAt"
+  },
+  "focus": {
+    "command": "orca",
+    "args": [
+      "terminal",
+      "switch",
+      "--terminal",
+      "{focusTarget}"
+    ]
+  },
+  "contributes": "focus",
+  "multiSession": true,
+  "detached": true,
+  "presentation": {
+    "sourceLabel": "CLI"
+  }
+}

@@ -1,8 +1,18 @@
 {
   "setupSQL": "CREATE TABLE session (id TEXT, directory TEXT, title TEXT, model TEXT, cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_cache_read INTEGER, tokens_cache_write INTEGER, time_created INTEGER, time_updated INTEGER, parent_id TEXT); INSERT INTO session VALUES ('open-1','/fixture/opencode','Open task','{\"id\":\"sonnet\"}',0.5,90,12,45,3,1787652000,1787652060,NULL);",
   "expected": {
-    "sessions": 1, "sessionID": "open-1", "cwd": "/fixture/opencode", "title": "Open task", "model": "sonnet",
-    "inputTokens": 90, "outputTokens": 12, "cacheRead": 45, "cacheWrite": 3,
-    "contextTokens": 0, "toolCalls": 0, "turns": 0, "subAgents": 0, "costUSD": 0.5
+    "sessions": 1,
+    "sessionID": "open-1",
+    "cwd": "/fixture/opencode",
+    "title": "Open task",
+    "model": "sonnet",
+    "inputTokens": 90,
+    "outputTokens": 12,
+    "cacheRead": 45,
+    "cacheWrite": 3,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0.5
   }
 }

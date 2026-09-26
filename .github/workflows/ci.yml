@@ -25,6 +25,50 @@ jobs:
       - name: Run behavioral and architecture tests
         run: ./test.sh
 
+      # The runner is UTC, where a date bug that reads timestamps in the local
+      # zone cannot show. A half-hour offset is used on purpose: a whole-hour
+      # zone misses an error that is itself a multiple of an hour.
+      - name: Re-run tests outside UTC
+        run: ./test.sh
+        env:
+          TZ: Asia/Kolkata
+
+      # A fresh checkout has no ~/.antarium. Tests that read the developer's
+      # seeded harnesses pass locally and fail here, which is how eleven of
+      # them sat red while green on the machine that wrote them.
+      - name: Re-run tests with no local state
+        run: ./test.sh
+        env:
+          ANTARIUM_HOME: ${{ runner.temp }}/antarium-bare
+
+      # The opposite of a bare machine, and a bare machine cannot find it. Four
+      # layout tests rendered the real dashboard, which reads the compact-list
+      # preference for itself, and compared it against the full-size metrics —
+      # so they passed wherever the setting was off and failed wherever it was
+      # on. A fresh home means the default applies and the default is off, so
+      # the run above is green and the configuration somebody actually uses is
+      # the one that fails.
+      - name: Re-run tests with every setting turned on
+        run: |
+          home="${{ runner.temp }}/antarium-loaded"
+          mkdir -p "$home"
+          cat >"$home/config.json" <<'JSON'
+          {
+            "agentListCompact": true,
+            "showAgentCount": true,
+            "notifyOnIdle": true,
+            "dashboardPinned": true,
+            "includeRemoteTmux": true,
+            "remoteTmuxHosts": ["build-box-1", "build-box-2", "build-box-3"],
+            "enabledAgents": ["claude-code", "codex", "cursor", "copilot"],
+            "meterMode": "remaining",
+            "agentSort": "spend",
+            "refreshMinutes": 60,
+            "agentScanSeconds": 300
+          }
+          JSON
+          ANTARIUM_HOME="$home" ./test.sh
+
       - name: Audit strict Swift concurrency
         run: >-
           swift build --scratch-path .build/strict
@@ -33,6 +77,30 @@ jobs:
 
       - name: Assemble the release application
         run: ./build.sh
+
+      # The app is assembled by copying named directories, so a resource
+      # declared in Package.swift can reach the SwiftPM bundle and be missing
+      # from the thing that ships. That happened: every quota fixture was
+      # absent from the app while the debug build verified all seven. Building
+      # the app without then running it proves only that it links.
+      - name: Verify the assembled application
+        run: |
+          APP=dist/Antarium.app/Contents/MacOS/Antarium
+          "$APP" --verify-harness-quota
+          "$APP" --verify-harness-fixtures
+          "$APP" --verify-harness-installations
+
+      # A first run on a machine that has never seen Antarium: it must seed its
+      # harnesses, detect what is installed, and record a choice. The runner
+      # has no agents at all, which is the case a developer machine cannot
+      # reproduce — every agent is installed there.
+      - name: First run on a bare machine
+        run: |
+          HOME_DIR="${{ runner.temp }}/antarium-first-run"
+          ANTARIUM_HOME="$HOME_DIR" .build/debug/Antarium --detect-agents --apply
+          test -s "$HOME_DIR/config.json"
+          grep -q enabledAgents "$HOME_DIR/config.json"
+          test "$(ls "$HOME_DIR"/harnesses/*.json | wc -l)" -gt 0
 
       - name: Verify bundled harness fixtures
         run: dist/Antarium.app/Contents/MacOS/Antarium --verify-harness-fixtures
