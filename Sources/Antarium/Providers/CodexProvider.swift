@@ -24,6 +24,22 @@ import Foundation
 /// different route. Plumbing headers out of `UsageHTTP` to find out would be
 /// building on a guess about somebody else's API, and the figure here came
 /// from a live account rather than from inference.
+///
+/// Re-read 2026-09-26 against that tool's commits since, and one is evidence
+/// worth acting on. It fixed its Codex countdown by carrying `resetsAt` — epoch
+/// seconds — and `windowDurationMins` out of Codex's *app-server RPC*, a
+/// different transport from this HTTP endpoint and camelCase where this reply is
+/// snake_case. The verified fields here are `used_percent` and
+/// `limit_window_seconds`, and no reset was among them, so a Codex gauge shows a
+/// window length and no countdown where Claude's shows both.
+///
+/// Both names are now candidates. Adding one cannot produce a wrong figure: a
+/// field that is not in the reply changes nothing, and a field that is turns a
+/// missing countdown into a real one. `windowDurationMins` is converted from
+/// minutes rather than joined to the seconds list, because a length in the wrong
+/// unit *is* a wrong figure — sixty times too long would name a five-hour window
+/// "12D". What is still not established is whether this endpoint carries either,
+/// and reading it to find out would mean reading somebody's account.
 final class CodexProvider: UsageProvider, @unchecked Sendable {
     let id = "codex"
     let displayName = "ChatGPT (Codex)"
@@ -177,6 +193,13 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
                                     nameOverride: String? = nil) -> Gauge? {
         func number(_ keys: [String]) -> Double? {
             for k in keys {
+                // A boolean is an `NSNumber` and bridges to `Int` as 0 or 1, so
+                // `"used_percent": true` read as one per cent used and
+                // `"resetsAt": true` as a reset one second after 1970. `FieldPath`
+                // has always refused booleans as figures — this local helper
+                // never got the guard, and every numeric field of this reply went
+                // through it.
+                if let n = d[k] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { continue }
                 if let v = d[k] as? Double { return v }
                 if let v = d[k] as? Int { return Double(v) }
             }
@@ -191,14 +214,19 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
         // traps, so an unbounded value took the menu bar down rather than
         // reporting a window it could not read. `FieldPath` bounds both
         // kinds: a date to the year 9999, a window to ten years.
+        // `windowDurationMins` is *minutes*, and is converted here rather than
+        // being added to the seconds list above — a length in the wrong unit is
+        // a wrong figure, not a missing one, and sixty times too long would
+        // name a five-hour window "12D".
         let span = FieldPath.seconds(number(["limit_window_seconds", "window_seconds"]))
+            ?? FieldPath.seconds(number(["windowDurationMins"]).map { $0 * 60 })
         var resets: Date?
-        if let at = number(["reset_at", "resets_at_epoch"]) {
+        if let at = number(["reset_at", "resets_at_epoch", "resetsAt"]) {
             resets = FieldPath.epoch(at)
         } else if let after = FieldPath.seconds(number(["reset_after_seconds",
                                                         "resets_in_seconds"])) {
             resets = Date().addingTimeInterval(after)
-        } else if let iso = d["resets_at"] as? String {
+        } else if let iso = (d["resets_at"] as? String) ?? (d["resetsAt"] as? String) {
             resets = UsageHTTP.parseDate(iso)
         }
 
