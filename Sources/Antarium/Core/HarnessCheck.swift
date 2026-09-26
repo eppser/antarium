@@ -94,7 +94,7 @@ enum HarnessCheck {
                              "accountField"],
         "quota.windows": ["root", "roots", "list", "key", "keys", "single", "balance",
                           "currency", "usedPercent", "percentRemaining",
-                          "used", "remaining", "limit", "require", "criticalWhen", "labels", "badges", "windowSeconds", "resetsAt",
+                          "used", "remaining", "limit", "require", "criticalWhen", "criticalWhenEquals", "labels", "badges", "windowSeconds", "resetsAt",
                           "title"],
         "selection": ["kind", "path", "glob", "records", "encodedJSON", "id", "filter",
                       "query", "column", "command", "args", "root"],

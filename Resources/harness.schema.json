@@ -1034,6 +1034,13 @@
             "type": "boolean"
           }
         },
+        "criticalWhenEquals": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Field path to the exact value that means this window is spent, for a service stating a word rather than a flag. Compared exactly. Conjunction with criticalWhen. A field nothing states satisfies nothing."
+        },
         "labels": {
           "type": "object",
           "additionalProperties": {

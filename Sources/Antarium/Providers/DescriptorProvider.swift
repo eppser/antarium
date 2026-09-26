@@ -364,6 +364,42 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         return json
     }
 
+    /// Whether the service said this window is spent.
+    ///
+    /// Split out so the rule can be asked. It was an expression inside the
+    /// window loop, which meant the only way to exercise it was to build a
+    /// descriptor, a reply and a provider — and the case that mattered, a rule
+    /// naming a field nothing stated, was not exercised by any of the three
+    /// DeepSeek fixture cases that did.
+    ///
+    /// Two blocks, one conjunction. A descriptor declaring both `criticalWhen`
+    /// and `criticalWhenEquals` is critical when everything it named holds.
+    ///
+    /// No `?? false` on either: a field nothing stated is `nil`, `nil` equals no
+    /// bool and no string, and the rule is simply not satisfied. Painting a
+    /// gauge spent is an assertion about somebody's account, so the service has
+    /// to have made it.
+    ///
+    /// A block declared empty marks nothing. `allSatisfy` on nothing is true, so
+    /// without the emptiness check a descriptor that named no condition would
+    /// mark every window spent.
+    static func reportedSeverity(_ map: HarnessDescriptor.Quota.Windows,
+                                 window: [String: Any],
+                                 root: [String: Any]) -> Severity {
+        let flags = map.criticalWhen ?? [:], words = map.criticalWhenEquals ?? [:]
+        guard !flags.isEmpty || !words.isEmpty else { return .normal }
+        let flagsHold = flags.allSatisfy { flag($0.key, window: window, root: root) == $0.value }
+        // Falls back the way `flag` does — on the *readable* value, not on the
+        // field's presence. A window stating `null` has stated nothing a rule
+        // can compare, so the reply beside it is still consulted; written the
+        // other way round, a null would shadow a state the service did give.
+        let wordsHold = words.allSatisfy {
+            (FieldPath.comparable(FieldPath.first(window, $0.key))
+             ?? FieldPath.comparable(FieldPath.first(root, $0.key))) == $0.value
+        }
+        return flagsHold && wordsHold ? .critical : .normal
+    }
+
     /// A flag read from the window, or from the response when the window
     /// does not carry it. Nothing when neither states one.
     ///
@@ -419,13 +455,7 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             // Spent, whatever the figure says. An empty rule marks
             // nothing: `allSatisfy` on nothing is true, and a descriptor that
             // names no flag has not asked for this.
-            //
-            // No `?? false` here, and that is the whole of the fix: a flag
-            // nothing stated is `nil`, `nil == someBool` is false, and the rule
-            // is not satisfied. A window is spent because the service said so.
-            let reported: Severity = (map.criticalWhen.map {
-                !$0.isEmpty && $0.allSatisfy { Self.flag($0.key, window: window, root: json) == $0.value }
-            } ?? false) ? .critical : .normal
+            let reported = Self.reportedSeverity(map, window: window, root: json)
 
             // A balance is charted instead of a percentage, not alongside
             // one: the two answer different questions and only one of them

@@ -322,6 +322,35 @@ struct HarnessDescriptor: Codable {
             /// window if it is there, otherwise from the response, which is
             /// where DeepSeek states it.
             var criticalWhen: [String: Bool]?
+            /// The same rule for a field that states a word rather than a flag.
+            ///
+            /// `criticalWhen` compares booleans, and a service that reports a
+            /// state does not always report it as one. OpenCode gives each
+            /// window a `status` of "ok" or "rate-limited", and the note on that
+            /// harness recorded the gap as "descriptors have no way to say a
+            /// window is exhausted" — which was true when it was written and is
+            /// now only half true.
+            ///
+            /// This marks the window spent and leaves the figure alone. The
+            /// tool this app is measured against forces a rate-limited window to
+            /// nothing left whatever percentage it reports, and whether such a
+            /// window ever reports under 100 is not established — so writing
+            /// that clamp would be inventing a number for the case where the
+            /// flag and the figure disagree. Reporting what the service said and
+            /// marking it spent needs no such guess.
+            ///
+            /// Compared exactly, not as a substring and not case-insensitively:
+            /// these are enum values, and "ok" must not match "not-ok". The
+            /// comparison is `FieldPath.comparable`, so a state stated as a
+            /// number matches a rule written as text — the same rule a path
+            /// filter uses.
+            ///
+            /// Conjunction with `criticalWhen`, not an alternative to it: a
+            /// descriptor declaring both is critical when everything it named
+            /// holds. Nothing shipped needs "either", and reading two blocks as
+            /// "or" while each is internally "and" would be a rule nobody could
+            /// predict.
+            var criticalWhenEquals: [String: String]?
             var limit: String?
             /// Windows to skip unless every pair matches — Copilot lists a
             /// premium tier that a free plan simply does not have.
@@ -378,6 +407,7 @@ struct HarnessDescriptor: Codable {
                 paths += key ?? []
                 paths += keys ?? []
                 paths += (criticalWhen ?? [:]).keys
+                paths += (criticalWhenEquals ?? [:]).keys
                 paths += (require ?? [:]).keys
                 return paths
             }

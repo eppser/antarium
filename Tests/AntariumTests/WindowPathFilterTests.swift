@@ -182,6 +182,29 @@ struct WindowPathFilterTests {
                 "a filtered title did not reach the entry it named")
     }
 
+    /// `criticalWhenEquals` — the same rule for a service that states a word.
+    @Test("criticalWhenEquals")
+    func filteredCriticalWhenEquals() throws {
+        let provider = try provider(#"""
+        {"list":"scopes","key":["name"],"keys":["wanted"],
+         "used":"used","limit":"limit",
+         "criticalWhenEquals":{"tags[k=unit].state":"rate-limited"}}
+        """#)
+        let spent = #"""
+        {"scopes":[{"name":"wanted","used":75,"limit":100,
+          "tags":[{"k":"other","state":"ok"},{"k":"unit","state":"rate-limited"}]}]}
+        """#
+        #expect(try #require(try snapshot(provider, spent).gauges.first).reportedSeverity
+                == .critical, "a filtered criticalWhenEquals key did not reach the state")
+        // The decoy holding the spent value must not mark the window.
+        let fine = #"""
+        {"scopes":[{"name":"wanted","used":75,"limit":100,
+          "tags":[{"k":"other","state":"rate-limited"},{"k":"unit","state":"ok"}]}]}
+        """#
+        #expect(try #require(try snapshot(provider, fine).gauges.first).reportedSeverity
+                != .critical, "the decoy's state marked the window spent")
+    }
+
     /// `criticalWhen` and `require` keys, already covered in `FlagKeyPathTests`
     /// but asserted here too so this suite is the whole classification rather
     /// than most of it.
@@ -253,7 +276,7 @@ struct WindowPathFilterTests {
         let exercised: Set<String> = [
             "root", "roots", "list", "key", "keys", "usedPercent", "percentRemaining",
             "balance", "currency", "used", "remaining", "limit", "windowSeconds",
-            "resetsAt", "title", "criticalWhen", "require",
+            "resetsAt", "title", "criticalWhen", "criticalWhenEquals", "require",
         ]
         var populated = HarnessDescriptor.Quota.Windows()
         let labels = Set(Mirror(reflecting: populated).children.compactMap(\.label))

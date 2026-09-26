@@ -350,3 +350,117 @@ struct ListKeyTests {
         #expect(windows(["limits": [["p": 1], ["p": 2]]], key: []) == ["0", "1"])
     }
 }
+
+/// The same rule for a service that states a word rather than a flag.
+///
+/// OpenCode gives each window a `status` of "ok" or "rate-limited". The harness
+/// note recorded that as unactionable — "descriptors have no way to say a window
+/// is exhausted" — which was true before `criticalWhen` existed and half true
+/// after: what was missing was the string form, not the idea.
+@Suite("A window is marked spent by the word the service states")
+struct CriticalWhenEqualsTests {
+
+    private func severity(_ map: HarnessDescriptor.Quota.Windows,
+                          window: String, root: String = "{}") throws -> Severity {
+        let w = try #require(try JSONSerialization.jsonObject(with: Data(window.utf8))
+                                 as? [String: Any])
+        let r = try #require(try JSONSerialization.jsonObject(with: Data(root.utf8))
+                                 as? [String: Any])
+        return DescriptorProvider.reportedSeverity(map, window: w, root: r)
+    }
+
+    private func rule(words: [String: String]? = nil,
+                      flags: [String: Bool]? = nil) -> HarnessDescriptor.Quota.Windows {
+        var map = HarnessDescriptor.Quota.Windows()
+        map.criticalWhenEquals = words
+        map.criticalWhen = flags
+        return map
+    }
+
+    @Test("The stated value marks the window")
+    func statedValueMarks() throws {
+        let map = rule(words: ["status": "rate-limited"])
+        #expect(try severity(map, window: #"{"status":"rate-limited"}"#) == .critical)
+        #expect(try severity(map, window: #"{"status":"ok"}"#) == .normal)
+    }
+
+    /// Exactly, not as a substring: "ok" must not be found inside "not-ok", and
+    /// a rule for "limited" must not be satisfied by "unlimited".
+    @Test("The comparison is exact", arguments: [
+        #"{"status":"not-rate-limited"}"#, #"{"status":"rate-limited-soon"}"#,
+        #"{"status":"RATE-LIMITED"}"#, #"{"status":"rate limited"}"#,
+    ])
+    func comparisonIsExact(window: String) throws {
+        #expect(try severity(rule(words: ["status": "rate-limited"]), window: window) == .normal,
+                Comment(rawValue: "\(window) satisfied a rule for the exact value"))
+    }
+
+    /// A state nothing stated satisfies nothing — the same rule the flag form
+    /// follows, and for the same reason.
+    @Test("A state nothing states marks nothing", arguments: [
+        "{}", #"{"status":null}"#, #"{"other":"rate-limited"}"#, #"{"status":[]}"#,
+    ])
+    func unstatedMarksNothing(window: String) throws {
+        #expect(try severity(rule(words: ["status": "rate-limited"]), window: window) == .normal,
+                Comment(rawValue: "\(window) was read as a stated rate limit"))
+    }
+
+    /// A state stated as a number matches a rule written as text, which is how
+    /// a path filter compares too.
+    @Test("A state stated as a number matches a rule written as text")
+    func numericState() throws {
+        #expect(try severity(rule(words: ["code": "429"]), window: #"{"code":429}"#) == .critical)
+        #expect(try severity(rule(words: ["code": "429"]), window: #"{"code":200}"#) == .normal)
+    }
+
+    /// The reply may state it once for every window, as DeepSeek does with its
+    /// flag, and the window's own still wins.
+    @Test("A state may come from the reply, and the window's own wins")
+    func rootFallback() throws {
+        let map = rule(words: ["status": "rate-limited"])
+        #expect(try severity(map, window: "{}", root: #"{"status":"rate-limited"}"#) == .critical)
+        #expect(try severity(map, window: #"{"status":"ok"}"#,
+                            root: #"{"status":"rate-limited"}"#) == .normal,
+                "the reply's state overrode the window's own")
+        // A window stating something no rule can compare has stated nothing, so
+        // the reply beside it is still consulted — the same fallback the flag
+        // form uses, on the readable value rather than on presence.
+        #expect(try severity(map, window: #"{"status":null}"#,
+                            root: #"{"status":"rate-limited"}"#) == .critical,
+                "a null in the window shadowed a state the service did give")
+    }
+
+    /// Two blocks, one conjunction.
+    @Test("A descriptor declaring both blocks needs everything it named")
+    func bothBlocksConjoin() throws {
+        let map = rule(words: ["status": "rate-limited"], flags: ["available": false])
+        #expect(try severity(map, window: #"{"status":"rate-limited","available":false}"#)
+                == .critical)
+        #expect(try severity(map, window: #"{"status":"rate-limited","available":true}"#)
+                == .normal, "one half of the rule was enough")
+        #expect(try severity(map, window: #"{"status":"ok","available":false}"#)
+                == .normal, "the other half alone was enough")
+    }
+
+    /// A descriptor naming no condition marks nothing. `allSatisfy` on nothing
+    /// is true, so without the emptiness check every window would be spent.
+    @Test("A rule naming nothing marks nothing")
+    func emptyRuleMarksNothing() throws {
+        #expect(try severity(rule(), window: #"{"status":"rate-limited"}"#) == .normal)
+        #expect(try severity(rule(words: [:]), window: #"{"status":"rate-limited"}"#) == .normal)
+        #expect(try severity(rule(words: [:], flags: [:]),
+                            window: #"{"status":"rate-limited"}"#) == .normal)
+    }
+
+    /// And the shipped descriptor, since the point of all of this is one
+    /// provider's blocked account showing as blocked.
+    @Test("OpenCode marks a rate-limited window spent")
+    func opencodeUsesIt() throws {
+        let descriptor = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "opencode" })
+        let map = try #require(descriptor.quota?.windows)
+        #expect(map.criticalWhenEquals?["status"] == "rate-limited")
+        #expect(try severity(map, window: #"{"status":"rate-limited","percent":40}"#) == .critical,
+                "a rate-limited window reporting 40 per cent read as comfortable")
+        #expect(try severity(map, window: #"{"status":"ok","percent":99}"#) == .normal)
+    }
+}

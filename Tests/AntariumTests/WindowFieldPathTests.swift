@@ -29,6 +29,7 @@ struct WindowFieldPathTests {
         windows.used = "p-used"
         windows.remaining = "p-remaining"
         windows.criticalWhen = ["p-criticalWhen": true]
+        windows.criticalWhenEquals = ["p-criticalWhenEquals": "spent"]
         windows.limit = "p-limit"
         windows.require = ["p-require": true]
         windows.labels = ["not-a-path-labels": "not-a-path-label"]

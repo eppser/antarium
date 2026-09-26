@@ -752,6 +752,27 @@ being built and never sent. There is no `{token}` substitution in it: a
 credential is a scalar, and every list-valued field seen in the wild is a set
 of literal scope names.
 
+`criticalWhenEquals` is the same rule for a field that states a word rather
+than a flag: a field path to the exact value that means the window is spent.
+OpenCode gives each window a `status` of "ok" or "rate-limited", and that was
+recorded as an unactionable gap — "descriptors have no way to say a window is
+exhausted" — which was true before `criticalWhen` existed and half true after.
+
+It marks the window and leaves the figure alone. The tool this app is measured
+against forces a rate-limited window to nothing left whatever percentage it
+reports, and whether such a window ever reports under 100 is not established, so
+writing that clamp would be inventing a number for the case where the flag and
+the figure disagree. Reporting what the service said and marking it spent needs
+no such guess, and is strictly more informative than either half alone.
+
+Compared exactly — these are enum values, and "ok" must not match "not-ok" — and
+through `FieldPath.comparable`, so a state stated as a number matches a rule
+written as text, the same way a path filter compares. It is a conjunction with
+`criticalWhen` rather than an alternative: a descriptor declaring both is
+critical when everything it named holds. Nothing shipped needs "either", and
+reading two blocks as "or" while each is internally "and" would be a rule nobody
+could predict.
+
 #### Naming a window in a list
 
 A `list` response has no member names, so `key` says which field paths inside

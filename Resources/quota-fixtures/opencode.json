@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic. Shape follows the documented opencode.ai zen/go/v1/usage payload. Every value is invented.",
+  "note": "Synthetic. Shape follows the documented opencode.ai zen/go/v1/usage payload. Every value is invented. Three cases added 2026-09-26 for the status rule: a rate-limited window reporting well under its cap, which is the case the figure alone would read as comfortable; a window stating no status at all; and one stating a word this app does not know. Only the exact value marks a window, so an unfamiliar status reads as no statement rather than as trouble.",
   "verifiedAt": "2026-09-20",
   "cases": [
     {
@@ -44,7 +44,8 @@
             "badge": "30D",
             "title": "Monthly",
             "usedPercent": 100,
-            "resetsAt": "2026-10-01T00:00:00Z"
+            "resetsAt": "2026-10-01T00:00:00Z",
+            "severity": "critical"
           }
         ]
       }
@@ -71,6 +72,75 @@
       "name": "a reply missing the envelope entirely",
       "response": {},
       "expectError": "unsupported"
+    },
+    {
+      "name": "a rate-limited window under its cap is still marked spent",
+      "response": {
+        "usage": {
+          "rolling": {
+            "status": "rate-limited",
+            "percent": 40,
+            "resetsAt": "2026-09-27T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 40,
+            "resetsAt": "2026-09-27T00:00:00Z",
+            "severity": "critical"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a window stating no status is not marked spent",
+      "response": {
+        "usage": {
+          "rolling": {
+            "percent": 40,
+            "resetsAt": "2026-09-27T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 40,
+            "resetsAt": "2026-09-27T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a status this app does not know is not a rate limit",
+      "response": {
+        "usage": {
+          "rolling": {
+            "status": "degraded",
+            "percent": 40,
+            "resetsAt": "2026-09-27T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 40,
+            "resetsAt": "2026-09-27T00:00:00Z"
+          }
+        ]
+      }
     }
   ]
 }
