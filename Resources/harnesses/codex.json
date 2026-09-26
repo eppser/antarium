@@ -68,6 +68,10 @@
   "source": {
     "kind": "jsonl",
     "path": "~/.codex/sessions",
+    "relocate": {
+      "env": "CODEX_HOME",
+      "replaces": "~/.codex"
+    },
     "glob": "*/*/*/*.jsonl",
     "filter": {
       "payload.originator": [
@@ -157,5 +161,5 @@
       ]
     }
   },
-  "note": " Codex re-emits a `token_count` event verbatim \u2014 the same `last_token_usage` and the same totals written again \u2014 so `skipRepeatedUsage` is declared and an identical consecutive record is counted once. Measured by a reader with a real rollout file on hand: ninety-four events, twelve of them re-emissions, and summing all of them overcounted by about fifteen per cent. The cost of the rule is that two consecutive turns spending exactly the same tokens are read as one, which is the cheaper of the two errors here and is why it is declared per harness rather than applied to every source. Recorded 2026-09-25."
+  "note": " Codex re-emits a `token_count` event verbatim \u2014 the same `last_token_usage` and the same totals written again \u2014 so `skipRepeatedUsage` is declared and an identical consecutive record is counted once. Measured by a reader with a real rollout file on hand: ninety-four events, twelve of them re-emissions, and summing all of them overcounted by about fifteen per cent. The cost of the rule is that two consecutive turns spending exactly the same tokens are read as one, which is the cheaper of the two errors here and is why it is declared per harness rather than applied to every source. Recorded 2026-09-25. Honours CODEX_HOME as of 2026-09-26. The native provider already did, so a relocated Codex home showed the account's quota and none of its sessions \u2014 the two halves of one agent disagreeing about where it lives."
 }

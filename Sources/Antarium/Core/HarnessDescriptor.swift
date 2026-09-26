@@ -604,6 +604,67 @@ struct HarnessDescriptor: Codable {
     }
 
     struct Source: Codable {
+
+        /// An environment variable that moves this harness's data directory.
+        ///
+        /// Three harnesses recorded the absence of this as a known limitation —
+        /// `KIMI_CODE_HOME`, `HERMES_HOME`, `OPENCLAW_PROFILE`, each noted as
+        /// something "a descriptor cannot read", each reading as absent rather
+        /// than wrong. The worse case was not in a note at all: `CodexProvider`
+        /// honours `CODEX_HOME` and the codex harness read `~/.codex/sessions`
+        /// regardless, so a developer who moves their Codex home saw their quota
+        /// and none of their sessions. Two halves of one agent disagreeing about
+        /// where it lives.
+        ///
+        /// `replaces` is the prefix the variable stands in for, stated rather
+        /// than guessed: `CODEX_HOME` is the whole of `~/.codex`, and a rule
+        /// that inferred the prefix from the path would have to decide how much
+        /// of it to keep. The validator refuses a `replaces` that is not a
+        /// prefix of the path, because a relocation that can never fire is a
+        /// declaration that silently does nothing.
+        struct Relocation: Codable {
+            /// The variable's name. Unset or empty means no relocation.
+            let env: String
+            /// The path prefix it replaces.
+            let replaces: String
+        }
+        var relocate: Relocation?
+
+        /// Where this harness reads, after any relocation it declares.
+        var resolvedPath: String {
+            Self.resolve(path, relocate: relocate,
+                         environment: ProcessInfo.processInfo.environment)
+        }
+
+        /// Pure, so the rule can be tested against a machine that has none of
+        /// these agents installed and no such variable set — which is every
+        /// machine this suite runs on.
+        static func resolve(_ path: String, relocate: Relocation?,
+                            environment: [String: String]) -> String {
+            guard let relocate,
+                  let raw = environment[relocate.env]?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty
+            else { return path.expandingTilde }
+            // A boundary, not a string prefix. `abbreviatingHome` made exactly
+            // this mistake in reverse: a home of `/Users/sam` matched
+            // `/Users/sammy`. A rule replacing `~/.codex` must not fire on
+            // `~/.codex-backup`.
+            guard path == relocate.replaces || path.hasPrefix(relocate.replaces + "/")
+            else { return path.expandingTilde }
+            // Trailing slashes stripped, all of them, because the suffix
+            // carries its own separator. Shell users write both forms, and
+            // `//sessions` is a different path to some readers. Stripping
+            // uniformly rather than keeping a single slash means `SOME_HOME=/`
+            // gives `/sessions` instead of `//sessions`; the only value that
+            // strips to nothing is the root itself, and a root with nothing
+            // after it is the root.
+            var root = raw
+            while root.hasSuffix("/") { root.removeLast() }
+            let joined = root + path.dropFirst(relocate.replaces.count)
+            return joined.isEmpty ? "/" : joined.expandingTilde
+        }
+
         /// jsonl — one record per line; json — one object; sqlite — one query.
         let kind: Kind
         /// Directory holding sessions (jsonl/json), or the database file.

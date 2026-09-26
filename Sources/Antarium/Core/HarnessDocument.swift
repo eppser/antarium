@@ -167,6 +167,20 @@ enum HarnessDocument {
         guard source["path"] is String else {
             throw Error.semantic("source.path is required (use an empty string for none/command)")
         }
+        // A relocation that can never fire is a declaration that silently does
+        // nothing, which is the same reasoning `requires` and `accountField` are
+        // refused under.
+        if let relocate = source["relocate"] as? [String: Any] {
+            try requireText("env", in: relocate, at: "source.relocate.")
+            try requireText("replaces", in: relocate, at: "source.relocate.")
+            let replaces = (relocate["replaces"] as? String) ?? ""
+            let path = (source["path"] as? String) ?? ""
+            guard path == replaces || path.hasPrefix(replaces + "/") else {
+                throw Error.semantic(
+                    "source.relocate.replaces \"\(replaces)\" is not a prefix of source.path "
+                    + "\"\(path)\", so the variable could never move anything")
+            }
+        }
         if let process = object["process"] as? [String: Any],
            let binding = process["sessionBinding"] as? String {
             guard binding == "openSourceFile" else {

@@ -82,7 +82,7 @@ enum HarnessCheck {
                     "installationProbes"],
         "presentation": ["mark", "fallbackName", "sourceLabel"],
         "compatibility": ["level", "verifiedAt", "agentVersions", "fixture", "note"],
-        "source": ["kind", "path", "glob", "limit", "query", "columns", "manifest", "filter",
+        "source": ["kind", "path", "relocate", "glob", "limit", "query", "columns", "manifest", "filter",
                    "command", "args", "root", "refreshEvery", "paths", "pathFields",
                    "journal", "checkedAt"],
         "map": mapKeys,

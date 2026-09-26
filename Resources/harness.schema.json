@@ -381,6 +381,25 @@
         "path": {
           "type": "string"
         },
+        "relocate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "env",
+            "replaces"
+          ],
+          "properties": {
+            "env": {
+              "type": "string",
+              "description": "Environment variable that moves this harness's data directory."
+            },
+            "replaces": {
+              "type": "string",
+              "description": "The path prefix the variable stands in for. Must be a prefix of source.path."
+            }
+          },
+          "description": "Honours an agent's own relocation variable, such as CODEX_HOME. Unset or empty leaves source.path as written."
+        },
         "glob": {
           "type": "string"
         },

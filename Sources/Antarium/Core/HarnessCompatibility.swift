@@ -205,6 +205,13 @@ enum HarnessCompatibility {
             } else {
                 source["path"] = root.path
             }
+            // A rewritten path has no relocation to honour. `source.relocate`
+            // names the prefix an agent's own variable replaces on a real
+            // machine; this path is a temporary tree that deliberately is not
+            // that prefix, so the declaration could only either do nothing or —
+            // as the validator rightly said when it was left in — refuse the
+            // document for naming a prefix the path does not have.
+            source["relocate"] = nil
             object["source"] = source
             object["id"] = "\(descriptor.id)-fixture-\(UUID().uuidString)"
             let configured = try HarnessDocument.decode(
@@ -260,10 +267,10 @@ enum HarnessCompatibility {
                 ? CommandPath.resolve(command) != nil
                 : true
         case .sqlite:
-            return FileManager.default.fileExists(atPath: descriptor.source.path.expandingTilde)
+            return FileManager.default.fileExists(atPath: descriptor.source.resolvedPath)
         case .json, .jsonl:
             var directory: ObjCBool = false
-            return FileManager.default.fileExists(atPath: descriptor.source.path.expandingTilde,
+            return FileManager.default.fileExists(atPath: descriptor.source.resolvedPath,
                                                   isDirectory: &directory) && directory.boolValue
         }
     }

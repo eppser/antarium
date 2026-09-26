@@ -288,7 +288,7 @@ enum HarnessEngine {
                                           files sourceFiles: [URL]) -> String {
         var parts = ["descriptor=\(fingerprint(descriptor))"]
         if descriptor.source.kind == .sqlite {
-            let path = descriptor.source.path.expandingTilde
+            let path = descriptor.source.resolvedPath
             for suffix in ["", "-wal", "-shm"] {
                 let url = URL(fileURLWithPath: path + suffix)
                 parts.append("\(url.path)=\(FileStamp.of(url))")
@@ -460,7 +460,7 @@ enum HarnessEngine {
     private static func observableSourceBytes(_ descriptor: HarnessDescriptor) -> UInt64 {
         switch descriptor.source.kind {
         case .json, .jsonl:
-            let root = URL(fileURLWithPath: descriptor.source.path.expandingTilde)
+            let root = URL(fileURLWithPath: descriptor.source.resolvedPath)
             let limit = min(max(descriptor.source.limit ?? 40, 1), 400)
             return ((try? matchingFiles(under: root, glob: descriptor.source.glob ?? "*")) ?? [])
                 .sorted { modified($0) > modified($1) }
@@ -472,7 +472,7 @@ enum HarnessEngine {
                 }
         case .sqlite:
             return ["", "-wal", "-shm"].reduce(0) { total, suffix in
-                let path = descriptor.source.path.expandingTilde + suffix
+                let path = descriptor.source.resolvedPath + suffix
                 let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size]
                     as? NSNumber)?.uint64Value ?? 0
                 return total + size
@@ -505,7 +505,7 @@ enum HarnessEngine {
         let files: [URL]
         do {
             files = descriptor.source.kind == .sqlite ? [] : try matchingFiles(
-                under: URL(fileURLWithPath: descriptor.source.path.expandingTilde), glob: descriptor.source.glob ?? "*")
+                under: URL(fileURLWithPath: descriptor.source.resolvedPath), glob: descriptor.source.glob ?? "*")
         } catch {
             fail(descriptor.id, "Source discovery is unavailable or exceeds its directory budget. Session details are unavailable.")
             return []
@@ -553,7 +553,7 @@ enum HarnessEngine {
                         boundToOpenFiles paths: [String]) -> Session? {
         guard descriptor.processRule.sessionBinding == .openSourceFile,
               let glob = descriptor.source.glob else { return nil }
-        let root = URL(fileURLWithPath: descriptor.source.path.expandingTilde)
+        let root = URL(fileURLWithPath: descriptor.source.resolvedPath)
             .standardizedFileURL.resolvingSymlinksInPath()
         let candidates = paths.prefix(1_024).compactMap { path -> URL? in
             let url = URL(fileURLWithPath: path).standardizedFileURL
@@ -589,7 +589,7 @@ enum HarnessEngine {
             // Run the real query so the checker can say what each declared
             // column actually produced. Without this a sqlite harness got no
             // field validation at all — the whole point of the check.
-            let path = d.source.path.expandingTilde
+            let path = d.source.resolvedPath
             guard FileManager.default.fileExists(atPath: path) else {
                 return ([], "sqlite file not found: \(path)")
             }
@@ -613,7 +613,7 @@ enum HarnessEngine {
             }
             return (rows,"sqlite: \(rows.count) sampled row(s)")
         case .json, .jsonl:
-            let root = URL(fileURLWithPath: d.source.path.expandingTilde)
+            let root = URL(fileURLWithPath: d.source.resolvedPath)
             guard let matched = try? matchingFiles(under: root, glob: d.source.glob ?? "*") else {
                 return ([], "Source discovery is unavailable or exceeds its directory budget.")
             }
@@ -1159,7 +1159,7 @@ enum HarnessEngine {
             return []
         }
         let result:BoundedSQLite.Result
-        do { result = try BoundedSQLite.query(path:d.source.path.expandingTilde,sql:query) }
+        do { result = try BoundedSQLite.query(path:d.source.resolvedPath,sql:query) }
         catch {
             fail(d.id,(error as? BoundedSQLite.ReadError)?.message ?? "SQLite source could not be read.")
             return []

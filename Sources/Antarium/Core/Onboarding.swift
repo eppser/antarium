@@ -78,7 +78,7 @@ enum Onboarding {
                 continue
             }
             guard !descriptor.source.path.isEmpty else { continue }
-            let path = descriptor.source.path.expandingTilde
+            let path = descriptor.source.resolvedPath
             let found = FileManager.default.fileExists(atPath: path)
             // Only asked when there are no sessions, and only ever used to
             // soften the claim. A hit proves the agent is here; a miss proves

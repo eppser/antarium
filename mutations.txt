@@ -1082,3 +1082,12 @@ a stated word is compared loosely | Sources/Antarium/Providers/DescriptorProvide
 an unstated word is a stated one | Sources/Antarium/Providers/DescriptorProvider.swift | s%             ?? FieldPath.comparable(FieldPath.first(root, \$0.key))) == \$0.value%             ?? FieldPath.comparable(FieldPath.first(root, $0.key)) ?? $0.value) == $0.value%
 a window state does not beat the reply | Sources/Antarium/Providers/DescriptorProvider.swift | s%            (FieldPath.comparable(FieldPath.first(window, \$0.key))%            (FieldPath.comparable(FieldPath.first(root, $0.key))%
 opencode stops noticing a rate limit | Resources/harnesses/opencode.json | s%"criticalWhenEquals": {%"criticalWhenEqualsUnused": {%
+a relocation variable is ignored | Sources/Antarium/Core/HarnessDescriptor.swift | s%                  let raw = environment\[relocate.env\]?%                  let raw = environment["ANTARIUM_NEVER_SET"]?%
+an empty relocation variable moves the path | Sources/Antarium/Core/HarnessDescriptor.swift | s%                  !raw.isEmpty%                  true%
+a relocation prefix is a plain string prefix | Sources/Antarium/Core/HarnessDescriptor.swift | s%            guard path == relocate.replaces \|\| path.hasPrefix(relocate.replaces + "/")%            guard path.hasPrefix(relocate.replaces)%
+a relocated root doubles its separator | Sources/Antarium/Core/HarnessDescriptor.swift | s%            while root.hasSuffix("/") { root.removeLast() }%            while root.count > 1, root.hasSuffix("/") { root.removeLast() }%
+a relocated path of nothing is the empty path | Sources/Antarium/Core/HarnessDescriptor.swift | s%            return joined.isEmpty ? "/" : joined.expandingTilde%            return joined.expandingTilde%
+a relocated variable holding a tilde is not expanded | Sources/Antarium/Core/HarnessDescriptor.swift | s%            return joined.isEmpty ? "/" : joined.expandingTilde%            return joined.isEmpty ? "/" : joined%
+an impossible relocation ships | Sources/Antarium/Core/HarnessDocument.swift | s%            guard path == replaces \|\| path.hasPrefix(replaces + "/") else {%            guard true else {%
+codex reads its sessions from the wrong home | Resources/harnesses/codex.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
+a rewritten fixture path keeps its relocation | Sources/Antarium/Core/HarnessCompatibility.swift | s%            source\["relocate"\] = nil%%

@@ -468,7 +468,7 @@ enum AgentScan {
         return Date(timeIntervalSince1970:milliseconds / 1_000)
     }
     static func claudeRows(_ claude:HarnessDescriptor,processes: [Int32: Processes.Info], unavailablePIDs:Set<Int32> = []) throws -> [AgentRow] {
-        let dir = URL(fileURLWithPath: claude.source.path.expandingTilde)
+        let dir = URL(fileURLWithPath: claude.source.resolvedPath)
         var directoryInfo = stat()
         if lstat(dir.path,&directoryInfo) != 0 {
             if errno == ENOENT { return [] }

@@ -394,6 +394,38 @@ rather than `waiting`, for the same reason: whether the agent is idle is a
 claim this harness cannot make. The row carries a note saying why it is empty,
 because a line of dashes otherwise reads as an agent that has done nothing.
 
+### An agent's own relocation variable
+
+`source.relocate` honours the variable an agent uses to move its data directory:
+`{"env": "CODEX_HOME", "replaces": "~/.codex"}` reads
+`$CODEX_HOME/sessions` when that variable is set and `~/.codex/sessions`
+otherwise.
+
+Three harnesses recorded the absence of this as a known limitation —
+`KIMI_CODE_HOME`, `HERMES_HOME`, `OPENCLAW_PROFILE`, each noted as something a
+descriptor could not read, each reading as absent rather than wrong. The worse
+case was in no note at all: `CodexProvider` honours `CODEX_HOME` while the codex
+harness read `~/.codex/sessions` regardless, so a developer who moves their Codex
+home saw their account quota and none of their sessions. Two halves of one agent
+disagreeing about where it lives, and nothing saying so.
+
+`replaces` is stated rather than inferred. `CODEX_HOME` stands for the whole of
+`~/.codex`, and a rule that worked the prefix out of the path would have to
+decide how much of it to keep. It is matched on a path boundary, not as a string
+prefix, so a rule for `~/.codex` does not fire on `~/.codex-backup` — the same
+mistake `abbreviatingHome` once made in reverse, where a home of `/Users/sam`
+matched `/Users/sammy`. The validator refuses a `replaces` that is not a prefix
+of `source.path`, because a relocation that can never fire is a declaration that
+silently does nothing.
+
+The rule is a pure function over an injected environment, so it is tested against
+a machine with none of these agents installed and no such variable set — which is
+every machine the suite runs on. What it covers is `source.path`: the directory
+sessions are read from. `source.paths`, `source.pathFields` and a capability's
+inherited paths are not relocated yet, and are named here rather than left to be
+discovered — each needs its own prefix, and one shape asserted across all three
+is how a wrong mapping ships.
+
 ### Descriptor-backed quota providers
 
 For agents without a built-in authentication flow, `quota` can describe a
