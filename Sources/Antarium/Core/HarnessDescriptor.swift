@@ -327,10 +327,12 @@ struct HarnessDescriptor: Codable {
             /// this struct and fails when a field is added without being
             /// classified here, so the two cannot drift apart quietly.
             ///
-            /// `title` is the one exception: it is text shown in a menu, and a
-            /// title reading "Weekly [beta]" is a title rather than a path
-            /// anyone got wrong. The value halves of `labels` and `badges` are
-            /// text too — only their keys are paths.
+            /// The exceptions are the fields that name a *window* rather than
+            /// reaching into a reply. `single` is the name given to the one
+            /// window a flat response has; the keys of `labels` and `badges`
+            /// are window ids, matched against the name a window already has.
+            /// A bracket group in any of those would be a bracket group in an
+            /// identifier, which is not a filter anyone meant.
             ///
             /// `keys` is included, which takes explaining, because it means two
             /// things. Against an object response it names members, and a
@@ -338,23 +340,33 @@ struct HarnessDescriptor: Codable {
             /// matches the name `key` derived for each element, which is not a
             /// path at all. Either way a bracket group in it is only ever a
             /// filter or a mistake, and that is all the validator looks at.
+            ///
+            /// `currency` is included for the same reason: it is a path into the
+            /// reply *or* a literal code like "USD", and a literal has no
+            /// bracket in it to check.
+            ///
+            /// `title` was on the exception list, wrongly — it reads as text
+            /// because it ends up drawn in a menu, and it is a path to the text
+            /// rather than the text. The reflection test below only proves every
+            /// field is classified, not that it is classified right; what caught
+            /// this was `WindowPathFilterTests`, which writes a filter into each
+            /// field the classification calls a path and insists it resolves.
             var fieldPaths: [String] {
                 var paths = [root, list, usedPercent, percentRemaining, balance,
-                             currency, single, used, remaining, limit,
-                             windowSeconds, resetsAt].compactMap { $0 }
+                             currency, used, remaining, limit,
+                             windowSeconds, resetsAt, title].compactMap { $0 }
                 paths += roots ?? []
                 paths += key ?? []
                 paths += keys ?? []
                 paths += (criticalWhen ?? [:]).keys
                 paths += (require ?? [:]).keys
-                paths += (labels ?? [:]).keys
-                paths += (badges ?? [:]).keys
                 return paths
             }
 
-            /// Fields above that are not field paths. Named so a test can hold
-            /// the classification against the struct itself.
-            static let nonPathFields: Set<String> = ["title"]
+            /// Fields above that name a window rather than reaching into a
+            /// reply. Named so a test can hold the classification against the
+            /// struct itself.
+            static let nonPathFields: Set<String> = ["single", "labels", "badges"]
         }
         /// An https URL to read the figures from. Optional because some
         /// services no longer offer one.

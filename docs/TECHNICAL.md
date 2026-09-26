@@ -828,6 +828,23 @@ reaches into a member rather than naming one literally. No shipped descriptor
 had a dotted key; a third-party document with a JSON member genuinely named
 `a.b` is the one shape this changed.
 
+Which strings in a `windows` block are paths is enumerated on the block itself.
+The fields that are *not* are the ones naming a window rather than reaching into
+a reply: `single`, and the keys of `labels` and `badges`, which are matched
+against the name a window already has. Everything else is a path, `title`
+included — it reads as text because it ends up drawn in a menu, and it is a path
+to the text rather than the text.
+
+Two tests hold that. `WindowFieldPathTests` reflects over the struct, so a field
+added without being classified fails there; it compares the list against itself
+and cannot tell a wrong classification from a right one.
+`WindowPathFilterTests` is the one that can: it writes a filter into every field
+the classification calls a path, against a reply where the entry the filter must
+not pick carries different figures, so a path resolved flatly fails rather than
+passing by coincidence. That is what caught `title`, which had been excused by
+the validator and resolved with a flat lookup — a filter written there would
+have passed `--check` and then silently matched nothing.
+
 A filter that matches nothing is absent, never zero — a gauge reading "0 left"
 on a plan with plenty left is worse than one that does not appear. A bracket
 group that is neither `[]`, `[-1]`, nor `key=value` pairs selects nothing for

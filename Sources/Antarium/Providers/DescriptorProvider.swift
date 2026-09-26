@@ -475,7 +475,9 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                     ?? named.map { Gauge.badge(from: $0) }
                     ?? Self.badge(seconds: span, fallback: key),
                 title: named
-                    ?? map.title.flatMap { FieldPath.lookup(window, $0) as? String }.map(Self.clamped)
+                    // `first`, not `lookup`: a declared title is a path to the
+                    // text, and a filtered one has to reach the entry it names.
+                    ?? map.title.flatMap { FieldPath.first(window, $0) as? String }.map(Self.clamped)
                     ?? Self.badge(seconds: span, fallback: key),
                 used: min(max(percent / 100, 0), 1),
                 // Per window if it is there, otherwise the response's own —
@@ -637,7 +639,10 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         // with nothing means the rule was removed rather than that dollars
         // are a reasonable guess.
         guard let declared = map.currency else { return "" }
-        if let found = FieldPath.lookup(window, declared) as? String, !found.isEmpty {
+        // `first`, so a currency stated inside a filtered entry is reachable.
+        // A literal code like "USD" has no bracket and takes the same route it
+        // always did.
+        if let found = FieldPath.first(window, declared) as? String, !found.isEmpty {
             return clamped(found)
         }
         return declared

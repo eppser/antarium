@@ -25,17 +25,17 @@ struct WindowFieldPathTests {
         windows.percentRemaining = "p-percentRemaining"
         windows.balance = "p-balance"
         windows.currency = "p-currency"
-        windows.single = "p-single"
+        windows.single = "not-a-path-single"
         windows.used = "p-used"
         windows.remaining = "p-remaining"
         windows.criticalWhen = ["p-criticalWhen": true]
         windows.limit = "p-limit"
         windows.require = ["p-require": true]
-        windows.labels = ["p-labels": "not-a-path-label"]
-        windows.badges = ["p-badges": "not-a-path-badge"]
+        windows.labels = ["not-a-path-labels": "not-a-path-label"]
+        windows.badges = ["not-a-path-badges": "not-a-path-badge"]
         windows.windowSeconds = "p-windowSeconds"
         windows.resetsAt = "p-resetsAt"
-        windows.title = "not-a-path-title"
+        windows.title = "p-title"
         return windows
     }
 
@@ -70,15 +70,23 @@ struct WindowFieldPathTests {
         }
     }
 
-    /// Text is not a path, and must not be checked as one. A menu title
-    /// reading "Weekly [beta]" is a title, and refusing the document for it
-    /// would be the validator inventing a rule about someone's wording.
-    @Test("Text fields are left out of the paths")
-    func textIsNotAPath() {
+    /// A field that names a window is not a path, and must not be checked as
+    /// one: a bracket group in an identifier is not a filter anyone meant.
+    ///
+    /// `title` used to be on this list, and it is a path — it reads as text
+    /// because it is drawn in a menu, and it is a path *to* the text. The
+    /// reflection test above proves every field is classified and cannot prove
+    /// one is classified right; `WindowPathFilterTests` is what caught it.
+    @Test("Fields that name a window are left out of the paths")
+    func windowNamesAreNotPaths() {
         let paths = Set(populated.fieldPaths)
-        #expect(!paths.contains("not-a-path-title"))
+        #expect(!paths.contains("not-a-path-single"))
+        #expect(!paths.contains("not-a-path-labels"), "a label key is a window id")
+        #expect(!paths.contains("not-a-path-badges"), "a badge key is a window id")
+        // And the value halves were never paths either.
         #expect(!paths.contains("not-a-path-label"))
         #expect(!paths.contains("not-a-path-badge"))
+        #expect(paths.contains("p-title"), "a declared title is a path to the text")
     }
 
     @Test("An empty block names no paths")
