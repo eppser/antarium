@@ -1115,3 +1115,6 @@ any node may be built over | Sources/Antarium/Core/Journal.swift | s%    static 
 the native reader is warned about its own path | Sources/Antarium/Core/HarnessCheck.swift | s%              !nativeSessionReaders.contains(descriptor.id) else { return nil }%              true else { return nil }%
 a quota-only harness is warned about a path it has not got | Sources/Antarium/Core/HarnessCheck.swift | s%        guard descriptor.source.kind == .none, !descriptor.source.path.isEmpty,%        guard descriptor.source.kind == .none,%
 the native reader list is empty | Sources/Antarium/Core/HarnessCheck.swift | s%    static let nativeSessionReaders: Set<String> = \["claude-code"\]%    static let nativeSessionReaders: Set<String> = []%
+a presence-only agent is said to have sessions | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "sessions here"%
+an agent that keeps sessions is said to be merely installed | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "installed here"%
+every harness is treated as keeping sessions | Sources/Antarium/Core/HarnessCLI.swift | s%.filter { !\$0.contributesPresenceOnly }.map%.map%

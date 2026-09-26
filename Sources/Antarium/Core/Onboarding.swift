@@ -27,9 +27,14 @@ enum Onboarding {
         let name: String
         /// Where it was found, or what is missing.
         let detail: String
-        /// This agent has left sessions here. Named for what it is used for:
-        /// evidence that the agent is actually in use, which is what earns a
-        /// menu bar slot on a first run.
+        /// Evidence that this agent is in use on this Mac. Named for what it is
+        /// used for, which is what earns a menu bar slot on a first run.
+        ///
+        /// Usually that evidence is a session store. For a harness declaring
+        /// `contributes: presence` — `gemini`, which keeps no session record —
+        /// it is the command being installed instead, and the `detail` beside it
+        /// says so. Reading this field as "has left sessions" is what made
+        /// `--detect-agents` print "sessions here" for exactly that agent.
         let found: Bool
         /// The agent's command is on this Mac, but it has left no sessions.
         ///

@@ -133,6 +133,40 @@ enum HarnessCLI {
     /// Read-only unless `apply` is given, and even then it goes through
     /// `applyIfNeeded`, which declines when a choice already exists — so
     /// running it against a live installation cannot overwrite one.
+    /// The harnesses whose evidence on disk is a session store rather than an
+    /// installed command.
+    ///
+    /// A function rather than a line inside the printing loop, so the filter can
+    /// be asked: dropping it puts every harness in the set, the wording above
+    /// goes back to claiming sessions for `gemini`, and nothing that only reads
+    /// stdout could tell.
+    static func sessionKeepingIDs(_ descriptors: [HarnessDescriptor]) -> Set<String> {
+        Set(descriptors.filter { !$0.contributesPresenceOnly }.map(\.id))
+    }
+
+    /// What the report says about one agent's evidence.
+    ///
+    /// Split out so the wording can be asked, and it needed asking. This printed
+    /// "sessions here" for every agent whose evidence was found on disk — which
+    /// includes `gemini`, declared `contributes: presence`, keeping no session
+    /// record at all. `Onboarding` writes "no session record" into the detail
+    /// beside it, so two lines of one report disagreed, and the one a user reads
+    /// to understand why their bar looks the way it does was the untrue one.
+    ///
+    /// The rank is unaffected and deliberately so: an agent installed here is
+    /// evidence the user has it, which is what `hasSessions` is used for. Only
+    /// the word was wrong.
+    static func evidenceSummary(_ item: AgentAutoEnable.Evidence,
+                               keepsSessions: Bool) -> String {
+        let here = keepsSessions ? "sessions here" : "installed here"
+        switch (item.signedIn, item.hasSessions) {
+        case (true, true):   return "signed in, \(here)"
+        case (true, false):  return "signed in"
+        case (false, true):  return "\(here), not signed in"
+        case (false, false): return Onboarding.absent
+        }
+    }
+
     static func detectAgents(apply: Bool = false) -> Int32 {
         HarnessDescriptor.seed()
         let providers = ProviderRegistry.all
@@ -144,14 +178,9 @@ enum HarnessCLI {
         print("recorded   " + (Settings.unconfigured(recorded: Settings.recordedAgents)
             ? "nothing yet — a first run would choose"
             : "a choice already exists and would be left alone"))
+        let keepsSessions = Self.sessionKeepingIDs(HarnessDescriptor.all())
         for item in evidence.sorted(by: { ($0.strength, $1.id) > ($1.strength, $0.id) }) {
-            let why: String
-            switch (item.signedIn, item.hasSessions) {
-            case (true, true):   why = "signed in, sessions here"
-            case (true, false):  why = "signed in"
-            case (false, true):  why = "sessions here, not signed in"
-            case (false, false): why = Onboarding.absent
-            }
+            let why = Self.evidenceSummary(item, keepsSessions: keepsSessions.contains(item.id))
             print("\(chosen.contains(item.id) ? "●" : "○") \(item.id.padding(toLength: 16, withPad: " ", startingAt: 0)) \(why)")
         }
         if apply {
