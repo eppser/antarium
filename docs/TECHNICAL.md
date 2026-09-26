@@ -744,6 +744,35 @@ being built and never sent. There is no `{token}` substitution in it: a
 credential is a scalar, and every list-valued field seen in the wild is a set
 of literal scope names.
 
+#### Flags in a quota reply
+
+`require` decides whether a window is drawn and `criticalWhen` decides whether
+it is painted as spent. Both read boolean fields, from the window or — where a
+service states one for every window it reports, as DeepSeek does with
+`is_available` — from the reply beside them. The window's own wins.
+
+The two rules treat a flag nothing stated differently, and the difference is the
+point. `require` supplies `false` itself, so `unlimited: false` means what it
+says rather than rejecting every window that does not mention being unlimited.
+`criticalWhen` supplies nothing: painting a gauge spent is an assertion about
+somebody's account, so a reply that omits the field marks nothing. It used to
+read an absent flag as `false` for both, which meant a DeepSeek reply omitting
+`is_available` marked every balance critical on evidence that did not exist —
+invisible because every fixture case stated the field.
+
+A flag stated as the number `1` or `0` reads as a flag; `2` or `"true"` do not,
+and read as unstated. That is `as? Bool`'s own bridging of the `NSNumber` a
+parsed reply carries, checked rather than assumed, and it means an unreadable
+value is no longer a silent `false` for the rule that matters. A test builds its
+replies by parsing JSON for exactly this reason: `0 as? Bool` is nil for a Swift
+`Int` and false for an `NSNumber`, so a suite written with literals would agree
+with itself and say nothing about what an endpoint sends.
+
+A flag key is a field path, so it may be dotted or filtered like any other. It
+resolved as a flat member until 2026-09-26, which meant a dotted key silently
+matched nothing and a filtered one passed the validator — which checks bracket
+groups in these keys — and then never matched.
+
 #### Field paths
 
 A field path is dotted — `data.limits.weekly` — and may step through an array.

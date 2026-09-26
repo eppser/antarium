@@ -973,10 +973,10 @@ a remaining count is not subtracted from its limit | Sources/Antarium/Providers/
 a window declaring only a remaining count is called figureless | Sources/Antarium/Core/HarnessCheck.swift | s|                \|\| (map.remaining != nil \&\& map.limit != nil)||
 the schema refuses a remaining count | Resources/harness.schema.json | s|"remaining": {|"remainingWithheld": {|
 an unlimited allowance is charted as a meter at nought | Resources/harnesses/copilot.json | s|"unlimited": false|"unlimited": true|
-an absent window flag stops reading as false | Sources/Antarium/Providers/DescriptorProvider.swift | s|        (window\[key\] as? Bool) ?? (root\[key\] as? Bool) ?? false|        (window[key] as? Bool) ?? (root[key] as? Bool) ?? true|
+an absent window flag stops reading as false | Sources/Antarium/Providers/DescriptorProvider.swift | s%                   (Self.flag(\$0.key, window: window, root: json) ?? false) != \$0.value%                   (Self.flag($0.key, window: window, root: json) ?? true) != $0.value%
 an unspendable deepseek balance reads as money in the bank | Resources/harnesses/deepseek.json | s|"criticalWhen": {|"criticalWhenWithheld": {|
 a spent window flag is read with the wrong sense | Resources/harnesses/deepseek.json | s|"is_available": false|"is_available": true|
-a flag stated once for the response is not seen by its windows | Sources/Antarium/Providers/DescriptorProvider.swift | s|        (window\[key\] as? Bool) ?? (root\[key\] as? Bool) ?? false|        (window[key] as? Bool) ?? false|
+a flag stated once for the response is not seen by its windows | Sources/Antarium/Providers/DescriptorProvider.swift | s%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)%        (FieldPath.first(window, key) as? Bool)%
 an empty critical rule marks every window spent | Sources/Antarium/Providers/DescriptorProvider.swift | s|                !\$0.isEmpty \&\& \$0.allSatisfy|                $0.allSatisfy|
 the fixture stops checking what a provider reported | Sources/Antarium/Core/QuotaFixture.swift | s|            if reported != (row.severity ?? "normal") {|            if false {|
 an empty balance says nothing about itself | Sources/Antarium/Core/UsageModel.swift | s|        if let amount, amount.value <= 0 { return .critical }||
@@ -1052,3 +1052,6 @@ a posted list body is sent on a GET | Sources/Antarium/Core/HarnessDocument.swif
 the list half of a body is dropped | Sources/Antarium/Providers/DescriptorProvider.swift | s%        for (key, value) in quota.bodyList ?? \[:\] { body\[key\] = value }%%
 a declared window key is only ever a member name | Sources/Antarium/Providers/DescriptorProvider.swift | s%                    (FieldPath.first(container, key) as? \[String: Any\]).map { (key, \$0) }%                    (container[key] as? [String: Any]).map { (key, $0) }%
 a list body may hold anything at all | Sources/Antarium/Core/HarnessDocument.swift | s%                          .allSatisfy { \$0 is String } ?? false }) else {%                          .allSatisfy { _ in true } ?? true }) else {%
+an unstated flag is a stated no | Sources/Antarium/Providers/DescriptorProvider.swift | s%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool) ?? false%
+a requirement is unmet by silence rather than met | Sources/Antarium/Providers/DescriptorProvider.swift | s%                   (Self.flag(\$0.key, window: window, root: json) ?? false) != \$0.value%                   Self.flag($0.key, window: window, root: json) != $0.value%
+a flag key is only ever a flat member | Sources/Antarium/Providers/DescriptorProvider.swift | s%        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)%        (window[key] as? Bool) ?? (root[key] as? Bool)%

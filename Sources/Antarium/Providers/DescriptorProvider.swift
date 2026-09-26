@@ -365,16 +365,36 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
     }
 
     /// A flag read from the window, or from the response when the window
-    /// does not carry it.
+    /// does not carry it. Nothing when neither states one.
     ///
-    /// The same rule `resetsAt` already follows, and for the same reason: a
-    /// service can state something once for every window it reports. DeepSeek
-    /// puts `is_available` beside its balances rather than inside each one.
-    /// Absent from both reads as false, which is what lets a rule ask for a
-    /// flag to be off.
+    /// The fallback is the rule `resetsAt` already follows, and for the same
+    /// reason: a service can state something once for every window it reports.
+    /// DeepSeek puts `is_available` beside its balances rather than inside each
+    /// one.
+    ///
+    /// This used to answer `false` for a flag nothing stated, and the two rules
+    /// that read it want opposite things from that. `require` wants it —
+    /// `unlimited: false` has to mean what it says rather than rejecting every
+    /// window that simply does not mention being unlimited — so it still
+    /// supplies the `false` itself. `criticalWhen` must not have it: painting a
+    /// gauge critical is an assertion about somebody's account, and a reply that
+    /// omits `is_available` altogether was marking every DeepSeek balance
+    /// critical on evidence that did not exist. Every fixture case stated the
+    /// field, so nothing saw it.
+    ///
+    /// The key is a field path, which it is classified as. It resolved as a flat
+    /// member before — so a dotted key silently matched nothing, and a filtered
+    /// one would have passed the validator and then never matched, which is the
+    /// shape of guard this repository refuses. For a key of one segment this is
+    /// the member lookup it was.
+    ///
+    /// A flag stated as the number 1 or 0 reads as a flag, and 2 or "true" do
+    /// not: that is `as? Bool`'s own bridging, checked rather than assumed, and
+    /// it is the reading to want. An unreadable value is no longer a silent
+    /// `false` for the rule that matters.
     private static func flag(_ key: String, window: [String: Any],
-                             root: [String: Any]) -> Bool {
-        (window[key] as? Bool) ?? (root[key] as? Bool) ?? false
+                             root: [String: Any]) -> Bool? {
+        (FieldPath.first(window, key) as? Bool) ?? (FieldPath.first(root, key) as? Bool)
     }
 
     func makeSnapshot(_ json: [String: Any]) throws -> Snapshot {
@@ -390,12 +410,19 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
             // instead of rejecting every window that simply does not mention
             // being unlimited.
             if let require = map.require,
-               require.contains(where: { Self.flag($0.key, window: window, root: json) != $0.value }) {
+               require.contains(where: {
+                   // The `false` is supplied here, deliberately: see `flag`.
+                   (Self.flag($0.key, window: window, root: json) ?? false) != $0.value
+               }) {
                 continue
             }
             // Spent, whatever the figure says. An empty rule marks
             // nothing: `allSatisfy` on nothing is true, and a descriptor that
             // names no flag has not asked for this.
+            //
+            // No `?? false` here, and that is the whole of the fix: a flag
+            // nothing stated is `nil`, `nil == someBool` is false, and the rule
+            // is not satisfied. A window is spent because the service said so.
             let reported: Severity = (map.criticalWhen.map {
                 !$0.isEmpty && $0.allSatisfy { Self.flag($0.key, window: window, root: json) == $0.value }
             } ?? false) ? .critical : .normal

@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic. Shape follows DeepSeek's documented user/balance payload, whose amounts are numeric strings. Every value is invented. The last case is a balance DeepSeek reports as insufficient for API calls: the figure is still charted, and the window is reported spent.",
+  "note": "Synthetic. Shape follows DeepSeek's documented user/balance payload, whose amounts are numeric strings. Every value is invented. The last case is a balance DeepSeek reports as insufficient for API calls: the figure is still charted, and the window is reported spent. Three cases added 2026-09-26 for the flag itself rather than the balances: a reply that omits is_available, one that states it as a value no flag can be read from, and one that states it as 0. The first was the gap \u2014 every case here stated the field, so an absent one reading as a stated false marked every balance spent on evidence that did not exist.",
   "verifiedAt": "2026-09-20",
   "cases": [
     {
@@ -54,6 +54,84 @@
       "name": "a balance that cannot be spent",
       "response": {
         "is_available": false,
+        "balance_infos": [
+          {
+            "currency": "USD",
+            "total_balance": "4.20",
+            "granted_balance": "0.00",
+            "topped_up_balance": "4.20"
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "USD",
+            "badge": "USD",
+            "title": "USD",
+            "usedPercent": 0,
+            "amount": 4.2,
+            "currency": "USD",
+            "severity": "critical"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a reply that states no availability marks nothing spent",
+      "response": {
+        "balance_infos": [
+          {
+            "currency": "USD",
+            "total_balance": "4.20",
+            "granted_balance": "0.00",
+            "topped_up_balance": "4.20"
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "USD",
+            "badge": "USD",
+            "title": "USD",
+            "usedPercent": 0,
+            "amount": 4.2,
+            "currency": "USD"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an availability stated as something unreadable is not a stated no",
+      "response": {
+        "is_available": 2,
+        "balance_infos": [
+          {
+            "currency": "USD",
+            "total_balance": "4.20",
+            "granted_balance": "0.00",
+            "topped_up_balance": "4.20"
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "USD",
+            "badge": "USD",
+            "title": "USD",
+            "usedPercent": 0,
+            "amount": 4.2,
+            "currency": "USD"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an availability stated as nought is a stated no",
+      "response": {
+        "is_available": 0,
         "balance_infos": [
           {
             "currency": "USD",
