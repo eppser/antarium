@@ -76,10 +76,19 @@ struct AccentAndRowColorTests {
     /// A palette full of nonsense falls back rather than failing: the row has
     /// to be drawn in something.
     @Test("An unreadable palette entry falls back to the shipped colour")
-    func unreadableEntryFallsBack() {
-        #expect(rgb(AgentStyle.rowColor(0, colors: ["not a colour"]))
-                ?? (0, 0, 0) == rgb(AgentStyle.color(hex: AgentStyle.defaultRowColors[0]))
-                ?? (1, 1, 1))
+    func unreadableEntryFallsBack() throws {
+        // Both sides through `rowColor`, so both get the same appearance
+        // treatment. Comparing the drawn colour against the raw hex asserted
+        // that `adaptive` is the identity, which it is on a dark menu bar and
+        // is not on a light one — so this passed where it was written and
+        // failed in continuous integration, on a machine whose appearance
+        // nobody chose.
+        let fallback = try #require(rgb(AgentStyle.rowColor(0, colors: ["not a colour"])),
+                                    "a palette of nonsense produced no colour at all")
+        let shipped = try #require(
+            rgb(AgentStyle.rowColor(0, colors: [AgentStyle.defaultRowColors[0]])))
+        #expect(fallback == shipped,
+                Comment(rawValue: "nonsense drew \(fallback), the shipped colour is \(shipped)"))
     }
 
     /// Every shipped accent has to be readable, or the preset list offers a

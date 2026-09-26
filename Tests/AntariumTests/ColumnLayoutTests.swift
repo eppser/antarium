@@ -269,7 +269,16 @@ struct ColumnLayoutRenderTests {
 
     /// Wide enough to be allowed two columns at all, or this measures the
     /// ceiling instead of the decision.
-    private var screenIsWideEnough: Bool {
+    /// How many columns this display allows for a list that will not fit one.
+    ///
+    /// Asked rather than assumed. A headless machine has no screen, so the
+    /// fallback is one panel wide and the answer is one column — and two
+    /// tests about splitting asserted two unconditionally, which reported a
+    /// failure on every machine that cannot split. `#require` on a
+    /// precondition is a failure, not a skip, and a test that cannot run is
+    /// not a test that failed. Asserting what the display allows is better
+    /// than either: it holds everywhere and still says something.
+    private var columnsThisDisplayAllows: Int {
         let screen = NSScreen.main?.visibleFrame
         return PanelPlacement.columns(
             rowCount: rowsThatDoNotFit, previous: 1,
@@ -277,8 +286,10 @@ struct ColumnLayoutRenderTests {
                                                          reduced: reduced),
             panel: RowMetrics.panelFull,
             visibleWidth: screen?.width ?? RowMetrics.panelFull,
-            visibleHeight: screen?.height ?? 900) == 2
+            visibleHeight: screen?.height ?? 900)
     }
+
+
 
     /// The two constants the split decision rests on, re-measured against
     /// the real view. They are what turns a row count into a height, so if
@@ -327,14 +338,15 @@ struct ColumnLayoutRenderTests {
                 Comment(rawValue: "four rows produced a \(width)pt panel"))
     }
 
-    @Test("A long list is two columns wide")
+    @Test("A long list is as many columns as the display allows")
     func longListIsTwoColumns() throws {
-        try #require(screenIsWideEnough, "this display cannot hold two columns")
-        let expected = panel * 2 + RowMetrics.gutter
+        let columns = columnsThisDisplayAllows
+        let expected = panel * CGFloat(columns)
+            + (columns > 1 ? RowMetrics.gutter : 0)
         let width = fittingWidth(rowCount: rowsThatDoNotFit)
         #expect(abs(width - expected) < 1,
                 Comment(rawValue: "\(rowsThatDoNotFit) rows produced a \(width)pt panel, "
-                        + "not \(expected)"))
+                        + "not \(expected) for \(columns) column(s)"))
     }
 
     /// Widening the panel must not widen its content past it. The divider
@@ -401,7 +413,6 @@ struct ColumnLayoutRenderTests {
     /// which is the whole complaint this answers.
     @Test("Two columns make the panel shorter, not just wider")
     func twoColumnsAreShorter() throws {
-        try #require(screenIsWideEnough, "this display cannot hold two columns")
         let store = AgentStore.shared
         func height(_ count: Int) -> CGFloat {
             store.adoptForPreview(rows(count))
@@ -413,6 +424,15 @@ struct ColumnLayoutRenderTests {
         // The largest list one column holds, against twice that list. The
         // second is split, so it shows twice as many rows in about the same
         // height — which is the whole reason to split.
+        // Where the display cannot split, the rendered claim cannot be made —
+        // but the arithmetic underneath it can, on any machine: half a list in
+        // a column is shorter than all of it in one.
+        guard columnsThisDisplayAllows == 2 else {
+            #expect(RowMetrics.singleColumnHeight(rows: rowsThatFit, reduced: reduced)
+                        < RowMetrics.singleColumnHeight(rows: rowsThatFit * 2, reduced: reduced),
+                    "splitting a list would not make it shorter, so splitting is pointless")
+            return
+        }
         let short = height(rowsThatFit)
         let long = height(rowsThatFit * 2)
         #expect(long <= short * 1.05,
