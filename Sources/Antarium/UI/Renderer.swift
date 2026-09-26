@@ -162,7 +162,8 @@ enum Renderer {
         let context = NSColor.labelColor.withAlphaComponent(contextAlpha * alpha)
 
         text(row.percentText, font: percentFont,
-             color: NSColor.labelColor.withAlphaComponent(alpha),
+             color: Self.figureColor(for: row, agentID: agentID, row: index)
+                 .withAlphaComponent(alpha),
              at: x, width: percentW, align: .right, in: rect)
         x += percentW + gap
 
@@ -220,6 +221,28 @@ enum Renderer {
         // caller draws against, and because the clamp above is a line
         // somebody may move.
         return max(1, min(n, Int((clamped * Double(n)).rounded())))
+    }
+
+    /// What colour a row's figure is drawn in.
+    ///
+    /// Ordinarily the label colour: the bar carries the warning, and a figure
+    /// that changed colour alongside it would say the same thing twice.
+    ///
+    /// A row with no bar has nowhere to say it. A credit balance draws its
+    /// amount and no meter — deliberately, because a meter pinned full reads
+    /// the same whether five hundred dollars or two cents remain — so a
+    /// balance the provider reports as spent, or one that has reached nought,
+    /// was drawn exactly like a full account. The figure is the whole of what
+    /// such a row shows, so the figure carries the warning.
+    ///
+    /// A decision rather than an expression inside the draw call, because the
+    /// draw call can only be checked by reading pixels back, and the figure
+    /// sits in a field whose width is private and whose text is right-aligned
+    /// — a sampled strip found no difference where there plainly was one.
+    static func figureColor(for row: StatusRender.Row, agentID: String,
+                            row index: Int) -> NSColor {
+        guard row.fill == nil, row.severity == .critical else { return .labelColor }
+        return color(for: .critical, agentID: agentID, row: index)
     }
 
     /// One accent for every agent while there's headroom; the warning steps are

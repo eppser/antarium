@@ -1017,3 +1017,6 @@ the roster reads a fork as the product it forked | Tests/AntariumTests/ClaudeBar
 a session source maps figures and dates nothing | Resources/harnesses/pi.json | s|"checkedAt": "2026-09-25"|"checkedAtWithheld": "2026-09-25"|
 the compact panel is the same width as the full one | Sources/Antarium/UI/Dashboard.swift | s|    static let panelReduced: CGFloat = 400|    static let panelReduced: CGFloat = 600|
 a compact row is as tall as a full one | Sources/Antarium/UI/Dashboard.swift | s|    static let rowPitchReduced: CGFloat = 23|    static let rowPitchReduced: CGFloat = 40|
+a spent balance is drawn like a funded one | Sources/Antarium/UI/Renderer.swift | s|        guard row.fill == nil, row.severity == .critical else { return .labelColor }|        return .labelColor; guard row.fill == nil, row.severity == .critical else { return .labelColor }|
+a metered row has its figure recoloured too | Sources/Antarium/UI/Renderer.swift | s|        guard row.fill == nil, row.severity == .critical else { return .labelColor }|        guard row.severity == .critical else { return .labelColor }|
+a funded balance is drawn as spent | Sources/Antarium/UI/Renderer.swift | s|        guard row.fill == nil, row.severity == .critical else { return .labelColor }|        guard row.fill == nil else { return .labelColor }|
