@@ -52,6 +52,35 @@ struct ClaudeBarCoverageTests {
         var documentName: String { documentedAs ?? claudeBar }
     }
 
+    /// When this roster was last held against ClaudeBar itself, and how.
+    ///
+    /// Every quota mapping carries `quota.checkedAt` for exactly this reason: a
+    /// fact about somebody else's software is true on a date. The roster had no
+    /// such field — its date lived in a sentence in the comment above — and it is
+    /// the one input to this scoreboard that can go stale without anything here
+    /// noticing. A provider added upstream makes the coverage figure overstate
+    /// itself, silently, and the test that checks the figure would still pass.
+    ///
+    /// No staleness test, deliberately, and for the reason the README gives about
+    /// `checkedAt`: a date going stale is a signal to look again, not a failure.
+    /// A test that failed on a calendar would fail on a machine nobody had
+    /// touched, which teaches people to ignore it.
+    static let rosterReadAt = "2026-09-26"
+
+    /// How to re-derive it, so the next check is mechanical rather than a reading
+    /// of prose:
+    ///
+    ///     gh api repos/tddworks/ClaudeBar/contents/Sources/Domain/Provider \
+    ///       --jq '.[] | select(.type=="dir") | .name'
+    ///
+    /// One directory per provider, which is enumerable where a README is not.
+    /// Re-run 2026-09-26: twenty directories, mapping one to one onto the entries
+    /// below — Alibaba, AmpCode, Antigravity, Bedrock, Claude, Codex,
+    /// CommandCode, Copilot, Cursor, DeepSeek, Gemini, Grok, Kimi, Kiro, MiniMax,
+    /// Mistral, Omp, OpenCode, Vercel, Zai. Nothing added since 2026-09-24.
+    static let rosterSource =
+        "repos/tddworks/ClaudeBar/contents/Sources/Domain/Provider"
+
     /// ClaudeBar's twenty, and the id each corresponds to here.
     static let roster: [Entry] = [
         Entry("Claude", "claude-code", .usage),
@@ -96,6 +125,27 @@ struct ClaudeBarCoverageTests {
         let bundled = HarnessCLI.bundledDescriptors()
         return Set(ProviderRegistry.providers(from: bundled).map(\.id))
             .union(ProviderRegistry.nativeIDs)
+    }
+
+    /// The provenance itself, held to the shape every other date here has.
+    @Test("The roster records when it was last read, and from where")
+    func rosterHasProvenance() throws {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        #expect(formatter.date(from: Self.rosterReadAt) != nil,
+                Comment(rawValue: "\(Self.rosterReadAt) is not a date this app would accept "
+                        + "in quota.checkedAt"))
+        // Not before the day the roster was first written down, which is the one
+        // thing that would mean the date went backwards.
+        #expect(Self.rosterReadAt >= "2026-09-24",
+                Comment(rawValue: "the roster is recorded as read on \(Self.rosterReadAt), "
+                        + "before it was first written down"))
+        #expect(Self.rosterSource.contains("ClaudeBar"),
+                "the source no longer names the project it is a fact about")
+        #expect(!Self.rosterSource.contains("://"),
+                "an API path rather than a URL, so it reads the same in any client")
     }
 
     @Test("The roster is ClaudeBar's twenty")

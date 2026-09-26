@@ -269,7 +269,14 @@ nothing about a provider it did not know existed.
 ClaudeBar's roster is a fact about somebody else's project, so it cannot be
 derived from this one. It is written down as data instead, in
 `Tests/AntariumTests/ClaudeBarCoverageTests.swift`, which names all twenty
-providers ClaudeBar monitors and checks each against what ships here. When
+providers ClaudeBar monitors and checks each against what ships here.
+
+Like every mapping, it carries the day it was last held against its source —
+`rosterReadAt`, re-checked 2026-09-26 and unchanged since 2026-09-24. It is the
+one input to this comparison that can go stale without anything here noticing: a
+provider added upstream makes the coverage figure overstate itself while every
+test still passes. The check is a directory listing rather than a reading of
+prose, and `rosterSource` records the command, so the next one is mechanical. When
 ClaudeBar adds one, that list is what has to change, and until it does the
 difference between "declined" and "never heard of" is a real difference again.
 

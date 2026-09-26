@@ -1118,3 +1118,6 @@ the native reader list is empty | Sources/Antarium/Core/HarnessCheck.swift | s% 
 a presence-only agent is said to have sessions | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "sessions here"%
 an agent that keeps sessions is said to be merely installed | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "installed here"%
 every harness is treated as keeping sessions | Sources/Antarium/Core/HarnessCLI.swift | s%.filter { !\$0.contributesPresenceOnly }.map%.map%
+the roster forgets when it was read | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-26"%    static let rosterReadAt = "not a date"%
+the roster date goes backwards | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-26"%    static let rosterReadAt = "2020-01-01"%
+the roster forgets where it came from | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%        "repos/tddworks/ClaudeBar/contents/Sources/Domain/Provider"%        ""%
