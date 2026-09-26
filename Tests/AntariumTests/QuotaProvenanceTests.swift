@@ -76,6 +76,41 @@ struct QuotaProvenanceTests {
         }
     }
 
+    /// The README states this split in prose, and prose drifts.
+    ///
+    /// The same sentence in ECOSYSTEM.md said "Nine of the twenty-two" for a
+    /// set of descriptors two sizes ago, which is why that one is derived from
+    /// the files now. This one makes a stronger claim — it tells a reader how
+    /// many of the mappings were checked against the vendor's own schema and
+    /// how many could not be — and a reader has no way to audit it.
+    @Test("The README's count of cited mappings is the number that cite one")
+    func readmeCountsMatchTheDescriptors() throws {
+        let total = quotaDescriptors.count
+        let cited = quotaDescriptors.filter { $0.quota?.documentation != nil }.count
+        // Whitespace collapsed: the README is wrapped prose, so the sentence
+        // this looks for has line breaks inside it wherever the paragraph
+        // happened to fold. Matching the raw text asserts the wrapping.
+        let readme = try String(contentsOf: URL(fileURLWithPath: "README.md"), encoding: .utf8)
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        #expect(readme.contains("Of the \(Self.word(total)) described by a harness file, "
+                               + "\(Self.word(cited)) were compared"),
+                Comment(rawValue: "the README should say \(Self.word(total)) described and "
+                        + "\(Self.word(cited)) compared"))
+        #expect(readme.contains("The other \(Self.word(total - cited)) have no published "
+                               + "schema at all"),
+                Comment(rawValue: "the README should say \(Self.word(total - cited)) have none"))
+    }
+
+    /// Spelled out, because that is how the sentence reads. Only the range
+    /// this can produce — a count outside it means the sentence needs
+    /// rewriting rather than renumbering.
+    private static func word(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five",
+                     "six", "seven", "eight", "nine", "ten",
+                     "eleven", "twelve", "thirteen", "fourteen", "fifteen"]
+        return n < words.count ? words[n] : "\(n)"
+    }
+
     /// An http URL, a bare hostname or a sentence would all be worse than
     /// nothing: they look like provenance and cannot be followed.
     @Test("Every citation is an https URL")

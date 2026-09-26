@@ -24,6 +24,104 @@ enum Focus {
     static func canRevealLocally(_ row: AgentRow) -> Bool {
         !row.isRemote && row.localObservationIssue == nil
     }
+
+    /// Something a row's menu offers to do.
+    enum Action: String, CaseIterable, Sendable {
+        case attachTmux, goToWindow, openDirectory, openInTerminal, copyPath
+    }
+
+    /// What a row actually permits.
+    ///
+    /// This rule lived here and only here, and the row's own menu never asked.
+    /// `canRevealLocally` keeps a remote row from driving this Mac through
+    /// `reveal`, and three buttons drove it anyway: "Open Directory", "Open in
+    /// Terminal" and "Copy Path" all took `row.cwd` straight to `NSWorkspace`
+    /// and the pasteboard.
+    ///
+    /// A remote row's `cwd` is the *other* machine's. On two Macs with the same
+    /// username and a checkout of the same name the path exists on both, so
+    /// the user was shown this machine's files while believing they were
+    /// looking at the session's — which is worse than an error, because
+    /// nothing looks wrong.
+    ///
+    /// "Go to Window" was offered too, and `reveal` returns `.nothing` for a
+    /// remote row, so the click was silently dead.
+    static func actions(for row: AgentRow) -> Set<Action> {
+        var allowed: Set<Action> = []
+        // A local attach joins a session on *this* machine. A remote row's
+        // session is not here, and a same-named one that is would be the
+        // wrong session.
+        if row.tmuxTarget != nil, !row.isRemote { allowed.insert(.attachTmux) }
+        guard !row.cwd.isEmpty else { return allowed }
+        if canRevealLocally(row) { allowed.insert(.goToWindow) }
+        if !row.isRemote {
+            allowed.insert(.openDirectory)
+            allowed.insert(.openInTerminal)
+        }
+        // Copying is always offered, because a path is useful even when it is
+        // not this machine's — but it has to say whose it is.
+        allowed.insert(.copyPath)
+        return allowed
+    }
+
+    /// Opens the row's directory here, if the row is this machine's.
+    ///
+    /// The permission check lives inside the action rather than beside the
+    /// button, because a button is a thing somebody can add. Three were added
+    /// without it and each drove this Mac from a row describing another one.
+    /// Refusing here means a fourth cannot.
+    ///
+    /// The effect is a parameter so the refusal can be observed without a
+    /// Finder window opening during a test run.
+    @discardableResult
+    static func openDirectory(_ row: AgentRow,
+                              using open: (URL) -> Void = {
+                                  NSWorkspace.shared.activateFileViewerSelecting([$0])
+                              }) -> Bool {
+        guard actions(for: row).contains(.openDirectory) else { return false }
+        open(URL(fileURLWithPath: row.cwd))
+        return true
+    }
+
+    /// Opens a terminal here at the row's directory, on the same terms.
+    @discardableResult
+    static func openInTerminal(_ row: AgentRow,
+                               using open: (URL) -> Void = { url in
+                                   let terminal = URL(fileURLWithPath:
+                                       "/System/Applications/Utilities/Terminal.app")
+                                   NSWorkspace.shared.open(
+                                       [url], withApplicationAt: terminal,
+                                       configuration: NSWorkspace.OpenConfiguration())
+                               }) -> Bool {
+        guard actions(for: row).contains(.openInTerminal) else { return false }
+        open(URL(fileURLWithPath: row.cwd))
+        return true
+    }
+
+    /// Puts the row's path on the pasteboard, naming its machine where that
+    /// is not this one.
+    @discardableResult
+    static func copyPath(_ row: AgentRow,
+                         using write: (String) -> Void = { text in
+                             NSPasteboard.general.clearContents()
+                             NSPasteboard.general.setString(text, forType: .string)
+                         }) -> Bool {
+        guard actions(for: row).contains(.copyPath), let path = pathToCopy(for: row)
+        else { return false }
+        write(path)
+        return true
+    }
+
+    /// The text "Copy Path" should put on the pasteboard.
+    ///
+    /// A remote row's path carries its host, in the form every other tool
+    /// takes: `host:/path`, which pastes into `scp` and reads correctly to a
+    /// person. The bare path was indistinguishable from a local one.
+    static func pathToCopy(for row: AgentRow) -> String? {
+        guard !row.cwd.isEmpty else { return nil }
+        guard row.isRemote, let host = row.remoteHost, !host.isEmpty else { return row.cwd }
+        return "\(host):\(row.cwd)"
+    }
     /// What a click actually did. Worth naming: "raised the app" and "landed on
     /// the agent's own tab" look identical from the outside but are not.
     enum Result: Equatable {

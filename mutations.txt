@@ -1028,3 +1028,10 @@ a row whose state is known explains itself anyway | Sources/Antarium/Core/AgentS
 a remote row is explained as a local one | Sources/Antarium/Core/AgentScan.swift | s|        return isRemote ? remoteObservationDetail : localObservationIssue|        return localObservationIssue|
 the reason is repeated when the note already says it | Sources/Antarium/UI/Dashboard.swift | s|        if let why = row.unobservedReason, !why.isEmpty, why != row.note {|        if let why = row.unobservedReason, !why.isEmpty {|
 the reason never reaches the listener | Sources/Antarium/UI/Dashboard.swift | s|        if let why = row.unobservedReason, !why.isEmpty, why != row.note {|        if false, let why = row.unobservedReason, !why.isEmpty {|
+a remote row is offered every local action | Sources/Antarium/Core/Focus.swift | s|        if !row.isRemote {|        if true {|
+a remote path is copied without its host | Sources/Antarium/Core/Focus.swift | s|        return "\\(host):\\(row.cwd)"|        return row.cwd|
+a remote tmux session is attached to locally | Sources/Antarium/Core/Focus.swift | s|        if row.tmuxTarget != nil, !row.isRemote { allowed.insert(.attachTmux) }|        if row.tmuxTarget != nil { allowed.insert(.attachTmux) }|
+a row with no directory still offers to copy it | Sources/Antarium/Core/Focus.swift | s|        guard !row.cwd.isEmpty else { return allowed }||
+the open-directory action stops refusing a remote row | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.openDirectory) else { return false }||
+the open-terminal action stops refusing a remote row | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.openInTerminal) else { return false }||
+the copy action stops naming the machine | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.copyPath), let path = pathToCopy(for: row)|        let path = row.cwd; guard actions(for: row).contains(.copyPath), true|

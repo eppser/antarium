@@ -170,15 +170,36 @@ It does not invent quota, context, token, cost, or session values. Cost is
 clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
 
-The same rule applies to how a provider's mapping was checked. Of the ten
-described by a harness file, five were compared field by field against the
-vendor's own published response schema, and each names the page it was read
-from. The other five have no published schema to compare against — checked
-and recorded, with the date and what was found instead — and for those the
-fixture is the whole of the check. A mapping is never written from another
-tool's source, because that is a guess about somebody else's product that
-happens to work today. Every fixture is invented values in the vendor's own
-shape; no real account response is ever committed.
+The same rule applies to how a provider's mapping was checked, and the answer
+changed after the mappings were audited. Of the ten described by a harness
+file, five were compared field by field against the vendor's own published
+response schema and name the page they were read from. The other five have no
+published schema at all.
+
+For those five the fixture used to be the whole of the check, and that turned
+out not to be enough — because a fixture is written from the mapping it tests.
+It proves the mapping is applied and cannot notice that the fields mean
+something else. Four of the ten were wrong behind a passing fixture, and one
+of them, MiniMax, had expectations that were the exact mirror of the truth:
+`current_interval_usage_count` is what remains, not what was spent, so a meter
+read comfortable while the quota emptied.
+
+So a mapping may now be corrected against another implementation of the same
+API, where that implementation *states what a field means* rather than merely
+using it — a comment recording a cross-check against the vendor's own
+dashboard, an issue reporting the same inversion, a second tool deriving the
+same figure. Two independent readings agreeing on a shape neither vendor
+publishes is the closest thing to a specification these endpoints have. Where
+only the paths are visible and nothing explains them, the mapping is left
+alone and the doubt is written down.
+
+`quota.checkedAt` and `source.checkedAt` record the day each mapping's figures
+were last held against something outside this repository, whether a vendor
+reference or another reader of the same files. A date going stale is the
+signal to look again.
+
+Every fixture is invented values in the vendor's own shape; no real account
+response is ever committed.
 
 ## Remote tmux agents
 

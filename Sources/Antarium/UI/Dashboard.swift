@@ -640,8 +640,18 @@ struct AgentRowView: View {
         var lines = [row.sessionName.isEmpty ? row.coreName : row.sessionName, row.cwd]
         if let note = row.note { lines.append(note) }
         if let why = row.unobservedReason, why != row.note { lines.append(why) }
-        if let t = row.tmuxTarget { lines.append("tmux \(t) — click to jump there") }
-        else if row.pid != nil { lines.append("Click to bring its terminal to the front") }
+        // Promised only where it can be kept. A remote row carries the other
+        // machine's pid, so this said "click to bring its terminal to the
+        // front" about a process on a different computer, and the click did
+        // nothing.
+        let allowed = Focus.actions(for: row)
+        if let t = row.tmuxTarget, allowed.contains(.attachTmux) {
+            lines.append("tmux \(t) — click to jump there")
+        } else if row.pid != nil, allowed.contains(.goToWindow) {
+            lines.append("Click to bring its terminal to the front")
+        } else if row.isRemote, let host = row.remoteHost {
+            lines.append("Running on \(host) — this Mac cannot bring it forward")
+        }
         return lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
@@ -697,25 +707,30 @@ private struct RowActions: View {
     var body: some View {
         // For a tmux session, attaching is the thing you actually want, so it
         // goes first and is what Return picks.
-        if let target = row.tmuxTarget {
+        // Only what the row permits. A remote row's `cwd` belongs to another
+        // machine, so opening it here opens this machine's copy — see
+        // `Focus.actions(for:)` for why that is worse than failing.
+        let allowed = Focus.actions(for: row)
+        if let target = row.tmuxTarget, allowed.contains(.attachTmux) {
             Button("Attach to tmux Session") { Focus.attachTmux(target) }
         }
-        if !row.cwd.isEmpty {
+        if allowed.contains(.goToWindow) {
             Button("Go to Window") { Focus.reveal(row) }
+        }
+        if allowed.contains(.openDirectory) || allowed.contains(.openInTerminal)
+            || allowed.contains(.copyPath) {
             Divider()
-            Button("Open Directory") {
-                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: row.cwd)])
-            }
-            Button("Open in Terminal") {
-                let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
-                NSWorkspace.shared.open([URL(fileURLWithPath: row.cwd)],
-                                        withApplicationAt: terminal,
-                                        configuration: NSWorkspace.OpenConfiguration())
-            }
-            Button("Copy Path") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(row.cwd, forType: .string)
-            }
+        }
+        // The buttons hide what the row does not permit; the actions refuse it
+        // as well. Either alone would be a rule somebody can forget.
+        if allowed.contains(.openDirectory) {
+            Button("Open Directory") { Focus.openDirectory(row) }
+        }
+        if allowed.contains(.openInTerminal) {
+            Button("Open in Terminal") { Focus.openInTerminal(row) }
+        }
+        if allowed.contains(.copyPath) {
+            Button("Copy Path") { Focus.copyPath(row) }
         }
         let files = row.context.present
         if !files.isEmpty {
