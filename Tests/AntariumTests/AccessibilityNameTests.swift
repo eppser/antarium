@@ -111,3 +111,64 @@ struct AccessibilityNameTests {
                 Comment(rawValue: "a control with no name: \(unnamed.joined(separator: ", "))"))
     }
 }
+
+/// What a listener is told about a row whose figures could not be read.
+///
+/// A row whose usage is unavailable has its tokens, tool calls and cost
+/// nilled rather than zeroed — the right choice, and a silent one. The reason
+/// goes to the row's tooltip, and the spoken summary already reasons about
+/// this for a different value: "a reader who hears the row has no tooltip to
+/// fall back on". It then left the reason out, so a hover explained the
+/// missing figures and a screen reader did not.
+@Suite("A row says why its figures are missing")
+struct RowNoteIsSpokenTests {
+
+    private func row(note: String?, cost: Double? = nil, tools: Int? = nil) -> AgentRow {
+        var row = AgentRow(id: "r", agentID: "claude-code", name: "project",
+                           cwd: "/synthetic/project", state: .waiting, lastActivity: nil,
+                           costUSD: cost, hostApp: nil)
+        row.note = note
+        row.toolCalls = tools
+        return row
+    }
+
+    @Test("The reason is spoken when there is one")
+    func reasonIsSpoken() {
+        let note = "Transcript usage values are invalid or out of range. "
+            + "Usage figures are unavailable."
+        let spoken = AgentRowView.summary(for: row(note: note))
+        #expect(spoken.contains(note),
+                Comment(rawValue: "a listener hears \"\(spoken)\""))
+    }
+
+    /// And nothing extra is said when there is nothing to say — an empty
+    /// aside would be a pause a listener has to interpret.
+    @Test("Nothing is added when there is no reason", arguments: [nil, ""])
+    func nothingIsAddedOtherwise(note: String?) {
+        let spoken = AgentRowView.summary(for: row(note: note))
+        #expect(!spoken.hasSuffix(", "), Comment(rawValue: "trailing aside in \"\(spoken)\""))
+        #expect(spoken == AgentRowView.summary(for: row(note: nil)))
+    }
+
+    /// The figures still come first: the reason is an aside about them, not
+    /// one of them, and a listener should hear the row before the caveat.
+    @Test("The reason comes after the figures it explains")
+    func reasonComesLast() throws {
+        let spoken = AgentRowView.summary(for: row(note: "why not", cost: 1.25, tools: 3))
+        let tools = try #require(spoken.range(of: "3 tool calls"))
+        let cost = try #require(spoken.range(of: "estimated cost"))
+        let why = try #require(spoken.range(of: "why not"))
+        #expect(tools.lowerBound < why.lowerBound && cost.lowerBound < why.lowerBound,
+                Comment(rawValue: "the caveat came first in \"\(spoken)\""))
+    }
+
+    /// And the summary still says the things it said before, or appending the
+    /// reason could have replaced them.
+    @Test("The row is still described")
+    func theRowIsStillDescribed() {
+        let spoken = AgentRowView.summary(for: row(note: "why not", cost: 2, tools: 1))
+        #expect(spoken.contains("project"))
+        #expect(spoken.contains("1 tool calls"))
+        #expect(spoken.contains("estimated cost"))
+    }
+}

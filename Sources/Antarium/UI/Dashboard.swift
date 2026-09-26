@@ -486,7 +486,7 @@ private struct SortControl: View {
 /// One agent. Two lines normally; in reduced mode a single line carrying only
 /// name, context, status and when it last replied. One view rather than two
 /// near-identical ones.
-private struct AgentRowView: View {
+struct AgentRowView: View {
     let row: AgentRow
     var reduced = false
     @Binding var hoveredID: AgentRow.ID?
@@ -644,7 +644,17 @@ private struct AgentRowView: View {
         return lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
-    private var accessibilitySummary: String {
+    private var accessibilitySummary: String { Self.summary(for: row) }
+
+    /// What a screen reader says about one row.
+    ///
+    /// A function of the row rather than a property of the view, so it can be
+    /// asserted without rendering anything. The omission it was written to fix
+    /// — the reason a row's figures are missing — could otherwise only be
+    /// checked by reading this file as text, and a test that greps its own
+    /// source proves the line exists rather than that the sentence contains
+    /// it.
+    static func summary(for row: AgentRow) -> String {
         var values = [row.coreName, row.state.label]
         if let host = row.hostApp { values.append(host) }
         if !row.displayPath.isEmpty { values.append(row.displayPath) }
@@ -659,6 +669,15 @@ private struct AgentRowView: View {
         // who hears the row has no tooltip to fall back on, so a bare
         // figure is the one place the estimate reads as a measurement.
         if let cost = row.costUSD { values.append("estimated cost \(Pricing.money(cost))") }
+        // Why the figures above are missing, when they are. A row whose usage
+        // could not be read has them nilled rather than zeroed — the right
+        // choice, and a silent one: the reason goes to the tooltip, and the
+        // sentence three lines up already says that a reader who hears the row
+        // has no tooltip to fall back on. So a listener heard a row with no
+        // tokens, no cost and no explanation, while a hover explained it.
+        // Spoken last, because it is an aside about the figures rather than
+        // one of them.
+        if let note = row.note, !note.isEmpty { values.append(note) }
         return values.joined(separator: ", ")
     }
 }
