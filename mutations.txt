@@ -1091,3 +1091,6 @@ a relocated variable holding a tilde is not expanded | Sources/Antarium/Core/Har
 an impossible relocation ships | Sources/Antarium/Core/HarnessDocument.swift | s%            guard path == replaces \|\| path.hasPrefix(replaces + "/") else {%            guard true else {%
 codex reads its sessions from the wrong home | Resources/harnesses/codex.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
 a rewritten fixture path keeps its relocation | Sources/Antarium/Core/HarnessCompatibility.swift | s%            source\["relocate"\] = nil%%
+a shared data directory is not held to its variable | Tests/AntariumTests/NativeRelocationTests.swift | s%    static let sharedDirectories: \[String: \[String\]\] = \["codex": \["codex-desktop"\]\]%    static let sharedDirectories: [String: [String]] = [:]%
+every provider claims a relocation it does not honour | Sources/Antarium/Core/UsageProvider.swift | s%    var relocationVariable: String? { nil }%    var relocationVariable: String? { "CODEX_HOME" }%
+codex-desktop reads its sessions from the wrong home | Resources/harnesses/codex-desktop.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%

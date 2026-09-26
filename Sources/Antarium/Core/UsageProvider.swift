@@ -22,10 +22,22 @@ protocol UsageProvider: AnyObject, Sendable {
     /// the credential is the thing that failed. Nil where re-authenticating is
     /// not a command the user can run.
     var signInCommand: String? { get }
+    /// The environment variable this agent uses to move its own data
+    /// directory, where it has one.
+    ///
+    /// Declared so the two halves of an agent can be held against each other.
+    /// `CodexProvider` honoured `CODEX_HOME` and the codex harness read
+    /// `~/.codex/sessions` regardless, so a relocated home showed the account's
+    /// quota and none of its sessions — each half correct on its own terms, and
+    /// nothing anywhere comparing them. `NativeRelocationTests` compares them
+    /// now, so the next one is caught when it is written rather than by somebody
+    /// moving a directory.
+    var relocationVariable: String? { get }
 }
 
 extension UsageProvider {
     var signInCommand: String? { nil }
+    var relocationVariable: String? { nil }
 }
 
 enum ProviderRegistry {
@@ -132,6 +144,10 @@ enum ProviderRegistry {
     /// X" has to ask of the bundle, or it answers about the tester's own
     /// seeded folder — and passes there while failing on a fresh Mac.
     static var nativeIDs: [String] { native.map(\.id) }
+
+    /// The native providers, for tests that must ask them something other than
+    /// their id. Not used by the app, which goes through `all`.
+    static var nativeProviders: [UsageProvider] { native }
 
     /// Agents shown in the menu bar, in registry order so the items keep a
     /// stable left-to-right ordering between launches.

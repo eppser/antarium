@@ -418,6 +418,23 @@ matched `/Users/sammy`. The validator refuses a `replaces` that is not a prefix
 of `source.path`, because a relocation that can never fire is a declaration that
 silently does nothing.
 
+Where an agent has both a native provider and a harness, the two are held
+against each other. A native provider states the variable it honours on
+`relocationVariable`, and `NativeRelocationTests` insists the harness reading the
+same directory names the same one — including `codex-desktop`, which shares
+`~/.codex` with the CLI and is listed as sharing it. That comparison is the
+recurrence guard for the defect that prompted all of this: two halves of one
+agent, each correct on its own terms, with nothing anywhere comparing them.
+
+Not every agent's variable is safe to declare. `CLAUDE_CONFIG_DIR` was looked
+into at the same time and left out, because the evidence contradicts itself:
+third-party tooling describes it as relocating the config directory, Claude Code's
+own tracker carries open requests asking for exactly that variable to be added,
+and a profile-switching tool reports it as unsupported. Declaring it on that
+evidence would be worse than leaving it — a user who set it on third-party advice
+would have this app look somewhere Claude Code does not write, and sessions that
+exist would read as absent. The claude-code note records that, dated.
+
 The rule is a pure function over an injected environment, so it is tested against
 a machine with none of these agents installed and no such variable set — which is
 every machine the suite runs on. What it covers is `source.path`: the directory

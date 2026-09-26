@@ -33,9 +33,15 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
     let isVerified = true
     let signInCommand: String? = "codex login"
 
+    let relocationVariable: String? = "CODEX_HOME"
+
     /// `CODEX_HOME` relocates the whole config directory; honour it.
+    ///
+    /// Read through `relocationVariable` rather than from a literal, so the
+    /// name the harness is held against is the name actually used.
     fileprivate var codexHome: URL {
-        if let home = ProcessInfo.processInfo.environment["CODEX_HOME"], !home.isEmpty {
+        if let home = ProcessInfo.processInfo.environment[relocationVariable ?? ""],
+           !home.isEmpty {
             return URL(fileURLWithPath: home)
         }
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")

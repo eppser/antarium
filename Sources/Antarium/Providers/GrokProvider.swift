@@ -24,8 +24,11 @@ final class GrokProvider: UsageProvider, @unchecked Sendable {
         "Accept": "application/json",
     ])
 
+    let relocationVariable: String? = "GROK_HOME"
+
     var home: URL {
-        if let home = ProcessInfo.processInfo.environment["GROK_HOME"], !home.isEmpty {
+        if let home = ProcessInfo.processInfo.environment[relocationVariable ?? ""],
+           !home.isEmpty {
             return URL(fileURLWithPath: home)
         }
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".grok")

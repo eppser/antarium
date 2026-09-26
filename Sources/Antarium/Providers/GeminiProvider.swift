@@ -30,8 +30,11 @@ final class GeminiProvider: UsageProvider, @unchecked Sendable {
     /// `GEMINI_HOME` is honoured for the same reason `CODEX_HOME` is, and it
     /// is what lets the credential handling be tested without touching a real
     /// one.
+    let relocationVariable: String? = "GEMINI_HOME"
+
     var home: URL {
-        if let home = ProcessInfo.processInfo.environment["GEMINI_HOME"], !home.isEmpty {
+        if let home = ProcessInfo.processInfo.environment[relocationVariable ?? ""],
+           !home.isEmpty {
             return URL(fileURLWithPath: home)
         }
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini")
