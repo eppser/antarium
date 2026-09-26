@@ -302,6 +302,30 @@ struct OnboardingCountContractTests {
 /// Both halves matter and only together: a rule that quietly declines to
 /// add something is defensible when the thing is visible and one item away,
 /// and indefensible when it is not.
+///
+/// Challenged and upheld, 2026-09-26. A reviewer reading the standing
+/// instruction — "once the tool is installed it checks which IDE or AI is
+/// installed and then configures them automatically to be shown in the bar" —
+/// read this as an ask that was only half done: detection runs at
+/// `AppController.start`, `knownAgents` holds every provider id from that
+/// moment, and so an agent installed a week later is never adopted at any
+/// later launch.
+///
+/// The description is accurate and the conclusion is not. The instruction's
+/// other half is "the user can still configure what should be shown in the
+/// settings", and that is what happens: the panel lists the agent as found
+/// here, waiting to be switched on. Adding it to somebody's menu bar without
+/// being asked is the more intrusive reading of an ambiguous sentence, and
+/// "never overwrite a recorded choice" covers passing over as much as
+/// switching off.
+///
+/// Written down because the change was made before it was thought through,
+/// and this suite did not catch it: a second adoption path keyed on signing in
+/// was added beside `adoptions`, these tests still passed — they call
+/// `adoptions` directly — and the shipped behaviour would have contradicted
+/// the decision they exist to hold. That is the failure this project keeps
+/// finding, made here by the person looking for it. What would change the
+/// answer is the user saying so, not a re-reading of the same sentence.
 @Suite("An agent signed into later is offered, not added")
 struct SignedInLaterTests {
 
