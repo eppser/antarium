@@ -111,6 +111,22 @@ final class AgentItem: NSObject, NSMenuDelegate {
         self.coordinator = coordinator
         super.init()
 
+        // An item existing is what makes this provider's readings wanted. Its
+        // last item may have retired the id — switching an agent off and on
+        // again would otherwise leave it silently refused for the rest of the
+        // session.
+        //
+        // No catalogue entry, for the same reason `dispose` carries none for
+        // its second line: an `AgentItem` cannot be built in a test, because
+        // building one takes a status bar. The rule it upholds is tested from
+        // the store's side, and the alternative that would need no call here —
+        // retiring for a fixed span rather than until re-admission — is worse
+        // rather than merely untested. A re-enabled item fetches on its first
+        // tick, so a span long enough to cover a fetch in flight would swallow
+        // the reading that replaces it and leave the agent blank until the next
+        // poll, minutes later.
+        QuotaStore.shared.admit(providerID: provider.id)
+
         statusItem.button?.imagePosition = .imageOnly
         // Remembers where the user ⌘-dragged this item to.
         statusItem.autosaveName = "Antarium.\(provider.id)"
@@ -137,6 +153,10 @@ final class AgentItem: NSObject, NSMenuDelegate {
     /// which providers get here — but the wiring between them is held by
     /// reading rather than by a test, so a mutation of this line survives.
     func dispose() {
+        // Removes the reading and refuses the one still in flight. The fetch
+        // running when an agent is switched off completes afterwards and
+        // publishes, and by then there is no item to publish again — so the
+        // stale reading stayed in the dashboard until the app restarted.
         QuotaStore.shared.remove(providerID: provider.id)
         NSStatusBar.system.removeStatusItem(statusItem)
     }

@@ -1035,3 +1035,5 @@ a row with no directory still offers to copy it | Sources/Antarium/Core/Focus.sw
 the open-directory action stops refusing a remote row | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.openDirectory) else { return false }||
 the open-terminal action stops refusing a remote row | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.openInTerminal) else { return false }||
 the copy action stops naming the machine | Sources/Antarium/Core/Focus.swift | s|        guard actions(for: row).contains(.copyPath), let path = pathToCopy(for: row)|        let path = row.cwd; guard actions(for: row).contains(.copyPath), true|
+disposal no longer refuses later readings | Sources/Antarium/Core/QuotaStore.swift | s|        retired.insert(providerID)||
+the store retires every provider at once | Sources/Antarium/Core/QuotaStore.swift | s|        retired.insert(providerID)|        retired.insert(providerID); retired.insert("other")|

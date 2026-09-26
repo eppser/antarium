@@ -12,7 +12,33 @@ final class QuotaStore: ObservableObject {
     @Published private(set) var snapshots: [String: Snapshot] = [:]
     @Published private(set) var errors: [String: ProviderError] = [:]
 
+    /// Providers whose menu bar item has gone, and whose readings are
+    /// therefore no longer wanted.
+    ///
+    /// Switching an agent off disposes its item, which removes its reading —
+    /// and a fetch already in flight finishes afterwards and puts it back. The
+    /// item is gone by then, so it never publishes again: the dashboard kept
+    /// drawing that agent's gauge and plan label, frozen at whatever the last
+    /// fetch returned, until the app was relaunched.
+    ///
+    /// Held here rather than as a flag on the item because this is the side a
+    /// test can reach. Constructing an `AgentItem` needs a status bar, which
+    /// is why the wiring between disposal and removal was noted in that file
+    /// as held by reading rather than by a test.
+    private var retired: Set<String> = []
+
+    /// Accepts readings from this provider again.
+    ///
+    /// Called when an item is created, which is the only thing that makes a
+    /// provider's readings wanted. Without it, switching an agent off and on
+    /// again would leave it silently retired for the rest of the session —
+    /// the same bug in the other direction, and a worse one.
+    func admit(providerID: String) {
+        retired.remove(providerID)
+    }
+
     func set(providerID: String, snapshot: Snapshot?) {
+        guard !retired.contains(providerID) else { return }
         if let snapshot {
             snapshots[providerID] = snapshot
             errors.removeValue(forKey: providerID)
@@ -23,11 +49,13 @@ final class QuotaStore: ObservableObject {
     }
 
     func set(providerID: String, error: ProviderError, last: Snapshot?) {
+        guard !retired.contains(providerID) else { return }
         errors[providerID] = error
         if let last { snapshots[providerID] = last }
     }
 
     func remove(providerID: String) {
+        retired.insert(providerID)
         snapshots.removeValue(forKey: providerID)
         errors.removeValue(forKey: providerID)
     }
