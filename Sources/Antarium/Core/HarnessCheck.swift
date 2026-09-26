@@ -117,6 +117,39 @@ enum HarnessCheck {
     /// Pure structural validation, shared by the CLI and the regression suite.
     /// JSONDecoder intentionally ignores unknown keys; this is where a typo is
     /// turned into an actionable error instead of silently changing meaning.
+    /// The warning a `none` source that still names a path earns, or nothing.
+    ///
+    /// `claude-code` declares `kind: none` and `path: ~/.claude/sessions`, and
+    /// that is not a contradiction: its sessions come from
+    /// `AgentScan.claudeRows`, native code selected by *id*, and the path is the
+    /// root that reader uses and the one install detection looks for.
+    ///
+    /// For anybody else the same declaration reads nothing at all —
+    /// `AgentScan.rows` and `HarnessEngine.sessions` both return early on a
+    /// `none` kind — and nothing said so. An author who wrote it would see their
+    /// agent detected, listed in settings, and permanently without sessions.
+    ///
+    /// A function rather than an expression inside `run`, because `run` prints
+    /// and returns an exit code: a warning does not change that code, so the
+    /// only way to ask what it said would be to capture stdout.
+    static func unreadSourcePath(_ descriptor: HarnessDescriptor) -> String? {
+        guard descriptor.source.kind == .none, !descriptor.source.path.isEmpty,
+              !nativeSessionReaders.contains(descriptor.id) else { return nil }
+        let native = nativeSessionReaders.sorted().joined(separator: ", ")
+        return "source.kind is none and source.path names \(descriptor.source.path) — "
+            + "a none source reads no sessions, and the path is only read for the "
+            + "harnesses with a native reader (\(native)). Declare the kind this "
+            + "agent's files are, or leave the path empty"
+    }
+
+    /// Harnesses whose sessions are read by native code rather than by the
+    /// source they declare.
+    ///
+    /// One, and it is chosen by id in `AgentScan`, which is why this is a list
+    /// of facts rather than a capability an author can opt into. Named here so
+    /// the check above can say whose path is read and whose is not.
+    static let nativeSessionReaders: Set<String> = ["claude-code"]
+
     static func schemaProblems(in object: [String: Any]) -> [String] {
         var problems: [String] = []
 
@@ -316,6 +349,11 @@ enum HarnessCheck {
         let claimed = processes.values
             .filter { descriptor.claims($0) }
             .sorted { $0.pid < $1.pid }
+        // No catalogue entry for this line. `run` prints and returns an error
+        // count, and a warning does not change that count — so an entry deleting
+        // this call could only ever survive. The decision it calls has three
+        // entries of its own, which is where the rule actually lives.
+        if let message = Self.unreadSourcePath(descriptor) { warn(message) }
         if descriptor.match.isEmpty && descriptor.processNames.isEmpty {
             if descriptor.source.kind != .none {
                 warn("no process patterns — this file will never claim a process")

@@ -394,6 +394,20 @@ rather than `waiting`, for the same reason: whether the agent is idle is a
 claim this harness cannot make. The row carries a note saying why it is empty,
 because a line of dashes otherwise reads as an agent that has done nothing.
 
+### A `none` source that still names a path
+
+`claude-code` declares `kind: none` and `path: ~/.claude/sessions`, which looks
+like a contradiction and is not. Its sessions come from `AgentScan.claudeRows` —
+native code, selected by *id* — and the path is the root that reader uses and the
+one install detection looks for.
+
+For any other harness the same declaration reads nothing: `AgentScan.rows` and
+`HarnessEngine.sessions` both return early on a `none` kind. An author who wrote
+it would see their agent detected, listed in settings, and permanently without
+sessions, so `--check` now says so and names whose path *is* read. A test holds the
+list of native readers against the shipped descriptors, so a second harness
+declaring the combination without a reader fails rather than shipping quiet.
+
 ### An agent's own relocation variable
 
 `source.relocate` honours the variable an agent uses to move its data directory:
