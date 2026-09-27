@@ -1209,6 +1209,39 @@ number, appends rather than truncating. Read as a position, a negative one traps
 which the catalogue confirms, since that mutation is caught by the suite not
 surviving it.
 
+### Looking for code that cannot be reached
+
+Dead code that duplicates live code is not inert. There were two identical
+`help(gauge:plan:fetchedAt:now:)` functions and only one was called; changing the
+quota tooltip, the dead one got edited, and the test that should have caught it could
+not even name the thing — the dead copy sat in a `private struct` the tests do not
+reach. A decoy, not a leftover.
+
+Two shapes are worth sweeping for, and the second is the one that bit:
+
+```bash
+# A private declaration nothing in its own file mentions.
+# A member of a *private type* nothing in its own file mentions.
+```
+
+Both are file-scoped, so a reference count within the file settles it. Run 2026-09-27:
+one genuinely dead constant, and otherwise nothing.
+
+Two false positives to expect, because deleting either would break something:
+
+An `@ObservedObject` property exists to make a view refresh when the object
+publishes, not to be read. `DashboardView.settingsBus` is never mentioned again and
+must stay, or the dashboard stops following settings changed elsewhere.
+
+A protocol conformance is called by the framework rather than by name:
+`LocalizedError.errorDescription`, `NSViewRepresentable.makeNSView` and
+`updateNSView`, `PreferenceKey.defaultValue`. All four hits of the second sweep were
+these.
+
+That is why this is a documented audit rather than a test. A check that failed on
+either shape would fail on correct code, and a check that excused them by name would
+be a list to keep in step.
+
 ### Asking whether the endpoints are still there
 
 A fixture replays a recorded body. It proves a mapping is applied and can never

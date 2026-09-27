@@ -248,7 +248,6 @@ struct TranscriptStats: Codable {
     private static let toolNeedle = Array(#""tool_use""#.utf8)
     private static let loopNeedle = Array(#"ScheduleWakeup"#.utf8)
     private static let cronNeedle = Array(#"CronCreate"#.utf8)
-    private static let newline = UInt8(0x0A)
 
     static let bucketSeconds = 600
     static let historyHours = 6

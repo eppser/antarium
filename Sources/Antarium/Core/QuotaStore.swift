@@ -83,10 +83,47 @@ final class QuotaStore: ObservableObject {
     /// "Updated ten minutes ago" and the dashboard drew the same figure with
     /// nothing at all, so the two surfaces disagreed about whether the number
     /// on screen was current.
+    /// How far ahead of now a reading may be stamped and still be believed.
+    ///
+    /// A clock correction is seconds; NTP steps larger than that are rare and would
+    /// be a jump rather than a drift. A minute keeps every plausible correction
+    /// fresh and refuses a stamp that can only have come from another machine's
+    /// clock or a restored snapshot.
+    /// `nonisolated`, like `staleAfter` beside it: this type is `@MainActor`, so a
+    /// static without it is main-actor isolated and unreachable from the
+    /// `nonisolated` function that reads it. Swift 6 makes that an error, and the
+    /// strict-concurrency build in `verify.sh` is what said so.
+    nonisolated static let clockSkewAllowance: TimeInterval = 60
+
     nonisolated static func isStale(_ fetchedAt: Date?, now: Date = Date(),
                                     after: TimeInterval = staleAfter) -> Bool {
         guard let fetchedAt else { return true }
-        return now.timeIntervalSince(fetchedAt) > after
+        let age = now.timeIntervalSince(fetchedAt)
+        // A reading stamped *far* in the future is not evidence of freshness.
+        //
+        // This used to accept any future stamp as fresh, and a test said so — for
+        // a real reason: a clock corrected backwards pushes a genuinely fresh
+        // reading into the future, and calling it stale would flip a good number
+        // to dimmed. That concern is kept and bounded.
+        //
+        // What it did not distinguish is scale. A correction is seconds. A stamp an
+        // hour ahead is not a correction — it is a `~/.antarium` synced from a Mac
+        // whose clock is ahead, or a virtual machine restored from a snapshot — and
+        // accepting it meant a reading of *any* age was presented as current, for
+        // as long as the clock took to catch up. That is precisely when staleness
+        // matters: it persists while polling is failing.
+        //
+        // The two errors are not equal. A fresh reading briefly shown as stale
+        // invites the user to distrust a good number, and the next successful poll
+        // restamps it. The other way round tells them an old number is current, and
+        // nothing corrects it.
+        //
+        // `AgentScan.isStale` has the same shape and is deliberately left alone:
+        // there the answer decides whether a session row is *kept*, so erring
+        // toward "not stale" shows a row that may be over rather than hiding one
+        // that is live. The safe direction is opposite, so the code is too.
+        guard age >= -clockSkewAllowance else { return true }
+        return age > after
     }
 
     /// When the reading behind this agent's gauge was taken.

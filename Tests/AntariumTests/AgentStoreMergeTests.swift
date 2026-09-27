@@ -475,11 +475,35 @@ struct QuotaStalenessTests {
         #expect(QuotaStore.isStale(nil, now: now))
     }
 
-    /// A clock that has gone backwards — a correction, a timezone change
-    /// applied badly — must not make an old reading look newer than now.
-    @Test("A reading from the future is not stale")
-    func futureIsNotStale() {
-        #expect(QuotaStore.isStale(now.addingTimeInterval(3_600), now: now) == false)
+    /// A clock that has gone backwards — a correction, a timezone change applied
+    /// badly — must not make a fresh reading look stale.
+    ///
+    /// This used to assert that *any* future stamp is fresh, and the concern was
+    /// right while the conclusion was too broad. A correction is seconds; a stamp
+    /// an hour ahead is not a correction but another machine's clock, and accepting
+    /// it meant a reading of any age read as current for as long as the clock took
+    /// to catch up — precisely while polling was failing, which is when staleness
+    /// is the thing the user needs.
+    @Test("A small correction keeps a fresh reading fresh", arguments: [1.0, 30.0, 59.0])
+    func smallSkewStaysFresh(_ ahead: TimeInterval) {
+        #expect(QuotaStore.isStale(now.addingTimeInterval(ahead), now: now) == false,
+                Comment(rawValue: "a reading \(ahead)s ahead was called stale"))
+    }
+
+    /// And a stamp that can only be another machine's clock is not freshness.
+    @Test("A stamp far ahead is stale, not current",
+          arguments: [61.0, 3_600.0, 86_400.0])
+    func largeSkewIsStale(_ ahead: TimeInterval) {
+        #expect(QuotaStore.isStale(now.addingTimeInterval(ahead), now: now),
+                Comment(rawValue: "a reading \(ahead)s ahead was presented as current"))
+    }
+
+    /// The boundary is where the constant says it is.
+    @Test("The allowance is the boundary")
+    func allowanceIsTheBoundary() {
+        let edge = QuotaStore.clockSkewAllowance
+        #expect(QuotaStore.isStale(now.addingTimeInterval(edge), now: now) == false)
+        #expect(QuotaStore.isStale(now.addingTimeInterval(edge + 1), now: now))
     }
 }
 
