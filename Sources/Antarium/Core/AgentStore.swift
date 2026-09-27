@@ -63,7 +63,17 @@ final class AgentStore: ObservableObject {
         let now = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return previous.values.compactMap { was in
             guard was.state.rank > 2 else { return nil }        // wasn't working
-            guard let still = now[was.id] else { return was }   // process is gone
+            guard let still = now[was.id] else {
+                // The process is gone, so the state it was last seen in is no
+                // longer true. Returned verbatim, this row still said "Working"
+                // — and the banner that consumes it says "finished its task"
+                // beside that label, which a screen reader hears as one
+                // sentence contradicting itself. `.ended` is what it now is:
+                // no live process, the session is over.
+                var gone = was
+                gone.state = .ended
+                return gone
+            }
             if case .unobserved = still.state { return nil }
             return still.state.rank <= 2 ? still : nil
         }

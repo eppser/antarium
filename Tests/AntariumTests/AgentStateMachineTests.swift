@@ -158,3 +158,57 @@ struct AgentStateRankTests {
         #expect(AgentStore.stopped(previous: was, current: [row("a", .waiting)]).map(\.id) == ["a"])
     }
 }
+
+/// What an agent that vanished is said to be doing.
+///
+/// A row that disappears between sweeps counts as finished — Codex and Kimi rows
+/// exist only while their process does, so without that they could never announce
+/// having stopped. The transitions above cover the rows that are still there.
+/// This is the other path, and it carried the state the row was last seen in.
+///
+/// That state was "Working", because a row has to have been working to be
+/// considered at all. The banner says "<name> finished its task" and puts the
+/// state beside it; the accessibility label joins them into one sentence. A
+/// listener heard "finished its task, Working", and a reader saw it.
+@Suite("An agent that vanished is not still working")
+struct VanishedRowStateTests {
+
+    private func row(_ id: String, _ state: AgentRow.State) -> AgentRow {
+        AgentRow(id: id, agentID: "x", name: id, cwd: "/synthetic", state: state)
+    }
+
+    @Test("A vanished row is reported as ended, not as what it was doing",
+          arguments: [AgentRow.State.working, .shell, .looping])
+    func vanishedIsEnded(_ was: AgentRow.State) throws {
+        let gone = AgentStore.stopped(previous: ["a": row("a", was)], current: [])
+        let reported = try #require(gone.first, "a vanished agent was not announced at all")
+        #expect(reported.state.isUnobserved == false)
+        if case .ended = reported.state {} else {
+            Issue.record(Comment(rawValue: "a vanished agent is announced as "
+                                 + "\"\(reported.state.label)\" beside \"finished its task\""))
+        }
+    }
+
+    /// The banner's two halves agree now, which is the thing the label could not
+    /// say before: "finished its task, Ended".
+    @Test("The spoken sentence does not contradict itself")
+    func spokenSentenceAgrees() throws {
+        let gone = AgentStore.stopped(previous: ["a": row("a", .working)], current: [])
+        let reported = try #require(gone.first)
+        let spoken = "\(reported.coreName) finished its task, \(reported.state.label)"
+        #expect(!spoken.contains("Working"),
+                Comment(rawValue: "the banner says: \(spoken)"))
+        #expect(spoken.contains("Ended"), Comment(rawValue: "the banner says: \(spoken)"))
+    }
+
+    /// And a row that is still there keeps the state it was observed in, or this
+    /// fix would be rewriting states nobody asked about.
+    @Test("A row that is still present keeps its observed state")
+    func presentRowKeepsItsState() throws {
+        let gone = AgentStore.stopped(previous: ["a": row("a", .working)],
+                                      current: [row("a", .waiting)])
+        let reported = try #require(gone.first)
+        #expect(reported.state.label == "Waiting",
+                Comment(rawValue: "a present row was reported as \(reported.state.label)"))
+    }
+}

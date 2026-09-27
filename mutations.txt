@@ -858,6 +858,8 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+a vanished agent is announced as still working | Sources/Antarium/Core/AgentStore.swift | s|                gone.state = .ended||
+a vanished agent is announced as waiting for you | Sources/Antarium/Core/AgentStore.swift | s|                gone.state = .ended|                gone.state = .waiting|
 a backlog hides the fault behind it | Sources/Antarium/Core/TranscriptStats.swift | s|        numeric ?? read ?? (backlogged ? backlogIssue : nil)|        (backlogged ? backlogIssue : nil) ?? numeric ?? read|
 a read problem outranks the numeric one that names the record | Sources/Antarium/Core/TranscriptStats.swift | s|        numeric ?? read ?? (backlogged ? backlogIssue : nil)|        read ?? numeric ?? (backlogged ? backlogIssue : nil)|
 a permanent fault borrows the transient wording | Sources/Antarium/Core/TranscriptStats.swift | s|Transcript tool count is out of range. Usage figures are unavailable.|Transcript tool count is out of range. Usage figures are unavailable until it catches up.|
