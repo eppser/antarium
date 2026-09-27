@@ -305,6 +305,61 @@ struct ClaudeBarCoverageTests {
                 Comment(rawValue: "ECOSYSTEM.md should say \"\(sentence)\""))
     }
 
+    /// Where the two apps disagree on purpose, the reason is written down.
+    ///
+    /// Reading inside ClaudeBar's provider files rather than counting them found
+    /// two things. MiniMax runs two regions, which this app handles and
+    /// `EditedDescriptorTakesEffectTests` verifies. And ClaudeBar computes
+    /// Copilot's reset — `MonthlyResetDate.swift`, the next 00:00 UTC on the 1st
+    /// — where the response states none.
+    ///
+    /// GitHub's billing cycle does roll over then, so that instant is probably
+    /// right. It is still a number the service did not send, and showing it would
+    /// put a computed date and a reported one on the same row with nothing to
+    /// tell them apart. A divergence chosen rather than missed, which is only
+    /// true if it is recorded next to the mapping.
+    @Test("Copilot's reset is read, never computed, and the note says so")
+    func copilotResetIsNotComputed() throws {
+        let copilot = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "copilot" })
+        #expect(copilot.quota?.windows.resetsAt == "quota_reset_date_utc",
+                "Copilot's reset no longer comes from the field its note names")
+        let note = copilot.note ?? ""
+        #expect(note.contains("from nowhere else"),
+                "the note no longer refuses to compute a reset the service did not send")
+        #expect(note.contains("MonthlyResetDate"),
+                "the note no longer says which implementation it diverges from")
+    }
+
+    /// And the absence is exercised, not merely intended: a response with a
+    /// window and no reset date is one of Copilot's fixture cases, and the
+    /// verifier compares an expected reset against the one produced — so an
+    /// expectation that omits it asserts that none was produced.
+    @Test("A Copilot response stating no reset has a case proving none appears")
+    func copilotFixtureCoversAnAbsentReset() throws {
+        let url = try #require(AppResources.bundle.url(forResource: "copilot",
+                                                      withExtension: "json",
+                                                      subdirectory: "quota-fixtures"))
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                    as? [String: Any])
+        let cases = try #require(object["cases"] as? [[String: Any]])
+        let silent = cases.filter { item in
+            let response = item["response"] as? [String: Any] ?? [:]
+            let gauges = (item["expected"] as? [String: Any])?["gauges"] as? [[String: Any]] ?? []
+            // A case that produces a gauge while the response names no reset.
+            return response["quota_reset_date_utc"] == nil && !gauges.isEmpty
+        }
+        #expect(!silent.isEmpty, Comment(rawValue: "no fixture case pairs a charted window "
+                + "with a response that states no reset, so nothing exercises the absence"))
+        for item in silent {
+            let gauges = (item["expected"] as? [String: Any])?["gauges"] as? [[String: Any]] ?? []
+            for gauge in gauges {
+                #expect(gauge["resetsAt"] == nil,
+                        Comment(rawValue: "a fixture expects a reset for \(gauge["id"] ?? "?") "
+                                + "that its response never stated"))
+            }
+        }
+    }
+
     /// This app also reads usage APIs ClaudeBar does not, so the comparison
     /// is not mistaken for a ceiling.
     @Test("Providers beyond ClaudeBar's roster also ship")
