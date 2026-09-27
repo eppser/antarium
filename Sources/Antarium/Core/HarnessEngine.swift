@@ -461,7 +461,7 @@ enum HarnessEngine {
         switch descriptor.source.kind {
         case .json, .jsonl:
             let root = URL(fileURLWithPath: descriptor.source.resolvedPath)
-            let limit = min(max(descriptor.source.limit ?? 40, 1), 400)
+            let limit = min(max(descriptor.source.limit ?? 40, 1), maxFiles)
             return ((try? matchingFiles(under: root, glob: descriptor.source.glob ?? "*")) ?? [])
                 .sorted { modified($0) > modified($1) }
                 .prefix(limit)
@@ -569,7 +569,7 @@ enum HarnessEngine {
     /// A handful of real records from whatever this descriptor points at, so
     /// the checker can test field paths against the data they will actually
     /// meet rather than against the author's expectations.
-    static func sampleRecords(_ d: HarnessDescriptor, limit: Int = 400) -> (records: [[String: Any]], where: String) {
+    static func sampleRecords(_ d: HarnessDescriptor, limit: Int = maxFiles) -> (records: [[String: Any]], where: String) {
         switch d.source.kind {
         case .none:
             return ([], "no session source")
@@ -626,7 +626,7 @@ enum HarnessEngine {
             // be the newest one the checker called every other field missing —
             // it reported Cursor's title as unreadable while the session next
             // to it had one.
-            let budget = min(400, max(1, limit))
+            let budget = min(maxFiles, max(1, limit))
             let sampled = Array(files.prefix(min(5, budget)))
             let perFile = max(1, budget / sampled.count)
             var records: [[String: Any]] = []
@@ -680,6 +680,16 @@ enum HarnessEngine {
     /// workspace manager reporting more panes than this is reporting
     /// something other than a workspace.
     static let maxCommandSessions = 256
+
+    /// The most files one file-backed harness may read in a reading.
+    ///
+    /// Named for the reason the sibling above it is: the number was written
+    /// out at four call sites, and `docs/TECHNICAL.md` states it in prose. The
+    /// only thing holding the two together was a test asking whether the
+    /// characters `400)` appeared anywhere in this file, which is satisfied by
+    /// any number ending in 400 and by the cap being applied to something
+    /// else entirely.
+    static let maxFiles = 400
 
     private static func commandSessions(_ d: HarnessDescriptor) -> [Session] {
         let every = d.source.refreshEvery ?? 30
@@ -765,7 +775,7 @@ enum HarnessEngine {
 
     private static func readFiles(_ descriptor: HarnessDescriptor, _ files: [URL]) -> [Session] {
         clearHealth(descriptor.id)
-        let limit = min(max(descriptor.source.limit ?? 40, 1), 400)
+        let limit = min(max(descriptor.source.limit ?? 40, 1), maxFiles)
         return files
             .sorted { modified($0) > modified($1) }
             .prefix(limit)                                // newest few; older ones are history

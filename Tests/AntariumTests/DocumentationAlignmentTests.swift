@@ -664,30 +664,64 @@ struct DocumentedCapsTests {
         #expect(RemoteTmux.fleetLimit == 256, "the fleet limit moved")
     }
 
-    /// The two written inline, asked of the source that applies them. Weaker
-    /// — it checks the number is present rather than used — and said so
-    /// rather than implying the constant exists.
-    @Test("Every cap written inline appears where it is applied")
-    func inlineCapsMatch() throws {
+    /// The three that used to be written inline, now asked of the constant
+    /// like the four above.
+    ///
+    /// These were the weak half of this file and said so: each checked that a
+    /// number appeared *somewhere* in the source that applies it. One of the
+    /// three could not fail — `2_000` is a substring of the `2_000_000` step
+    /// budget in the same file, so removing both SQLite row caps would have
+    /// left it green. The file cap was worse in a quieter way: written out at
+    /// four call sites, where three could agree and one drift.
+    @Test("Every cap that was written inline is now a constant that matches")
+    func inlineCapsMatch() {
+        let text = reference
+
+        #expect(HarnessEngine.maxFiles == 400)
+        #expect(text.contains("400 files per file harness"),
+                "the reference no longer states the file cap")
+
+        #expect(BoundedSQLite.maxRows == 2_000)
+        #expect(text.contains("2,000 rows per SQLite query"),
+                "the reference no longer states the SQLite row cap")
+
+        #expect(CloudScan.maxTasks == 2_000)
+        #expect(text.contains("2,000 cloud tasks per inventory"),
+                "the reference no longer states the cloud task cap")
+    }
+
+    /// And the constant is what the code applies, not a second number beside
+    /// the one in use. Asking whether a literal appears is what these tests
+    /// did wrong; asking that it appears *nowhere* is the assertion that
+    /// actually holds the constant and the call sites together.
+    @Test("No cap is written out beside the constant that names it")
+    func capsAreNotAlsoLiterals() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
-        let text = reference
-
-        let engine = try String(contentsOf: root.appendingPathComponent(
-            "Sources/Antarium/Core/HarnessEngine.swift"), encoding: .utf8)
-        #expect(text.contains("400 files per file harness"))
-        #expect(engine.contains("400)"), "the file cap is not applied in the engine")
-
-        let sqlite = try String(contentsOf: root.appendingPathComponent(
-            "Sources/Antarium/Core/BoundedSQLite.swift"), encoding: .utf8)
-        #expect(text.contains("2,000 rows per SQLite query"))
-        #expect(sqlite.contains("2_000"), "the SQLite row cap is not applied")
-
-        let cloud = try String(contentsOf: root.appendingPathComponent(
-            "Sources/Antarium/Core/CloudScan.swift"), encoding: .utf8)
-        #expect(text.contains("2,000 cloud tasks per inventory"))
-        #expect(cloud.contains("2_000"), "the cloud task cap is not applied")
+        // BoundedSQLite is not in this list, and the reason is the defect
+        // this replaces: `2_000` is a substring of the `2_000_000` step budget
+        // in that file, so a scan for the literal cannot tell the row cap from
+        // the work limit. `maxRows` is asserted against its number above, and
+        // the two call sites that had the literal now read the constant.
+        for (file, literal, name) in [
+            ("Sources/Antarium/Core/HarnessEngine.swift", "400", "maxFiles"),
+            ("Sources/Antarium/Core/CloudScan.swift", "2_000", "maxTasks"),
+        ] {
+            let source = try String(contentsOf: root.appendingPathComponent(file),
+                                    encoding: .utf8)
+            for line in source.split(separator: "\n") where line.contains(literal) {
+                let code = line.trimmingCharacters(in: .whitespaces)
+                // Prose about the cap is not the cap. The first version of
+                // this failed on the comment explaining why the constant
+                // exists, which is the same mistake it was written to catch.
+                guard !code.hasPrefix("//") else { continue }
+                // The declaration itself is where the number belongs.
+                guard !code.contains("static let \(name)") else { continue }
+                Issue.record(Comment(rawValue: "\(file) writes \(literal) out at "
+                                     + "`\(code)` rather than using \(name)"))
+            }
+        }
     }
 
     /// And the sentence still exists to be checked against.

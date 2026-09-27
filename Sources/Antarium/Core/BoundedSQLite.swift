@@ -64,7 +64,16 @@ enum BoundedSQLite {
             return exceeded
         }
     }
-    static func query(path:String,sql:String,maxRows:Int = 2_000) throws -> Result {
+    /// The most rows one query may return, whatever a caller asks for.
+    ///
+    /// Named because the number was written twice — here and in the clamp
+    /// below — and `docs/TECHNICAL.md` states it in prose. What held those
+    /// together was a test asking whether `2_000` appeared anywhere in this
+    /// file, and `2_000_000` in the work limit above contains those
+    /// characters: deleting both row caps would have left it green.
+    static let maxRows = 2_000
+
+    static func query(path:String,sql:String,maxRows:Int = Self.maxRows) throws -> Result {
         guard !sql.isEmpty, sql.utf8.count <= 65_536, !sql.utf8.contains(0) else { throw ReadError.invalidQuery }
         guard !path.utf8.contains(0), path.utf8.count <= 16_384 else { throw ReadError.unavailable }
         // macOS's /var and /tmp are standard symlinks. Resolve the parent
@@ -128,7 +137,7 @@ enum BoundedSQLite {
         guard count > 0, count <= 128 else { throw ReadError.invalidQuery }
         let columns = (0..<count).map { String(cString:sqlite3_column_name(statement,$0)) }
         var rows:[[Value]] = [], bytes = 0
-        let rowLimit = min(2_000,max(1,maxRows))
+        let rowLimit = min(Self.maxRows,max(1,maxRows))
         while true {
             let status = sqlite3_step(statement)
             if status == SQLITE_DONE { break }

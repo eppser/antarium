@@ -58,13 +58,18 @@ enum CloudScan {
         }
     }
 
+    /// The most tasks one inventory may carry. Named so the sentence in
+    /// `docs/TECHNICAL.md` can be checked against the constant rather than
+    /// against whether the characters appear in this file.
+    static let maxTasks = 2_000
+
     /// Pure decoding boundary used by both the network path and contract tests.
     /// A changed response shape is an error, never a truthful-looking zero.
     static func rows(from json: [String: Any]) throws -> [AgentRow] {
         guard let items = json["items"] as? [[String: Any]] else {
             throw ParseError.missingItems
         }
-        guard items.count <= 2_000 else { throw ParseError.capacityExceeded }
+        guard items.count <= maxTasks else { throw ParseError.capacityExceeded }
         for key in ["cursor", "next_cursor"] {
             if let value = json[key], !(value is NSNull) {
                 guard let cursor = value as? String, cursor.isEmpty else { throw ParseError.incompleteInventory }
