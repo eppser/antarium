@@ -843,6 +843,8 @@ a re-checked verdict stops saying when | docs/ECOSYSTEM.md | s|Chutes was re-che
 the edited count is announced when there is nothing to announce | Sources/Antarium/UI/HarnessRowPresentation.swift | s|edited > 0 ?|edited >= 0 ?|
 the edited badge is shown on every row | Sources/Antarium/UI/SettingsView.swift | s|if isEdited {|if true {|
 the summary is handed a count of nothing | Sources/Antarium/UI/SettingsView.swift | s|total: all.count, edited: edited|total: all.count, edited: 0|
+the agents found here and not shown are not accounted for | Sources/Antarium/UI/SettingsView.swift | s|rows.filter { $0.present \&\& !$0.enabled }.count|0|
+the shown count counts every provider that ships | Sources/Antarium/UI/SettingsView.swift | s|rows.filter(\\.enabled).count|rows.count|
 a mapping both cites a reference and claims there is none | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas", "unusedNote": "published nowhere",|
 the synthetic mapping stops saying where it was read from | Resources/harnesses/synthetic.json | /"documentation": "https/d
 an uncited mapping stops saying why | Resources/harnesses/copilot.json | s|is published nowhere|is undocumented|
