@@ -92,13 +92,22 @@ struct OnboardingView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var summary: String {
-        let n = detected.count
-        guard let sessions else {
-            return "Found \(n) agent\(n == 1 ? "" : "s") on this Mac. Counting sessions…"
-        }
-        if sessions == 0 { return "Found \(n) agent\(n == 1 ? "" : "s"). Nothing running right now." }
-        return "Found \(n) agent\(n == 1 ? "" : "s") and \(sessions) running "
+    private var summary: String { Self.summary(agents: detected.count, sessions: sessions) }
+
+    /// The first sentence this app ever shows, and three different statements
+    /// rather than one with a number in it.
+    ///
+    /// A count still being gathered, a count that came back nought, and a count
+    /// that came back are three facts, and saying "0 running sessions" for the
+    /// first would claim a measurement that has not happened. Callable because
+    /// it was a private computed property, which meant nothing could reach any
+    /// of the three — including the plural agreement, on the one screen where a
+    /// user reads every word.
+    static func summary(agents: Int, sessions: Int?) -> String {
+        let found = "Found \(agents) agent\(agents == 1 ? "" : "s")"
+        guard let sessions else { return "\(found) on this Mac. Counting sessions…" }
+        if sessions == 0 { return "\(found). Nothing running right now." }
+        return "\(found) and \(sessions) running "
             + "session\(sessions == 1 ? "" : "s"), including any launched through ACP."
     }
 

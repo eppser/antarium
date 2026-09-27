@@ -305,3 +305,69 @@ struct AbsenceVocabularyTests {
                 Comment(rawValue: "\(path) spells the phrase itself"))
     }
 }
+
+/// The first sentence the app shows, on the one screen where a user reads every
+/// word of it.
+///
+/// It was a private computed property on the view, so nothing could reach any of
+/// it. Three statements, and the difference between them is the distinction this
+/// project is most careful about elsewhere: a session count still being gathered
+/// is not a count of nought, and saying "0 running sessions" for the first would
+/// claim a measurement that has not happened.
+@Suite("The first-run summary says what was actually found")
+struct OnboardingSummaryTests {
+
+    @Test("A count still being gathered says so rather than reporting nought")
+    func countingIsNotZero() {
+        let counting = OnboardingView.summary(agents: 4, sessions: nil)
+        #expect(counting == "Found 4 agents on this Mac. Counting sessions…")
+        // And is not the same sentence as a count that came back empty, which
+        // is the confusion worth ruling out rather than describing.
+        #expect(counting != OnboardingView.summary(agents: 4, sessions: 0))
+    }
+
+    @Test("Nothing running is stated, not left blank")
+    func zeroIsStated() {
+        #expect(OnboardingView.summary(agents: 4, sessions: 0)
+                == "Found 4 agents. Nothing running right now.")
+    }
+
+    @Test("A real count is reported with what it includes")
+    func realCount() {
+        #expect(OnboardingView.summary(agents: 4, sessions: 3)
+                == "Found 4 agents and 3 running sessions, including any launched through ACP.")
+    }
+
+    /// Both plurals, in both places. A first screen reading "Found 1 agents"
+    /// is the whole of a user's first impression of how carefully this was made.
+    @Test("One agent and one session are singular")
+    func singulars() {
+        #expect(OnboardingView.summary(agents: 1, sessions: nil)
+                == "Found 1 agent on this Mac. Counting sessions…")
+        #expect(OnboardingView.summary(agents: 1, sessions: 0)
+                == "Found 1 agent. Nothing running right now.")
+        #expect(OnboardingView.summary(agents: 1, sessions: 1)
+                == "Found 1 agent and 1 running session, including any launched through ACP.")
+    }
+
+    /// The case a fresh machine with nothing on it produces. It is not an
+    /// error, and the sentence has to read as English.
+    @Test("No agents at all is still a sentence")
+    func none() {
+        #expect(OnboardingView.summary(agents: 0, sessions: 0)
+                == "Found 0 agents. Nothing running right now.")
+    }
+
+    /// And the view asks the function rather than repeating it, or the five
+    /// cases above are about something the screen does not show.
+    @Test("The screen shows the sentence this suite checks")
+    func viewUsesIt() throws {
+        let text = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/UI/OnboardingView.swift"),
+                              encoding: .utf8)
+        #expect(text.contains("Self.summary(agents: detected.count, sessions: sessions)"),
+                "the screen no longer builds its summary from the callable one")
+    }
+}

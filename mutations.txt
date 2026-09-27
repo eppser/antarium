@@ -858,6 +858,10 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+a session count still being gathered reads as nought | Sources/Antarium/UI/OnboardingView.swift | s|guard let sessions else { return "\\(found) on this Mac. Counting sessions…" }|let sessions = sessions ?? 0|
+the first screen says nothing about an empty count | Sources/Antarium/UI/OnboardingView.swift | s|        if sessions == 0 { return "\\(found). Nothing running right now." }||
+the first screen counts one agent as several | Sources/Antarium/UI/OnboardingView.swift | s|agent\\(agents == 1 ? "" : "s")|agents|
+the first screen counts one session as several | Sources/Antarium/UI/OnboardingView.swift | s|session\\(sessions == 1 ? "" : "s")|sessions|
 a native provider posts its key to another vendor | Sources/Antarium/Providers/GeminiProvider.swift | s|https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota|https://chatgpt.com/backend-api/wham/usage|
 a native provider reads a credential file the reference does not name | Sources/Antarium/Providers/GeminiProvider.swift | s|appendingPathComponent("oauth_creds.json")|appendingPathComponent("auth.json")|
 the reference stops saying where a native key goes | docs/TECHNICAL.md | s|`cloudcode-pa.googleapis.com`|`the Cloud Code endpoint`|
