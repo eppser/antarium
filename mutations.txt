@@ -858,6 +858,7 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+a flag nothing accepts is named again | Sources/Antarium/Core/LaunchArguments.swift | s|        if first == "--log", let value = positionals.first {|        for group:Set<String> in [["--explorer"]] { if seen.intersection(group).count > 1 { return "x" } }\n        if first == "--log", let value = positionals.first {|
 a log message carries the path it opened | Sources/Antarium/Core/SignIn.swift | s|Log.info("signin", "Sign-in launcher opened: \\(opened)")|Log.info("signin", "Sign-in launcher opened: \\(opened) at \\(url.path)")|
 the report prints the home path it ran in | Sources/Antarium/Diagnostics.swift | s|        path.abbreviatingHome(FileManager.default.homeDirectoryForCurrentUser.path)|        path|
 a row's directory is reported unabbreviated | Sources/Antarium/Diagnostics.swift | s|cwd=\\(reportable(row.cwd))")|cwd=\\(row.cwd)")|

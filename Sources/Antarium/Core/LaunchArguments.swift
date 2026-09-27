@@ -79,11 +79,16 @@ enum LaunchArguments {
                 index += 1
             }
         }
-        // The groups belong to modes that still exist; the activity ones went
-        // with the commands that never did.
-        for group:Set<String> in [["--explorer","--analysis","--insights"]] {
-            if seen.intersection(group).count > 1 { return "Mutually exclusive options were supplied together." }
-        }
+        // A mutual-exclusion group used to sit here naming `--explorer`,
+        // `--analysis` and `--insights`, above a comment saying the groups
+        // "belong to modes that still exist". None of the three was a mode or an
+        // option of one anywhere in this app: `seen` only ever holds options the
+        // current mode declares, which is `--cloud` or `--apply`, so the
+        // intersection was always empty and the check could not fire. Dead code
+        // under a comment asserting it guarded something is worse than neither,
+        // and no mode today has two options that exclude each other. When one
+        // does, the group comes back — and `noDeadFlagsAreNamed` refuses a group
+        // naming a flag nothing accepts, which is what let these three sit here.
         if first == "--log", let value = positionals.first {
             guard let count = Int(value), (0...1_000).contains(count) else { return "Log line count must be 0 through 1000." }
         }

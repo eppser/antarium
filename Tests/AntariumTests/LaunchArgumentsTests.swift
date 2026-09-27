@@ -193,3 +193,80 @@ struct InternalModesAreListedTests {
         }
     }
 }
+
+/// Every flag this file names is a flag something accepts.
+///
+/// Three — `--explorer`, `--analysis`, `--insights` — sat in a mutual-exclusion
+/// group under a comment saying the groups "belong to modes that still exist".
+/// None of the three was a mode or an option of one anywhere in the app. The set
+/// `seen` only ever holds options the current mode declares, which is `--cloud`
+/// or `--apply`, so that intersection was always empty and the check could not
+/// fire. It read as a guard and was a comment.
+///
+/// The existing suites run the two directions that were checked: every documented
+/// command is implemented, and every accepted-but-undocumented mode has a reason
+/// written down. Neither could see a flag that is accepted by nothing, because
+/// there was nothing to compare it against.
+@Suite("No flag is named that nothing accepts")
+struct DeadFlagTests {
+
+    private var source: String {
+        (try? SourceText.read("Sources/Antarium/Core/LaunchArguments.swift")) ?? ""
+    }
+
+    @Test("Every flag the validator mentions is a mode, an option, or documented")
+    func noDeadFlagsAreNamed() throws {
+        let text = source
+        #expect(!text.isEmpty, "the validator could not be read")
+
+        // Modes: the two declared sets and the dictionary keys. Read from the
+        // whole declaration rather than line by line — both sets wrap, and the
+        // first version of this called six real modes dead because their names
+        // sat on a continuation line.
+        var modes: Set<String> = []
+        func flags(in fragment: String) -> [String] {
+            fragment.components(separatedBy: "\"").enumerated()
+                .filter { $0.offset % 2 == 1 && $0.element.hasPrefix("--") }
+                .map(\.element)
+        }
+        for marker in ["let single:Set<String> = [", "let file:Set<String> = ["] {
+            guard let start = text.range(of: marker) else { continue }
+            let rest = text[start.upperBound...]
+            let end = rest.firstIndex(of: "]") ?? rest.endIndex
+            modes.formUnion(flags(in: String(rest[..<end])))
+        }
+        for line in text.split(separator: "\n") where line.contains("modes[") {
+            modes.formUnion(flags(in: String(line)))
+        }
+        // Options belong to a mode and are named in the same place.
+        var options: Set<String> = []
+        for line in text.split(separator: "\n") where line.contains("options:[") {
+            options.formUnion(flags(in: String(line)))
+        }
+        let accepted = modes.union(options).union(LaunchArguments.help.split(separator: " ")
+            .map(String.init).filter { $0.hasPrefix("--") })
+
+        // Every flag literal anywhere in the file, minus the ones accounted for.
+        var named: Set<String> = []
+        for line in text.split(separator: "\n") {
+            let code = line.trimmingCharacters(in: .whitespaces)
+            guard !code.hasPrefix("//"), !code.hasPrefix("///") else { continue }
+            named.formUnion(flags(in: code))
+        }
+        #expect(named.count >= 20,
+                Comment(rawValue: "only \(named.count) flags were found, so this proved little"))
+        let dead = named.subtracting(accepted).sorted()
+        #expect(dead.isEmpty,
+                Comment(rawValue: "named here and accepted by nothing: \(dead.joined(separator: ", "))"))
+    }
+
+    /// And the modes the validator knows are the ones `main.swift` dispatches or
+    /// the internal list explains — which the suites above already hold. This
+    /// only insists the set is not empty, so a rewrite of the parsing above
+    /// cannot make the check vacuous by finding no modes at all.
+    @Test("The validator still declares modes to check")
+    func modesExist() {
+        #expect(LaunchArguments.validate(["--status"]) == nil)
+        #expect(LaunchArguments.validate(["--not-a-mode"]) != nil)
+    }
+}
