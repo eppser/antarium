@@ -1179,3 +1179,4 @@ ci stops failing on a strict warning | .github/workflows/ci.yml | s@grep -qE 'er
 ci greps for a strict warning and ignores it | .github/workflows/ci.yml | /grep -qE 'error:|warning:'/,/echo \"clean\"/ s@            exit 1@            :@
 an emptied catalogue passes the gate | tools/check-mutations.py | s@    if live + len(dead) < MINIMUM_ENTRIES:@    if False:@
 the catalogue floor is one entry | tools/check-mutations.py | s@MINIMUM_ENTRIES = 1_000@MINIMUM_ENTRIES = 1@
+the gate stops running outside UTC | verify.sh | s@if TZ=Asia/Kolkata ./test.sh@if TZ=UTC ./test.sh@
