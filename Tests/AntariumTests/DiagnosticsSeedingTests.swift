@@ -120,3 +120,124 @@ struct DamagedConfigurationStatusTests {
                 "a damaged settings file stopped the harness count being reported")
     }
 }
+
+/// The report a user pastes somewhere carries nobody's name.
+///
+/// Every surface a user *looks* at abbreviates their home: a row's `displayPath`,
+/// the first-run screen's `shorten`. The diagnostic report — the one output whose
+/// whole purpose is to be handed to somebody else — printed `/Users/<them>/…` in
+/// nine places: the settings file, the log, the harness directory, and every row's
+/// working directory.
+///
+/// A reader of the report needs to know which directory, and `~/.antarium/config.json`
+/// says that exactly. The username in front of it is identity, not evidence. This
+/// repository already has a test insisting it carries nobody's machine, written
+/// after a hostname reached a public remote in thirty-six places; this is the same
+/// rule for the thing the app hands a user to paste.
+@Suite("A diagnostic report carries no home path", .serialized)
+struct DiagnosticPrivacyTests {
+
+    private var executable: URL { URL(fileURLWithPath: ".build/debug/Antarium") }
+
+    private func run(_ arguments: [String]) throws -> String {
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Run against the real home on purpose, exactly as `NoMachineIdentityTests`
+    /// is about the machine it runs on: the person who can leak their own name is
+    /// the person running this.
+    @Test("No report names the home directory it ran in",
+          arguments: ["--status", "--agents", "--detect-agents"])
+    func reportsAbbreviateHome(_ argument: String) throws {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { return }
+        let text = try run([argument])
+        guard !text.isEmpty else { return }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let leaks = text.split(separator: "\n").filter { $0.contains(home + "/") }
+        #expect(leaks.isEmpty,
+                Comment(rawValue: "\(argument) printed the home path: "
+                        + leaks.prefix(3).joined(separator: " / ")))
+    }
+
+    /// And it still says which directory, or the abbreviation removed the
+    /// evidence along with the name.
+    ///
+    /// Asked of the file names rather than of a leading `~`. The first version
+    /// wanted `~/.antarium/config.json`, which is true of an ordinary machine and
+    /// false under the gate's bare-home run — `ANTARIUM_HOME` puts the settings
+    /// somewhere that is not under the home, so there is nothing to abbreviate
+    /// and nothing should be. That is the trap this project's own notes describe:
+    /// a test that passes here and fails in the gate, because it assumed the
+    /// state of the machine it was written on. The claim that matters is that the
+    /// directory is still named.
+    @Test("The report still names the directories it read")
+    func reportStillNamesDirectories() throws {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else { return }
+        let text = try run(["--status"])
+        guard !text.isEmpty else { return }
+        #expect(text.contains("config.json"),
+                "the report no longer says where the settings file is")
+        #expect(text.contains("harnesses"),
+                "the report no longer says where the harnesses came from")
+        // And where the settings really are under the home, the report says so
+        // with a `~` — the abbreviation doing its job rather than being absent.
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if Config.directory.path.hasPrefix(home + "/") {
+            #expect(text.contains("config    ~/"),
+                    Comment(rawValue: "settings under the home were reported unabbreviated"))
+        }
+    }
+
+    /// Two of these lines are in modes a test cannot run: `--focus` acts on a
+    /// window and `--remote-tmux` needs somebody's SSH hosts. Reading the output
+    /// cannot reach them, so the rule is read off the source instead — and
+    /// derived rather than listed, which is what would have caught the tenth
+    /// site in `HarnessCLI` that a sweep of one file missed.
+    @Test("Every printed path in a report goes through the abbreviation",
+          arguments: ["Sources/Antarium/Diagnostics.swift",
+                      "Sources/Antarium/Core/HarnessCLI.swift"])
+    func everyPrintedPathIsAbbreviated(_ file: String) throws {
+        let source = try SourceText.read(file)
+        var raw: [String] = []
+        for line in source.split(separator: "\n") {
+            let code = line.trimmingCharacters(in: .whitespaces)
+            guard !code.hasPrefix("//"), !code.hasPrefix("///") else { continue }
+            // A path reaching a report: either an app directory or a row's own
+            // working directory.
+            let carriesPath = code.contains(".url.path)") || code.contains("directory.path)")
+                || code.contains("cwd)") || code.contains("cwd ?? ")
+            guard carriesPath, !code.contains("reportable(") else { continue }
+            // `--json` output is machine-read and quoted elsewhere; only the
+            // human report is in scope here.
+            guard code.contains("print(") || code.contains("+ \"") else { continue }
+            raw.append(code)
+        }
+        #expect(raw.isEmpty,
+                Comment(rawValue: "\(file) prints a path without abbreviating the home: "
+                        + raw.prefix(3).joined(separator: " / ")))
+    }
+
+    /// The helper itself, on the shape that matters: a home prefix goes, and a
+    /// path that merely starts with the same letters does not.
+    @Test("Only the home directory is abbreviated")
+    func onlyHomeIsAbbreviated() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        #expect(Diagnostics.reportable(home + "/.antarium/config.json")
+                == "~/.antarium/config.json")
+        #expect(Diagnostics.reportable("/opt/antarium/config.json")
+                == "/opt/antarium/config.json")
+        // The boundary case `abbreviatingHome` is documented as having got wrong
+        // once, in reverse: a home of /Users/sam matching /Users/sammy.
+        #expect(Diagnostics.reportable(home + "x/file") == home + "x/file",
+                "a sibling directory sharing the home's prefix was abbreviated")
+    }
+}

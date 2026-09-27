@@ -6,6 +6,22 @@ import SwiftUI
 /// With no id it checks every registered agent, which is the fastest way to
 /// see what is configured on a machine.
 enum Diagnostics {
+
+    /// A path as this report should carry it.
+    ///
+    /// Every surface a user *looks* at abbreviates their home — a row's
+    /// `displayPath`, the first-run screen's `shorten` — and this report, the one
+    /// output whose whole purpose is to be sent to somebody else, printed
+    /// `/Users/<them>/...` in nine places. A reader of the report needs to know
+    /// which directory, and `~/.antarium/config.json` says that exactly; the
+    /// username in front of it is identity and not evidence.
+    ///
+    /// The repository has a test insisting it carries nobody's machine, written
+    /// after a hostname reached a public remote in thirty-six places. This is the
+    /// same rule for the thing the app hands a user to paste.
+    static func reportable(_ path: String) -> String {
+        path.abbreviatingHome(FileManager.default.homeDirectoryForCurrentUser.path)
+    }
     /// Formats diagnostic tables without C varargs or a large generic
     /// expression. Keeping each step explicit also avoids compiler-dependent
     /// type-checker timeouts on clean CI machines.
@@ -238,7 +254,7 @@ enum Diagnostics {
                     exit(1)
                 }
                 print("row \(row.name) agent=\(row.agentID) pid=\(row.pid.map(String.init) ?? "nil") "
-                    + "tmux=\(row.tmuxTarget ?? "—") cwd=\(row.cwd)")
+                    + "tmux=\(row.tmuxTarget ?? "—") cwd=\(reportable(row.cwd))")
                 let app = row.pid.flatMap { NSRunningApplication(processIdentifier: $0) }
                 print("owning app: \(app?.localizedName ?? "—") policy=\(app.map { "\($0.activationPolicy.rawValue)" } ?? "—")")
                 print("reveal -> \(Focus.reveal(row).description)")
@@ -262,7 +278,7 @@ enum Diagnostics {
                     print("Log line count must be an integer from 0 through 1000."); exit(2)
                 }
                 print("level : \(Log.level.name)   (ANTARIUM_LOG, or \"logLevel\" in config.json)")
-                print("file  : \(Log.url.path)")
+                print("file  : \(reportable(Log.url.path))")
                 do {
                     let tail = try DiagnosticLogFile.tail(Log.url,lineCount:count)
                     print("---- \(tail.lines.count) complete lines · bounded 64 KiB tail\(tail.truncated ? "; earlier or incomplete lines omitted" : "") ----")
@@ -277,13 +293,13 @@ enum Diagnostics {
             // `--status` — a single readout of what the tool thinks is true.
             if CommandLine.arguments.contains("--status") {
                 print("Antarium \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
-                print("  config    \(Config.url.path)")
+                print("  config    \(reportable(Config.url.path))")
                 // The message already says what happened and what to do; the
                 // gap was that this command never showed it.
                 if let issue = Config.issue { print("    ! \(issue)") }
-                print("  log       \(Log.url.path)  level=\(Log.level.name)")
+                print("  log       \(reportable(Log.url.path))  level=\(Log.level.name)")
                 let descriptors = HarnessDescriptor.all()
-                print("  harnesses \(descriptors.count) loaded from \(HarnessDescriptor.directory.path)")
+                print("  harnesses \(descriptors.count) loaded from \(reportable(HarnessDescriptor.directory.path))")
                 if !HarnessDescriptor.failures.isEmpty {
                     for f in HarnessDescriptor.failures { print("    ! \(f)") }
                 }
@@ -341,7 +357,7 @@ enum Diagnostics {
                     for row in result.rows {
                         print("  \(row.agentID.padding(toLength: 14, withPad: " ", startingAt: 0)) "
                             + "\(row.coreName.padding(toLength: 16, withPad: " ", startingAt: 0)) "
-                            + "\(row.cwd)")
+                            + "\(reportable(row.cwd))")
                     }
                     total += result.rows.count
                 }
@@ -357,7 +373,7 @@ enum Diagnostics {
                 // all of them — a number read as a per-harness cost when it
                 // was nothing of the kind.
                 let harnesses = HarnessDescriptor.all()
-                print("\(harnesses.count) harness(es) from \(HarnessDescriptor.directory.path)")
+                print("\(harnesses.count) harness(es) from \(reportable(HarnessDescriptor.directory.path))")
                 // Absorb transcript history before the clock starts. The
                 // budget is a statement about steady state, and a machine
                 // still catching up is not in it — but skipping the gate
@@ -434,7 +450,7 @@ enum Diagnostics {
                 let found = HarnessEngine.sessions(d)
                 if let newest = found.first {
                     print("\n\(d.id): \(found.count) sessions  newest "
-                        + "cwd=\(newest.cwd ?? "—") model=\(newest.model ?? "—") "
+                        + "cwd=\(reportable(newest.cwd ?? "—")) model=\(newest.model ?? "—") "
                         + "ctx=\(newest.contextTokens.map { "\($0 / 1000)k" } ?? "—")"
                         + "/\(newest.contextWindow.map { "\($0 / 1000)k" } ?? "—") "
                         + "tools=\(newest.toolCalls) turns=\(newest.turns) subs=\(newest.subAgents) "

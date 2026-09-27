@@ -60,16 +60,48 @@ struct NoMachineIdentityTests {
                              "ubuntu", "darwin", "localhost"].contains(name.lowercased())
     }
 
-    @Test("This machine's hostname is not in the repository")
+    /// Every name this machine answers to, not one of them.
+    ///
+    /// This asked `ProcessInfo.processInfo.hostName`, took the part before the
+    /// first dot, and `#require`d it to be distinctive. Two problems, and the gate
+    /// found them together by failing twice on a run where nothing had changed.
+    ///
+    /// `hostName` is the *network* name, so it resolves differently from moment to
+    /// moment: the run that failed reported a two-letter name matching the account
+    /// rather than the machine, where every other run reports the machine. A check
+    /// whose subject changes between runs fails for reasons unrelated to the code.
+    /// (Naming the value here would put this machine in the repository, which is
+    /// what this test forbids — and it caught exactly that on the first attempt.)
+    ///
+    /// And `#require` is not a skip: when the name came back too generic to search
+    /// for, the test *failed* — the exact outcome the comment above it warns
+    /// against, since a test that fails on the machine rather than on the
+    /// repository is a test people learn to ignore.
+    ///
+    /// Both fixed by asking every name available and searching for each that is
+    /// distinctive. More names is a stronger check, and no distinctive name at all
+    /// is a run that proved nothing, said out loud rather than failed.
+    @Test("No name this machine answers to is in the repository")
     func hostnameIsAbsent() throws {
-        var name = ProcessInfo.processInfo.hostName
-        if let dot = name.firstIndex(of: ".") { name = String(name[..<dot]) }
-        try #require(isDistinctive(name),
-                     Comment(rawValue: "\"\(name)\" is too generic to search for"))
+        var candidates: Set<String> = []
+        for raw in [ProcessInfo.processInfo.hostName, Host.current().localizedName ?? "",
+                    Host.current().name ?? ""] {
+            let short = raw.split(separator: ".").first.map(String.init) ?? raw
+            if !short.isEmpty { candidates.insert(short) }
+        }
+        let searchable = candidates.filter(isDistinctive).sorted()
+        guard !searchable.isEmpty else {
+            #expect(Bool(true), Comment(rawValue: "none of \(candidates.sorted()) is distinctive "
+                                        + "enough to search for, so this run proved nothing"))
+            return
+        }
+        let files = try trackedText()
         var found: [String] = []
-        for (path, text) in try trackedText()
-        where text.range(of: name, options: .caseInsensitive) != nil {
-            found.append(path)
+        for name in searchable {
+            for (path, text) in files
+            where text.range(of: name, options: .caseInsensitive) != nil {
+                found.append("\(path) (\(name))")
+            }
         }
         #expect(found.isEmpty,
                 Comment(rawValue: "this machine's name appears in \(found.sorted().joined(separator: ", "))"

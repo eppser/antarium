@@ -173,7 +173,12 @@ enum HarnessCLI {
         let sessions = AgentAutoEnable.sessionsPresent()
         let evidence = AgentAutoEnable.evidence(providers: providers, sessionsPresent: sessions)
         let chosen = AgentAutoEnable.resolve(evidence, fallback: providers.map(\.id))
-        print("settings   \(Config.directory.path)")
+        // Abbreviated for the reason the rest of the report is: this is printed
+        // for somebody to paste, and the username in the path is identity rather
+        // than evidence. This line is in `HarnessCLI` rather than `Diagnostics`,
+        // which is how it was missed when the others were fixed — the test that
+        // reads the real output found it, where a sweep of one file could not.
+        print("settings   \(Diagnostics.reportable(Config.directory.path))")
         print("providers  \(providers.count), showing at most \(AgentAutoEnable.limit)")
         print("recorded   " + (Settings.unconfigured(recorded: Settings.recordedAgents)
             ? "nothing yet — a first run would choose"

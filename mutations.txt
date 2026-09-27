@@ -858,6 +858,10 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+the report prints the home path it ran in | Sources/Antarium/Diagnostics.swift | s|        path.abbreviatingHome(FileManager.default.homeDirectoryForCurrentUser.path)|        path|
+a row's directory is reported unabbreviated | Sources/Antarium/Diagnostics.swift | s|cwd=\\(reportable(row.cwd))")|cwd=\\(row.cwd)")|
+the settings directory is reported unabbreviated | Sources/Antarium/Core/HarnessCLI.swift | s|print("settings   \\(Diagnostics.reportable(Config.directory.path))")|print("settings   \\(Config.directory.path)")|
+the report stops saying which directory it read | Sources/Antarium/Diagnostics.swift | s|        print("  config    \\(reportable(Config.url.path))")||
 turns outlive the reason they cannot be read | Sources/Antarium/Core/AgentScan.swift | s|        row.toolCalls = nil; row.turns = nil; row.subAgents = nil|        row.toolCalls = nil; row.subAgents = nil|
 a cost outlives the reason it cannot be read | Sources/Antarium/Core/AgentScan.swift | s|        row.costUSD = nil; row.contextTokens = nil|        row.contextTokens = nil|
 one reader stops clearing its figures at all | Sources/Antarium/Core/AgentScan.swift | /if let issue = stats.usageIssue {/,/^        } else {/ s|            clearUsageFigures(&row)||
