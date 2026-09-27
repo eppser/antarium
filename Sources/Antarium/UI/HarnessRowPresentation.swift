@@ -50,6 +50,25 @@ struct HarnessRowPresentation {
             .joined(separator: ", ")
     }
 
+    /// The line above the list: how many agents are described, and how many of
+    /// them are somebody's own edit rather than what shipped.
+    ///
+    /// Here rather than in the view for the reason the rest of this type is:
+    /// the badge beside a row and the count above the list are the only two
+    /// places a user can see that a figure came from a descriptor they
+    /// changed, and neither was asserted anywhere. The spoken label was — so
+    /// replacing `edited ? "edited" : "bundled"` with `"bundled"` was caught,
+    /// by an accessibility test, while the badge and this line had nothing to
+    /// say about it.
+    ///
+    /// Nothing is said when nothing is edited. "26 agents · 0 edited" is a
+    /// sentence about an absence, and the list it sits above is the ordinary
+    /// case.
+    static func listSummary(total: Int, edited: Int) -> String {
+        let agents = "\(total) agents"
+        return edited > 0 ? "\(agents) · \(edited) edited" : agents
+    }
+
     private static func source(_ kind: HarnessDescriptor.Source.Kind) -> String {
         switch kind {
         case .jsonl: return "JSON Lines"

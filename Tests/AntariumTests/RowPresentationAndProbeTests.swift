@@ -108,6 +108,59 @@ struct HarnessRowPresentationTests {
         #expect(!row.accessibilityLabel.contains("edited"))
     }
 
+    /// The two places a user can *see* that a descriptor is their own edit:
+    /// the badge beside the row, and the count above the list. Both were
+    /// unasserted — mutating the provenance expression in this type was caught
+    /// only by the spoken label, which is the right test for the spoken label
+    /// and says nothing about what is on screen.
+    @Test("The summary above the list counts the edited ones")
+    func summaryCountsEdits() {
+        #expect(HarnessRowPresentation.listSummary(total: 26, edited: 2)
+                == "26 agents · 2 edited")
+    }
+
+    /// And says nothing when there is nothing to say: a line reading
+    /// "0 edited" is a sentence about an absence.
+    @Test("The summary is silent when nothing is edited")
+    func summaryIsSilentWithoutEdits() {
+        #expect(HarnessRowPresentation.listSummary(total: 26, edited: 0) == "26 agents")
+        #expect(!HarnessRowPresentation.listSummary(total: 26, edited: 0).contains("edited"))
+    }
+
+    /// One edit is still singular in the count and plural in the noun, which
+    /// is what the line says; asserted so that "1 edited" cannot quietly
+    /// become "1 edits" or disappear below a threshold.
+    @Test("A single edit is still counted")
+    func summaryCountsOneEdit() {
+        #expect(HarnessRowPresentation.listSummary(total: 26, edited: 1)
+                == "26 agents · 1 edited")
+    }
+
+    /// And the line is wired to the two numbers it names. `listSummary` is
+    /// pure and tested above, which says nothing about whether the view hands
+    /// it the count of edited descriptors or something else.
+    @Test("The summary is given the agent count and the edit count")
+    func summaryIsWiredToTheCounts() throws {
+        let source = try SourceText.read("Sources/Antarium/UI/SettingsView.swift")
+        #expect(source.contains("HarnessRowPresentation.listSummary(total: all.count, "
+                                + "edited: edited)"),
+                "the summary line is no longer given the agent count and the edit count")
+        #expect(source.contains("HarnessDescriptor.isEdited($0.id) }.count"),
+                "the edit count is no longer counted from the descriptors")
+    }
+
+    /// The badge is the visible half, and it marks only the exception — a row
+    /// saying "unchanged" on every line teaches nothing. Asserted on the
+    /// source, because the condition is view structure rather than a value
+    /// this type returns.
+    @Test("The edited badge is shown only for an edited harness")
+    func badgeIsConditional() throws {
+        let source = try SourceText.read("Sources/Antarium/UI/SettingsView.swift")
+        let row = try SourceText.chain("if isEdited {", in: source)
+        #expect(row.contains("Text(\"edited\")"),
+                "the badge is no longer what `if isEdited` guards")
+    }
+
     /// A descriptor may name its own source label — the generic kind is a
     /// fallback, not an override.
     @Test("A declared source label wins over the generic one")

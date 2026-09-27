@@ -243,7 +243,7 @@ struct SettingsView: View {
 
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(edited > 0 ? "\(all.count) agents · \(edited) edited" : "\(all.count) agents")
+                Text(HarnessRowPresentation.listSummary(total: all.count, edited: edited))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                 Spacer()
                 if all.count > 8 {
