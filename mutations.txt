@@ -857,6 +857,10 @@ labels start together instead of ending together | Sources/Antarium/UI/SettingsV
 the undocumented note loses the date it was checked | Resources/harnesses/opencode.json | s|checked 2026-09-22, opencode.ai|checked recently, opencode.ai|
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
+a shared credential file loses the guard that proves it | Resources/harnesses/zai.json | s|      "requires": {|      "unusedRequires": {|
+a credential guard pins a vendor other than the one paid | Resources/harnesses/zai.json | s|"env.ANTHROPIC_BASE_URL": "z.ai"|"env.ANTHROPIC_BASE_URL": "anthropic.com"|
+an env credential falls back to another vendor's file | Resources/harnesses/deepseek.json | /"credential": {/,/^    }/ s|"path": "~/.antarium/keys/deepseek"|"path": "~/.claude/settings.json"|
+the key file we ask for is not the one we read | Resources/harnesses/moonshot.json | s|"setupHint": "Put your key in ~/.antarium/keys/moonshot"|"setupHint": "Put your key in ~/.antarium/keys/kimi-api"|
 the copilot note stops saying where the key goes | Resources/harnesses/copilot.json | s|on api.github.com, which is where|on an endpoint, which is where|
 the vercel note stops saying which domain answers | Resources/harnesses/vercel-gateway.json | /"note":/ s|ai-gateway.vercel.sh|the gateway|g
 a note stops accounting for the day its mapping was read | Resources/harnesses/minimax.json | s|Probed 2026-09-27|Probed a few days ago|

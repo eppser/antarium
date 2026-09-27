@@ -184,24 +184,94 @@ struct SharedCredentialTests {
 
     /// The reason any of this exists. If a shipped descriptor ever reads a
     /// credential out of a file another vendor also writes, it needs a guard.
-    @Test("Every shipped credential is vendor-specific or guarded")
+    ///
+    /// This used to ask whether the path was under one of four directories
+    /// known to be shared — `/.claude/`, `/.config/`, `/.aws/`, `/.netrc` — and
+    /// skip everything else. Two ways past that: a shared file somewhere nobody
+    /// listed, and `kind: "env"`, which the filter excluded outright although
+    /// its `path` fallback is read exactly like a `textFile`.
+    ///
+    /// The rule below needs no list. A credential file either names the
+    /// descriptor that reads it — its own directory, or the key file we write
+    /// under `~/.antarium/keys/<id>` — or it carries a `requires` clause
+    /// proving the file was configured for this vendor. Every shipped
+    /// descriptor satisfies one or the other, and Z.ai is the whole reason for
+    /// the second: its plan is used through Claude Code, so its token is in
+    /// `~/.claude/settings.json`, and `env.ANTHROPIC_BASE_URL` containing
+    /// `z.ai` is what distinguishes that file from the same file holding
+    /// Moonshot's.
+    ///
+    /// What this stops is a token going to the wrong company. The path and the
+    /// endpoint sit forty lines apart, and a descriptor reading one vendor's
+    /// file and posting to another's host says only "not signed in".
+    @Test("Every shipped credential file is its own, or proves the token is its")
     func shippedCredentialsAreUnambiguous() throws {
         // Read from the bundle, not from HarnessDescriptor.all(), which
         // answers with whatever this Mac has seeded.
         let urls = try #require(AppResources.bundle.urls(
             forResourcesWithExtension: "json", subdirectory: "harnesses"))
         #expect(urls.count > 1, "an empty catalog would pass this trivially")
-        let shared = ["/.claude/", "/.config/", "/.aws/", "/.netrc"]
+        var checked = 0
         for url in urls {
             let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
             guard let credential = descriptor.quota?.credential,
-                  credential.kind == "jsonFile" || credential.kind == "textFile",
-                  let path = credential.path,
-                  shared.contains(where: { path.contains($0) }) else { continue }
+                  let path = credential.path else { continue }
+            checked += 1
+            let ownFile = path.contains(descriptor.id)
             let guarded = credential.requires?.isEmpty == false
-            #expect(guarded, Comment(rawValue: "\(descriptor.id) reads a token from \(path), "
-                    + "which is not its own file, with nothing to prove the token is its"))
+            #expect(ownFile || guarded,
+                    Comment(rawValue: "\(descriptor.id) reads a token from \(path), which does "
+                            + "not name it, with nothing to prove the token is its"))
+            // And where the guard is the proof, it has to pin *this* vendor.
+            // A clause that merely exists satisfies the rule above while
+            // admitting anyone's token.
+            guard !ownFile, let requires = credential.requires,
+                  let host = descriptor.quota?.endpoint
+                    .flatMap({ URLComponents(string: $0)?.host }) else { continue }
+            #expect(requires.values.contains { host.lowercased().contains($0.lowercased()) },
+                    Comment(rawValue: "\(descriptor.id) posts to \(host) and its guard requires "
+                            + "\(requires.values.joined(separator: ", ")), so the guard does not "
+                            + "pin the vendor the token is sent to"))
         }
+        #expect(checked >= 9,
+                Comment(rawValue: "only \(checked) shipped credential files were examined"))
+    }
+
+    /// And where we ask the user to write the key themselves, the instruction
+    /// names the file we actually read.
+    ///
+    /// Two kinds of credential ship. Most are created by the vendor's own tool
+    /// — `gh auth login`, `opencode auth login`, Claude Code — and the user
+    /// never types a path, so those hints name a command instead. The rest are
+    /// files under `~/.antarium/keys/`, which exist because the vendor has no
+    /// CLI to put them there: the user is told a path and types it.
+    ///
+    /// Nothing held the two together. A hint naming a path we do not read leaves
+    /// the user's key in a file nobody opens, and the row says "not signed in"
+    /// — which is exactly what it says before they did anything, so there is no
+    /// way to tell from the app that the instruction was the wrong one. The
+    /// same class as a vendor CLI whose name does not match its own setup hint,
+    /// and checkable the same way: without installing or signing in to
+    /// anything.
+    @Test("A key we ask the user to write is read from the path we tell them")
+    func hintNamesThePathWeRead() throws {
+        let urls = try #require(AppResources.bundle.urls(
+            forResourcesWithExtension: "json", subdirectory: "harnesses"))
+        var asked = 0
+        for url in urls {
+            let descriptor = try HarnessDocument.decode(Data(contentsOf: url)).descriptor
+            guard let path = descriptor.quota?.credential?.path,
+                  // Our own keys directory is the one the user is asked to
+                  // fill; a vendor's own file is written by the vendor's tool.
+                  path.contains("/.antarium/keys/") else { continue }
+            asked += 1
+            let hint = descriptor.quota?.setupHint ?? ""
+            #expect(hint.contains(path),
+                    Comment(rawValue: "\(descriptor.id) reads \(path) and tells the user: "
+                            + "\(hint.isEmpty ? "nothing" : hint)"))
+        }
+        #expect(asked >= 7,
+                Comment(rawValue: "only \(asked) descriptors ask the user for a key file"))
     }
 }
 
