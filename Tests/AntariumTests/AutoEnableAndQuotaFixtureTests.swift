@@ -857,3 +857,72 @@ struct EnabledAgentsAgreementTests {
         #expect(shown.count == 1)
     }
 }
+
+/// Detection picking the right one of a pair.
+///
+/// Two providers now ship as twins — Z.ai and Zhipu read the same settings file
+/// and are separated by a guard inside it. The exclusivity of those guards is
+/// asserted at the credential, which is where it lives. This is the other end of
+/// it: the first run reads `isConfigured` from every provider and enables what it
+/// finds, so a user who pointed Claude Code at one brand should open to that
+/// brand's gauge and not its twin's.
+///
+/// That is the whole of the first ask meeting the fourth. Coverage for a brand is
+/// worth nothing if detection then offers the other one, and a user cannot tell
+/// which of two identically-shaped rows is theirs — both would say "Session
+/// (5 hours)" over the same percentage, and only one of them would be their plan.
+@Suite("A first run picks the brand the machine is configured for", .serialized)
+struct TwinDetectionTests {
+
+    /// The shipped guard and endpoint against a synthetic settings file, so the
+    /// question is asked of this machine's catalogue rather than of this machine.
+    private func provider(_ id: String, settings: URL) throws -> DescriptorProvider {
+        let shipped = try #require(HarnessCLI.bundledDescriptors().first { $0.id == id })
+        let requires = try #require(shipped.quota?.credential?.requires)
+        let object: [String: Any] = [
+            "formatVersion": 1, "id": id, "name": id,
+            "process": [:], "source": ["kind": "none", "path": ""],
+            "quota": ["endpoint": try #require(shipped.quota?.endpoint),
+                      "credential": ["kind": "jsonFile", "path": settings.path,
+                                     "field": "env.ANTHROPIC_AUTH_TOKEN",
+                                     "requires": requires],
+                      "windows": ["list": "data.limits", "usedPercent": "percentage"]]]
+        let descriptor = try HarnessDocument.decode(
+            JSONSerialization.data(withJSONObject: object)).descriptor
+        return try #require(DescriptorProvider(descriptor))
+    }
+
+    @Test("The brand the settings name is the one the bar opens to",
+          arguments: [("https://api.z.ai/api/anthropic", "zai", "zhipu"),
+                      ("https://open.bigmodel.cn/api/anthropic", "zhipu", "zai")])
+    func firstRunPicksTheConfiguredBrand(base: String, wanted: String, other: String) throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("twin-detect-\(UUID()).json")
+        try JSONSerialization.data(withJSONObject: [
+            "env": ["ANTHROPIC_BASE_URL": base, "ANTHROPIC_AUTH_TOKEN": "synthetic-token"]])
+            .write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        ConfiguredProbe.invalidate()
+        let providers: [(id: String, signedIn: Bool)] = [
+            (wanted, try provider(wanted, settings: file).isConfigured),
+            (other, try provider(other, settings: file).isConfigured),
+        ]
+        // The evidence first, because the choice below is only as good as it.
+        #expect(providers.first { $0.id == wanted }?.signedIn == true,
+                Comment(rawValue: "a settings file naming \(base) left \(wanted) unconfigured"))
+        #expect(providers.first { $0.id == other }?.signedIn == false,
+                Comment(rawValue: "a settings file naming \(base) also configured \(other)"))
+
+        // And what a first run would put in the bar. No sessions: these are
+        // quota-only providers, so the credential is the only evidence there is.
+        let record = try #require(AgentAutoEnable.firstRunRecord(
+            recorded: nil, providers: providers, sessions: []))
+        #expect(record.enabled == [wanted],
+                Comment(rawValue: "a machine configured for \(wanted) would open to "
+                        + "\(record.enabled.sorted().joined(separator: ", "))"))
+        // Both were offered, or the one passed over comes back as new next launch
+        // and gets adopted unasked.
+        #expect(record.known == [wanted, other])
+    }
+}
