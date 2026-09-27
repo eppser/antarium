@@ -995,15 +995,6 @@ private struct CostLabel: View {
 private struct ContextBar: View {
     let fraction: Double
     let tokens: Int?, window: Int?
-    /// Pure, so what the bar claims can be checked without drawing it.
-    static func help(gauge: Gauge, plan: String?, fetchedAt: Date?,
-                     now: Date = Date()) -> String {
-        let figure = gauge.amountText.map { "\(gauge.title): \($0) left" }
-            ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage"
-        guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }
-        return figure + " — as of " + Format.age(fetchedAt)
-    }
-
     private var tint: Color { fraction > 0.85 ? .red : (fraction > 0.6 ? .orange : .green) }
     var body: some View {
         HStack(spacing: 3.5) {
@@ -1037,8 +1028,21 @@ struct AccountQuotaBar: View {
     private var isStale: Bool { QuotaStore.isStale(fetchedAt) }
 
     /// Pure, so what the bar claims can be checked without drawing it.
+    ///
+    /// There were two of these, identical, and only this one was called. The other
+    /// sat in `ContextBar`, which is built from a fraction and token counts and
+    /// never from a gauge — so it could not have been reached. It is gone, and it
+    /// was not harmless: changing the quota tooltip, I edited the dead one, and the
+    /// test that should have caught the mistake could not even name it.
     static func help(gauge: Gauge, plan: String?, fetchedAt: Date?,
                      now: Date = Date()) -> String {
+        // A window that reset after the reading was taken has replaced the figure,
+        // so this says so rather than quoting it. "As of an hour ago" invites the
+        // user to discount an old number; this one is not old, it is superseded.
+        if let fetchedAt, gauge.resetSince(reading: fetchedAt, now: now) {
+            return "\(gauge.title): reset since this was read — "
+                + "last read \(Format.age(fetchedAt))"
+        }
         let figure = gauge.amountText.map { "\(gauge.title): \($0) left" }
             ?? "\(gauge.title): \(gauge.usedPercentText) of included \(plan ?? "plan") usage"
         guard QuotaStore.isStale(fetchedAt, now: now) else { return figure }

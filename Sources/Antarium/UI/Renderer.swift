@@ -26,12 +26,20 @@ struct StatusRender: Equatable {
     /// inside made a test of it a test of whatever this Mac happens to be set
     /// to.
     static func rows(for snapshot: Snapshot,
-                     mode: MeterMode = Settings.meterMode) -> [Row] {
+                     mode: MeterMode = Settings.meterMode,
+                     now: Date = Date()) -> [Row] {
         return snapshot.gauges.prefix(2).map { g in
-            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,
-                percentText: g.amountText
-                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),
-                resetText: Format.shortCountdown(to: g.resetsAt),
+            // A window that reset after this reading was taken has replaced the
+            // figure, so the figure is not shown. The row stays — the window
+            // exists and its reset is still worth saying — but the bar has no
+            // fill and the number is a dash, which is what this app draws for
+            // every other figure it does not have.
+            let superseded = g.resetSince(reading: snapshot.fetchedAt, now: now)
+            return Row(fill: superseded ? nil
+                        : (g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil),
+                percentText: superseded ? "—" : (g.amountText
+                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText)),
+                resetText: Format.shortCountdown(to: g.resetsAt, now: now),
                 // Severity is headroom either way, so the colours never flip
                 // meaning when the mode changes.
                 severity: g.severity)

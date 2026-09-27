@@ -635,9 +635,9 @@ every settings change is refused | Sources/Antarium/UI/Settings.swift | s|      
 switching an agent on removes it instead | Sources/Antarium/UI/Settings.swift | s|        if on { next.insert(id) } else { next.remove(id) }|        if on { next.remove(id) } else { next.insert(id) }|
 the settings toggle decides for itself again | Sources/Antarium/UI/SettingsView.swift | s|        .disabled(refusal != nil)||
 the menu bar colour follows the meter mode | Sources/Antarium/UI/Renderer.swift | s|                severity: g.severity)|                severity: mode == .used ? g.severity : Severity.forRemaining(g.used))|
-the bar ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: g.hasMeter ? g.used : nil,|
-a balance draws a bar after all | Sources/Antarium/UI/Renderer.swift | s|            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,|            Row(fill: (mode == .used ? g.used : g.remaining),|
-the figure ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s|                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText),|                    ?? g.usedPercentText,|
+the bar ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s%                        : (g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil),%                        : (g.hasMeter ? g.used : nil),%
+a balance draws a bar after all | Sources/Antarium/UI/Renderer.swift | s%                        : (g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil),%                        : (mode == .used ? g.used : g.remaining),%
+the figure ignores the meter mode | Sources/Antarium/UI/Renderer.swift | s%                    ?? (mode == .used ? g.usedPercentText : g.remainingPercentText)),%                    ?? g.usedPercentText),%
 a declared mark is ignored | Sources/Antarium/UI/Glyphs.swift | s|        if let declared = descriptors.first(where: { \$0.id == agentID })?.resolvedMark {|        if let declared: String = nil {|
 any descriptor lends its mark | Sources/Antarium/UI/Glyphs.swift | s|descriptors.first(where: { \$0.id == agentID })?.resolvedMark|descriptors.first?.resolvedMark|
 the alias table is skipped | Sources/Antarium/UI/Glyphs.swift | s|        return alias\[agentID\] ?? agentID|        return agentID|
@@ -1129,7 +1129,7 @@ a camelcase codex reset is not read | Sources/Antarium/Providers/CodexProvider.s
 a camelcase codex reset date is not read | Sources/Antarium/Providers/CodexProvider.swift | s%        } else if let iso = (d\["resets_at"\] as? String) ?? (d\["resetsAt"\] as? String) {%        } else if let iso = (d["resets_at"] as? String) {%
 the bar colours by the number rather than the status | Sources/Antarium/UI/Renderer.swift | s%                severity: g.severity)%                severity: Severity.forRemaining(g.remaining))%
 a status-driven critical never reaches the row | Sources/Antarium/UI/Renderer.swift | s%                severity: g.severity)%                severity: .normal)%
-marking a window spent also moves its bar | Sources/Antarium/UI/Renderer.swift | s%            Row(fill: g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil,%            Row(fill: g.hasMeter ? (g.severity == .critical ? 1 : (mode == .used ? g.used : g.remaining)) : nil,%
+marking a window spent also moves its bar | Sources/Antarium/UI/Renderer.swift | s%                        : (g.hasMeter ? (mode == .used ? g.used : g.remaining) : nil),%                        : (g.hasMeter ? (g.severity == .critical ? 1 : (mode == .used ? g.used : g.remaining)) : nil),%
 kimi loses the connect protocol header | Resources/harnesses/kimi.json | s%"connect-protocol-version": "1",%%
 kimi sends a browser user agent | Resources/harnesses/kimi.json | s%"User-Agent": "Antarium"%"User-Agent": "Mozilla/5.0 Chrome/143"%
 kimi posts to a different method | Resources/harnesses/kimi.json | s%BillingService/GetUsages%BillingService/ListUsages%
@@ -1164,3 +1164,9 @@ a journal delete index stated as a flag resolves | Sources/Antarium/Core/Journal
 a source limit stated as a flag is accepted | Sources/Antarium/Core/HarnessDocument.swift | s%           FieldPath.isBoolean(source\["limit"\])%           false%
 a loop delay stated as a flag is a delay | Sources/Antarium/Core/TranscriptStats.swift | s%            if !FieldPath.isBoolean(input\["delaySeconds"\]),%            if true,%
 a descriptor builds a snapshot from an empty reply | Sources/Antarium/Providers/DescriptorProvider.swift | s%        guard !gauges.isEmpty else {%        guard true else {%
+a superseded reading keeps its figure | Sources/Antarium/Core/UsageModel.swift | s%        return resetsAt <= now \&\& resetsAt > fetchedAt%        return false%
+a current reading is called superseded | Sources/Antarium/Core/UsageModel.swift | s%        return resetsAt <= now \&\& resetsAt > fetchedAt%        return true%
+a fresh reply with a past reset is doubted | Sources/Antarium/Core/UsageModel.swift | s%        return resetsAt <= now \&\& resetsAt > fetchedAt%        return resetsAt <= now%
+a window with no stated reset is called superseded | Sources/Antarium/Core/UsageModel.swift | s%        guard let resetsAt else { return false }%        guard let resetsAt else { return true }%
+the bar draws a superseded figure | Sources/Antarium/UI/Renderer.swift | s%            let superseded = g.resetSince(reading: snapshot.fetchedAt, now: now)%            let superseded = false%
+the tooltip quotes a superseded figure | Sources/Antarium/UI/Dashboard.swift | s%        if let fetchedAt, gauge.resetSince(reading: fetchedAt, now: now) {%        if false, let fetchedAt {%

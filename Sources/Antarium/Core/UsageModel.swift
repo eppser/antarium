@@ -134,6 +134,29 @@ struct Gauge: Equatable {
     /// API cannot be called — and it is true of every balance here, so it
     /// belongs in the type rather than in each descriptor. A negative one is
     /// the same fact with a debt attached.
+    /// Whether this window reset *after* the reading was taken.
+    ///
+    /// A figure from before a reset is not old, it is wrong, and this app has the
+    /// evidence to know: the window states when it resets, and that moment has
+    /// passed while the reading has not been refreshed. Claude's session window is
+    /// five hours, so a credential that expires or a network that drops for longer
+    /// leaves a spent bar on a window that has since refilled — which discourages
+    /// the user from working, the exact inverse of the inversion that started this
+    /// audit.
+    ///
+    /// Staleness was already surfaced, and it answers a different question: "this
+    /// figure is old" tells the user to distrust it a little, where this says the
+    /// service has already replaced it.
+    ///
+    /// Compared against the reading's own `fetchedAt` rather than against a
+    /// staleness flag, so a *fresh* reply whose reset is already past is left
+    /// alone. That is the service's own inconsistency or a clock skew, and it just
+    /// told us the figure — second-guessing it would be inventing doubt.
+    func resetSince(reading fetchedAt: Date, now: Date = Date()) -> Bool {
+        guard let resetsAt else { return false }
+        return resetsAt <= now && resetsAt > fetchedAt
+    }
+
     var severity: Severity {
         // Critical outright, not the worse of the two: it is the top of
         // the scale, so nothing a provider reported can exceed it and a
