@@ -187,7 +187,29 @@ while IFS='|' read -r name file expression; do
             if [ "$status" -eq 124 ]; then
                 printf '  %-46s caught (never finished)\n' "$name"
             elif grep -q '^✘ ' "$BACKUP/out"; then
-                printf '  %-46s caught\n' "$name"
+                # How many objected, not only the first three names.
+                #
+                # "Caught by one test" and "caught by forty-seven" are different
+                # evidence about the same verdict. One is a cover; forty-seven is a
+                # mutation that broke something structural, and the three names
+                # printed below are then an arbitrary sample of a landslide. Twice in
+                # two days a mutation here was reported caught by a test that knew
+                # nothing about it — once by a documentation-alignment test, once by a
+                # test that read the live catalogue inside a mutated tree — and both
+                # times the count would have said so at a glance.
+                #
+                # A count rather than a list of "broad" suites to excuse: such a list
+                # would need keeping in step with the suite, and this project already
+                # declines that trade elsewhere.
+                objectors=$(grep -E '^✘ Test ' "$BACKUP/out" | grep -v '^✘ Test run with' \
+                    | sed -e 's/^✘ Test //' -e 's/ recorded an issue.*//' \
+                          -e 's/ failed after.*//' -e 's/ with [0-9]* test cases.*//' \
+                    | sort -u | wc -l | tr -d ' ')
+                if [ "$objectors" -eq 1 ]; then
+                    printf '  %-46s caught by 1 test\n' "$name"
+                else
+                    printf '  %-46s caught by %s tests\n' "$name" "$objectors"
+                fi
                 # Which tests objected, not merely that something did.
                 #
                 # "Caught" alone says the suite noticed, not that the test

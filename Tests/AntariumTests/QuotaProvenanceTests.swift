@@ -66,13 +66,19 @@ struct QuotaProvenanceTests {
     /// round: a mapping can be read against a vendor reference or against
     /// another implementation, and only the first of those has a URL.
     @Test("A dated mapping still says what it was read against")
-    func datedMappingsNameTheirSource() {
-        for descriptor in quotaDescriptors where descriptor.quota?.checkedAt != nil {
+    func datedMappingsNameTheirSource() throws {
+        for descriptor in quotaDescriptors {
+            guard let day = descriptor.quota?.checkedAt else { continue }
             let cited = descriptor.quota?.documentation != nil
-            let explained = (descriptor.note ?? "").contains("2026-")
+            // The note has to account for *this* reading, not carry a date
+            // from some other one. Every descriptor's note states the day its
+            // own `checkedAt` names, which is what ties the two together —
+            // asking only whether a date appeared accepted a note describing
+            // a reading from three days earlier.
+            let explained = (descriptor.note ?? "").contains(day)
             #expect(cited || explained,
-                    Comment(rawValue: "\(descriptor.id) dates a reading and names no reference "
-                            + "and no note saying what was read"))
+                    Comment(rawValue: "\(descriptor.id) dates a reading \(day) and names no "
+                            + "reference and no note accounting for that day"))
         }
     }
 
@@ -152,28 +158,43 @@ struct QuotaProvenanceTests {
     /// absent because the vendor publishes nothing, are different facts and
     /// used to look identical.
     ///
-    /// Five of the ten are the second kind, each established by looking:
-    /// OpenCode documents its models and its pricing and not this endpoint,
-    /// Copilot's is GitHub's own internal one, MiniMax's own page says the
-    /// quota "is shown as a usage bar in the console", Z.ai documents the
-    /// plan and not the call, and Command Code documents the windows without
-    /// the shape that reports them. None can ever carry a URL, and without
-    /// somewhere to say so the next person re-runs the same five searches. Where a mapping
-    /// cannot be checked against a reference, its fixture is the whole of
-    /// the check — which is worth stating in the file that carries it.
+    /// Each of them established by looking: OpenCode documents its models and
+    /// its pricing and not this endpoint, Copilot's is GitHub's own internal
+    /// one, MiniMax's own page says the quota "is shown as a usage bar in the
+    /// console", Z.ai documents the plan and not the call, Command Code
+    /// documents the windows without the shape that reports them, and Kimi's
+    /// is a Connect-RPC method its web console calls. None can ever carry a
+    /// URL, and without somewhere to say so the next person re-runs the same
+    /// searches. Where a mapping cannot be checked against a reference, its
+    /// fixture is the whole of the check — which is worth stating in the file
+    /// that carries it.
     @Test("An uncited mapping says whether a reference exists at all")
     func uncitedMappingsExplainThemselves() throws {
-        let undocumented = ["opencode", "copilot", "minimax", "zai", "commandcode"]
-        for id in undocumented {
-            let descriptor = try #require(quotaDescriptors.first { $0.id == id },
-                                          Comment(rawValue: "\(id) no longer ships"))
-            #expect(descriptor.quota?.documentation == nil,
-                    Comment(rawValue: "\(id) now cites a reference — move it out of this list"))
+        // Derived, not listed. This named five ids for as long as there were
+        // five; Kimi arrived uncited and was excused by the partition test
+        // below while this one did not look at it at all. The five are still
+        // required to be in the set, so losing one is a failure rather than a
+        // shorter loop.
+        let uncited = quotaDescriptors.filter { $0.quota?.documentation == nil }
+        for named in ["opencode", "copilot", "minimax", "zai", "commandcode"] {
+            #expect(uncited.contains { $0.id == named },
+                    Comment(rawValue: "\(named) now cites a reference, or no longer ships — "
+                            + "either way this list is the thing to update"))
+        }
+        for descriptor in uncited {
             let note = descriptor.note ?? ""
-            #expect(note.lowercased().contains("published nowhere"),
-                    Comment(rawValue: "\(id) has no citation and does not say why"))
-            #expect(note.contains("2026-"),
-                    Comment(rawValue: "\(id) does not say when that was last checked"))
+            let claim = try #require(note.range(of: "published nowhere",
+                                                options: .caseInsensitive),
+                                     Comment(rawValue: "\(descriptor.id) has no citation and "
+                                             + "does not say why"))
+            // Beside the claim, not somewhere in the note. These notes run to
+            // two thousand characters and carry several dates apiece, so
+            // asking whether one appeared anywhere was answered by any of
+            // them: removing the date from the claim itself left this green.
+            let beside = String(note[claim.upperBound...].prefix(60))
+            #expect(beside.range(of: #"\d{4}-\d{2}-\d{2}"#, options: .regularExpression) != nil,
+                    Comment(rawValue: "\(descriptor.id) says its shape is published nowhere and "
+                            + "not when that was established: \(beside)"))
         }
     }
 

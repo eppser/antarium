@@ -837,6 +837,9 @@ a label is cut off by its own column | Sources/Antarium/UI/SettingsView.swift | 
 the settings header is a poster again | Sources/Antarium/UI/SettingsView.swift | s|                        .frame(width: 20, height: 20)|                        .frame(width: 56, height: 56)|
 labels start together instead of ending together | Sources/Antarium/UI/SettingsView.swift | s|alignment: .trailing)$|alignment: .leading)|
 the undocumented note loses the date it was checked | Resources/harnesses/opencode.json | s|checked 2026-09-22, opencode.ai|checked recently, opencode.ai|
+the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
+a note stops accounting for the day its mapping was read | Resources/harnesses/minimax.json | s|Probed 2026-09-27|Probed a few days ago|
+a re-checked verdict stops saying when | docs/ECOSYSTEM.md | s|Chutes was re-checked on 2026-09-22|Chutes was re-checked recently|
 a mapping both cites a reference and claims there is none | Resources/harnesses/synthetic.json | s|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas",|"documentation": "https://dev.synthetic.new/docs/synthetic/quotas", "unusedNote": "published nowhere",|
 the synthetic mapping stops saying where it was read from | Resources/harnesses/synthetic.json | /"documentation": "https/d
 an uncited mapping stops saying why | Resources/harnesses/copilot.json | s|is published nowhere|is undocumented|

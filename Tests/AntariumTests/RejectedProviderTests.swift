@@ -60,17 +60,32 @@ struct RejectedProviderTests {
     /// documentation, and that changes. Every verdict carries the day it was
     /// established, so a reader can tell a checked entry from a remembered
     /// one.
-    @Test("Every verdict says when it was established")
+    @Test("Every claim of a re-check says when it was re-checked")
     func verdictsAreDated() throws {
-        let text = try ecosystem()
-        let section = try SourceText.block("Five more were looked at and not written",
-                                           in: text)
-        #expect(!section.isEmpty)
-        // The paragraphs that record a re-check name their date.
-        let dated = text.components(separatedBy: "2026-").count - 1
-        #expect(dated >= 2,
-                Comment(rawValue: "only \(dated) verdicts carry a date, so a reader cannot "
-                        + "tell which were checked from which were repeated"))
+        // Two things were wrong with the first version of this. It measured
+        // the count on the whole document rather than the section, so a date
+        // written anywhere in ECOSYSTEM.md answered it; and it reached for
+        // `SourceText.block`, which ends a block on a closing brace and so
+        // returns the rest of a Markdown file. `turnedDownSection` is the
+        // bounded one, and it was already here.
+        let section = try turnedDownSection()
+        let claims = section.components(separatedBy: "\n\n").filter { paragraph in
+            let lowered = paragraph.lowercased()
+            return ["re-checked", "checked again", "probed on"].contains {
+                lowered.contains($0)
+            }
+        }
+        // A paragraph asserting a fresh look states the day, or it is
+        // indistinguishable from the verdict it replaced.
+        for claim in claims {
+            let flat = claim.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            #expect(claim.range(of: #"\d{4}-\d{2}-\d{2}"#, options: .regularExpression) != nil,
+                    Comment(rawValue: "a re-check is claimed with no date: \(flat.prefix(120))"))
+        }
+        #expect(claims.count >= 3,
+                Comment(rawValue: "only \(claims.count) paragraphs record a re-check, so a "
+                        + "reader cannot tell which verdicts were checked from which were "
+                        + "repeated"))
     }
 
     /// The one that is closest to being writable is marked as such, because
