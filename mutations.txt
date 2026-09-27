@@ -858,6 +858,11 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+a stale choice empties the menu bar | Sources/Antarium/Core/UsageProvider.swift | s|        if !result.isEmpty { return result }||
+an empty registry traps rather than showing nothing | Sources/Antarium/Core/UsageProvider.swift | s|        return providers.first.map { \[$0\] } ?? \[\]|        return [providers[0]]|
+the last agent is switched off in silence | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }||
+a fixed default stands in for a choice never made | Sources/Antarium/UI/Settings.swift | s|        recorded.map(Set.init) ?? \[\]|        recorded.map(Set.init) ?? ["claude-code", "codex", "cursor"]|
+a provider switched off and on stays retired | Sources/Antarium/Core/QuotaStore.swift | s|        retired.remove(providerID)||
 a remote row is promised a click this mac cannot honour | Sources/Antarium/UI/Dashboard.swift | s|        } else if row.pid != nil, allowed.contains(.goToWindow) {|        } else if row.pid != nil {|
 a remote tmux row is offered a local attach | Sources/Antarium/UI/Dashboard.swift | s|        if let t = row.tmuxTarget, allowed.contains(.attachTmux) {|        if let t = row.tmuxTarget {|
 a remote row stops saying where it is running | Sources/Antarium/UI/Dashboard.swift | s|            lines.append("Running on \\(host) — this Mac cannot bring it forward")||
