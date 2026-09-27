@@ -581,13 +581,37 @@ enum AgentScan {
         return rows
     }
 
+    /// Every figure a usage issue invalidates.
+    ///
+    /// Two places set a row's `note` from a usage issue — the native transcript
+    /// reader and the harness reader — and each nilled its own list. They had
+    /// drifted: `turns`, `subAgents` and `contextWindow` survived an issue on the
+    /// transcript path and not on the harness one. A surviving figure is spoken
+    /// in the same breath as the reason it cannot be, because the row summary
+    /// reads the figures and then appends the note: "12 turns, Transcript usage
+    /// values are invalid or out of range. Usage figures are unavailable."
+    ///
+    /// One list, so the two cannot disagree again, and a figure added to the row
+    /// has one place to be added here.
+    ///
+    /// `contextWindow` is deliberately not in it. It is the model's capacity from
+    /// the price table rather than anything measured in this session, so an
+    /// unreadable transcript says nothing about it — and the transcript path sets
+    /// it a few lines below the branch either way, which would have undone a
+    /// clearing here and left the two paths disagreeing again in the other
+    /// direction. With `contextTokens` gone there is no fraction to draw from it.
+    static func clearUsageFigures(_ row: inout AgentRow) {
+        row.sentTokens = nil; row.receivedTokens = nil; row.totalTokens = nil
+        row.toolCalls = nil; row.turns = nil; row.subAgents = nil
+        row.costUSD = nil; row.contextTokens = nil
+    }
+
     static func applyTranscript(_ stats:TranscriptStats,to row:inout AgentRow) {
         row.activity = stats.activitySeries()
         row.model = stats.model
         row.awaitingHistory = stats.isBacklogged
         if let issue = stats.usageIssue {
-            row.sentTokens = nil; row.receivedTokens = nil; row.totalTokens = nil
-            row.toolCalls = nil; row.costUSD = nil; row.contextTokens = nil
+            clearUsageFigures(&row)
             row.note = issue
         } else {
             row.sentTokens = stats.hasUsageFacts ? stats.sentTokens : nil
@@ -918,9 +942,7 @@ enum AgentScan {
         row.awaitingHistory = session.sourceBacklogged == true
         if let issue = session.usageIssue {
             row.note = issue
-            row.toolCalls = nil; row.turns = nil; row.subAgents = nil
-            row.costUSD = nil; row.contextTokens = nil; row.contextWindow = nil
-            row.sentTokens = nil; row.receivedTokens = nil; row.totalTokens = nil
+            clearUsageFigures(&row)
         } else {
             row.toolCalls = session.hasNumeric("toolCalls") ? session.toolCalls : nil
             row.turns = session.hasNumeric("turns") ? session.turns : nil

@@ -124,3 +124,76 @@ struct UsageIssueChoiceTests {
                 "usageIssue no longer asks the function these test")
     }
 }
+
+/// No figure outlives the reason it cannot be read.
+///
+/// A row whose usage could not be read has its figures nilled rather than zeroed,
+/// and the reason goes in the note. The row summary reads the figures and then
+/// appends the note, so a figure that survives is spoken in the same breath as the
+/// statement that there are none: "12 turns, Transcript usage values are invalid or
+/// out of range. Usage figures are unavailable."
+///
+/// Two readers set that note — the native transcript one and the harness one — and
+/// each nilled its own list. They had drifted: `turns` and `subAgents` survived an
+/// issue on one path and not the other. Neither list was wrong on its own, which is
+/// why nothing caught it; one list now, and this is what holds it.
+@Suite("A usage issue leaves no figure behind")
+struct UsageFigureClearingTests {
+
+    /// Every measured figure the row carries, set to something recognisable, so a
+    /// survivor is visible rather than absent by accident.
+    private func fullRow() -> AgentRow {
+        var row = AgentRow(id: "r", agentID: "x", name: "r", cwd: "/synthetic", state: .working)
+        row.sentTokens = 11; row.receivedTokens = 22; row.totalTokens = 33
+        row.toolCalls = 44; row.turns = 55; row.subAgents = 66
+        row.costUSD = 7.7; row.contextTokens = 88
+        return row
+    }
+
+    @Test("Clearing leaves none of them")
+    func clearingLeavesNothing() {
+        var row = fullRow()
+        AgentScan.clearUsageFigures(&row)
+        let survivors: [(String, Any?)] = [
+            ("sentTokens", row.sentTokens), ("receivedTokens", row.receivedTokens),
+            ("totalTokens", row.totalTokens), ("toolCalls", row.toolCalls),
+            ("turns", row.turns), ("subAgents", row.subAgents),
+            ("costUSD", row.costUSD), ("contextTokens", row.contextTokens),
+        ].filter { $0.1 != nil }
+        #expect(survivors.isEmpty,
+                Comment(rawValue: "these figures outlived the reason they cannot be read: "
+                        + survivors.map(\.0).joined(separator: ", ")))
+    }
+
+    /// The model's capacity is not a measurement and stays, which is the one
+    /// deliberate exception — and the transcript path sets it after the branch
+    /// either way, so clearing it there would have put the two paths back into
+    /// disagreement from the other side.
+    @Test("The model's context window is not a figure this clears")
+    func windowSurvives() {
+        var row = fullRow()
+        row.contextWindow = 200_000
+        AgentScan.clearUsageFigures(&row)
+        #expect(row.contextWindow == 200_000,
+                "the model's capacity was cleared as though it had been measured")
+        // And with nothing measured against it there is no fraction to draw.
+        #expect(row.contextFraction == nil,
+                "a context fraction survived with no measured tokens")
+    }
+
+    /// Both readers ask the one function, or the drift comes back.
+    @Test("Both readers clear through the same rule")
+    func bothReadersUseIt() throws {
+        let source = try SourceText.read("Sources/Antarium/Core/AgentScan.swift")
+        #expect(source.components(separatedBy: "clearUsageFigures(&row)").count - 1 == 2,
+                "the two readers no longer both clear through one rule")
+        // And neither has grown its own list again.
+        for line in source.split(separator: "\n")
+        where line.contains("row.toolCalls = nil") || line.contains("row.turns = nil") {
+            #expect(line.contains("static func clearUsageFigures")
+                    || line.trimmingCharacters(in: .whitespaces).hasPrefix("row.sentTokens = nil")
+                    || line.trimmingCharacters(in: .whitespaces).hasPrefix("row.toolCalls = nil"),
+                    Comment(rawValue: "a reader nils figures outside the shared rule: \(line)"))
+        }
+    }
+}
