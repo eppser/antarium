@@ -435,3 +435,56 @@ struct KimiProbedRequestTests {
         #expect(try quota.checkedAt == "2026-09-27")
     }
 }
+
+/// The last two numeric coercions the tree-wide sweep found.
+@Suite("A flag is not a limit, and not a delay")
+struct RemainingFlagCoercionTests {
+
+    /// `source.limit` caps how many session files are read. `as? NSNumber` takes a
+    /// boolean and `intValue` makes it 1 — inside the valid range — so a
+    /// descriptor declaring `"limit": true` was accepted and read *one* session
+    /// where its author meant something else, silently.
+    @Test("A source limit stated as a flag is refused", arguments: ["true", "false"])
+    func limitAsFlag(literal: String) {
+        let data = Data("""
+        {
+          "formatVersion":\(HarnessDocument.currentVersion),
+          "id":"limit-flag","name":"Limit flag","process":{"pathContains":["/limit-flag"]},
+          "source":{"kind":"jsonl","path":"~/.limit-flag","glob":"*.jsonl","limit":\(literal)}
+        }
+        """.utf8)
+        #expect(throws: HarnessDocument.Error.self,
+                Comment(rawValue: "limit: \(literal) was accepted")) {
+            _ = try HarnessDocument.decode(data)
+        }
+    }
+
+    /// And a real limit still decodes, in both directions of the range.
+    @Test("A real source limit still decodes", arguments: [1, 42, 400])
+    func realLimitDecodes(limit: Int) throws {
+        let data = Data("""
+        {
+          "formatVersion":\(HarnessDocument.currentVersion),
+          "id":"limit-ok","name":"Limit ok","process":{"pathContains":["/limit-ok"]},
+          "source":{"kind":"jsonl","path":"~/.limit-ok","glob":"*.jsonl","limit":\(limit)}
+        }
+        """.utf8)
+        // Asserted, not merely decoded. The first version of this called `decode`
+        // and relied on it not throwing, which the suite's own "No test asserts
+        // nothing" check refused — rightly: a test with no expectation reports a
+        // pass it never earned.
+        #expect(try HarnessDocument.decode(data).descriptor.source.limit == limit)
+    }
+
+    @Test("A limit outside the range is still refused", arguments: [0, -1, 401])
+    func outOfRangeRefused(limit: Int) {
+        let data = Data("""
+        {
+          "formatVersion":\(HarnessDocument.currentVersion),
+          "id":"limit-bad","name":"Limit bad","process":{"pathContains":["/limit-bad"]},
+          "source":{"kind":"jsonl","path":"~/.limit-bad","glob":"*.jsonl","limit":\(limit)}
+        }
+        """.utf8)
+        #expect(throws: HarnessDocument.Error.self) { _ = try HarnessDocument.decode(data) }
+    }
+}

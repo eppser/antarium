@@ -29,7 +29,8 @@ enum Journal {
             // answer for.
             let kind: Int
             if line["kind"] == nil { kind = 0 }
-            else if let declared = line["kind"] as? Int, (0...3).contains(declared) {
+            else if !FieldPath.isBoolean(line["kind"]),
+                    let declared = line["kind"] as? Int, (0...3).contains(declared) {
                 kind = declared
             } else { continue }
 
@@ -51,7 +52,14 @@ enum Journal {
             // request is retried or edited. Ignored, the replaced requests
             // stayed in the document alongside the ones that replaced them,
             // and their usage was counted twice.
-            let truncate = (line["i"] as? Int).flatMap { $0 >= 0 ? $0 : nil }
+            // A flag is not a splice point. `kind: true` used to be applied as a
+            // set and `i: true` truncated the array at index one — three requests
+            // and a push left two, so the tokens of the requests after the first
+            // were dropped. `as? Int` takes a boolean `NSNumber` as 0 or 1, and
+            // this file's own reasoning about an unreadable `kind` — skip it
+            // rather than guess — never reached either field.
+            let truncate = FieldPath.isBoolean(line["i"]) ? nil
+                : (line["i"] as? Int).flatMap { $0 >= 0 ? $0 : nil }
             document = write(document, path[...], line["v"],
                              append: kind == 2, truncate: truncate)
                 as? [String: Any] ?? document
@@ -110,7 +118,7 @@ enum Journal {
                                     truncate: truncate)
             return dictionary
         }
-        if let index = head as? Int, index >= 0, index < 10_000 {
+        if !FieldPath.isBoolean(head), let index = head as? Int, index >= 0, index < 10_000 {
             guard mayBuildArray(node) else { return node }
             var array = node as? [Any] ?? []
             // A patch can name an element the snapshot never carried.
@@ -145,7 +153,7 @@ enum Journal {
             }
             return dictionary
         }
-        if let index = head as? Int, index >= 0 {
+        if !FieldPath.isBoolean(head), let index = head as? Int, index >= 0 {
             guard var array = node as? [Any], index < array.count else { return node }
             if rest.isEmpty { array.remove(at: index) }
             else { array[index] = remove(array[index], rest) ?? array[index] }

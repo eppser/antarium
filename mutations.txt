@@ -662,7 +662,7 @@ the clamp stops preferring the low end | Sources/Antarium/UI/PanelPlacement.swif
 sorting by spend leaves ties to chance | Sources/Antarium/Core/AgentScan.swift | s|                if a != b { return a > b }|                return a > b; if false {}|
 an unmeasured context reads as empty | Sources/Antarium/Core/HarnessEngine.swift | s|        var contextTokens: Int? { measuredContext }|        var contextTokens: Int? { measuredContext ?? 0 }|
 a malformed journal kind replaces the document | Sources/Antarium/Core/Journal.swift | s|            } else { continue }|            } else { kind = 0 }|
-an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int {|
+an unknown journal kind is applied as a set | Sources/Antarium/Core/Journal.swift | s%                    let declared = line\["kind"\] as? Int, (0...3).contains(declared) {%                    let declared = line["kind"] as? Int {%
 a journal line with no kind is skipped | Sources/Antarium/Core/Journal.swift | s|            if line\["kind"\] == nil { kind = 0 }|            if false { kind = 0 }|
 a token in the endpoint goes in unencoded | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{token}", with: encode(token))|            out = out.replacingOccurrences(of: "{token}", with: token)|
 a token in the endpoint is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{token}", with: encode(token))||
@@ -1008,7 +1008,7 @@ a record excluded from the sums is excluded from the file | Sources/Antarium/Cor
 a running total is added to the turns it sums | Sources/Antarium/Core/HarnessEngine.swift | s|            countable = !skip.allSatisfy { string(record, \$0.key) == \$0.value }|            countable = true|
 a retried request stays beside the one that replaced it | Sources/Antarium/Core/Journal.swift | s|            let kept = truncate.map { Array(existing.prefix(\$0)) } ?? existing|            let kept = existing|
 a push with no index truncates everything | Sources/Antarium/Core/Journal.swift | s|            let kept = truncate.map { Array(existing.prefix(\$0)) } ?? existing|            let kept = Array(existing.prefix(truncate ?? 0))|
-a deleted request is still counted | Sources/Antarium/Core/Journal.swift | s|            else if let declared = line\["kind"\] as? Int, (0...3).contains(declared) {|            else if let declared = line["kind"] as? Int, (0...2).contains(declared) {|
+a deleted request is still counted | Sources/Antarium/Core/Journal.swift | s%            if kind == 3 {%            if false {%
 a delete empties the document instead of its target | Sources/Antarium/Core/Journal.swift | s|        guard let head = path.first else { return nil }|        return nil; guard let head = path.first else { return nil }|
 a delete of an absent path removes something else | Sources/Antarium/Core/Journal.swift | s|            guard var array = node as? \[Any\], index < array.count else { return node }|            guard var array = node as? [Any] else { return node }|
 
@@ -1104,11 +1104,11 @@ a credential of unknown expiry is tried last | Sources/Antarium/Providers/Claude
 the same credential from two stores is two | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let unique = tokens.filter { seen.insert(\$0.accessToken).inserted }%        let unique = tokens%
 the credential order depends on the order found | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            return left.offset < right.offset%            return left.offset > right.offset%
 an empty credential token is a credential | Sources/Antarium/Providers/ClaudeCredentials.swift | s%              let token = oauth\["accessToken"\] as? String, !token.isEmpty%              let token = oauth["accessToken"] as? String%
-a set reshapes an object into an array | Sources/Antarium/Core/Journal.swift | /if let index = head as? Int, index >= 0, index < 10_000 {/,/^            return array/ s%            guard mayBuildArray(node) else { return node }%%
+a set reshapes an object into an array | Sources/Antarium/Core/Journal.swift | /if !FieldPath.isBoolean(head), let index = head as? Int, index >= 0, index < 10_000 {/,/^            return array/ s%            guard mayBuildArray(node) else { return node }%%
 a set reshapes an array into an object | Sources/Antarium/Core/Journal.swift | s%            guard mayBuildObject(node) else { return node }%%
 a push discards what it cannot append to | Sources/Antarium/Core/Journal.swift | /guard append else { return value }/,/let existing = node/ s%            guard mayBuildArray(node) else { return node }%%
 a patch can no longer create what is absent | Sources/Antarium/Core/Journal.swift | s%    static func mayBuildObject(_ node: Any?) -> Bool { node == nil \|\| node is \[String: Any\] }%    static func mayBuildObject(_ node: Any?) -> Bool { node is [String: Any] }%
-a negative push index truncates | Sources/Antarium/Core/Journal.swift | s%            let truncate = (line\["i"\] as? Int).flatMap { \$0 >= 0 ? \$0 : nil }%            let truncate = (line["i"] as? Int)%
+a negative push index truncates | Sources/Antarium/Core/Journal.swift | s%                : (line\["i"\] as? Int).flatMap { \$0 >= 0 ? \$0 : nil }%                : (line["i"] as? Int)%
 a push adds the value it was given as one element | Sources/Antarium/Core/Journal.swift | s%            return kept + ((value as? \[Any\]) ?? \[\])%            return kept + ((value as? [Any]) ?? [value as Any])%
 a push can no longer create the array it appends to | Sources/Antarium/Core/Journal.swift | s%    static func mayBuildArray(_ node: Any?) -> Bool { node == nil \|\| node is \[Any\] }%    static func mayBuildArray(_ node: Any?) -> Bool { node is [Any] }%
 any node may be built over | Sources/Antarium/Core/Journal.swift | s%    static func mayBuildArray(_ node: Any?) -> Bool { node == nil \|\| node is \[Any\] }%    static func mayBuildArray(_ node: Any?) -> Bool { true }%
@@ -1157,3 +1157,9 @@ claude reads a flag as a percentage | Sources/Antarium/Providers/ClaudeCodeProvi
 claude reads a flag as a utilization | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%                  !FieldPath.isBoolean(d\["utilization"\]),%%
 a credential expiry reads a flag as a date | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let expiry = FieldPath.isBoolean(oauth\["expiresAt"\]) ? nil%        let expiry = false ? nil%
 an account id reads a flag as a number | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if !FieldPath.isBoolean(found), let number = found as? NSNumber {%        if let number = found as? NSNumber {%
+a journal kind stated as a flag is applied | Sources/Antarium/Core/Journal.swift | s%            else if !FieldPath.isBoolean(line\["kind"\]),%            else if true,%
+a journal splice index stated as a flag truncates | Sources/Antarium/Core/Journal.swift | s%            let truncate = FieldPath.isBoolean(line\["i"\]) ? nil%            let truncate = false ? nil%
+a journal path index stated as a flag resolves | Sources/Antarium/Core/Journal.swift | s%        if !FieldPath.isBoolean(head), let index = head as? Int, index >= 0, index < 10_000 {%        if let index = head as? Int, index >= 0, index < 10_000 {%
+a journal delete index stated as a flag resolves | Sources/Antarium/Core/Journal.swift | s%        if !FieldPath.isBoolean(head), let index = head as? Int, index >= 0 {%        if let index = head as? Int, index >= 0 {%
+a source limit stated as a flag is accepted | Sources/Antarium/Core/HarnessDocument.swift | s%           FieldPath.isBoolean(source\["limit"\])%           false%
+a loop delay stated as a flag is a delay | Sources/Antarium/Core/TranscriptStats.swift | s%            if !FieldPath.isBoolean(input\["delaySeconds"\]),%            if true,%

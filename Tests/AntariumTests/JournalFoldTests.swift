@@ -475,3 +475,86 @@ struct JournalPushIndexTests {
                 "an object pushed as if it were a list of elements was added")
     }
 }
+
+/// A flag is not a number, anywhere a journal reads one.
+///
+/// Found by sweeping the whole tree for numeric coercions after the sweep for
+/// them in the providers alone turned out to be wrong. `as? Int` takes a boolean
+/// `NSNumber` as 0 or 1, and this file reads three numbers out of an untrusted
+/// log: the operation `kind`, the splice index `i`, and an array index in a path.
+///
+/// The first two lose data. `kind: true` read as 1 and the patch was applied as a
+/// *set*, against this file's own stated rule that an unreadable kind is skipped
+/// rather than guessed. `i: true` read as 1 and truncated the array there — three
+/// requests and a push left two, so the tokens of every request after the first
+/// were dropped.
+@Suite("A journal reads no number from a flag")
+struct JournalFlagTests {
+
+    private func fold(_ lines: String) throws -> [String: Any] {
+        let parsed = try #require(try JSONSerialization.jsonObject(with: Data(lines.utf8))
+                                     as? [[String: Any]])
+        return Journal.fold(parsed)
+    }
+
+    /// The rule this file already stated, now true for a flag as well.
+    @Test("A kind stated as a flag is skipped, not applied", arguments: ["true", "false"])
+    func kindAsFlag(literal: String) throws {
+        let folded = try fold(#"""
+        [{"kind":0,"v":{"title":"kept"}},
+         {"kind":\#(literal),"k":["title"],"v":"overwritten"}]
+        """#)
+        #expect(folded["title"] as? String == "kept",
+                Comment(rawValue: "kind: \(literal) was applied — title is "
+                        + "\(folded["title"] ?? "nothing")"))
+    }
+
+    /// The one that dropped tokens.
+    @Test("A splice index stated as a flag truncates nothing", arguments: ["true", "false"])
+    func indexAsFlag(literal: String) throws {
+        let folded = try fold(#"""
+        [{"kind":0,"v":{"rows":[{"n":1},{"n":2},{"n":3}]}},
+         {"kind":2,"k":["rows"],"i":\#(literal),"v":[{"n":4}]}]
+        """#)
+        #expect((folded["rows"] as? [Any])?.count == 4,
+                Comment(rawValue: "i: \(literal) left "
+                        + "\((folded["rows"] as? [Any])?.count ?? -1) rows of four"))
+    }
+
+    /// And a path component, in both walkers.
+    @Test("An array index stated as a flag changes nothing")
+    func pathComponentAsFlag() throws {
+        let set = try fold(#"""
+        [{"kind":0,"v":{"rows":[{"n":1},{"n":2}]}},
+         {"kind":1,"k":["rows",true,"n"],"v":99}]
+        """#)
+        let rows = try #require(set["rows"] as? [Any])
+        #expect(rows.count == 2, "a flag index grew the array")
+        #expect((rows.last as? [String: Any])?["n"] as? Int == 2,
+                "a flag was read as index one and overwrote a real element")
+    }
+
+    @Test("A delete naming a flag index removes nothing")
+    func deleteFlagIndex() throws {
+        let folded = try fold(#"""
+        [{"kind":0,"v":{"rows":[{"n":1},{"n":2}]}},
+         {"kind":3,"k":["rows",true]}]
+        """#)
+        #expect((folded["rows"] as? [Any])?.count == 2,
+                "a flag index deleted an element")
+    }
+
+    /// The real forms still work, or the guards would be refusing everything.
+    @Test("Real numbers are unaffected")
+    func realNumbersStillWork() throws {
+        let folded = try fold(#"""
+        [{"kind":0,"v":{"rows":[{"n":1},{"n":2},{"n":3}]}},
+         {"kind":2,"k":["rows"],"i":1,"v":[{"n":4}]},
+         {"kind":1,"k":["rows",0,"n"],"v":9}]
+        """#)
+        let rows = try #require(folded["rows"] as? [Any])
+        #expect(rows.count == 2, "the real splice index stopped truncating")
+        #expect((rows.first as? [String: Any])?["n"] as? Int == 9,
+                "the real array index stopped resolving")
+    }
+}

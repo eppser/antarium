@@ -394,9 +394,13 @@ enum HarnessDocument {
         } else if kind == "command" {
             try requireText("command", in: source, at: "source.")
         }
-        if let rawLimit = source["limit"] as? NSNumber,
-           !(1...400).contains(rawLimit.intValue) {
-            throw Error.semantic("source.limit must be between 1 and 400")
+        // A flag is not a limit. `as? NSNumber` takes a boolean and `intValue`
+        // makes it 1, which is inside the range — so `"limit": true` was accepted
+        // and read one session where the author meant something else, silently.
+        if source["limit"] != nil,
+           FieldPath.isBoolean(source["limit"])
+               || !(1...400).contains((source["limit"] as? NSNumber)?.intValue ?? 0) {
+            throw Error.semantic("source.limit must be a number between 1 and 400")
         }
 
         if let selection = object["selection"] as? [String: Any] {

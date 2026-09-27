@@ -229,7 +229,12 @@ struct TranscriptStats: Codable {
                 continue
             }
             stats.loopStopped = false
-            if let delay = input["delaySeconds"] as? Double, delay.isFinite, delay >= 0, delay <= 31_536_000, let stamp {
+            // A flag is not a delay: `as? Double` takes `true` as 1, and a row
+            // would have said the agent wakes in a second. The branch below
+            // already has the honest answer for a delay this cannot read.
+            if !FieldPath.isBoolean(input["delaySeconds"]),
+               let delay = input["delaySeconds"] as? Double, delay.isFinite,
+               delay >= 0, delay <= 31_536_000, let stamp {
                 stats.loopWakeAt = stamp.addingTimeInterval(delay)
             } else if let stamp {
                 // A cron loop has no single next time we can read; record that
