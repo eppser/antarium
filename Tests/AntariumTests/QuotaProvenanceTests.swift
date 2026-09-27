@@ -198,6 +198,63 @@ struct QuotaProvenanceTests {
         }
     }
 
+    /// The vendor a token is sent to is stated twice.
+    ///
+    /// A descriptor reads a credential out of one vendor's file and sends it as
+    /// a bearer token to whatever host `quota.endpoint` names. Those two facts
+    /// sit forty lines apart in a file written by copying the last one, and
+    /// nothing tied them together: an endpoint carrying another vendor's host
+    /// would send this vendor's key to that vendor's server, and the only
+    /// symptom is a row saying "not signed in" — the same thing it says when
+    /// the user has not signed in.
+    ///
+    /// The second witness is whatever this descriptor already says about the
+    /// vendor: its `documentation` URL, published by the vendor, or the domain
+    /// named in its note. Independent of the endpoint, and so able to disagree
+    /// with it.
+    ///
+    /// Compared at the registrable domain rather than the full host, because
+    /// what matters is which company receives the key: `api.z.ai` against
+    /// `docs.z.ai` is one vendor and two services, while `api.z.ai` against
+    /// `openrouter.ai` is the mistake this exists for. Vercel is the case that
+    /// makes the distinction worth stating — it documents the call on
+    /// vercel.com and answers it on ai-gateway.vercel.sh, so its note names the
+    /// second one.
+    @Test("The vendor an endpoint sends a key to is named somewhere else too")
+    func endpointVendorIsCorroborated() throws {
+        var checked = 0
+        for descriptor in quotaDescriptors {
+            guard let endpoint = descriptor.quota?.endpoint else { continue }
+            // `{account}` is substituted before the request; any placeholder
+            // leaves the host alone, and a stand-in keeps URLComponents happy.
+            let host = try #require(
+                URLComponents(string: endpoint.replacingOccurrences(of: "{account}",
+                                                                    with: "a"))?.host,
+                Comment(rawValue: "\(descriptor.id) names an endpoint with no host"))
+            let domain = Self.registrable(host)
+            let note = descriptor.note ?? ""
+            let documented = (descriptor.quota?.documentation)
+                .flatMap { URLComponents(string: $0)?.host }
+                .map { Self.registrable($0) == domain } ?? false
+            checked += 1
+            #expect(documented || note.contains(domain),
+                    Comment(rawValue: "\(descriptor.id) sends its key to \(host) and nothing "
+                            + "else about it names \(domain) — either the endpoint belongs to "
+                            + "another vendor or the note should say where the key goes"))
+        }
+        #expect(checked >= 10,
+                Comment(rawValue: "only \(checked) endpoints were corroborated"))
+    }
+
+    /// The last two labels. Enough for the vendors in this catalogue, and the
+    /// comparison it is used for is "the same company", not "the same name" —
+    /// a public-suffix list would be the right tool for a general one and is
+    /// not worth carrying for eleven known hosts.
+    private static func registrable(_ host: String) -> String {
+        let parts = host.split(separator: ".")
+        return parts.count >= 2 ? parts.suffix(2).joined(separator: ".") : host
+    }
+
     /// And the ones that do cite a reference are not in that list, or "we
     /// checked and there is nothing" would be a way of not checking.
     @Test("A cited mapping is not also excused")

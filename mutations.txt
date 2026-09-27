@@ -856,6 +856,9 @@ the settings header is a poster again | Sources/Antarium/UI/SettingsView.swift |
 labels start together instead of ending together | Sources/Antarium/UI/SettingsView.swift | s|alignment: .trailing)$|alignment: .leading)|
 the undocumented note loses the date it was checked | Resources/harnesses/opencode.json | s|checked 2026-09-22, opencode.ai|checked recently, opencode.ai|
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
+a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
+the copilot note stops saying where the key goes | Resources/harnesses/copilot.json | s|on api.github.com, which is where|on an endpoint, which is where|
+the vercel note stops saying which domain answers | Resources/harnesses/vercel-gateway.json | /"note":/ s|ai-gateway.vercel.sh|the gateway|g
 a note stops accounting for the day its mapping was read | Resources/harnesses/minimax.json | s|Probed 2026-09-27|Probed a few days ago|
 a re-checked verdict stops saying when | docs/ECOSYSTEM.md | s|Chutes was re-checked on 2026-09-22|Chutes was re-checked recently|
 the edited count is announced when there is nothing to announce | Sources/Antarium/UI/HarnessRowPresentation.swift | s|edited > 0 ?|edited >= 0 ?|
