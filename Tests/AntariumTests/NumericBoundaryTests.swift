@@ -15,6 +15,44 @@ struct NumericBoundaryTests {
         #expect(FieldPath.number(["v": 0], "v") == 0)
         #expect(FieldPath.number(["v": "1.5"], "v") == 1.5)
     }
+    /// The other two coercions that refuse a flag, each on its own.
+    ///
+    /// All four of `FieldPath`'s boolean guards were mutated by one catalogue
+    /// entry, because all four lines were identical — and with all four gone
+    /// two tests objected, which read as coverage. Broken one at a time, these
+    /// two changed nothing any test could see.
+    ///
+    /// JSON `true` is an `NSNumber` whose value is 1, so neither is a
+    /// hypothetical: a path landing on a flag would have read process 1, which
+    /// is launchd, and a reset time of one second after 1970 — the same wrong
+    /// answer Cursor's billing cycle and Claude's credential expiry were
+    /// giving before the shared guard existed.
+    @Test("A flag is not a process id")
+    func flagIsNotAProcess() throws {
+        #expect(FieldPath.processID(true) == nil)
+        #expect(FieldPath.processID(false) == nil)
+        let json = try #require(JSONSerialization.jsonObject(
+            with: Data(#"{"pid":true}"#.utf8)) as? [String: Any])
+        #expect(FieldPath.processID(try #require(json["pid"])) == nil)
+        // And a real pid still reads, so the guard is not refusing everything.
+        #expect(FieldPath.processID(4321) == 4321)
+        #expect(FieldPath.processID("4321") == 4321)
+    }
+
+    @Test("A flag is not a date")
+    func flagIsNotADate() throws {
+        #expect(FieldPath.date(["at": true], "at") == nil)
+        #expect(FieldPath.date(["at": false], "at") == nil)
+        let json = try #require(JSONSerialization.jsonObject(
+            with: Data(#"{"at":true}"#.utf8)) as? [String: Any])
+        #expect(FieldPath.date(json, "at") == nil)
+        // A flag beside a real timestamp in the same array does not become the
+        // latest of the two: `date` takes the maximum, and 1970 would lose —
+        // so the case that matters is the flag arriving alone.
+        #expect(FieldPath.date(["at": 1_700_000_000], "at")
+                == Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
     /// `numeric` already refuses a value that arrives non-finite, so the
     /// finiteness check in `number` only earns its place on a total: finite
     /// values that overflow to infinity when summed across an array path.

@@ -213,7 +213,7 @@ enum FieldPath {
     }
 
     static func numeric(_ value: Any) -> Double? {
-        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        if isBoolean(value) { return nil }
         let result: Double?
         switch value {
         case let v as Double: result = v
@@ -225,14 +225,14 @@ enum FieldPath {
     }
 
     static func integer(_ value: Any) -> Int? {
-        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        if isBoolean(value) { return nil }
         if let value = value as? Int { return value }
         if let text = value as? String, let value = Int(text) { return value }
         return numeric(value).flatMap { Int(exactly: $0.rounded(.towardZero)) }
     }
 
     static func processID(_ value:Any) -> Int32? {
-        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        if isBoolean(value) { return nil }
         let candidate = (value as? Int32).map(Double.init) ?? numeric(value)
         guard let number = candidate, number > 0, number.rounded(.towardZero) == number else { return nil }
         return Int32(exactly:number)
@@ -242,7 +242,7 @@ enum FieldPath {
     /// or milliseconds, are all understood — every store writes a different one.
     static func date(_ record: [String: Any], _ path: String) -> Date? {
         each(record, path).compactMap { value -> Date? in
-            if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+            if isBoolean(value) { return nil }
             switch value {
             case let v as String: return UsageHTTP.parseDate(v)
             case let v as Double: return epoch(v)
