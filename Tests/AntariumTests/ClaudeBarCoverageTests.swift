@@ -65,7 +65,7 @@ struct ClaudeBarCoverageTests {
     /// `checkedAt`: a date going stale is a signal to look again, not a failure.
     /// A test that failed on a calendar would fail on a machine nobody had
     /// touched, which teaches people to ignore it.
-    static let rosterReadAt = "2026-09-26"
+    static let rosterReadAt = "2026-09-27"
 
     /// How to re-derive it, so the next check is mechanical rather than a reading
     /// of prose:
@@ -74,10 +74,19 @@ struct ClaudeBarCoverageTests {
     ///       --jq '.[] | select(.type=="dir") | .name'
     ///
     /// One directory per provider, which is enumerable where a README is not.
-    /// Re-run 2026-09-26: twenty directories, mapping one to one onto the entries
+    /// Re-run 2026-09-27: twenty directories, mapping one to one onto the entries
     /// below — Alibaba, AmpCode, Antigravity, Bedrock, Claude, Codex,
     /// CommandCode, Copilot, Cursor, DeepSeek, Gemini, Grok, Kimi, Kiro, MiniMax,
     /// Mistral, Omp, OpenCode, Vercel, Zai. Nothing added since 2026-09-24.
+    ///
+    /// The same run read each provider's own files rather than only the
+    /// directory names, which is what turned up MiniMax's two regions:
+    /// `MiniMaxRegion.swift` offers api.minimax.io and api.minimaxi.com as a
+    /// picker and builds the identical path onto each. This app ships the
+    /// international host and its note tells a China-region account which field
+    /// to override — `EditedDescriptorTakesEffectTests` verifies that
+    /// instruction end to end. Counting directories would not have found it: the
+    /// roster was complete and one of its entries was half-covered.
     static let rosterSource =
         "repos/tddworks/ClaudeBar/contents/Sources/Domain/Provider"
 

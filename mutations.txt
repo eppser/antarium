@@ -858,6 +858,8 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+the region override stops naming the field to change | Resources/harnesses/minimax.json | s|should override `quota.endpoint` with api.minimaxi.com|should override the endpoint with the China host|
+the shipped minimax endpoint becomes the china one | Resources/harnesses/minimax.json | s|https://api.minimax.io/v1/api/openplatform/coding_plan/remains|https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains|
 a stale choice empties the menu bar | Sources/Antarium/Core/UsageProvider.swift | s|        if !result.isEmpty { return result }||
 an empty registry traps rather than showing nothing | Sources/Antarium/Core/UsageProvider.swift | s|        return providers.first.map { \[$0\] } ?? \[\]|        return [providers[0]]|
 the last agent is switched off in silence | Sources/Antarium/UI/Settings.swift | s|        guard !next.isEmpty else { return .refuse(AgentToggle.lastOne) }||
@@ -1174,8 +1176,8 @@ the native reader list is empty | Sources/Antarium/Core/HarnessCheck.swift | s% 
 a presence-only agent is said to have sessions | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "sessions here"%
 an agent that keeps sessions is said to be merely installed | Sources/Antarium/Core/HarnessCLI.swift | s%        let here = keepsSessions ? "sessions here" : "installed here"%        let here = "installed here"%
 every harness is treated as keeping sessions | Sources/Antarium/Core/HarnessCLI.swift | s%.filter { !\$0.contributesPresenceOnly }.map%.map%
-the roster forgets when it was read | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-26"%    static let rosterReadAt = "not a date"%
-the roster date goes backwards | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-26"%    static let rosterReadAt = "2020-01-01"%
+the roster forgets when it was read | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-27"%    static let rosterReadAt = "not a date"%
+the roster date goes backwards | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%    static let rosterReadAt = "2026-09-27"%    static let rosterReadAt = "2020-01-01"%
 the roster forgets where it came from | Tests/AntariumTests/ClaudeBarCoverageTests.swift | s%        "repos/tddworks/ClaudeBar/contents/Sources/Domain/Provider"%        ""%
 a codex flag is read as a figure | Sources/Antarium/Providers/CodexProvider.swift | s%                if let n = d\[k\] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { continue }%%
 a codex flag abandons the candidate list | Sources/Antarium/Providers/CodexProvider.swift | s%                if let n = d\[k\] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { continue }%                if let n = d[k] as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() { return nil }%
