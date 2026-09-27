@@ -31,6 +31,68 @@ struct RowActionBoundaryTests {
         return row
     }
 
+    /// And the hover text promises only what the menu will actually do.
+    ///
+    /// The same defect from the other side, and the side that had nothing
+    /// checking it: the tooltip said "click to bring its terminal to the front"
+    /// about a process on another computer, because a remote row carries that
+    /// machine's pid. It was fixed by asking `Focus.actions` — the same source
+    /// the menu asks, so the offer and the action cannot disagree — and the fix
+    /// sat in a private computed property on the view, where nothing could
+    /// reach it and no catalogue entry could name it.
+    @Test("A remote row's hover text promises nothing this Mac can do")
+    func remoteTooltipPromisesNothingLocal() {
+        let text = AgentRowView.tooltip(for: row(remote: true, host: "build-box"))
+        #expect(!text.contains("bring its terminal to the front"),
+                Comment(rawValue: "a remote row offered a click this Mac cannot honour: \(text)"))
+        // And says where it is instead, rather than going quiet: a row with no
+        // explanation reads as a row that failed to look.
+        #expect(text.contains("Running on build-box — this Mac cannot bring it forward"),
+                Comment(rawValue: "a remote row said nothing about being remote: \(text)"))
+    }
+
+    /// A local row still gets the offer, or the assertion above is satisfied by
+    /// a tooltip that promises nothing to anybody.
+    @Test("A local row is still told its terminal can be raised")
+    func localTooltipKeepsItsOffer() {
+        let text = AgentRowView.tooltip(for: row())
+        #expect(text.contains("Click to bring its terminal to the front"),
+                Comment(rawValue: "a local row lost its offer: \(text)"))
+    }
+
+    /// tmux takes precedence, and only where an attach is allowed — a remote
+    /// tmux target is the other machine's session, and a same-named one here
+    /// would be the wrong one.
+    @Test("A tmux offer is made locally and withheld remotely")
+    func tmuxOfferFollowsTheAction() {
+        let local = AgentRowView.tooltip(for: row(tmux: "main:1.0"))
+        #expect(local.contains("tmux main:1.0 — click to jump there"),
+                Comment(rawValue: "a local tmux row lost its offer: \(local)"))
+        let remote = AgentRowView.tooltip(for: row(remote: true, tmux: "main:1.0"))
+        #expect(!remote.contains("click to jump there"),
+                Comment(rawValue: "a remote tmux row offered a local attach: \(remote)"))
+    }
+
+    /// Every line the tooltip offers is an action the menu permits. Derived
+    /// rather than listed, so a fourth promise added later is held to the same
+    /// rule without anybody remembering this test.
+    @Test("No hover offer outlives the permission it depends on")
+    func offersMatchPermissions() {
+        for row in [row(), row(remote: true), row(tmux: "a:1"),
+                    row(remote: true, tmux: "a:1"), row(cwd: "")] {
+            let text = AgentRowView.tooltip(for: row)
+            let allowed = Focus.actions(for: row)
+            if text.contains("click to jump there") {
+                #expect(allowed.contains(.attachTmux),
+                        Comment(rawValue: "offered a tmux jump that is not permitted: \(text)"))
+            }
+            if text.contains("bring its terminal to the front") {
+                #expect(allowed.contains(.goToWindow),
+                        Comment(rawValue: "offered to raise a window that cannot be raised: \(text)"))
+            }
+        }
+    }
+
     /// The defect, stated as the three actions that touched this machine.
     @Test("A remote row offers nothing that acts on this Mac")
     func remoteRowsCannotActLocally() {

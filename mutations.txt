@@ -858,6 +858,9 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+a remote row is promised a click this mac cannot honour | Sources/Antarium/UI/Dashboard.swift | s|        } else if row.pid != nil, allowed.contains(.goToWindow) {|        } else if row.pid != nil {|
+a remote tmux row is offered a local attach | Sources/Antarium/UI/Dashboard.swift | s|        if let t = row.tmuxTarget, allowed.contains(.attachTmux) {|        if let t = row.tmuxTarget {|
+a remote row stops saying where it is running | Sources/Antarium/UI/Dashboard.swift | s|            lines.append("Running on \\(host) — this Mac cannot bring it forward")||
 a session count still being gathered reads as nought | Sources/Antarium/UI/OnboardingView.swift | s|guard let sessions else { return "\\(found) on this Mac. Counting sessions…" }|let sessions = sessions ?? 0|
 the first screen says nothing about an empty count | Sources/Antarium/UI/OnboardingView.swift | s|        if sessions == 0 { return "\\(found). Nothing running right now." }||
 the first screen counts one agent as several | Sources/Antarium/UI/OnboardingView.swift | s|agent\\(agents == 1 ? "" : "s")|agents|

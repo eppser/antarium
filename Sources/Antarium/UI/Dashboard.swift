@@ -636,14 +636,22 @@ struct AgentRowView: View {
         .accessibilityAction { Focus.reveal(row) }
     }
 
-    private var tooltip: String {
+    private var tooltip: String { Self.tooltip(for: row) }
+
+    /// What hovering a row says about it, and what clicking it will do.
+    ///
+    /// A function of the row rather than a property of the view, for the reason
+    /// `summary(for:)` below is: the rule in it cannot otherwise be asserted.
+    /// That rule is a promise — a remote row carries the other machine's pid,
+    /// so this once said "click to bring its terminal to the front" about a
+    /// process on a different computer and the click did nothing. It asks
+    /// `Focus.actions` instead of the row's own fields, which is the same
+    /// source the menu asks, so the offer and the action cannot disagree. That
+    /// fix had no test and no catalogue entry until it was moved here.
+    static func tooltip(for row: AgentRow) -> String {
         var lines = [row.sessionName.isEmpty ? row.coreName : row.sessionName, row.cwd]
         if let note = row.note { lines.append(note) }
         if let why = row.unobservedReason, why != row.note { lines.append(why) }
-        // Promised only where it can be kept. A remote row carries the other
-        // machine's pid, so this said "click to bring its terminal to the
-        // front" about a process on a different computer, and the click did
-        // nothing.
         let allowed = Focus.actions(for: row)
         if let t = row.tmuxTarget, allowed.contains(.attachTmux) {
             lines.append("tmux \(t) — click to jump there")
