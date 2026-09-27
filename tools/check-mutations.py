@@ -12,6 +12,7 @@ way — a corrected mutation was appended after a failed attempt, and the
 deduplication kept the first.
 """
 import os
+import difflib
 import re
 import subprocess
 import sys
@@ -24,8 +25,15 @@ def plain_substitution(expression: str) -> bool:
     two near-identical `help` builders and a rule broken in one should be
     broken in both — and sometimes it is an entry quietly covering more than
     its name claims.
+
+    The delimiter used to be listed — `|`, `/`, `#`, `,` — and dozens of
+    entries use `%`, so they were never counted. Thirty-two multi-site entries
+    were invisible here, including the one that broke all four of
+    `FieldPath`'s boolean guards together and hid two missing tests behind the
+    two that objected. Any character sed accepts as a delimiter counts now:
+    anything that is not a letter, a digit, whitespace or a backslash.
     """
-    return bool(re.match(r'^s([|/#,])', expression)) and ';' not in expression
+    return bool(re.match(r'^s([^\sA-Za-z0-9\\])', expression)) and ';' not in expression
 
 
 #: The fewest entries this catalogue may hold and still be a catalogue. See the
@@ -72,8 +80,16 @@ def main(path: str) -> int:
                 b, a = before.splitlines(), result.stdout.splitlines()
                 if len(b) == len(a):
                     hits = sum(1 for x, y in zip(b, a) if x != y)
-                    if hits > 1:
-                        broad.append((name, hits))
+                else:
+                    # A substitution that empties a line keeps the count; one
+                    # whose replacement carries a newline does not. Counted
+                    # either way, or an entry that removes a rule at four
+                    # sites reads here as an entry that removes one.
+                    hits = sum(i2 - i1 for tag, i1, i2, _, _
+                               in difflib.SequenceMatcher(None, b, a).get_opcodes()
+                               if tag in ('replace', 'delete'))
+                if hits > 1:
+                    broad.append((name, hits))
     for name, why in dead:
         print(f'   FAIL mutation "{name}" {why}')
     for name in sorted(set(duplicates)):

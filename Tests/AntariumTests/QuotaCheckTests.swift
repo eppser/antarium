@@ -360,6 +360,36 @@ struct DescriptorCredentialBoundTests {
         #expect(p.isConfigured)
     }
 
+    /// And the newline that file ends with is not part of the token.
+    ///
+    /// The case above writes one and asks only whether the provider counts as
+    /// configured, which it does either way — so nothing established that a
+    /// `textFile` credential is trimmed. The `env` kind's identical trim has a
+    /// test; this one did not, and removing it changed nothing. A token read
+    /// with its newline goes out in an `Authorization` header, where a bare
+    /// newline is either refused by the transport or sent as a malformed
+    /// header — a signed-in account reporting "not signed in", for a file that
+    /// every editor writes that way.
+    @Test("A text credential's trailing newline is not part of the token")
+    func textIsTrimmed() throws {
+        ConfiguredProbe.invalidate()
+        let (p, file) = try provider("textFile", contents: Data("  synthetic-token\n".utf8))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.token() == "synthetic-token")
+    }
+
+    /// A file holding only whitespace is not a credential, which is the same
+    /// rule seen from the other side: trimming has to produce the empty string
+    /// and the empty string has to be refused.
+    @Test("A text credential of nothing but whitespace is not a credential")
+    func textOfWhitespaceIsNothing() throws {
+        ConfiguredProbe.invalidate()
+        let (p, file) = try provider("textFile", contents: Data(" \n\t\n".utf8))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.token() == nil)
+        #expect(p.isConfigured == false)
+    }
+
     @Test("A text credential file past the bound is not read")
     func textBeyondBound() throws {
         ConfiguredProbe.invalidate()
@@ -368,6 +398,44 @@ struct DescriptorCredentialBoundTests {
             contents: Data(String(repeating: "x", count: DescriptorProvider.maxCredentialBytes + 1).utf8))
         defer { try? FileManager.default.removeItem(at: file) }
         #expect(p.isConfigured == false, "an unbounded read of a credential file")
+    }
+
+    /// The account id is read from the same file, through a second call with
+    /// its own `BoundedFile.read` — and its own bound, which nothing asserted.
+    /// One entry covered all four reads at once, so with all four unbounded
+    /// three tests objected and this one looked covered.
+    @Test("An account id file past the bound is not read")
+    func accountBeyondBound() throws {
+        // Both halves in one test, because the assertion that matters is nil
+        // and nil is what a broken mapping returns too. The small file proves
+        // this descriptor can read an account at all; the padded one proves
+        // the bound is what refuses it.
+        let padding = String(repeating: "x", count: DescriptorProvider.maxCredentialBytes)
+        for (contents, expected) in [
+            (#"{"token":"synthetic","account_id":"acct-42"}"#, "acct-42"),
+            (#"{"token":"synthetic","account_id":"acct-42","pad":"\#(padding)"}"#, nil),
+        ] as [(String, String?)] {
+            ConfiguredProbe.invalidate()
+            let file = FileManager.default.temporaryDirectory
+                .appendingPathComponent("credential-\(UUID()).json")
+            try Data(contents.utf8).write(to: file)
+            defer { try? FileManager.default.removeItem(at: file) }
+            let object: [String: Any] = [
+                "formatVersion": 1, "id": "bounded-\(UUID().uuidString)", "name": "Bounded",
+                "process": [:], "source": ["kind": "none", "path": ""],
+                "quota": ["endpoint": "https://example.invalid/v1/{account}/usage",
+                          "credential": ["kind": "jsonFile", "path": file.path,
+                                         "field": "token", "accountField": "account_id"],
+                          "windows": ["list": "data", "usedPercent": "percentage"]]]
+            let descriptor = try HarnessDocument.decode(
+                JSONSerialization.data(withJSONObject: object)).descriptor
+            let p = try #require(DescriptorProvider(descriptor))
+            #expect(p.account() == expected,
+                    Comment(rawValue: expected == nil
+                            ? "an unbounded read of an account id file"
+                            : "this descriptor cannot read an account id at all, so the "
+                              + "bounded case below proves nothing"))
+        }
     }
 
     /// The bound matches what Codex and Gemini use. If one moves and the
