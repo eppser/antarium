@@ -397,6 +397,54 @@ struct ClaudeBarCoverageTests {
                 "the consequence of not taking that route is no longer stated")
     }
 
+    /// A provider sold under two brands is covered for one of them, and the
+    /// note says which and at whose expense.
+    ///
+    /// Cross-read 2026-09-27 against that tool's `ZaiUsageProbe`: three bases,
+    /// chosen by what `env.ANTHROPIC_BASE_URL` contains, with the identical path
+    /// built onto each. Here the gap is silent, which is the part worth
+    /// asserting: a Zhipu-brand account has open.bigmodel.cn in that variable,
+    /// so it fails the `requires` guard and reads as not signed in rather than as
+    /// a plan on another host.
+    ///
+    /// The window mapping itself needed nothing — it already keys on `type` and
+    /// `unit` together, all seven combinations, which is the collision that probe
+    /// documents having fixed.
+    @Test("The second brand of a covered plan is recorded, not silently missed")
+    func zaiSecondBrandIsRecorded() throws {
+        let zai = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "zai" })
+        let note = zai.note ?? ""
+        #expect(note.contains("open.bigmodel.cn"),
+                "the note no longer names the brand this descriptor does not reach")
+        #expect(note.contains("reads as not signed in"),
+                "the note no longer says what a user of that brand sees")
+        // Both fields, because moving one is the harmful half: a widened guard
+        // with the old endpoint sends that account's key to the wrong company.
+        #expect(note.contains("`quota.endpoint`") && note.contains("`quota.credential.requires`"),
+                "the note no longer says which two fields have to move together")
+        // And the guard still names the brand this descriptor is for, or the
+        // exclusivity the note relies on is gone.
+        #expect(zai.quota?.credential?.requires?["env.ANTHROPIC_BASE_URL"] == "z.ai",
+                "the Z.ai guard no longer pins the brand its endpoint serves")
+    }
+
+    /// The window keys are the part that was already right, and the part a
+    /// regression would be invisible in — two entries differing only by `unit`
+    /// collapse into one and the bar shows a window under another's label.
+    @Test("Z.ai windows are keyed by type and unit together")
+    func zaiWindowsKeyOnUnit() throws {
+        let zai = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "zai" })
+        let windows = try #require(zai.quota?.windows)
+        #expect(windows.key == ["type", "unit"],
+                Comment(rawValue: "Z.ai keys on \(windows.key ?? []), so two limits differing "
+                        + "only by unit would collapse"))
+        for expected in ["TOKENS_LIMIT-3", "TOKENS_LIMIT-6", "TOKENS_LIMIT-7", "TIME_LIMIT-5",
+                         "CREDIT_LIMIT-3", "CREDIT_LIMIT-6", "CREDIT_LIMIT-7"] {
+            #expect(windows.keys?.contains(expected) == true,
+                    Comment(rawValue: "\(expected) is no longer charted"))
+        }
+    }
+
     /// This app also reads usage APIs ClaudeBar does not, so the comparison
     /// is not mistaken for a ceiling.
     @Test("Providers beyond ClaudeBar's roster also ship")
