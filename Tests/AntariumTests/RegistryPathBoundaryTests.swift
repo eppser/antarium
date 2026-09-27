@@ -36,6 +36,55 @@ struct RegistryPathBoundaryTests {
             #expect(AgentScan.transcriptURL(cwd:"/fixture/project",sessionID:"resumed",root:root.path)?.resolvingSymlinksInPath() == file.resolvingSymlinksInPath())
         }
     }
+    /// No declared root, no transcript — asserted on the sources, because the
+    /// outcome cannot distinguish the two.
+    ///
+    /// `transcriptURL` used to guess `~/.claude/projects` when its root arrived
+    /// nil: a second copy of a path the descriptor declares and the only caller
+    /// passes in. Restoring that guess and asking for a nil root still returns
+    /// nil here, because the guessed directory is the developer's own Claude
+    /// folder and the fixture's project is not in it — so the obvious test
+    /// passes either way, and writing into a real agent's directory to make it
+    /// fail is not something this suite may do.
+    ///
+    /// What is assertable is that the path has one home. The descriptor
+    /// declares it; no Swift file restates it. A guess reintroduced in any form
+    /// fails here, which is the same technique the documented caps use after
+    /// three of them turned out to be checked by asking whether their digits
+    /// appeared in a file.
+    @Test("No Swift source restates the transcripts path the descriptor declares")
+    func transcriptsPathHasOneHome() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources")
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+        #expect(files.count > 10, "the source tree was not walked")
+        var restated: [String] = []
+        for url in files {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for line in text.split(separator: "\n") where line.contains(".claude/projects") {
+                let code = line.trimmingCharacters(in: .whitespaces)
+                // Prose about the path is not the path — the comment above
+                // this test's own subject explains why the guess went.
+                guard !code.hasPrefix("//"), !code.hasPrefix("///") else { continue }
+                restated.append("\(url.lastPathComponent): \(code)")
+            }
+        }
+        #expect(restated.isEmpty,
+                Comment(rawValue: "the transcripts path is written in Swift as well as in the "
+                        + "descriptor that owns it: \(restated.joined(separator: "; "))"))
+    }
+
+    /// And the signature tolerates a nil root rather than trapping. This says
+    /// nothing about which path was searched — see above — only that a
+    /// descriptor declaring none is answered rather than crashed.
+    @Test("A nil transcripts root is answered, not trapped")
+    func nilRootIsAnswered() {
+        #expect(AgentScan.transcriptURL(cwd: "/fixture/project", sessionID: "first",
+                                        root: nil) == nil)
+    }
+
     @Test("A quoted example of another session ID is not a resumed-session binding")
     func embeddedID() throws {
         try fixture { root, project in

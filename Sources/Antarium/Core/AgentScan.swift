@@ -647,14 +647,24 @@ enum AgentScan {
     ///
     /// It was one entry with the `claudeRows` bound until the two were split,
     /// and that entry was being caught by the other half.
+    ///
+    /// `root` used to fall back to `"~/.claude/projects"` when it arrived nil,
+    /// which was a second copy of a path the descriptor owns and declares. The
+    /// only caller passes `source.declaredPath("transcripts")`, so the literal
+    /// was unreachable — a mutation moving it survived the whole suite — and
+    /// unreachable is the good case: the bad one is a descriptor that stops
+    /// declaring the path and keeps working, because then an override would
+    /// silently stop being followed while the rows still filled in. No root,
+    /// no transcript.
     static func transcriptURL(cwd: String, sessionID: String, root: String?) -> URL? {
+        guard let root else { return nil }
         guard cwd.hasPrefix("/"), cwd.utf8.count <= 4_096, !cwd.contains("\0"),
               !sessionID.isEmpty, sessionID.utf8.count <= 256,
               sessionID != ".", sessionID != "..",
               !sessionID.contains("/"), !sessionID.contains("\\"),
               !sessionID.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains($0) }) else { return nil }
         let encoded = cwd.replacingOccurrences(of: "/", with: "-")
-        let base = (root ?? "~/.claude/projects").expandingTilde
+        let base = root.expandingTilde
         let dir = URL(fileURLWithPath: base).appendingPathComponent(encoded)
         var directoryInfo = stat()
         guard lstat(dir.path,&directoryInfo) == 0, directoryInfo.st_mode & S_IFMT == S_IFDIR else { return nil }
