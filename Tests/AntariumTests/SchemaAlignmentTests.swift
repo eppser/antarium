@@ -77,15 +77,39 @@ struct SchemaAlignmentTests {
     /// Without it `quota.checkedAt` could lose its pattern and every shipped
     /// descriptor would still pass, while an author following the schema
     /// learned nothing about what a date looks like here.
-    @Test("The date a mapping was last read is constrained to a date")
+    /// Every `checkedAt` the schema describes, not the first one it mentions.
+    ///
+    /// There are two — the day a session mapping was read and the day a quota
+    /// mapping was read — and this looked for the string `"checkedAt"` and
+    /// took the four hundred characters after it, which is the session one.
+    /// Its own message named quota. Both patterns shared a catalogue entry, so
+    /// removing the quota constraint alone left the suite green: a descriptor
+    /// could then date its figures "recently" and pass validation, which is
+    /// the thing the provenance tests spend their time insisting on.
+    @Test("Every date a mapping was last read is constrained to a date")
     func checkedAtIsConstrained() throws {
-        let text = try String(contentsOf: URL(fileURLWithPath: "Resources/harness.schema.json"),
-                              encoding: .utf8)
-        let block = try #require(text.range(of: "\"checkedAt\""),
-                                 "the schema no longer describes quota.checkedAt")
-        let after = text[block.upperBound...].prefix(400)
-        #expect(after.contains("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"),
-                "quota.checkedAt accepts any string, so the schema states no shape for a date")
+        let pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        var found = 0
+        func walk(_ node: Any, at path: String) {
+            if let object = node as? [String: Any] {
+                for (key, value) in object {
+                    if key == "checkedAt", let field = value as? [String: Any] {
+                        found += 1
+                        #expect(field["pattern"] as? String == pattern,
+                                Comment(rawValue: "\(path).checkedAt states "
+                                        + "\(field["pattern"] as? String ?? "no pattern")"))
+                    }
+                    walk(value, at: path + "." + key)
+                }
+            } else if let array = node as? [Any] {
+                for (index, value) in array.enumerated() { walk(value, at: "\(path)[\(index)]") }
+            }
+        }
+        walk(try schema(), at: "schema")
+        // Both of them, or the walk found one and the loop proved nothing
+        // about the other.
+        #expect(found >= 2,
+                Comment(rawValue: "the schema describes \(found) reading dates, and there are two"))
     }
 
     /// Every section the validator knows about is compared. Not a count of

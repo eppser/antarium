@@ -117,6 +117,53 @@ struct LaunchedCommandsTests {
                         + "install: \(absolute.joined(separator: ", "))"))
     }
 
+    /// And the CLI we look for is the one we tell the user to install.
+    ///
+    /// The check above only refuses an absolute path; the name itself could be
+    /// anything. Renaming Kiro's binary to something that does not exist left
+    /// every test passing — the provider simply reports "not signed in", which
+    /// is also what it reports on a Mac without that CLI, so no machine here
+    /// can tell the two apart. What can be checked without installing anything
+    /// is that the name passed to `CommandPath.resolve` appears in the same
+    /// provider's own `setupHint`: if they disagree, the user is told to install
+    /// one thing while the app looks for another, and the row says "not signed
+    /// in" however carefully they follow it.
+    @Test("Each vendor CLI is the one its own setup hint names")
+    func resolvedCLIMatchesItsSetupHint() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Antarium/Providers")
+        let files = try FileManager.default.contentsOfDirectory(at: root,
+                                                               includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        var checked = 0
+        for url in files {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let names = text.split(separator: "\n")
+                .compactMap { line -> String? in
+                    guard let open = line.range(of: "CommandPath.resolve(\"") else { return nil }
+                    return String(line[open.upperBound...].prefix { $0 != "\"" })
+                }
+            guard !names.isEmpty else { continue }
+            let hint = try #require(text.split(separator: "\n")
+                .first { $0.contains("var setupHint") },
+                Comment(rawValue: "\(url.lastPathComponent) resolves a CLI and offers no "
+                        + "setup hint, so a user with it missing is told nothing"))
+            for name in Set(names) {
+                checked += 1
+                #expect(hint.contains(name),
+                        Comment(rawValue: "\(url.lastPathComponent) looks for `\(name)` and its "
+                                + "setup hint says: \(hint.trimmingCharacters(in: .whitespaces))"))
+            }
+        }
+        // Named by count rather than listed, because a provider added later
+        // should be held to this without anybody remembering to add it here —
+        // but a count of nought would pass silently.
+        #expect(checked >= 3,
+                Comment(rawValue: "only \(checked) vendor CLIs were checked against a hint"))
+    }
+
     /// Each entry says why, so removing a command is as deliberate as adding
     /// one.
     @Test("Every allowed command has a reason")

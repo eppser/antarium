@@ -57,9 +57,11 @@ struct HarnessRowPresentation {
     /// the badge beside a row and the count above the list are the only two
     /// places a user can see that a figure came from a descriptor they
     /// changed, and neither was asserted anywhere. The spoken label was — so
-    /// replacing `edited ? "edited" : "bundled"` with `"bundled"` was caught,
-    /// by an accessibility test, while the badge and this line had nothing to
-    /// say about it.
+    /// making the provenance term below unconditional was caught, by an
+    /// accessibility test, while the badge and this line had nothing to say
+    /// about it. (Quoting the expression here made its catalogue entry look
+    /// like a two-site mutation, which is the noise the multi-site check is
+    /// meant to surface.)
     ///
     /// Nothing is said when nothing is edited. "26 agents · 0 edited" is a
     /// sentence about an absence, and the list it sits above is the ordinary

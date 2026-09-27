@@ -699,6 +699,26 @@ enum AgentScan {
         return []
     }
 
+    /// The processes one descriptor claims, in pid order.
+    ///
+    /// A dictionary yields its values in an order that is stable within a
+    /// process and not across runs, so without the sort a harness claiming
+    /// several processes produces rows that shuffle between scans — and the
+    /// final sort cannot fix it, because rows tied on its key keep whatever
+    /// order they arrived in.
+    ///
+    /// One function because `descriptorRows` and `presenceRows` were doing this
+    /// identically, in the same words, and shared one catalogue entry: the
+    /// `presenceRows` tests were catching it and `descriptorRows` — which is
+    /// private, so no test can call it — was covered by nothing. Now there is
+    /// one rule and one place to assert it.
+    static func claimedProcesses(_ descriptor: HarnessDescriptor,
+                                 in processes: [Int32: Processes.Info]) -> [Processes.Info] {
+        processes.values
+            .filter { descriptor.claims($0) }
+            .sorted { $0.pid < $1.pid }
+    }
+
     private static func descriptorRows(processes: [Int32: Processes.Info]) -> [AgentRow] {
         var rows: [AgentRow] = []
         for descriptor in HarnessDescriptor.all() {
@@ -719,15 +739,7 @@ enum AgentScan {
                 rows += commandRows(descriptor, processes: processes)
                 continue
             }
-            // By pid, as `presenceRows` does two functions below. A dictionary
-            // yields its values in an order that is stable within a process
-            // and not across runs, so without this a harness claiming several
-            // processes produces rows that shuffle between scans — and the
-            // final sort cannot fix it, because rows tied on its key keep
-            // whatever order they arrived in.
-            let matches = processes.values
-                .filter { descriptor.claims($0) }
-                .sorted { $0.pid < $1.pid }
+            let matches = claimedProcesses(descriptor, in: processes)
             guard !matches.isEmpty else { continue }
 
             for process in matches {
@@ -999,9 +1011,7 @@ enum AgentScan {
     /// be a claim it cannot support.
     static func presenceRows(_ descriptor: HarnessDescriptor,
                              processes: [Int32: Processes.Info]) -> [AgentRow] {
-        processes.values
-            .filter { descriptor.claims($0) }
-            .sorted { $0.pid < $1.pid }
+        claimedProcesses(descriptor, in: processes)
             .map { process in
                 let cwd = Processes.cwd(of: process.pid) ?? ""
                 let folder = URL(fileURLWithPath: cwd).lastPathComponent

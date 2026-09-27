@@ -188,6 +188,31 @@ struct LocalRowOrderTests {
         #expect(rows.map(\.pid) == [100, 200, 300, 400])
     }
 
+    /// The ordering itself, asked of the one function that decides it.
+    ///
+    /// `descriptorRows` used to repeat this expression word for word and is
+    /// private, so no test could reach it — the two shared one catalogue entry
+    /// and the `presenceRows` cases above were answering for both. Shuffling
+    /// the sort inside `descriptorRows` alone changed nothing any test saw, and
+    /// what it changes for a user is a menu bar list that reorders itself
+    /// between scans on identical input.
+    @Test("The processes a descriptor claims come back in pid order")
+    func claimedProcessesAreOrdered() throws {
+        let table = processes([900, 100, 500, 300, 700, 200])
+        let d = try descriptor()
+        #expect(AgentScan.claimedProcesses(d, in: table).map(\.pid)
+                == [100, 200, 300, 500, 700, 900])
+        // And the same table twice, because a dictionary's own order is stable
+        // within one process: a single call proves less than two.
+        #expect(AgentScan.claimedProcesses(d, in: table).map(\.pid)
+                == AgentScan.claimedProcesses(d, in: table).map(\.pid))
+    }
+
+    @Test("A descriptor claiming nothing in the table yields nothing")
+    func claimedProcessesOfNothing() throws {
+        #expect(AgentScan.claimedProcesses(try descriptor(), in: [:]).isEmpty)
+    }
+
     @Test("The same input twice gives the same order")
     func repeatable() throws {
         let table = processes([900, 100, 500, 300, 700, 200])

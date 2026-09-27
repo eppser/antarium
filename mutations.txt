@@ -266,7 +266,7 @@ remote rows built in whatever order | Sources/Antarium/Core/RemoteTmux.swift | s
 remote pane walk stops at the process itself | Sources/Antarium/Core/RemoteTmux.swift | s|for _ in 0..<maxPaneDepth {|for _ in 0..<1 {|
 selection filter ignored | Sources/Antarium/Core/SessionSelection.swift | s|guard accepted else { continue }||
 selection boolean filters stop matching | Sources/Antarium/Core/SessionSelection.swift | s|text = CFGetTypeID(value) == CFBooleanGetTypeID() ? (value.boolValue ? "true" : "false") : value.stringValue|text = value.stringValue|
-presence rows unsorted | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.pid < \$1.pid }|.sorted { _, _ in Bool.random() }|
+the processes a descriptor claims come back unsorted | Sources/Antarium/Core/AgentScan.swift | s|.sorted { \$0.pid < \$1.pid }|.sorted { _, _ in Bool.random() }|
 log timestamps follow the reader's clock preference | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")||
 log timestamps pinned to UTC rather than the machine | Sources/Antarium/Core/Log.swift | s|f.timeZone = timeZone|f.timeZone = TimeZone(identifier: "UTC")|
 a fixed date format ships unpinned | Sources/Antarium/Core/Log.swift | s|f.locale = Locale(identifier: "en_US_POSIX")|f.timeZone = timeZone|
@@ -307,7 +307,8 @@ a balance colours itself off a phantom fill | Sources/Antarium/Core/UsageModel.s
 a nearly spent window reads as none used | Sources/Antarium/Core/UsageModel.swift | s|if p > 0 \&\& p < 1 { return "<1%" }||
 a nearly full window reads as complete | Sources/Antarium/Core/UsageModel.swift | s|if p < 100 \&\& p > 99 { return ">99%" }||
 only the first two windows reach the bar | Sources/Antarium/UI/Renderer.swift | s|snapshot.gauges.prefix(2)|snapshot.gauges|
-name sort ignores case | Sources/Antarium/Core/AgentScan.swift | s|a.localizedCaseInsensitiveCompare(b) == .orderedAscending|a < b|
+the name sort ignores case | Sources/Antarium/Core/AgentScan.swift | /case .name:/,/case .harness:/ s|a.localizedCaseInsensitiveCompare(b) == .orderedAscending|a < b|
+the host sort ignores case | Sources/Antarium/Core/AgentScan.swift | /case .host:/,/case .spend:/ s|a.localizedCaseInsensitiveCompare(b) == .orderedAscending|a < b|
 harness grouping ignores the agent | Sources/Antarium/Core/AgentScan.swift | s|if \$0.agentID != \$1.agentID { return \$0.agentID < \$1.agentID }||
 recency tie-break runs backwards | Sources/Antarium/Core/AgentScan.swift | s|        if left != right { return left > right }|        if left != right { return left < right }|
 unknown host sorts first | Sources/Antarium/Core/AgentScan.swift | s|let a = \$0.hostApp ?? "\\u{10FFFF}", b = \$1.hostApp ?? "\\u{10FFFF}"|let a = $0.hostApp ?? "", b = $1.hostApp ?? ""|
@@ -339,15 +340,17 @@ migration invents an empty process block | Sources/AntariumHarnessSDK/HarnessCon
 migration loses the mark | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|presentation\["mark"\] = value||
 migration does not stamp the new version | Sources/AntariumHarnessSDK/HarnessConfigMigration.swift | s|object\["formatVersion"\] = HarnessConfig.currentFormatVersion||
 a superseded key is not reported | Sources/Antarium/Core/HarnessCheck.swift | s|.filter { object\[\$0\] != nil }|.filter { _ in false }|
-fixture cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !passed { failed.append(descriptor.id) }||
+the fixture cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | /static func fixtureSummary(/,/^    }$/ s|if !passed { failed.append(descriptor.id) }||
+the installation cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | /static func installationSummary(/,/^    }$/ s|if !passed { failed.append(descriptor.id) }||
+the fixture cli prints more lines than it checked | Sources/Antarium/Core/HarnessCLI.swift | /static func fixtureSummary(/,/^    }$/ s|checked.append(descriptor.id)||
+the quota cli prints more lines than it checked | Sources/Antarium/Core/HarnessCLI.swift | /static func quotaSummary(/,/^    }$/ s|checked.append(descriptor.id)||
+the installation cli prints more lines than it checked | Sources/Antarium/Core/HarnessCLI.swift | /static func installationSummary(/,/^    }$/ s|checked.append(descriptor.id)||
 fixture cli skips every descriptor | Sources/Antarium/Core/HarnessCLI.swift | s|guard descriptor.source.kind != .none else { continue }|guard false else { continue }|
 fixture cli checks the ones with no source | Sources/Antarium/Core/HarnessCLI.swift | s|guard descriptor.source.kind != .none else { continue }|guard descriptor.source.kind == .none else { continue }|
-fixture cli prints more lines than it checked | Sources/Antarium/Core/HarnessCLI.swift | s|checked.append(descriptor.id)||
 fixture cli returns success despite failures | Sources/Antarium/Core/HarnessCLI.swift | s|summary.failed.isEmpty ? 0 : 1|0|
 fixture cli fails a clean run | Sources/Antarium/Core/HarnessCLI.swift | s|summary.failed.isEmpty ? 0 : 1|1|
 quota cli counts descriptors with no quota | Sources/Antarium/Core/HarnessCLI.swift | s|for descriptor in descriptors where descriptor.quota != nil {|for descriptor in descriptors {|
 quota cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|if !report.passed { failed.append(report.id) }||
-installation cli counts no failures | Sources/Antarium/Core/HarnessCLI.swift | s|            if !passed { failed.append(descriptor.id) }||
 a genuine v0 document is nagged | Sources/Antarium/Core/HarnessCheck.swift | s|(object\["formatVersion"\] as? NSNumber)?.intValue|(object["formatVersion"] as? NSNumber)?.intValue ?? HarnessDocument.currentVersion|
 a superseded key fails the check | Sources/Antarium/Core/HarnessCheck.swift | s|            warn("\\(legacy) is a v0 key.|            fail("\\(legacy) is a v0 key.|
 backoff exceeds the configured interval | Sources/Antarium/AgentItem.swift | s|min(interval, pow(2, Double(min(max(failures, 0), 4))) \* 60)|pow(2, Double(min(max(failures, 0), 4))) * 60|
@@ -750,7 +753,8 @@ a spoken cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|value
 a drawn cost drops the estimate | Sources/Antarium/UI/Dashboard.swift | s|                        "Estimated list-price cost of every session's tokens. "|                        "Cost of every session's tokens. "|
 the readme stops calling cost an estimate | README.md | s|clearly presented as an estimate|presented plainly|
 a new command is launched from nowhere | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func sweep() { _ = Shell.execute("/usr/bin/curl", ["-s", "https://example.invalid"]) }\n    static func sorted(|
-a vendor cli becomes an absolute path | Sources/Antarium/Providers/AmpProvider.swift | s|CommandPath.resolve("amp")|CommandPath.resolve("/opt/homebrew/bin/amp")|
+an amp probe tests an absolute path | Sources/Antarium/Providers/AmpProvider.swift | s|ConfiguredProbe.value(id) { CommandPath.resolve("amp") != nil }|ConfiguredProbe.value(id) { CommandPath.resolve("/opt/homebrew/bin/amp") != nil }|
+amp is run from an absolute path | Sources/Antarium/Providers/AmpProvider.swift | s|guard let path = CommandPath.resolve("amp")|guard let path = CommandPath.resolve("/opt/homebrew/bin/amp")|
 the reference drops the context tokens field | docs/TECHNICAL.md | /^| .contextTokens/d
 the reference drops the context window field | docs/TECHNICAL.md | /^| .contextWindow/d
 the reference drops a credential kind | docs/TECHNICAL.md | s|jsonFile|a file|g
@@ -890,7 +894,8 @@ the validator drops a field the schema declares | Sources/Antarium/Core/HarnessC
 a section the schema does not describe is accepted | Sources/Antarium/Core/HarnessCheck.swift | s|        "source.manifest": \["file", "map"\],|        "source.manifest": ["file", "map"],\n        "activity": ["rules", "tools"],|
 a section is left out of the comparison | Sources/Antarium/Core/HarnessCheck.swift | s|        "map": mapKeys,|        "map": mapKeys, "notInSchema.at.all": ["x"],|
 the app stops launching a command the allowlist still permits | Sources/Antarium/Core/RemoteTmux.swift | s|for path in \["/opt/homebrew/bin/sshpass", "/usr/local/bin/sshpass", "/usr/bin/sshpass"\]|for path in ["/opt/homebrew/bin/nothing", "/usr/local/bin/nothing", "/usr/bin/nothing"]|
-a CLI is no longer launched but is still allowed | Sources/Antarium/Providers/KiroProvider.swift | s|"kiro-cli"|"kiro-cli-gone"|
+a kiro probe tests a cli that is not there | Sources/Antarium/Providers/KiroProvider.swift | s|ConfiguredProbe.value(id) { CommandPath.resolve("kiro-cli") != nil }|ConfiguredProbe.value(id) { CommandPath.resolve("kiro-cli-gone") != nil }|
+kiro is run from a cli that is not there | Sources/Antarium/Providers/KiroProvider.swift | s|guard let path = CommandPath.resolve("kiro-cli")|guard let path = CommandPath.resolve("kiro-cli-gone")|
 a quota provider loses the fixture that is its only check | Resources/harnesses/synthetic.json | s|"id": "synthetic"|"id": "synthetic-renamed"|
 a session fixture is named but not shipped | Resources/harnesses/codex.json | s|"fixture": "harness-fixtures/codex.json"|"fixture": "harness-fixtures/codex-gone.json"|
 every agent without artwork draws one letter again | Sources/Antarium/UI/Glyphs.swift | s|        if capitals.count >= 2 { return String(capitals.prefix(2)) }|        if false { return String(capitals.prefix(2)) }|
@@ -1009,7 +1014,8 @@ a session window is filed under the weekly group | Sources/Antarium/Providers/Cl
 a quota mapping stops saying when it was last read | Resources/harnesses/synthetic.json | s|"checkedAt"|"checkedAtWithheld"|
 a reading is dated in the future | Resources/harnesses/moonshot.json | s|"checkedAt": "2026-09-25"|"checkedAt": "2099-01-01"|
 a reading is dated in a shape no calendar reads | Resources/harnesses/openrouter.json | s|"checkedAt": "2026-09-25"|"checkedAt": "25 September"|
-the schema accepts any text as a reading date | Resources/harness.schema.json | s|"pattern": "\^\[0-9\]{4}-\[0-9\]{2}-\[0-9\]{2}\$",||
+the schema accepts any text as a session reading date | Resources/harness.schema.json | /"journal": {/,/"description": "Day these records/ s|"pattern": "\^\[0-9\]{4}-\[0-9\]{2}-\[0-9\]{2}\$",||
+the schema accepts any text as a quota reading date | Resources/harness.schema.json | /"documentation": {/,/"description": "Day these figures/ s|"pattern": "\^\[0-9\]{4}-\[0-9\]{2}-\[0-9\]{2}\$",||
 a streamed reply is counted once per content block again | Sources/Antarium/Core/TranscriptStats.swift | s|            if stats.countedUsage.contains(key) { return }||
 the reply key forgets which request it belonged to | Sources/Antarium/Core/TranscriptStats.swift | s|        for byte in "\\(id ?? "")\|\\(request ?? "")".utf8 {|        for byte in "\\(id ?? "")".utf8 {|
 the memory of counted replies holds nothing | Sources/Antarium/Core/TranscriptStats.swift | s|    static let recentUsageMemory = 512|    static let recentUsageMemory = 0|
