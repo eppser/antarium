@@ -1163,3 +1163,4 @@ a journal path index stated as a flag resolves | Sources/Antarium/Core/Journal.s
 a journal delete index stated as a flag resolves | Sources/Antarium/Core/Journal.swift | s%        if !FieldPath.isBoolean(head), let index = head as? Int, index >= 0 {%        if let index = head as? Int, index >= 0 {%
 a source limit stated as a flag is accepted | Sources/Antarium/Core/HarnessDocument.swift | s%           FieldPath.isBoolean(source\["limit"\])%           false%
 a loop delay stated as a flag is a delay | Sources/Antarium/Core/TranscriptStats.swift | s%            if !FieldPath.isBoolean(input\["delaySeconds"\]),%            if true,%
+a descriptor builds a snapshot from an empty reply | Sources/Antarium/Providers/DescriptorProvider.swift | s%        guard !gauges.isEmpty else {%        guard true else {%
