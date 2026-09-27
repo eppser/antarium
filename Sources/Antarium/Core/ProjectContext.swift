@@ -140,6 +140,16 @@ struct ProjectContext {
                 if errno == ENOENT || errno == ENOTDIR { return nil }
                 throw ProbeError.unavailable
             }
+            // No catalogue entry, because removing this changes no answer:
+            // every reader below refuses a link on its own. `BoundedDirectory`
+            // opens with O_NOFOLLOW, `BoundedFile` refuses a non-regular file
+            // on the JSON and TOML paths, and `hasContent` re-checks S_IFREG a
+            // few lines down. It was one entry with the folder branch of
+            // `probe`, and that branch's own tests were what kept catching it.
+            //
+            // Kept because `lstat` above is deliberate and this says what the
+            // deliberate part is for, and because a reader added later would
+            // otherwise inherit no refusal at all.
             guard info.st_mode & S_IFMT == S_IFREG || info.st_mode & S_IFMT == S_IFDIR else {
                 throw ProbeError.unsupported
             }

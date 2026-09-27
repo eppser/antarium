@@ -242,17 +242,35 @@ enum AgentAutoEnable {
         return record.adopted
     }
 
+    /// What an explicit re-run should record, given what the machine reports.
+    ///
+    /// Pulled out for the reason `firstRunRecord` was: everything below it is
+    /// two settings writes, and a decision inside them cannot be reached. The
+    /// fallback in particular — the first provider, so a re-run on a Mac where
+    /// nothing is detectable still leaves one item rather than an empty bar and
+    /// no way back into the app — was asserted nowhere, and emptying it left
+    /// the suite green. It had shared one catalogue entry with the first run's
+    /// identical fallback, and that entry was being caught by the other half.
+    static func rerunRecord(providers: [(id: String, signedIn: Bool)],
+                            sessions: Set<String>)
+        -> (enabled: Set<String>, known: Set<String>)? {
+        guard !providers.isEmpty else { return nil }
+        let chosen = resolve(evidence(providers: providers, sessionsPresent: sessions),
+                            fallback: providers.map(\.id))
+        guard !chosen.isEmpty else { return nil }
+        return (chosen, Set(providers.map(\.id)))
+    }
+
     /// Re-runs detection over the user's existing choice. Only ever called
     /// from an explicit action in Settings.
+    ///
+    /// Two writes and nothing else, like `applyIfNeeded`.
     @discardableResult
     static func apply(providers: [UsageProvider]) -> Set<String>? {
-        guard !providers.isEmpty else { return nil }
-        let chosen = resolve(evidence(providers: providers,
-                                      sessionsPresent: sessionsPresent()),
-                             fallback: providers.map(\.id))
-        guard !chosen.isEmpty else { return nil }
-        Settings.enabledAgents = chosen
-        known = Set(providers.map(\.id))
-        return chosen
+        guard let record = rerunRecord(providers: providers.map { ($0.id, $0.isConfigured) },
+                                       sessions: sessionsPresent()) else { return nil }
+        Settings.enabledAgents = record.enabled
+        known = record.known
+        return record.enabled
     }
 }

@@ -88,7 +88,7 @@ stale reset dates become a reason to poll | Sources/Antarium/AgentItem.swift | s
 poll floor swallows real rollovers | Sources/Antarium/AgentItem.swift | s|static let minimumPollInterval: TimeInterval = 60|static let minimumPollInterval: TimeInterval = 3600|
 registry entry count unbounded | Sources/Antarium/Core/AgentScan.swift | s|guard entries.count <= 512 else { throw RegistryError.limit }||
 control characters allowed in a session cwd | Sources/Antarium/Core/AgentScan.swift | s|!cwd.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains(\$0) })|true|
-session cwd length unbounded | Sources/Antarium/Core/AgentScan.swift | s|cwd.utf8.count <= 4_096|cwd.utf8.count <= 1_000_000|
+a claude session cwd is read unbounded | Sources/Antarium/Core/AgentScan.swift | /static func claudeRows(/,/^    }$/ s|cwd.utf8.count <= 4_096|cwd.utf8.count <= 1_000_000|
 an unusable pid is silently ignored | Sources/Antarium/Core/AgentScan.swift | s|if let raw = d\["pid"\], !(raw is NSNull), pid == nil { throw RegistryError.invalid }||
 no published status reads as busy | Sources/Antarium/Core/AgentScan.swift | s|default:      return nil|default:      return .working|
 published status ignored entirely | Sources/Antarium/Core/AgentScan.swift | s|case "busy":  return .working|case "busy":  return nil|
@@ -229,7 +229,7 @@ a future format version is migrated anyway | Sources/AntariumHarnessSDK/HarnessC
 migration reports the wrong origin | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
 migration reports nothing was migrated | Sources/Antarium/Core/HarnessDocument.swift | s|migratedFrom: originalVersion == currentVersion ? nil : originalVersion|migratedFrom: nil|
 loading rewrites the user's file | Sources/Antarium/Core/HarnessDocument.swift | s|guard let value = object\["formatVersion"\] else { return 0 }|guard let value = object["formatVersion"] else { return currentVersion }|
-a capability probe follows a symlink | Sources/Antarium/Core/ProjectContext.swift | s|info.st_mode \& S_IFMT == S_IFDIR|true|
+a content rule counts every file as a folder | Sources/Antarium/Core/ProjectContext.swift | /case .content:/,/return try hasContent(url)/ s|info.st_mode \& S_IFMT == S_IFDIR|true|
 an empty file counts as content | Sources/Antarium/Core/ProjectContext.swift | s|return info.st_size > 0|return true|
 a multiline TOML string is read as configuration | Sources/Antarium/Core/ProjectContext.swift | s|guard !text.contains("\\"\\"\\""), !text.contains("'''") else { throw ProbeError.unsupported }||
 a key prefix matches a different key | Sources/Antarium/Core/ProjectContext.swift | s|if tail.hasPrefix("=") { return true }|return true|
@@ -631,7 +631,8 @@ detection is not consulted at all | Sources/Antarium/Core/AgentAutoEnable.swift 
 detection reports every harness as installed | Sources/Antarium/Core/AgentAutoEnable.swift | s|Set(Onboarding.harnesses(descriptors).filter(\\.found).map(\\.id))|Set(Onboarding.harnesses(descriptors).map(\\.id))|
 the first run ignores what detection found | Sources/Antarium/Core/AgentAutoEnable.swift | s|            evidence: evidence(providers: providers, sessionsPresent: sessions),|            evidence: evidence(providers: providers, sessionsPresent: []),|
 the first run treats every agent as used here | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains($0.id))|                     hasSessions: true)|
-the first run drops the agents it was given | Sources/Antarium/Core/AgentAutoEnable.swift | s|            fallback: providers.map(\\.id))|            fallback: [])|
+the first run drops the agents it was given | Sources/Antarium/Core/AgentAutoEnable.swift | /evidence: evidence(providers: providers, sessionsPresent: sessions),/,/^    }$/ s|fallback: providers.map(\\.id))|fallback: [])|
+a settings re-run drops the agents it was given | Sources/Antarium/Core/AgentAutoEnable.swift | /static func rerunRecord(/,/^    }$/ s|fallback: providers.map(\\.id))|fallback: [])|
 an absurd request count crashes instead of being refused | Sources/Antarium/Providers/CursorProvider.swift | s|case let v as Double: return Int(exactly: v.rounded())|case let v as Double: return Int(v)|
 cursor buckets keep whatever order the dictionary gave | Sources/Antarium/Providers/CursorProvider.swift | s|gauges.sorted { (\$0.used, \$1.id) > (\$1.used, \$0.id) }|gauges.sorted { $0.used > $1.used }|
 an absurd window is accepted | Sources/Antarium/Core/FieldPath.swift | s|guard let value, value.isFinite, value > 0, value <= maxWindowSeconds|guard let value, value.isFinite, value > 0|

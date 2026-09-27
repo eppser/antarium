@@ -38,6 +38,40 @@ struct CapabilityBoundaryTests {
         try FileManager.default.createSymbolicLink(at:root.appendingPathComponent("settings.json"),withDestinationURL:target)
         #expect(try capability(root,fixture()).scope == .unavailable)
     }
+    /// The same rule for a folder. The case above passes whether or not
+    /// `metadata` refuses a link, because `BoundedFile` refuses it a moment
+    /// later on the JSON path — so what that guard uniquely protects is the
+    /// directory probe, where `opendir` would follow the link and count
+    /// somebody else's entries as this project's. Nothing covered it: one
+    /// catalogue entry mutated this guard and the folder branch of `probe`
+    /// together, and the folder branch's own tests were answering for both.
+    @Test("A symbolic link to a directory is not counted through")
+    func symlinkedDirectory() throws {
+        let root = try directory(); defer { try? FileManager.default.removeItem(at:root) }
+        let target = root.appendingPathComponent("elsewhere")
+        try FileManager.default.createDirectory(at:target,withIntermediateDirectories:true)
+        for name in ["one.md","two.md"] { try Data("x".utf8).write(to:target.appendingPathComponent(name)) }
+        try FileManager.default.createSymbolicLink(at:root.appendingPathComponent("entries"),
+                                                  withDestinationURL:target)
+        let linked = try capability(root,fixture(probe:"directory",path:"entries"))
+        #expect(linked.scope == .unavailable,
+                Comment(rawValue: "a linked folder was probed as \(linked.scope) with count \(linked.count)"))
+        #expect(linked.count == 0, "entries were counted through a link")
+    }
+
+    /// And a real folder in the same place is still counted, so the assertion
+    /// above is the link being refused rather than the probe never working.
+    @Test("A real directory in the same place is still counted")
+    func realDirectoryIsCounted() throws {
+        let root = try directory(); defer { try? FileManager.default.removeItem(at:root) }
+        let entries = root.appendingPathComponent("entries")
+        try FileManager.default.createDirectory(at:entries,withIntermediateDirectories:true)
+        for name in ["one.md","two.md"] { try Data("x".utf8).write(to:entries.appendingPathComponent(name)) }
+        let real = try capability(root,fixture(probe:"directory",path:"entries"))
+        #expect(real.scope == .project)
+        #expect(real.count == 2, Comment(rawValue: "counted \(real.count)"))
+    }
+
     @Test("Missing and explicitly empty capabilities remain distinct from a failed probe")
     func knownAbsence() throws {
         let root = try directory(); defer { try? FileManager.default.removeItem(at:root) }

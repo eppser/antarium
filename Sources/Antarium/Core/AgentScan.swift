@@ -638,6 +638,15 @@ enum AgentScan {
     /// A resumed or forked session keeps the *original* id as its filename, so
     /// an exact match can miss. When it does, look through the project's other
     /// transcripts for one that names this session inside.
+    /// The cwd bound here has no catalogue entry, unlike the one in
+    /// `claudeRows`: removing it changes no answer. The cwd becomes a single
+    /// path component, and no filesystem will hold one of 4,097 bytes — the
+    /// `lstat` below fails with ENAMETOOLONG and this returns nil either way.
+    /// Kept because building the string at all is work this should not do, and
+    /// because the sibling bounds on `sessionID` are load-bearing.
+    ///
+    /// It was one entry with the `claudeRows` bound until the two were split,
+    /// and that entry was being caught by the other half.
     static func transcriptURL(cwd: String, sessionID: String, root: String?) -> URL? {
         guard cwd.hasPrefix("/"), cwd.utf8.count <= 4_096, !cwd.contains("\0"),
               !sessionID.isEmpty, sessionID.utf8.count <= 256,

@@ -20,6 +20,37 @@ private final class StubProvider: UsageProvider, @unchecked Sendable {
     func fetch() async throws -> Snapshot { throw ProviderError.unsupported("stub") }
 }
 
+/// An explicit re-run from Settings, which is the user's way back when the
+/// first run's choice is not the one they want.
+///
+/// Its fallback is the same rule as the first run's and had the same catalogue
+/// entry, which meant the first run's tests were answering for both. On a Mac
+/// where nothing is detectable it is the difference between one item and an
+/// empty menu bar — and an empty menu bar is no way back into the app.
+@Test("A re-run with nothing detectable still leaves one agent in the bar")
+func rerunFallsBackToTheFirstProvider() throws {
+    let record = try #require(AgentAutoEnable.rerunRecord(
+        providers: [("claude-code", false), ("codex", false)], sessions: []))
+    #expect(record.enabled == ["claude-code"],
+            Comment(rawValue: "a re-run that detects nothing chose \(record.enabled)"))
+    // And it records both providers as offered, or the next launch treats the
+    // one it passed over as new and adopts it unasked.
+    #expect(record.known == ["claude-code", "codex"])
+}
+
+@Test("A re-run prefers what is detectable to the fallback")
+func rerunPrefersEvidence() throws {
+    let record = try #require(AgentAutoEnable.rerunRecord(
+        providers: [("claude-code", false), ("codex", true)], sessions: ["cursor"]))
+    #expect(record.enabled == ["codex"],
+            Comment(rawValue: "a re-run ignored the signed-in agent and chose \(record.enabled)"))
+}
+
+@Test("A re-run with no providers at all writes nothing")
+func rerunWithoutProvidersWritesNothing() {
+    #expect(AgentAutoEnable.rerunRecord(providers: [], sessions: []) == nil)
+}
+
 @Test("Detection enables every agent with evidence and nothing else")
 func autoEnablePicksWhatIsPresent() {
     let evidence = [
