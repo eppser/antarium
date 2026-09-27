@@ -743,7 +743,7 @@ a mode is accepted with neither documentation nor a reason | Sources/Antarium/Co
 the remote pair stops being documented | Sources/Antarium/Core/LaunchArguments.swift | s|      --verify-remote-discovery-reply <file>||
 the readme drops a shipped tool | README.md | s|^- Gemini CLI$||
 the readme invents a tool | README.md | s|^- Zed$|- Zed\n- Emacs Agent|
-the readme miscounts what ships | README.md | s|ships harnesses for 27 tools|ships harnesses for 11 tools|
+the readme miscounts what ships | README.md | s|ships harnesses for 28 tools|ships harnesses for 11 tools|
 the app signals an agent it discovered | Sources/Antarium/Core/AgentScan.swift | s|    static func sorted(|    static func stopAgent(_ pid: Int32) { kill(pid, SIGTERM) }\n    static func sorted(|
 the app reaches a host nobody asked for | Sources/Antarium/Core/AppLinks.swift | s|    static let repository = URL(string: "https://github.com/eppser/antarium")!|    static let repository = URL(string: "https://telemetry.example.net/collect")!|
 the readme stops naming the gate | README.md | s|^./verify.sh$|./test.sh|
@@ -858,6 +858,10 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+the china region reads the documented variable too | Resources/harnesses/minimax-cn.json | s|      "kind": "textFile",|      "kind": "env", "name": "MINIMAX_API_KEY",|
+both regions read one key file | Resources/harnesses/minimax-cn.json | s|~/.antarium/keys/minimax-cn|~/.antarium/keys/minimax|
+the china region posts to the international host | Resources/harnesses/minimax-cn.json | s|https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains|https://api.minimax.io/v1/api/openplatform/coding_plan/remains|
+the minimax note stops naming the region descriptor | Resources/harnesses/minimax.json | s|the China region ships as `minimax-cn`|the China region is covered too|
 one plan is counted under both brands | Resources/harnesses/zhipu.json | s|"env.ANTHROPIC_BASE_URL": "open.bigmodel.cn"|"env.ANTHROPIC_BASE_URL": "anthropic"|
 the zhipu guard is widened to catch a development base | Resources/harnesses/zhipu.json | s|"env.ANTHROPIC_BASE_URL": "open.bigmodel.cn"|"env.ANTHROPIC_BASE_URL": "bigmodel.cn"|
 the zhipu descriptor posts to the other brand | Resources/harnesses/zhipu.json | s|https://open.bigmodel.cn/api/monitor/usage/quota/limit|https://api.z.ai/api/monitor/usage/quota/limit|
@@ -874,7 +878,6 @@ the copilot note stops saying it will not compute a reset | Resources/harnesses/
 the copilot note stops naming what it diverges from | Resources/harnesses/copilot.json | s|ClaudeBar's MonthlyResetDate.swift|another implementation|
 the copilot reset is read from a computed field | Resources/harnesses/copilot.json | s|      "resetsAt": "quota_reset_date_utc",|      "resetsAt": "quota_reset_date",|
 the case with no stated reset expects one anyway | Resources/quota-fixtures/copilot.json | /a plan whose response states no reset date/,/^    }$/ s|            "usedPercent": 60|            "usedPercent": 60, "resetsAt": "2026-10-01T00:00:00Z"|
-the region override stops naming the field to change | Resources/harnesses/minimax.json | s|should override `quota.endpoint` with api.minimaxi.com|should override the endpoint with the China host|
 the shipped minimax endpoint becomes the china one | Resources/harnesses/minimax.json | s|https://api.minimax.io/v1/api/openplatform/coding_plan/remains|https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains|
 a stale choice empties the menu bar | Sources/Antarium/Core/UsageProvider.swift | s|        if !result.isEmpty { return result }||
 an empty registry traps rather than showing nothing | Sources/Antarium/Core/UsageProvider.swift | s|        return providers.first.map { \[$0\] } ?? \[\]|        return [providers[0]]|
@@ -989,7 +992,7 @@ being used here stops outranking being merely signed in | Sources/Antarium/Core/
 sessions alone stop counting as evidence | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (false, true): return 1|            case (false, true): return 0|
 the ranking collapses to two rungs | Sources/Antarium/Core/AgentAutoEnable.swift | s|            case (true, false): return 2|            case (true, false): return 1|
 the repository carries a machine name again | README.md | s|"build-box", "10.0.0.4"|"someones-imac", "10.0.0.4"|
-the README misstates how many providers ship | README.md | s|19 providers|12 providers|
+the README misstates how many providers ship | README.md | s|20 providers|12 providers|
 the README misstates how many mappings were verified | README.md | s|five were compared field by field|two were compared field by field|
 the guard stops reading what git tracks | Tests/AntariumTests/NoMachineIdentityTests.swift | s|git.arguments = \["-C", root.path, "ls-files"\]|git.arguments = ["-C", root.path, "ls-files", "--", "nothing"]|
 a tilde naming another account is glued onto this one | Sources/Antarium/Core/HarnessDescriptor.swift | s|^        return self$|        return home + dropFirst()|
@@ -1017,7 +1020,7 @@ a session falls back to no identity at all | Sources/Antarium/Core/HarnessEngine
 a rostered provider quietly stops reading its usage api | Resources/harnesses/zai.json | s/"quota"/"quotaWithheld"/
 the document understates how many usage apis ship | docs/ECOSYSTEM.md | s/15 of the 20 are read for usage here/14 of the 20 are read for usage here/
 the document stops naming the roster it is measured against | docs/ECOSYSTEM.md | s/ClaudeBar/that other app/g
-the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/12 of the 27 never appear in it/9 of the 22 never appear in it/
+the row-gap sentence drifts from the descriptors | docs/ECOSYSTEM.md | s/13 of the 28 never appear in it/9 of the 22 never appear in it/
 a shipped quota drops the credential that proves an account exists | Resources/harnesses/zai.json | s/"credential"/"credentialWithheld"/
 the sessions half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     hasSessions: sessionsPresent.contains(\$0.id))|                     hasSessions: false)|
 the signed-in half of the evidence is ignored | Sources/Antarium/Core/AgentAutoEnable.swift | s|                     signedIn: \$0.signedIn,|                     signedIn: false,|

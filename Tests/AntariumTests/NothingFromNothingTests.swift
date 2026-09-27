@@ -43,7 +43,7 @@ struct NothingFromNothingTests {
                                 + "\(reply.name): \(snapshot?.gauges.count ?? 0) gauges"))
             }
         }
-        #expect(examined == 12,
+        #expect(examined == 13,
                 Comment(rawValue: "\(examined) descriptor providers were examined"))
     }
 

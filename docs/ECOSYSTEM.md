@@ -382,7 +382,7 @@ declare no capabilities, and requires this marker to name exactly that set,
 so adding a harness without capabilities fails until the marker admits it —
 and closing the last gap could not be announced here without being true.
 
-12 of the 27 never appear in it. Project context hangs off a row, and none of
+13 of the 28 never appear in it. Project context hangs off a row, and none of
 those makes one: a quota-only harness like `copilot` or `zai` reads no session
 source, and a focus-only one like `herdr` or `orca` reports panes that are
 already somebody else's rows. A capability rule on either is

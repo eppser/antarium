@@ -137,17 +137,34 @@ struct EditedDescriptorTakesEffectTests {
                 "the shipped descriptor already names the China host")
     }
 
-    /// The note has to keep saying which field to edit and what to put in it,
-    /// or the instruction this suite verifies is not the one a user reads.
-    @Test("The note names the field and the host it tells the user to set")
-    func noteNamesTheOverride() throws {
+    /// The note used to tell a China-region account to edit `quota.endpoint`
+    /// here, and this asserted that it did. That instruction is gone: the region
+    /// ships as its own descriptor reading its own key file, which is a thing a
+    /// user can do without opening JSON.
+    ///
+    /// The override mechanism above is still real and still relied on elsewhere —
+    /// OpenCode's note points at it for a credential path under a relocated
+    /// XDG_DATA_HOME — so the test of the mechanism stays. What changes is that
+    /// MiniMax's note must now point at the descriptor rather than at a hand
+    /// edit, because a note describing the worse of two routes is a note that
+    /// will send somebody down it.
+    @Test("The note points at the region's own descriptor, not at a hand edit")
+    func noteNamesTheDescriptor() throws {
         let shipped = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "minimax" })
         let note = shipped.note ?? ""
-        #expect(note.contains("quota.endpoint"),
-                "the note no longer says which field a China-region account should change")
-        #expect(note.contains("api.minimaxi.com"),
-                "the note no longer says what to change it to")
-        #expect(note.contains("~/.antarium/harnesses/minimax.json"),
-                "the note no longer says which file to change it in")
+        #expect(note.contains("`minimax-cn`"),
+                "the note no longer names the descriptor that covers the other region")
+        #expect(!note.contains("should override `quota.endpoint`"),
+                "the note still tells a China-region account to edit JSON")
+        let region = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "minimax-cn" },
+                                  "the descriptor the MiniMax note points at does not ship")
+        #expect(region.quota?.endpoint?.contains("api.minimaxi.com") == true,
+                "the China descriptor no longer names the China host")
+        // And it reads only its own file: sharing the documented variable would
+        // give a user with one account a second gauge against the other region.
+        #expect(region.quota?.credential?.name == nil,
+                "the China descriptor reads the shared variable, so one key would report twice")
+        #expect(region.quota?.credential?.path == "~/.antarium/keys/minimax-cn",
+                "the China descriptor no longer reads its own key file")
     }
 }

@@ -134,6 +134,10 @@ struct GlyphFallbackTests {
             .mapValues { $0.sorted() }
         let recorded = ["CC": ["commandcode", "copilot-cli", "cursor-cli"],
                         "HE": ["herdr", "hermes"],
+                        // The other deliberate twin: one product, two regions,
+                        // and whichever key file a user made is the one that
+                        // reports. Both at once means two accounts.
+                        "MM": ["minimax", "minimax-cn"],
                         "OR": ["openrouter", "orca"],
                         // One plan under two brands, so the twin is the point:
                         // whichever host a user's settings name, exactly one of

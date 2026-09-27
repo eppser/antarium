@@ -170,12 +170,15 @@ struct AuthInBodyTests {
     func onlyTheProbedTwo() {
         let declaring = HarnessCLI.bundledDescriptors()
             .filter { $0.quota?.needsAuthWhen != nil }.map(\.id).sorted()
-        #expect(declaring == ["minimax", "zai", "zhipu"],
+        #expect(declaring == ["minimax", "minimax-cn", "zai", "zhipu"],
                 Comment(rawValue: "declaring needsAuthWhen: \(declaring)"))
         // The twin's rule is the sibling's rule, not a second guess at it.
         let shipped = HarnessCLI.bundledDescriptors()
-        let zai = shipped.first { $0.id == "zai" }?.quota?.needsAuthWhen
-        let zhipu = shipped.first { $0.id == "zhipu" }?.quota?.needsAuthWhen
-        #expect(zai == zhipu, "the two brands of one plan disagree about what a rejection looks like")
+        for (probed, twin) in [("zai", "zhipu"), ("minimax", "minimax-cn")] {
+            #expect(shipped.first { $0.id == probed }?.quota?.needsAuthWhen
+                    == shipped.first { $0.id == twin }?.quota?.needsAuthWhen,
+                    Comment(rawValue: "\(probed) and \(twin) are one service on two hosts and "
+                            + "disagree about what a rejection looks like"))
+        }
     }
 }

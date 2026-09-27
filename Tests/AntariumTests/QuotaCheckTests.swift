@@ -297,6 +297,44 @@ struct SharedCredentialTests {
                         + "\(reporting.isEmpty ? "neither brand" : reporting.joined(separator: " and "))"))
     }
 
+    /// The other one-product-two-hosts pair, whose exclusivity works differently
+    /// and so needs asserting differently.
+    ///
+    /// Z.ai and Zhipu both read one settings file and are separated by a guard
+    /// inside it. MiniMax's regions have no shared file to discriminate on: a key
+    /// is just a key, and nothing in it says which region it belongs to. What
+    /// separates them is which key file the user made. `MINIMAX_API_KEY` is the
+    /// variable MiniMax documents and belongs to the international descriptor
+    /// alone, so a user with it set does not also get a China gauge reporting
+    /// against a region their key is not for — which would be a wrong figure
+    /// beside a right one, on a row that looks like every other row.
+    @Test("The China region reads its own key file and not the documented variable")
+    func regionsAreSeparatedByTheirKeyFile() throws {
+        let shipped = HarnessCLI.bundledDescriptors()
+        let international = try #require(shipped.first { $0.id == "minimax" })
+        let china = try #require(shipped.first { $0.id == "minimax-cn" })
+
+        // The documented variable belongs to one of them.
+        #expect(international.quota?.credential?.name == "MINIMAX_API_KEY",
+                "the international descriptor no longer reads the variable MiniMax documents")
+        #expect(china.quota?.credential?.name == nil,
+                "both regions read one variable, so a single key reports twice")
+
+        // And their files are different, or the same key serves both.
+        let files = [international.quota?.credential?.path, china.quota?.credential?.path]
+        #expect(files == ["~/.antarium/keys/minimax", "~/.antarium/keys/minimax-cn"],
+                Comment(rawValue: "the two regions read \(files)"))
+
+        // The hosts differ and the path does not, which is the whole of the
+        // difference between them and the reason one mapping serves both.
+        let endpoints = [international.quota?.endpoint, china.quota?.endpoint]
+        #expect(endpoints[0]?.contains("api.minimax.io") == true)
+        #expect(endpoints[1]?.contains("api.minimaxi.com") == true)
+        let paths = endpoints.map { $0.flatMap { URLComponents(string: $0)?.path } }
+        #expect(paths[0] == paths[1],
+                Comment(rawValue: "the two regions ask different paths: \(paths)"))
+    }
+
     /// And where we ask the user to write the key themselves, the instruction
     /// names the file we actually read.
     ///
