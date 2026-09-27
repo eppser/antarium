@@ -146,6 +146,21 @@ else
 fi
 
 step "Strict concurrency"
+# From scratch, every time, and this is not thrift being ignored.
+#
+# `swift build` only emits diagnostics for the files it recompiles. Reusing the
+# scratch path meant the second run onwards reported warnings only in whatever had
+# changed since the first — so a warning in an untouched file was reported once and
+# never again, and a run that had already seen it came back clean. The check could
+# stop checking and say "clean" while doing it.
+#
+# That is not hypothetical: a `@MainActor` isolation warning was introduced during
+# this audit, reported by a run that recompiled the file, and then absent from a
+# rebuild by hand — which nearly read as a flaky gate rather than a real warning.
+#
+# Forty-nine seconds against a gate that already takes minutes, for the difference
+# between a check and the appearance of one.
+rm -rf /tmp/antarium-strict
 out=$(swift build --scratch-path /tmp/antarium-strict \
         -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency 2>&1)
 if printf '%s' "$out" | grep -qE 'error:|warning:'; then

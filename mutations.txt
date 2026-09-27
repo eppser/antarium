@@ -1173,3 +1173,7 @@ the tooltip quotes a superseded figure | Sources/Antarium/UI/Dashboard.swift | s
 a reading from another machine clock reads as current | Sources/Antarium/Core/QuotaStore.swift | s%        guard age >= -clockSkewAllowance else { return true }%%
 a clock correction makes a fresh reading stale | Sources/Antarium/Core/QuotaStore.swift | s%        guard age >= -clockSkewAllowance else { return true }%        guard age >= 0 else { return true }%
 the clock skew allowance is a day | Sources/Antarium/Core/QuotaStore.swift | s%    nonisolated static let clockSkewAllowance: TimeInterval = 60%    nonisolated static let clockSkewAllowance: TimeInterval = 86_400%
+the strict gate reuses its scratch path | verify.sh | s%^rm -rf \/tmp\/antarium-strict$%%
+the strict gate stops reading its output | verify.sh | s%    bad "strict build reported diagnostics"%    :%
+ci stops failing on a strict warning | .github/workflows/ci.yml | s@grep -qE 'error:|warning:'@grep -qE 'nothing-at-all'@
+ci greps for a strict warning and ignores it | .github/workflows/ci.yml | /grep -qE 'error:|warning:'/,/echo \"clean\"/ s@            exit 1@            :@

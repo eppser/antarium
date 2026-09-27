@@ -69,11 +69,27 @@ jobs:
           JSON
           ANTARIUM_HOME="$home" ./test.sh
 
+      # Warnings do not fail a build, so running this and reading nothing was a
+      # step that passed whatever it found. `verify.sh` greps the same output and
+      # fails on `warning:`; this did not, which left the strict audit meaningful
+      # only on a developer's machine — where a reused scratch path was quietly
+      # narrowing it to whatever had changed. Both halves are fixed together,
+      # because either alone leaves the audit resting on the other.
       - name: Audit strict Swift concurrency
-        run: >-
-          swift build --scratch-path .build/strict
-          -Xswiftc -strict-concurrency=complete
-          -Xswiftc -warn-concurrency
+        run: |
+          set -o pipefail
+          out=$(swift build --scratch-path .build/strict \
+                  -Xswiftc -strict-concurrency=complete \
+                  -Xswiftc -warn-concurrency 2>&1) || {
+            printf '%s\n' "$out"
+            exit 1
+          }
+          if printf '%s' "$out" | grep -qE 'error:|warning:'; then
+            echo "strict concurrency reported diagnostics:"
+            printf '%s\n' "$out" | grep -E 'error:|warning:'
+            exit 1
+          fi
+          echo "clean"
 
       - name: Assemble the release application
         run: ./build.sh
