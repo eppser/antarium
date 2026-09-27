@@ -1177,3 +1177,5 @@ the strict gate reuses its scratch path | verify.sh | s%^rm -rf \/tmp\/antarium-
 the strict gate stops reading its output | verify.sh | s%    bad "strict build reported diagnostics"%    :%
 ci stops failing on a strict warning | .github/workflows/ci.yml | s@grep -qE 'error:|warning:'@grep -qE 'nothing-at-all'@
 ci greps for a strict warning and ignores it | .github/workflows/ci.yml | /grep -qE 'error:|warning:'/,/echo \"clean\"/ s@            exit 1@            :@
+an emptied catalogue passes the gate | tools/check-mutations.py | s@    if live + len(dead) < MINIMUM_ENTRIES:@    if False:@
+the catalogue floor is one entry | tools/check-mutations.py | s@MINIMUM_ENTRIES = 1_000@MINIMUM_ENTRIES = 1@

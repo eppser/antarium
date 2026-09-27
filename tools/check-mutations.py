@@ -28,6 +28,11 @@ def plain_substitution(expression: str) -> bool:
     return bool(re.match(r'^s([|/#,])', expression)) and ';' not in expression
 
 
+#: The fewest entries this catalogue may hold and still be a catalogue. See the
+#: check at the end of `main` for why a floor rather than a non-empty test.
+MINIMUM_ENTRIES = 1_000
+
+
 def main(path: str) -> int:
     dead = []
     broad = []
@@ -80,6 +85,21 @@ def main(path: str) -> int:
         print(f'   note  mutation "{name}" substitutes on {hits} lines')
     print(f'   {live} mutations still apply'
           + (f', {len(dead) + len(set(duplicates))} do not' if dead or duplicates else ''))
+    # A catalogue with nothing in it applied perfectly.
+    #
+    # This reported "0 mutations still apply" and exited zero, so an emptied or
+    # truncated `mutations.txt` passed the gate — the same shape as the emptied test
+    # file that let the suite run green with seven tests missing. A floor rather than
+    # merely "not empty", because a truncation leaves a prefix rather than nothing,
+    # and a prefix would sail through a non-empty check.
+    #
+    # Set well below the current count so removing stale entries stays ordinary.
+    # Raise it when it starts feeling generous; that is a better problem than the
+    # one it replaces.
+    if live + len(dead) < MINIMUM_ENTRIES:
+        print(f'   FAIL the catalogue holds {live + len(dead)} entries, fewer than the '
+              f'{MINIMUM_ENTRIES} this project expects — emptied or truncated?')
+        return 1
     return 1 if dead or duplicates else 0
 
 
