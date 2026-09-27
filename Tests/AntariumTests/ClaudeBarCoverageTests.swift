@@ -360,6 +360,43 @@ struct ClaudeBarCoverageTests {
         }
     }
 
+    /// Four of that tool's providers offer two transports, and its default is
+    /// the subprocess in three of them. A roster comparison counts providers, so
+    /// it cannot see a provider that is covered by one route and not the other —
+    /// which is the same blind spot one directory deep.
+    ///
+    /// Each of the four is accounted for in the document: Copilot, where this app
+    /// reads the route that serves the plan types the other cannot; Codex, whose
+    /// RPC transport is argued in the provider's own comment; Kimi, closed
+    /// already; and Claude, whose CLI route was absent rather than declined until
+    /// it was written down.
+    @Test("Every second transport that tool offers is accounted for",
+          arguments: ["Copilot", "Codex", "Kimi", "Claude"])
+    func secondRoutesAreArgued(agent: String) throws {
+        let doc = try String(contentsOf: URL(fileURLWithPath: "docs/ECOSYSTEM.md"),
+                             encoding: .utf8)
+        let section = try #require(doc.range(of: "Second routes the same tool offers"),
+                                  "the section accounting for second transports is gone")
+        let rest = doc[section.upperBound...]
+        let end = rest.range(of: "\n## ")
+        let text = String(end.map { rest[..<$0.lowerBound] } ?? rest)
+        #expect(text.contains("**\(agent)**"),
+                Comment(rawValue: "\(agent) offers two transports and the section names none "
+                        + "of them for it"))
+    }
+
+    /// And the one that was missing says what it costs a user, because a closed
+    /// route with no consequence written down reads as a route nobody wanted.
+    @Test("The route this app does not take says who it leaves out")
+    func claudeCLIRouteStatesItsCost() throws {
+        let doc = try String(contentsOf: URL(fileURLWithPath: "docs/ECOSYSTEM.md"),
+                             encoding: .utf8)
+        #expect(doc.contains("there is no `usage` subcommand"),
+                "the evidence closing Claude's CLI route is no longer stated")
+        #expect(doc.contains("sees \"not signed in\" here and a working gauge there"),
+                "the consequence of not taking that route is no longer stated")
+    }
+
     /// This app also reads usage APIs ClaudeBar does not, so the comparison
     /// is not mistaken for a ceiling.
     @Test("Providers beyond ClaudeBar's roster also ship")

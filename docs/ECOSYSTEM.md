@@ -268,6 +268,43 @@ Nothing prints these figures to stdout, so `quota.command` cannot reach them and
 a descriptor that claimed to would match nothing.
 
 
+### Second routes the same tool offers, and which of them are taken
+
+Read 2026-09-27 from that tool's `*ProbeMode.swift` files: four of its providers
+offer two transports each, with a picker in its settings, and its default is the
+subprocess in three of them.
+
+- **Copilot** — Billing API by default, its own notes saying that one "may return
+  empty data for Business/Enterprise", against the internal `/copilot_internal/user`
+  route which "works for all plan types". This app reads the internal one, so the
+  plan types its own default cannot serve are covered here. Nothing to do, and
+  worth knowing it was the better of the two rather than the only one seen.
+- **Codex** — `codex app-server` JSON-RPC by default, against the ChatGPT backend
+  HTTP endpoint. This app reads the HTTP one. The RPC transport is argued in
+  `CodexProvider`'s own comment, dated: it is where that tool's `resetsAt` and
+  `windowDurationMins` come from, both now candidate field names here, and a
+  request/response handshake over stdin is not something `quota.command` can
+  express — it reads a program's stdout and nothing more.
+- **Kimi** — CLI by default, against the cookie-authenticated HTTP API. Settled and
+  closed above: the CLI route starts an interactive TUI in a PTY.
+- **Claude** — `claude /usage` by default, against the OAuth API. This app reads the
+  OAuth API, and until now the CLI route was absent rather than declined, which is
+  precisely the failure this section exists to catch.
+
+  It is closed for the same reason Kimi's is, established from `claude --help` on
+  2026-09-27: there is no `usage` subcommand, `/usage` is a slash command, and slash
+  commands are skills — reachable inside a session, not named as a command a script
+  can call. Establishing whether `--print` reaches one would mean spending a model
+  turn on somebody's account to find out, which is a cost this app must not impose
+  to satisfy its own curiosity.
+
+  The consequence is worth stating plainly, because it is the only case where that
+  tool's default reads something this app cannot. A user whose Claude Code works but
+  whose OAuth token cannot be read — the Keychain refuses, or their sign-in left no
+  readable credential — sees "not signed in" here and a working gauge there. The
+  three credential sources `ClaudeCredentials` tries are what narrow that gap, and
+  they do not close it.
+
 ## Coverage against ClaudeBar's roster
 
 The first ask for this app was to read every usage API ClaudeBar does, and
