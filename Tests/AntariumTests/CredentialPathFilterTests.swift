@@ -126,6 +126,36 @@ struct CredentialPathFilterTests {
         }
     }
 
+    /// A flag is not an account id. `NSNumber.stringValue` on a boolean is "1",
+    /// so an account scoped under `1` would have been asked about.
+    @Test("An account id stated as a flag is no account id")
+    func flagIsNoAccountID() throws {
+        try withCredential(#"{"token":"real-token","org":true}"#) { path in
+            let provider = try self.provider("""
+            {"endpoint":"https://example.invalid/usage/{account}",
+             "credential":{"kind":"jsonFile","path":"\(path)",
+                           "field":"token","accountField":"org"},
+             "windows":{"single":"b","balance":"balance","currency":"USD"}}
+            """)
+            #expect(provider.account() == nil, "a flag was read as the account id 1")
+        }
+    }
+
+    /// And a number still is one, since plenty of services scope usage under a
+    /// numeric id and reading only strings would report "not signed in".
+    @Test("An account id written as a number is still an account id")
+    func numberIsAnAccountID() throws {
+        try withCredential(#"{"token":"real-token","org":41300}"#) { path in
+            let provider = try self.provider("""
+            {"endpoint":"https://example.invalid/usage/{account}",
+             "credential":{"kind":"jsonFile","path":"\(path)",
+                           "field":"token","accountField":"org"},
+             "windows":{"single":"b","balance":"balance","currency":"USD"}}
+            """)
+            #expect(provider.account() == "41300")
+        }
+    }
+
     /// And a plain dotted path still works, which is every shipped descriptor.
     @Test("A dotted credential field is still the field it names")
     func dottedFieldStillWorks() throws {

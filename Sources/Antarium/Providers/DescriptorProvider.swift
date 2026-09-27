@@ -195,7 +195,11 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
         // strings would report "not signed in" for a file that says so
         // plainly.
         if let text = FieldPath.first(object, field) as? String, !text.isEmpty { return text }
-        if let number = FieldPath.first(object, field) as? NSNumber { return number.stringValue }
+        // A flag is not an account id. `stringValue` on a boolean is "1".
+        let found = FieldPath.first(object, field)
+        if !FieldPath.isBoolean(found), let number = found as? NSNumber {
+            return number.stringValue
+        }
         return nil
     }
 

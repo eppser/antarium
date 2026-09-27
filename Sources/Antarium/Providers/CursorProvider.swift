@@ -3,6 +3,18 @@ import SQLite3
 
 /// Cursor plan usage from the private Connect endpoint the IDE's billing dashboard uses.
 ///
+/// Cross-read 2026-09-27 against that tool's Cursor probe, because `isVerified`
+/// was true here with no date recorded — the standard every descriptor mapping is
+/// held to by `quota.checkedAt`. It reads a different endpoint,
+/// `cursor.com/api/usage-summary`, and the two agree on the figure that matters:
+/// `totalPercentUsed` is consumption of the included allowance in both. Its
+/// envelope differs — `individualUsage.plan` with `used`, `limit` and a
+/// `breakdown`, where this reads `planUsage` — and it converts that percentage
+/// back into a request count, which this does not: a percentage is what Cursor
+/// states and a count derived from it is a figure this app would have invented.
+/// The one thing that came out of the comparison is the ISO form of
+/// `billingCycleEnd`, handled below.
+///
 /// Verified against a live Pro account: `GetCurrentPeriodUsage` reports
 /// `planUsage.totalPercentUsed`, `.autoPercentUsed`, and `.apiPercentUsed`
 /// against the included allowance, plus `billingCycleEnd` in epoch milliseconds.
@@ -200,10 +212,28 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         if let value = doubleValue(usage["billingCycleEnd"]) {
             return FieldPath.epoch(value)
         }
+        // And as a date, which the numeric branches cannot read.
+        //
+        // The endpoint above reports milliseconds, verified against a live Pro
+        // account. Cross-read 2026-09-27 against the tool this app is measured
+        // against, which reads a *different* Cursor endpoint —
+        // `cursor.com/api/usage-summary` — where the same field is an ISO string.
+        // Two endpoints, two formats, and no disagreement; but a string that is
+        // not a number reached both branches above and came back with nothing, so
+        // a reply in that shape showed no reset at all. Accepting it costs a
+        // reply in the verified shape nothing, since a numeric string is taken by
+        // the first branch.
+        if let raw = usage["billingCycleEnd"] as? String {
+            return UsageHTTP.parseDate(raw)
+        }
         return nil
     }
 
     private static func doubleValue(_ raw: Any?) -> Double? {
+        // Before the casts: a boolean is an `NSNumber` and `as? Double` takes it,
+        // so `"totalPercentUsed": true` read as one per cent used and
+        // `"billingCycleEnd": true` as a cycle ending a second after 1970.
+        guard !FieldPath.isBoolean(raw) else { return nil }
         switch raw {
         case let v as Double: return v
         case let v as Int: return Double(v)

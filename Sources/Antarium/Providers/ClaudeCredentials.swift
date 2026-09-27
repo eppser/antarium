@@ -223,7 +223,10 @@ enum ClaudeCredentials {
               let oauth = root["claudeAiOauth"] as? [String: Any],
               let token = oauth["accessToken"] as? String, !token.isEmpty
         else { return nil }
-        let expiry = (oauth["expiresAt"] as? Double).map { Date(timeIntervalSince1970: $0 / 1000) }
+        // A flag is not an expiry: `as? Double` takes `true` as 1, which is a
+        // token that expired in 1970 and so reads as expired for ever.
+        let expiry = FieldPath.isBoolean(oauth["expiresAt"]) ? nil
+            : (oauth["expiresAt"] as? Double).map { Date(timeIntervalSince1970: $0 / 1000) }
         return ClaudeToken(accessToken: token,
                            expiresAt: expiry,
                            subscriptionType: oauth["subscriptionType"] as? String,

@@ -197,6 +197,21 @@ enum FieldPath {
         return total
     }
 
+    /// Whether a parsed JSON value is a boolean.
+    ///
+    /// `NSNumber` carries booleans and numbers alike, and `as? Double`, `as? Int`
+    /// and `as? Bool` each succeed on the wrong one — so `true` reads as the
+    /// figure 1 unless this is asked first. `numeric` and `integer` have always
+    /// asked it. Four coercions local to the providers never did, and a sweep for
+    /// them that grepped one code shape reported the wrong all-clear: Cursor read
+    /// `true` as one per cent used and as a billing cycle ending in 1970, Claude
+    /// read it as one per cent on both of its shapes, and a credential's expiry
+    /// read it as 1970. Shared now, so the next one has something to call.
+    static func isBoolean(_ value: Any?) -> Bool {
+        guard let number = value as? NSNumber else { return false }
+        return CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
     static func numeric(_ value: Any) -> Double? {
         if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
         let result: Double?

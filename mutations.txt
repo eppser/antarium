@@ -674,7 +674,7 @@ an account id goes into a url unencoded | Sources/Antarium/Providers/DescriptorP
 an account id is never substituted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            out = out.replacingOccurrences(of: "{account}", with: encode(account))||
 an account field is accepted on any credential | Sources/Antarium/Core/HarnessDocument.swift | s|               (credential?\["kind"\] as? String) != "jsonFile" {|               false {|
 a placeholder with no field is accepted | Sources/Antarium/Core/HarnessDocument.swift | s|               accountField?.isEmpty != false {|               false {|
-a numeric account id is not an account id | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if let number = FieldPath.first(object, field) as? NSNumber { return number.stringValue }%%
+a numeric account id is not an account id | Sources/Antarium/Providers/DescriptorProvider.swift | s%            return number.stringValue%            return nil%
 a credential file from another vendor is trusted | Sources/Antarium/Providers/DescriptorProvider.swift | s|            else { return false }|            else { return true }|
 the validator insists on https again | Sources/Antarium/Core/HarnessCheck.swift | s|                   UsageHTTP.endpointMayCarryACredential(endpoint),|                   endpoint.scheme == "https",|
 a fixture beside a descriptor is never replayed | Sources/Antarium/Core/HarnessCheck.swift | s|            if let fixture = QuotaFixture.fixtureURL(besideDescriptorAt: url) {|            if let fixture: URL = nil {|
@@ -1096,7 +1096,7 @@ every provider claims a relocation it does not honour | Sources/Antarium/Core/Us
 codex-desktop reads its sessions from the wrong home | Resources/harnesses/codex-desktop.json | s%"env": "CODEX_HOME"%"env": "CODEX_HOME_UNUSED"%
 a capability path ignores its agent relocation | Sources/Antarium/Core/ProjectContext.swift | s%                let relocated = HarnessDescriptor.Source.resolve(%                let relocated = substituted.expandingTilde; _ = HarnessDescriptor.Source.resolve(%
 a project path is relocated too | Sources/Antarium/Core/ProjectContext.swift | s%            if substituted.hasPrefix("~") {%            if true {%
-a credential expiry is read as seconds | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let expiry = (oauth\["expiresAt"\] as? Double).map { Date(timeIntervalSince1970: \$0 / 1000) }%        let expiry = (oauth["expiresAt"] as? Double).map { Date(timeIntervalSince1970: $0) }%
+a credential expiry is read as seconds | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            : (oauth\["expiresAt"\] as? Double).map { Date(timeIntervalSince1970: \$0 \/ 1000) }%            : (oauth["expiresAt"] as? Double).map { Date(timeIntervalSince1970: $0) }%
 a credential stating no expiry is expired | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        guard let expiresAt else { return false }%        guard let expiresAt else { return true }%
 a credential expiring exactly now is still live | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        return expiresAt <= now%        return expiresAt < now%
 an expired credential is tried before a live one | Sources/Antarium/Providers/ClaudeCredentials.swift | s%            if aExpired != bExpired { return !aExpired }%            if aExpired != bExpired { return aExpired }%
@@ -1145,3 +1145,15 @@ a native provider ships with no hint | Sources/Antarium/Providers/KiroProvider.s
 a native hint restates the problem | Sources/Antarium/Providers/GrokProvider.swift | s%    var setupHint: String { "Run `grok` in Terminal and sign in." }%    var setupHint: String { "not signed in" }%
 a sign-in command becomes prose | Sources/Antarium/Providers/GeminiProvider.swift | s%    let signInCommand: String? = "gemini"%    let signInCommand: String? = "Please run gemini and sign in."%
 two native providers share an id | Sources/Antarium/Providers/GrokProvider.swift | s%    let id = "grok"%    let id = "gemini"%
+claude drops the per-model weeks of the older shape | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%            + Self.flatModelWeekKeys(json).map { (\$0, Self.flatWeekTitle(\$0)) }%%
+a per-model week is named for no model | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%        return "Weekly \xc2\xb7 " + first.uppercased() + model.dropFirst()%        return "Weekly"%
+the plain week is collected as a model week | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%            .filter { \$0.hasPrefix("seven_day_") \&\& \$0 != "seven_day" }%            .filter { $0.hasPrefix("seven_day") }%
+a model week order depends on the reply | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%            .sorted()%%
+cursor cannot read a billing date | Sources/Antarium/Providers/CursorProvider.swift | s%            return UsageHTTP.parseDate(raw)%            return nil%
+the shared flag guard calls every number a flag | Sources/Antarium/Core/FieldPath.swift | s%        guard let number = value as? NSNumber else { return false }%        return value != nil; guard let number = value as? NSNumber else { return false }%
+the shared flag guard calls no value a flag | Sources/Antarium/Core/FieldPath.swift | s%        return CFGetTypeID(number) == CFBooleanGetTypeID()%        return false%
+cursor reads a flag as a figure | Sources/Antarium/Providers/CursorProvider.swift | s%        guard !FieldPath.isBoolean(raw) else { return nil }%%
+claude reads a flag as a percentage | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%                  !FieldPath.isBoolean(dict\["percent"\]),%%
+claude reads a flag as a utilization | Sources/Antarium/Providers/ClaudeCodeProvider.swift | s%                  !FieldPath.isBoolean(d\["utilization"\]),%%
+a credential expiry reads a flag as a date | Sources/Antarium/Providers/ClaudeCredentials.swift | s%        let expiry = FieldPath.isBoolean(oauth\["expiresAt"\]) ? nil%        let expiry = false ? nil%
+an account id reads a flag as a number | Sources/Antarium/Providers/DescriptorProvider.swift | s%        if !FieldPath.isBoolean(found), let number = found as? NSNumber {%        if let number = found as? NSNumber {%
