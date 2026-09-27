@@ -303,3 +303,70 @@ struct LegacyKeyWarningTests {
         #expect(HarnessCheck.run(file.path) == 0)
     }
 }
+
+/// The directory a descriptor reads sessions from belongs to the agent it
+/// watches.
+///
+/// This is the last of the declared facts with nothing holding it. A wrong
+/// `source.path` produces no sessions, which is what an agent that is not
+/// installed also produces — so no machine here can tell the two apart, and a
+/// path copied from the descriptor beside it would look exactly like an agent
+/// the user does not have. Fixtures cannot help: a fixture supplies its own
+/// root and exercises the glob, not the path.
+///
+/// What is available is a second statement of the same vendor. The process rule
+/// names the binary; `source.path` names its data directory; the two are
+/// written independently and both have to be about the same product. Mistral is
+/// the case that needs it — its store is `~/.vibe/logs/session`, because the
+/// tool is called vibe, and only its process rule says so.
+@Suite("A session store belongs to the agent that writes it")
+struct SessionStoreOwnershipTests {
+
+    /// Path components that name no vendor. A list of *generic* segments, not
+    /// of products: a vendor added later needs nothing added here, which is the
+    /// difference between this and the credential check that used to enumerate
+    /// four shared directories and miss the fifth.
+    private static let generic: Set<String> = [
+        "library", "application support", "user", "local", "share", "config",
+        "containers", "data", "caches", "preferences",
+    ]
+
+    /// The first path component that names something, with a leading dot
+    /// removed: `~/.vibe/logs/session` is "vibe",
+    /// `~/Library/Application Support/Code/User/...` is "Code".
+    private static func vendorToken(_ path: String) -> String? {
+        for raw in path.split(separator: "/") {
+            let part = String(raw)
+            guard part != "~" else { continue }
+            let bare = part.hasPrefix(".") ? String(part.dropFirst()) : part
+            guard !bare.isEmpty, !generic.contains(bare.lowercased()) else { continue }
+            return bare
+        }
+        return nil
+    }
+
+    @Test("Every session path names its own agent, or the process rule does")
+    func pathNamesItsVendor() throws {
+        var checked = 0
+        for descriptor in HarnessCLI.bundledDescriptors() {
+            let path = descriptor.source.path
+            guard !path.isEmpty else { continue }
+            let token = try #require(Self.vendorToken(path),
+                                     Comment(rawValue: "\(descriptor.id) reads \(path), which "
+                                             + "names no directory of its own"))
+            checked += 1
+            let lowered = token.lowercased()
+            // The id, or any of the strings the process rule matches on. Both
+            // are this descriptor's own account of which product it is about.
+            let rule = descriptor.processRule
+            let claims = [descriptor.id]
+                + (rule.pathContains ?? []) + (rule.names ?? []) + (rule.argv0Contains ?? [])
+            #expect(claims.contains { $0.lowercased().contains(lowered) },
+                    Comment(rawValue: "\(descriptor.id) reads sessions from \(path) and nothing "
+                            + "about the process it watches mentions \(token) — either the path "
+                            + "belongs to another agent or the rule watches the wrong binary"))
+        }
+        #expect(checked >= 12,
+                Comment(rawValue: "only \(checked) session paths were examined"))
+    }
+}
