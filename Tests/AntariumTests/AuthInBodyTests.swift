@@ -157,12 +157,25 @@ struct AuthInBodyTests {
         #expect(try !says(#"{"code":401}"#), "a missing pair was treated as holding")
     }
 
-    /// And the two that do declare one are the two that were probed.
-    @Test("Only the endpoints that answer 200 declare the rule")
+    /// And the ones that declare it are the two that were probed, plus the one
+    /// that repeats a probed sibling's mapping field for field.
+    ///
+    /// `zhipu` is the same GLM service behind Zhipu's host, mapped from the same
+    /// reply, so the 200-carrying-401 behaviour is the same software's — but
+    /// open.bigmodel.cn has not been probed and saying otherwise would be a
+    /// claim nobody checked. Listed separately for that reason: the two on the
+    /// left were established by sending a request, the one on the right by
+    /// repeating a mapping, and those are different grounds for the same rule.
+    @Test("Only the probed endpoints and their twins declare the rule")
     func onlyTheProbedTwo() {
         let declaring = HarnessCLI.bundledDescriptors()
             .filter { $0.quota?.needsAuthWhen != nil }.map(\.id).sorted()
-        #expect(declaring == ["minimax", "zai"],
+        #expect(declaring == ["minimax", "zai", "zhipu"],
                 Comment(rawValue: "declaring needsAuthWhen: \(declaring)"))
+        // The twin's rule is the sibling's rule, not a second guess at it.
+        let shipped = HarnessCLI.bundledDescriptors()
+        let zai = shipped.first { $0.id == "zai" }?.quota?.needsAuthWhen
+        let zhipu = shipped.first { $0.id == "zhipu" }?.quota?.needsAuthWhen
+        #expect(zai == zhipu, "the two brands of one plan disagree about what a rejection looks like")
     }
 }

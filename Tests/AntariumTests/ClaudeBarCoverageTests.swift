@@ -426,6 +426,15 @@ struct ClaudeBarCoverageTests {
         // exclusivity the note relies on is gone.
         #expect(zai.quota?.credential?.requires?["env.ANTHROPIC_BASE_URL"] == "z.ai",
                 "the Z.ai guard no longer pins the brand its endpoint serves")
+        // The note used to say a second descriptor was the alternative. It
+        // ships, so the note says which id it is — a reader sent looking for an
+        // alternative that already exists is worse off than one told nothing.
+        #expect(note.contains("`zhipu`"),
+                "the note no longer names the descriptor that covers the other brand")
+        let zhipu = try #require(HarnessCLI.bundledDescriptors().first { $0.id == "zhipu" },
+                                 "the descriptor the Z.ai note points at does not ship")
+        #expect(zhipu.quota?.credential?.requires?["env.ANTHROPIC_BASE_URL"] == "open.bigmodel.cn",
+                "the Zhipu guard no longer pins the brand its endpoint serves")
     }
 
     /// The window keys are the part that was already right, and the part a

@@ -268,6 +268,36 @@ Nothing prints these figures to stdout, so `quota.command` cannot reach them and
 a descriptor that claimed to would match nothing.
 
 
+### One plan, two brands
+
+The GLM coding plan is sold as Z.ai internationally and as Zhipu on
+open.bigmodel.cn. Cross-read 2026-09-27 against that tool's `ZaiUsageProbe`: it
+recognises api.z.ai, open.bigmodel.cn and dev.bigmodel.cn, chooses between them by
+what `env.ANTHROPIC_BASE_URL` in `~/.claude/settings.json` contains, and builds the
+identical `/api/monitor/usage/quota/limit` path onto each. So the response shape and
+the discriminator are both established, and only the host differs.
+
+A descriptor states one endpoint, so this ships as two files rather than one file
+choosing. What makes two files safe instead of double-counting is that both read
+that same settings file and each carries a `requires` guard naming its own base: the
+variable holds exactly one of them, so exactly one descriptor ever reports. That is
+asserted from both sides, because either half failing is quiet in its own way — both
+reporting shows one plan as two, neither reporting shows a working plan as none.
+
+`dev.bigmodel.cn` is the third base that probe knows and is deliberately not
+declared. The Zhipu guard names open.bigmodel.cn exactly, so a development base
+reads as not signed in rather than being charted against the wrong host. Narrowing
+the guard to `bigmodel.cn` would catch both and send a development account's key to
+the production host, which is the trade the Z.ai note argues against in the other
+direction.
+
+`verified` is false for both. Neither host's figures have been read against a live
+plan, and the Zhipu mapping repeats the Z.ai one field for field rather than
+paraphrasing it — a second reading of the same reply would be a second chance to get
+it wrong. Its fixture is kept as its own file for the same reason: one file passing
+twice would prove the two descriptors agree with each other rather than with the
+response.
+
 ### Second routes the same tool offers, and which of them are taken
 
 Read 2026-09-27 from that tool's `*ProbeMode.swift` files: four of its providers
@@ -352,7 +382,7 @@ declare no capabilities, and requires this marker to name exactly that set,
 so adding a harness without capabilities fails until the marker admits it —
 and closing the last gap could not be announced here without being true.
 
-11 of the 26 never appear in it. Project context hangs off a row, and none of
+12 of the 27 never appear in it. Project context hangs off a row, and none of
 those makes one: a quota-only harness like `copilot` or `zai` reads no session
 source, and a focus-only one like `herdr` or `orca` reports panes that are
 already somebody else's rows. A capability rule on either is

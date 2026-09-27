@@ -52,7 +52,7 @@ integration status.
 - **Context and usage visibility** without turning missing data into fake zeroes.
 - **Terminal, Warp, tmux, and desktop-app detection.**
 - **Remote tmux agents** over SSH, from machines you already reach with `ssh`.
-- **Quota monitoring** for 18 providers — seven read natively, eleven described by
+- **Quota monitoring** for 19 providers — seven read natively, twelve described by
   a harness file you can edit or add to.
 - **Per-agent project setup overview** for supported harnesses, including
   instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
@@ -85,7 +85,7 @@ pipeline.
 
 ## Supported tools
 
-Antarium ships harnesses for 26 tools.
+Antarium ships harnesses for 27 tools.
 
 Agents whose sessions appear in the dashboard:
 
@@ -119,6 +119,7 @@ Accounts whose usage appears in the menu bar:
 - Synthetic
 - Vercel AI Gateway
 - Z.ai GLM
+- Zhipu GLM
 
 Some tools appear in both lists under different names — a CLI and the
 account behind it are separate harnesses, because one reads sessions on
@@ -176,9 +177,9 @@ clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
 
 The same rule applies to how a provider's mapping was checked, and the answer
-changed after the mappings were audited. Of the eleven described by a harness
+changed after the mappings were audited. Of the twelve described by a harness
 file, five were compared field by field against the vendor's own published
-response schema and name the page they were read from. The other six have no
+response schema and name the page they were read from. The other seven have no
 published schema at all.
 
 For those six the fixture used to be the whole of the check, and that turned

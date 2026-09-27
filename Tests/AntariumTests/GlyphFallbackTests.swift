@@ -134,7 +134,12 @@ struct GlyphFallbackTests {
             .mapValues { $0.sorted() }
         let recorded = ["CC": ["commandcode", "copilot-cli", "cursor-cli"],
                         "HE": ["herdr", "hermes"],
-                        "OR": ["openrouter", "orca"]]
+                        "OR": ["openrouter", "orca"],
+                        // One plan under two brands, so the twin is the point:
+                        // whichever host a user's settings name, exactly one of
+                        // these two reports, and it carries the provider's name
+                        // for the pointer and the screen reader.
+                        "ZG": ["zai", "zhipu"]]
         #expect(shared == recorded,
                 Comment(rawValue: "the labels sharing a glyph are now "
                         + "\(shared.mapValues { $0.joined(separator: "+") })"))

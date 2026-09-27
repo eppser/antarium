@@ -305,16 +305,16 @@ struct QuotaProvenanceTests {
         let readme = try SourceText.read("README.md")
         let cited = quotaDescriptors.filter { $0.quota?.documentation != nil }.count
         let total = quotaDescriptors.count
-        #expect(readme.contains("Of the eleven"),
+        #expect(readme.contains("Of the twelve"),
                 "the README no longer says how many providers are described by a file")
-        #expect(total == 11, Comment(rawValue: "\(total) quota providers ship"))
+        #expect(total == 12, Comment(rawValue: "\(total) quota providers ship"))
         #expect(cited == 5, Comment(rawValue: "\(cited) of them cite a published schema"))
         #expect(readme.contains("five were compared field by field"),
                 Comment(rawValue: "the README does not state that \(cited) were compared"))
-        #expect(readme.contains("The other six"),
+        #expect(readme.contains("The other seven"),
                 "the README does not account for the ones with no published schema")
         // And the provider count in the features list.
-        #expect(readme.contains("18 providers"),
+        #expect(readme.contains("19 providers"),
                 Comment(rawValue: "the README states a provider count other than "
                         + "\(ProviderRegistry.all.count)"))
     }

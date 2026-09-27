@@ -237,6 +237,66 @@ struct SharedCredentialTests {
                 Comment(rawValue: "only \(checked) shipped credential files were examined"))
     }
 
+    /// One plan sold under two brands ships as two descriptors, and never both.
+    ///
+    /// A descriptor states one endpoint, so the GLM coding plan — api.z.ai
+    /// internationally, open.bigmodel.cn as Zhipu, the identical path on each —
+    /// cannot be one file choosing between hosts. Two files, and the thing that
+    /// makes that safe rather than double-counting is that both read the same
+    /// `~/.claude/settings.json` and each carries a `requires` guard naming its
+    /// own base. `env.ANTHROPIC_BASE_URL` holds exactly one of them.
+    ///
+    /// Asserted from both sides, because either half failing is a different and
+    /// equally quiet defect: both reporting shows one plan as two, and neither
+    /// reporting shows a working plan as no plan.
+    /// The third base is the case worth spelling out. `dev.bigmodel.cn` is a
+    /// development host that probe knows and neither descriptor declares, so it
+    /// must be read by *neither* — an account there reading as not signed in is
+    /// the honest answer. Widening the Zhipu guard to `bigmodel.cn` would catch
+    /// it and send that account's key to the production host, which is a wrong
+    /// company's server by the same argument the Z.ai note makes in the other
+    /// direction. Nothing caught that widening until this case existed.
+    @Test("A settings file for one brand is read by exactly one of the two",
+          arguments: [("https://api.z.ai/api/anthropic", "zai"),
+                      ("https://open.bigmodel.cn/api/anthropic", "zhipu"),
+                      ("https://dev.bigmodel.cn/api/anthropic", nil)])
+    func oneBrandIsReadByOneDescriptor(base: String, expected: String?) throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("brand-\(UUID()).json")
+        let settings: [String: Any] = ["env": ["ANTHROPIC_BASE_URL": base,
+                                               "ANTHROPIC_AUTH_TOKEN": "synthetic-token"]]
+        try JSONSerialization.data(withJSONObject: settings).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        var reporting: [String] = []
+        for id in ["zai", "zhipu"] {
+            let shipped = try #require(HarnessCLI.bundledDescriptors().first { $0.id == id })
+            let endpoint = try #require(shipped.quota?.endpoint)
+            // The shipped guard, verbatim. Writing one here would test whether
+            // this test agrees with itself.
+            let requires = try #require(shipped.quota?.credential?.requires)
+            // Everything else synthetic, because the shipped credential points at
+            // the real ~/.claude/settings.json and this asks the same question of
+            // a file it made.
+            let object: [String: Any] = [
+                "formatVersion": 1, "id": "brand-\(id)", "name": id,
+                "process": [:], "source": ["kind": "none", "path": ""],
+                "quota": ["endpoint": endpoint,
+                          "credential": ["kind": "jsonFile", "path": file.path,
+                                         "field": "env.ANTHROPIC_AUTH_TOKEN",
+                                         "requires": requires],
+                          "windows": ["list": "data.limits", "usedPercent": "percentage"]]]
+            let descriptor = try HarnessDocument.decode(
+                JSONSerialization.data(withJSONObject: object)).descriptor
+            let provider = try #require(DescriptorProvider(descriptor))
+            ConfiguredProbe.invalidate()
+            if provider.token() != nil { reporting.append(id) }
+        }
+        #expect(reporting == expected.map { [$0] } ?? [],
+                Comment(rawValue: "a settings file naming \(base) was read by "
+                        + "\(reporting.isEmpty ? "neither brand" : reporting.joined(separator: " and "))"))
+    }
+
     /// And where we ask the user to write the key themselves, the instruction
     /// names the file we actually read.
     ///
