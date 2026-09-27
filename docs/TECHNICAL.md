@@ -440,6 +440,37 @@ same directory names the same one — including `codex-desktop`, which shares
 recurrence guard for the defect that prompted all of this: two halves of one
 agent, each correct on its own terms, with nothing anywhere comparing them.
 
+### Where a native provider sends its key
+
+A descriptor states its credential file and its endpoint in one file, and both
+are corroborated: the file either names the descriptor that reads it or carries a
+`requires` clause, and the endpoint's domain is named again by the vendor
+reference or the note. A native provider states the same two facts as Swift
+literals forty lines apart, with nothing to compare them against — and a token
+read from one vendor's file and posted to another vendor's host fails
+authentication, so the only symptom is a row saying "not signed in", which is
+also what it says before the user has signed in at all.
+
+So the pairs are written here, and `NativeEndpointTests` holds the sources to
+this table. It is also the answer to a question a user can otherwise only get by
+reading Swift: which company receives the credential this app read.
+
+| Provider | Credential | Host it is sent to |
+| --- | --- | --- |
+| `claude-code` | Keychain, else `~/.claude/.credentials.json` | `api.anthropic.com` |
+| `codex` | `~/.codex/auth.json` | `chatgpt.com` |
+| `cursor` | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` | `api2.cursor.sh` |
+| `gemini` | `~/.gemini/oauth_creds.json` | `cloudcode-pa.googleapis.com` |
+| `grok` | `~/.grok/auth.json` | `cli-chat-proxy.grok.com` |
+
+Three of the five send a key to a domain that does not carry the agent's name —
+Anthropic for Claude Code, ChatGPT for Codex, Google's Cloud Code endpoint for
+Gemini — which is why the id cannot stand in for this table. Those are the rows
+where a wrong host would look most reasonable.
+
+Amp and Kiro are not here: they have no endpoint of their own, and their CLI
+names are held against the setup hints that tell the user what to install.
+
 Not every agent's variable is safe to declare. `CLAUDE_CONFIG_DIR` was looked
 into at the same time and left out, because the evidence contradicts itself:
 third-party tooling describes it as relocating the config directory, Claude Code's
