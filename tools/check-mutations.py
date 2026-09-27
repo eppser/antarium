@@ -12,6 +12,7 @@ way — a corrected mutation was appended after a failed attempt, and the
 deduplication kept the first.
 """
 import os
+from typing import Optional
 import difflib
 import re
 import subprocess
@@ -41,9 +42,52 @@ def plain_substitution(expression: str) -> bool:
 MINIMUM_ENTRIES = 1_000
 
 
+def partial_on_a_line(expression: str, target: str) -> Optional[str]:
+    """The literal this substitutes, when it occurs twice on one line and `g` is absent.
+
+    `sed` substitutes once per line, so a pattern on several lines is fully
+    replaced without `g` — what is not is a pattern twice on *one* line. A note
+    is one long line, and a note states a thing once in a list and again in the
+    sentence that acts on it: mutating such an entry removes one mention and
+    leaves the other, so the test that should catch it is answered by what
+    remains and the entry reads as a missing test.
+
+    Found twice by hand before this looked for it — Z.ai's second brand, named
+    three times in one note, and Vercel's gateway host, named twice.
+    """
+    if expression.rstrip().endswith('g'):
+        return None
+    # An address may come first — `/"note":/ s|a|b|` and `/x/,/y/ s|a|b|` are
+    # both substitutions, and the addressed ones are the case that matters most:
+    # a note is the thing addressed, and a note is where a claim gets stated
+    # twice. The first version of this looked only for a bare `s` and so passed
+    # the two entries it was written for.
+    body = re.sub(r'^\s*/(?:\\.|[^/\\])*/(?:\s*,\s*/(?:\\.|[^/\\])*/)?\s*', '', expression)
+    if not body.startswith('s') or len(body) < 2:
+        return None
+    delimiter = body[1]
+    parts = re.split(r'(?<!\\)' + re.escape(delimiter), body[2:])
+    if len(parts) < 2:
+        return None
+    pattern, replacement = parts[0], parts[1]
+    literal = pattern.replace('\\', '')
+    # An insertion keeps its own pattern on purpose.
+    if not literal or literal in replacement:
+        return None
+    try:
+        with open(target, encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                if line.count(literal) > 1:
+                    return literal
+    except OSError:
+        return None
+    return None
+
+
 def main(path: str) -> int:
     dead = []
     broad = []
+    partial = []
     seen = {}
     duplicates = []
     live = 0
@@ -76,6 +120,8 @@ def main(path: str) -> int:
             if name in seen and seen[name] != expression:
                 duplicates.append(name)
             seen[name] = expression
+            if literal := partial_on_a_line(expression, target):
+                partial.append((name, literal))
             if plain_substitution(expression):
                 b, a = before.splitlines(), result.stdout.splitlines()
                 if len(b) == len(a):
@@ -99,8 +145,15 @@ def main(path: str) -> int:
     # off rather than read.
     for name, hits in sorted(broad, key=lambda row: -row[1]):
         print(f'   note  mutation "{name}" substitutes on {hits} lines')
+    # A failure, not advice: an entry that removes one of two mentions on a line
+    # leaves the test that should catch it satisfied by the other, which is
+    # indistinguishable from a rule nothing defends. Adding `g` is the fix.
+    for name, literal in sorted(partial):
+        print(f'   FAIL mutation "{name}" leaves a second "{literal}" on the same '
+              + 'line — add g to the substitution')
     print(f'   {live} mutations still apply'
-          + (f', {len(dead) + len(set(duplicates))} do not' if dead or duplicates else ''))
+          + (f', {len(dead) + len(set(duplicates))} do not' if dead or duplicates else '')
+          + (f', {len(partial)} apply only partly' if partial else ''))
     # A catalogue with nothing in it applied perfectly.
     #
     # This reported "0 mutations still apply" and exited zero, so an emptied or
@@ -116,7 +169,7 @@ def main(path: str) -> int:
         print(f'   FAIL the catalogue holds {live + len(dead)} entries, fewer than the '
               f'{MINIMUM_ENTRIES} this project expects — emptied or truncated?')
         return 1
-    return 1 if dead or duplicates else 0
+    return 1 if dead or duplicates or partial else 0
 
 
 if __name__ == '__main__':
