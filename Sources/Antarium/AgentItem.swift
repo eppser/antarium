@@ -477,19 +477,52 @@ final class AgentItem: NSObject, NSMenuDelegate {
     }
 
     private func addGauges(_ s: Snapshot, stale: Bool) {
+        // The time the figures were taken, for a reading that is no longer
+        // current — and nil when it is, so a fresh row says nothing about when.
+        let asOf: Date? = stale ? s.fetchedAt : nil
         for (i, gauge) in s.gauges.enumerated() {
-            menu.addItem(gaugeItem(gauge, stale: stale, row: i))
+            menu.addItem(gaugeItem(gauge, asOf: asOf, row: i))
         }
         // A zero balance is a reading, not an absence — the filter is about
         // hiding windows that were never touched, which a balance never is.
         for extra in s.extras where extra.used > 0 || !extra.hasMeter {
-            menu.addItem(gaugeItem(extra, stale: stale, row: 1))
+            menu.addItem(gaugeItem(extra, asOf: asOf, row: 1))
         }
     }
 
     // MARK: - Menu item factories
 
-    private func gaugeItem(_ g: Gauge, stale: Bool, row: Int) -> NSMenuItem {
+    /// The second line of a gauge's menu item, and whether it is a current
+    /// reading.
+    ///
+    /// `asOf` is nil for a fresh reading and the time the figure was taken for an
+    /// old one. A stale gauge used to be marked by dimming its title and by
+    /// nothing else: the words were identical to a fresh one's, so a screen
+    /// reader read an old figure as the current one — `attributedTitle` is what
+    /// it reads, and colour is not in it.
+    ///
+    /// That is the same argument this project already made for saying
+    /// "Estimated" out loud rather than only in a tooltip: a reader who hears
+    /// the row has no tooltip to fall back on, so a bare figure is where an
+    /// estimate reads as a measurement. An old figure reads as a current one in
+    /// exactly the same place. The tooltip and the dashboard both said "as of"
+    /// already; the menu, which is the surface a user actually opens, did not.
+    ///
+    /// Callable so both halves can be asserted without opening a menu, and
+    /// `nonisolated` because it reads nothing but its arguments — this type is
+    /// `@MainActor`, and a pure function inheriting that isolation can only be
+    /// called from a test that pretends to be the main actor.
+    nonisolated static func gaugeDetail(_ g: Gauge, asOf: Date?,
+                                        now: Date = Date()) -> String {
+        // Both framings, always — this is where "is 75% good or bad?" gets settled.
+        let figure = g.amountText.map { "\($0) left · \(Format.longReset(g.resetsAt, now: now))" }
+            ?? "\(g.usedPercentText) used · \(g.remainingPercentText) left · "
+               + "\(Format.longReset(g.resetsAt, now: now))"
+        guard let asOf else { return figure }
+        return figure + " · as of " + Format.age(asOf, now: now)
+    }
+
+    private func gaugeItem(_ g: Gauge, asOf: Date?, row: Int) -> NSMenuItem {
         let item = NSMenuItem()
         item.isEnabled = true
         if g.hasMeter {
@@ -497,13 +530,14 @@ final class AgentItem: NSObject, NSMenuDelegate {
                                        severity: g.severity, agentID: provider.id, row: row,
                                        appearance: NSApp.effectiveAppearance, scale: scale)
         }
+        // Dimmed as well as said, because the two carry to different people: the
+        // colour is the glance and the words are what a reader hears.
         let title = NSMutableAttributedString(
             string: Self.menuTitle(g.title) + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                         .foregroundColor: stale ? NSColor.secondaryLabelColor : NSColor.labelColor])
-        // Both framings, always — this is where "is 75% good or bad?" gets settled.
-        let detail = g.amountText.map { "\($0) left · \(Format.longReset(g.resetsAt))" }
-            ?? "\(g.usedPercentText) used · \(g.remainingPercentText) left · \(Format.longReset(g.resetsAt))"
+                         .foregroundColor: asOf == nil ? NSColor.labelColor
+                                                       : NSColor.secondaryLabelColor])
+        let detail = Self.gaugeDetail(g, asOf: asOf)
         title.append(NSAttributedString(
             string: detail,
             attributes: [.font: NSFont.systemFont(ofSize: 11),

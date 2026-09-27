@@ -184,3 +184,80 @@ struct FailureBadgeTests {
                 "the item no longer renders the badge, so the bar may be showing a raw message")
     }
 }
+
+/// A figure that is no longer current says so in words, not only in grey.
+///
+/// When a refresh fails and an earlier reading exists, the menu shows that
+/// reading rather than an error — the right choice, and the reason the badge
+/// tests above only cover the case where there is nothing to fall back on.
+///
+/// It was marked by dimming the gauge's title and by nothing else. `attributedTitle`
+/// is what a screen reader reads and colour is not in it, so a listener heard an
+/// old figure as the current one, and a user who does not notice a shade of grey
+/// saw one. The tooltip and the dashboard both said "as of" already; the menu,
+/// which is the surface a user opens, did not.
+///
+/// This is the argument this project already made for speaking "Estimated"
+/// instead of only showing it: a reader who hears the row has no tooltip to fall
+/// back on, so a bare figure is where an estimate reads as a measurement. An old
+/// figure reads as a current one in the same place.
+@Suite("An old reading in the menu says it is old")
+struct StaleGaugeDetailTests {
+
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func gauge() -> Gauge {
+        Gauge(id: "w", badge: "5H", title: "Session", used: 0.4,
+              resetsAt: Date(timeIntervalSince1970: 1_800_010_000))
+    }
+
+    @Test("A current reading says nothing about when it was taken")
+    func freshSaysNothing() {
+        let text = AgentItem.gaugeDetail(gauge(), asOf: nil, now: now)
+        #expect(!text.contains("as of"),
+                Comment(rawValue: "a fresh reading dated itself: \(text)"))
+        // And still carries both framings, which is the line's whole job.
+        #expect(text.contains("used") && text.contains("left"),
+                Comment(rawValue: "the detail lost a framing: \(text)"))
+    }
+
+    @Test("An old reading says when it was taken")
+    func staleSaysWhen() {
+        let taken = now.addingTimeInterval(-42 * 60)
+        let text = AgentItem.gaugeDetail(gauge(), asOf: taken, now: now)
+        #expect(text.contains("as of 42 min ago"),
+                Comment(rawValue: "an old reading did not date itself: \(text)"))
+        // The figure is still there: dating it is an addition, not a replacement.
+        #expect(text.contains("used"), Comment(rawValue: "the figure went: \(text)"))
+    }
+
+    /// The two differ, which is the whole point and the thing colour alone could
+    /// not carry.
+    @Test("The two read differently")
+    func theyDiffer() {
+        #expect(AgentItem.gaugeDetail(gauge(), asOf: nil, now: now)
+                != AgentItem.gaugeDetail(gauge(), asOf: now.addingTimeInterval(-600), now: now))
+    }
+
+    /// A balance has no percentage, and the dating has to reach it too — that
+    /// branch builds its own string and would be the easy one to miss.
+    @Test("A balance is dated as well as a meter")
+    func balanceIsDated() {
+        let balance = Gauge(id: "b", badge: "BAL", title: "Credits", used: 0,
+                            amount: Gauge.Amount(value: 12.5, currency: "USD"))
+        let text = AgentItem.gaugeDetail(balance, asOf: now.addingTimeInterval(-600), now: now)
+        #expect(text.contains("as of"), Comment(rawValue: "a balance was not dated: \(text)"))
+        #expect(text.contains("left"), Comment(rawValue: "a balance lost its figure: \(text)"))
+    }
+
+    /// And the item asks for the date rather than deciding it, or the four cases
+    /// above are about something the menu does not show.
+    @Test("The menu item builds its detail from the callable one")
+    func itemUsesIt() throws {
+        let source = try SourceText.read("Sources/Antarium/AgentItem.swift")
+        #expect(source.contains("let detail = Self.gaugeDetail(g, asOf: asOf)"),
+                "the menu item no longer builds its detail from the function these test")
+        #expect(source.contains("let asOf: Date? = stale ? s.fetchedAt : nil"),
+                "the menu no longer passes the time an old reading was taken")
+    }
+}
