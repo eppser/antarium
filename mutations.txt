@@ -858,6 +858,10 @@ the undocumented note loses the date it was checked | Resources/harnesses/openco
 the newest uncited note loses the date it was checked | Resources/harnesses/kimi.json | s|published nowhere; checked 2026-09-26 |published nowhere; checked lately |
 a descriptor sends its key to another vendor | Resources/harnesses/zai.json | s|https://api.z.ai|https://openrouter.ai|
 a descriptor reads another agent's sessions | Resources/harnesses/cursor.json | s|"path": "~/.cursor/projects"|"path": "~/.codex/sessions"|
+two failures say the same word in the bar | Sources/Antarium/Core/UsageModel.swift | s|        case .badResponse:   return "error"|        case .badResponse:   return "n/a"|
+the bar invites a sign-in that cannot help | Sources/Antarium/Core/UsageModel.swift | s|        case .unsupported:   return "n/a"|        case .unsupported:   return "sign in"|
+a failure says nothing in the bar | Sources/Antarium/Core/UsageModel.swift | s|        case .transport:     return "offline"|        case .transport:     return ""|
+the bar shows a raw message instead of its word | Sources/Antarium/AgentItem.swift | s|message: err.badge)|message: err.errorDescription)|
 a first run offers both brands of one plan | Resources/harnesses/zhipu.json | /"requires": {/,/^      }/ s|      "env.ANTHROPIC_BASE_URL": "open.bigmodel.cn"|      "env.ANTHROPIC_AUTH_TOKEN": "synthetic"|
 one twin reads a field its sibling does not | Resources/harnesses/zhipu.json | s|      "usedPercent": "percentage",|      "usedPercent": "percent",|
 the twins collapse onto one endpoint | Resources/harnesses/zhipu.json | s|https://open.bigmodel.cn/api/monitor/usage/quota/limit|https://api.z.ai/api/monitor/usage/quota/limit|

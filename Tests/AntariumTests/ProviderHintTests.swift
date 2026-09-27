@@ -100,3 +100,87 @@ struct ProviderHintMenuContractTests {
                 "the list that put an unchartable answer in with the credential ones is back")
     }
 }
+
+/// The word in the menu bar when there is no reading at all.
+///
+/// The advice beside these failures is thoroughly checked above, and the advice
+/// is the part a user has to hover or open the panel to read. The badge is the
+/// part they see without doing anything: `AgentItem` renders it as the item's
+/// whole message when a provider failed and there is no earlier reading to fall
+/// back on. Nothing asserted it.
+///
+/// What that risks is the same rule the hints are held to, one surface earlier.
+/// Two cases sharing a word make two different problems look like one, and a user
+/// reads the bar and goes to the wrong fix — or to none, because "error" tells
+/// them nothing about whether it is theirs to solve. The failure is silent in the
+/// way this project keeps finding: every word is plausible, and the wrong one is
+/// plausible too.
+@Suite("The menu bar's word for a failure says which failure it is")
+struct FailureBadgeTests {
+
+    /// Every case, named with the word it shows. Named rather than derived: the
+    /// point is that each one is the word intended for it, and a derived list
+    /// would compare the implementation with itself.
+    static let expected: [(ProviderError, String)] = [
+        (.notConfigured("m"), "set up"),
+        (.needsAuth("m"), "sign in"),
+        (.accessDenied("m"), "keychain"),
+        (.transport("m"), "offline"),
+        (.badResponse("m"), "error"),
+        (.unsupported("m"), "n/a"),
+    ]
+
+    @Test("Each failure shows the word written for it")
+    func eachCaseHasItsWord() {
+        for (error, word) in Self.expected {
+            #expect(error.badge == word,
+                    Comment(rawValue: "\(error) shows \"\(error.badge)\" where the bar should "
+                            + "say \"\(word)\""))
+        }
+    }
+
+    /// And no two share one, or the bar tells a user two problems are the same
+    /// problem.
+    @Test("No two failures share a word")
+    func wordsAreDistinct() {
+        let words = Self.expected.map { $0.0.badge }
+        #expect(Set(words).count == words.count,
+                Comment(rawValue: "these failures share a word: \(words)"))
+    }
+
+    /// The badge and the advice agree about whose problem it is. A bar reading
+    /// "sign in" beside advice saying signing in will not help is the drift
+    /// `hint(setupHint:)` records having had in the other direction, and this is
+    /// the surface it would show on first.
+    @Test("Only a failure signing in can fix says so in the bar")
+    func onlySignInCasesSaySignIn() {
+        for (error, _) in Self.expected {
+            let invites = error.badge == "sign in" || error.badge == "set up"
+            #expect(invites == error.suggestsSignIn,
+                    Comment(rawValue: "the bar says \"\(error.badge)\" for a failure that "
+                            + "\(error.suggestsSignIn ? "does" : "does not") suggest signing in"))
+        }
+    }
+
+    /// Short enough to be a menu bar item on its own. These are rendered as the
+    /// item's whole message, so a long one is what the user sees instead of a
+    /// figure — and the longest here is eight characters.
+    @Test("Every word fits a menu bar item")
+    func wordsAreShort() {
+        for (error, _) in Self.expected {
+            #expect(error.badge.count <= 10,
+                    Comment(rawValue: "\"\(error.badge)\" is \(error.badge.count) characters "
+                            + "for a menu bar item"))
+            #expect(!error.badge.isEmpty, "a failure shows nothing at all")
+        }
+    }
+
+    /// And it is the badge the item renders, not the message the error carries —
+    /// which is a developer's sentence and sometimes a server's.
+    @Test("The bar shows the word, not the underlying message")
+    func itemRendersTheBadge() throws {
+        let source = try SourceText.read("Sources/Antarium/AgentItem.swift")
+        #expect(source.contains("message: err.badge"),
+                "the item no longer renders the badge, so the bar may be showing a raw message")
+    }
+}
