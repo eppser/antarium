@@ -467,3 +467,117 @@ struct UnreadableWindowMessageTests {
         }
     }
 }
+
+/// Two descriptors reading one reply from two hosts.
+///
+/// The GLM coding plan is sold as Z.ai and as Zhipu; MiniMax runs an
+/// international and a China region. Each pair is one service, one response
+/// shape and two hosts, and a descriptor states one endpoint — so each ships as
+/// two files whose mappings are deliberately the same text.
+///
+/// Deliberate duplication needs something holding it together, which is the
+/// defect this project has found more than once in other forms: two halves of
+/// one agent, each correct on its own terms, with nothing comparing them. A field
+/// fixed in one file and not its twin gives one brand's users a figure read from
+/// the wrong place, and their fixture passes because it was copied at the same
+/// time as the mistake.
+///
+/// Both directions are asserted, because each failing is quiet in its own way.
+/// The reply is one reply, so the fields describing it have to match exactly. The
+/// hosts are two hosts, so the fields reaching them have to differ — two
+/// descriptors that agree on the endpoint and the credential are one descriptor
+/// shipped twice, and a plan counted twice.
+@Suite("One reply read from two hosts stays one mapping")
+struct TwinDescriptorTests {
+
+    /// Named rather than derived: there is no property of a descriptor that says
+    /// "this is somebody's twin", and inferring it from a shared `windows` block
+    /// would make the test agree with whatever the files currently say.
+    static let pairs = [("zai", "zhipu"), ("minimax", "minimax-cn")]
+
+    private func descriptor(_ id: String) throws -> HarnessDescriptor {
+        try #require(HarnessCLI.bundledDescriptors().first { $0.id == id },
+                     Comment(rawValue: "\(id) is named as one of a pair and does not ship"))
+    }
+
+    /// Compared as encoded JSON rather than field by field, so a field added to
+    /// the descriptor model is covered here without anybody extending this test.
+    ///
+    /// Scalars are described rather than serialised: `JSONSerialization` raises
+    /// an Objective-C exception for a top-level fragment, and `endpoint` is a
+    /// bare string — which took down the whole test process rather than failing
+    /// one case.
+    private func encoded(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value,
+                                                    options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else { return String(describing: value) }
+        return text
+    }
+
+    @Test("The fields describing the reply are the same text in both",
+          arguments: pairs)
+    func replyMappingMatches(a: String, b: String) throws {
+        let first = try descriptor(a).quota, second = try descriptor(b).quota
+        // Read from the files, because the decoded form drops anything the model
+        // does not know and that is precisely where a drift would hide.
+        for pair in [(a, b)] {
+            let one = try raw(pair.0), two = try raw(pair.1)
+            for field in ["windows", "headers", "needsAuthWhen"] {
+                #expect(encoded(one[field]) == encoded(two[field]),
+                        Comment(rawValue: "\(pair.0) and \(pair.1) read one reply and their "
+                                + "`\(field)` has drifted apart"))
+            }
+        }
+        // And the decoded pair agrees too, which catches a difference the model
+        // normalises away.
+        #expect(first?.windows.key == second?.windows.key)
+        #expect(first?.verified == second?.verified,
+                "one host's mapping claims verification the other does not")
+    }
+
+    @Test("The fields reaching the host are different in both", arguments: pairs)
+    func hostFieldsDiffer(a: String, b: String) throws {
+        let one = try raw(a), two = try raw(b)
+        for field in ["endpoint", "credential"] {
+            #expect(encoded(one[field]) != encoded(two[field]),
+                    Comment(rawValue: "\(a) and \(b) share their `\(field)`, so they are one "
+                            + "descriptor shipped twice and a plan counted twice"))
+        }
+        // The path is the shared part of the endpoint and the host is not: that
+        // is the whole of the difference, and the reason one mapping serves both.
+        let paths = [one, two].map { ($0["endpoint"] as? String).flatMap { URLComponents(string: $0)?.path } }
+        #expect(paths[0] == paths[1],
+                Comment(rawValue: "\(a) and \(b) ask different paths: \(paths)"))
+        let hosts = [one, two].map { ($0["endpoint"] as? String).flatMap { URLComponents(string: $0)?.host } }
+        #expect(hosts[0] != hosts[1],
+                Comment(rawValue: "\(a) and \(b) name one host: \(hosts)"))
+    }
+
+    /// Each twin says which pair it belongs to, or the list above is the only
+    /// record and a reader of one file cannot tell it has a sibling.
+    ///
+    /// Backticked in both directions. The first version asked for the backticked
+    /// id one way and a bare mention the other, and "zai" occurs in that note in
+    /// passing — so a mutation removing the reference left it green. The id as an
+    /// id is what a reader can act on; the word in a sentence about something
+    /// else is not.
+    @Test("Each of a pair names the other as an id", arguments: pairs)
+    func eachNamesTheOther(a: String, b: String) throws {
+        #expect(try descriptor(a).note?.contains("`\(b)`") == true,
+                Comment(rawValue: "\(a)'s note does not name `\(b)`"))
+        #expect(try descriptor(b).note?.contains("`\(a)`") == true,
+                Comment(rawValue: "\(b)'s note does not name `\(a)`"))
+    }
+
+    private func raw(_ id: String) throws -> [String: Any] {
+        let url = try #require(AppResources.bundle.url(forResource: id, withExtension: "json",
+                                                      subdirectory: "harnesses"))
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                                    as? [String: Any])
+        return try #require(object["quota"] as? [String: Any],
+                            Comment(rawValue: "\(id) declares no quota"))
+    }
+}
