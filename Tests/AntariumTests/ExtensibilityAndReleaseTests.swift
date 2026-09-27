@@ -523,12 +523,27 @@ struct UIAndReleaseContractTests {
                                 encoding: .utf8)
         #expect(manifest.contains("optionalGeneratedExcludes"))
         #expect(manifest.contains("fileExists(atPath:"))
-        #expect(script.contains("--notarize"))
-        #expect(script.contains("NOTARY_PROFILE"))
+        // Each of these names the line that acts, not the word.
+        //
+        // Three of them used to be bare substrings, and each was satisfiable by
+        // something that does no work: `--notarize` appears in the usage comment at
+        // the top of the script, `NOTARY_PROFILE` in the two error messages that
+        // check for it, and `SHA256` in a variable declaration and a comment. Delete
+        // the flag parse, the submission, or the checksum and this test went on
+        // passing — a gate on shipping, satisfied by prose about shipping.
+        //
+        // Found by sweeping the suite for substring assertions whose string appears
+        // more than once in the file being read, after writing the same weakness
+        // twice in two days.
+        #expect(script.contains("--notarize) NOTARIZE=true"),
+                "build.sh no longer parses --notarize")
+        #expect(script.contains("--keychain-profile \"$NOTARY_PROFILE\""),
+                "the notarytool submission no longer uses the stored profile")
         #expect(script.contains("notarytool submit"))
         #expect(script.contains("stapler staple"))
         #expect(script.contains("spctl --assess"))
-        #expect(script.contains("SHA256"))
+        #expect(script.contains("shasum -a 256"),
+                "build.sh no longer computes a checksum for the archive")
     }
 }
 

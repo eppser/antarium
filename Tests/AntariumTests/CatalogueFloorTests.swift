@@ -118,27 +118,21 @@ struct CatalogueFloorTests {
                         + "reported as healthy"))
     }
 
-    /// And the real one passes, or the check above would be satisfied by a checker
-    /// that refuses everything.
-    @Test("The checker accepts the real catalogue")
-    func checkerAcceptsTheRealOne() throws {
-        let python = URL(fileURLWithPath: "/usr/bin/python3")
-        try #require(FileManager.default.isExecutableFile(atPath: python.path))
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let process = Process()
-        process.executableURL = python
-        process.arguments = [root.appendingPathComponent("tools/check-mutations.py").path,
-                             root.appendingPathComponent("mutations.txt").path]
-        process.currentDirectoryURL = root
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
-        try process.run()
-        process.waitUntilExit()
-        #expect(process.terminationStatus == 0,
-                "the shipped catalogue has entries that no longer apply")
-    }
+    /// No positive case here, deliberately, and it was here for a day.
+    ///
+    /// A test running the checker against the *live* `mutations.txt` reports whatever
+    /// the catalogue says in the tree it is run in — and a mutation run mutates the
+    /// tree. So every mutation of a line the catalogue targets invalidated that
+    /// entry's own pattern, the checker reported a dead entry, and this test failed:
+    /// it became a universal catcher, crediting itself for mutations it knows nothing
+    /// about. That is the attribution problem in its purest form, and the reason to
+    /// read *which* test caught a mutation.
+    ///
+    /// The positive case it provided is already provided better. `verify.sh` runs the
+    /// checker against the real catalogue on every run and requires it to exit zero,
+    /// so a checker that refused everything would fail the gate on its first use —
+    /// which is a stronger statement than a test asserting the same thing, and one
+    /// that cannot be confused by a mutated worktree.
 
     /// And the file ends with a newline, which has bitten three times: appending to
     /// a file without one merges the new entry into the last, and both are lost.

@@ -1180,3 +1180,6 @@ ci greps for a strict warning and ignores it | .github/workflows/ci.yml | /grep 
 an emptied catalogue passes the gate | tools/check-mutations.py | s@    if live + len(dead) < MINIMUM_ENTRIES:@    if False:@
 the catalogue floor is one entry | tools/check-mutations.py | s@MINIMUM_ENTRIES = 1_000@MINIMUM_ENTRIES = 1@
 the gate stops running outside UTC | verify.sh | s@if TZ=Asia/Kolkata ./test.sh@if TZ=UTC ./test.sh@
+build.sh stops parsing the notarize flag | build.sh | s@        --notarize) NOTARIZE=true; MAKE_ARCHIVE=true ;;@        --notarize) MAKE_ARCHIVE=true ;;@
+the notarytool submission drops its keychain profile | build.sh | s@ --keychain-profile "\$NOTARY_PROFILE"@@
+build.sh stops checksumming the archive | build.sh | s@    shasum -a 256 "\$ARCHIVE" > "\$SHA256"@    : > "$SHA256"@
