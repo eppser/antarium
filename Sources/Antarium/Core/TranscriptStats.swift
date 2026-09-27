@@ -16,7 +16,31 @@ struct TranscriptStats: Codable {
     private var numericIssue: String?
     private var backlog: Bool?
     var usageIssue: String? {
-        numericIssue ?? readIssue ?? (backlog == true ? "Transcript history is still being read. Usage figures are unavailable until it catches up." : nil)
+        Self.issue(numeric: numericIssue, read: readIssue, backlogged: backlog == true)
+    }
+
+    /// Which of the reasons a row's figures are missing gets shown.
+    ///
+    /// A row whose usage could not be read has its figures nilled rather than
+    /// zeroed, and the reason is the only thing standing between that and a row
+    /// that looks like it was not looked at. There can be more than one reason at
+    /// once and only one is shown, so the order is a decision: a numeric problem
+    /// names the record that was wrong, a read problem names the file, and a
+    /// backlog names neither because nothing is wrong yet. Most specific first.
+    ///
+    /// The backlog sentence is the one that says "until it catches up", because
+    /// it is the only reason here that goes away on its own — a user told a
+    /// transient state in the same words as a permanent one goes looking for a
+    /// fault that is not there.
+    ///
+    /// Callable because every test of this asked only whether *a* reason was
+    /// given. Six sentences reach a user through the row's note, its tooltip and
+    /// the spoken summary, and nothing said which.
+    static let backlogIssue = "Transcript history is still being read. "
+        + "Usage figures are unavailable until it catches up."
+
+    static func issue(numeric: String?, read: String?, backlogged: Bool) -> String? {
+        numeric ?? read ?? (backlogged ? backlogIssue : nil)
     }
     var toolCalls: Int = 0
     struct TokenFacts: Codable {
