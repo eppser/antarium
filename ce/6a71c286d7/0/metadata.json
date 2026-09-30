@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "ce6a71c286d7",
+  "session_id": "e2429d87-e52c-4e73-82e8-0f717c758576",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-30T09:22:12.719096Z",
+  "branch": "reliability-audit",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "Resources/harness.schema.json",
+    "Sources/Antarium/Core/AgentScan.swift",
+    "Sources/Antarium/Core/AgentStore.swift",
+    "Sources/Antarium/Core/TranscriptStats.swift",
+    "Sources/Antarium/Providers/CodexProvider.swift",
+    "Sources/Antarium/Providers/DescriptorProvider.swift",
+    "Tests/AntariumTests/ClaudeRegistryTests.swift",
+    "Tests/AntariumTests/CodexSnapshotTests.swift",
+    "Tests/AntariumTests/MoneyAndCostTests.swift",
+    "Tests/AntariumTests/ProcessObservationTests.swift",
+    "Tests/AntariumTests/QuotaCheckTests.swift",
+    "docs/TECHNICAL.md",
+    "mutations.txt"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "fff8eaa18b60",
+  "checkpoint_transcript_start": 572,
+  "transcript_lines_at_start": 572,
+  "compact_transcript_start": 64,
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 73307,
+    "cache_read_tokens": 10310319,
+    "output_tokens": 31961,
+    "api_call_count": 57
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-30T09:22:12.528171Z",
+    "agent_lines": 228,
+    "agent_removed": 25,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 228,
+    "total_lines_changed": 253,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 228,
+      "agent_lines_removed": 25
+    }
+  ]
+}

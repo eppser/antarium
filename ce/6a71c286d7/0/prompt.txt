@@ -1,0 +1,92 @@
+<task-notification>
+<task-id>a2e88362c28741ef1</task-id>
+<tool-use-id>toolu_011wpRXxM8x2K7qq7jyky9j2</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-se-shared-antarium-Antarium/e2429d87-e52c-4e73-82e8-0f717c758576/tasks/a2e88362c28741ef1.output</output-file>
+<status>completed</status>
+<summary>Agent "List README test constraints" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found 13 tests in `/Users/se/shared/antarium/Antarium/Tests/AntariumTests` that read the repository's `README.md`, spread over 5 files. The other files you listed have no assertion on `README.md`; details for those are at the end.
+
+Most tests find `README.md` from the repo root through `#filePath`. One (QuotaProvenanceTests.swift:99) opens `"README.md"` relative to the working directory instead.
+
+## ExtensibilityAndReleaseTests.swift
+
+**:477 `publicLicenseIsMIT` ("The public repository uses the standard MIT license")**
+- Must contain `MIT License`.
+- Must NOT contain `Commercial use requires a separate license`. This is checked after collapsing all whitespace to single spaces, so line-wrapping it doesn't get around the check.
+
+**:496 `publicDocsExplainPositionAndArchitecture`**
+- Must contain the literal `## Where Antarium fits`.
+- Must contain the literal `## How Antarium works`.
+- Must contain the literal ` ```mermaid ` (three backticks followed by `mermaid`).
+
+## QuotaProvenanceTests.swift
+
+**:92–107 `readmeCountsMatchTheDescriptors`** (collapses whitespace first, so wrapping is fine)
+- Must contain `Of the &lt;total&gt; described by a harness file, &lt;cited&gt; were compared`.
+- Must contain `The other &lt;total−cited&gt; have no published schema at all`.
+- `total` is the number of quota descriptors and `cited` is the number with `quota.documentation`. Both are spelled out as words ("zero" to "fifteen"), so today that is `thirteen`, `five` and `eight`.
+- It reads `URL(fileURLWithPath: "README.md")`, which depends on the working directory.
+
+**:303–320 `readmeMatchesTheProvenance`** (reads the raw file with **no whitespace collapsing**, so each phrase must sit on one line)
+- Must contain `Of the thirteen`.
+- Must contain `five were compared field by field`.
+- Must contain `The other eight`.
+- Must contain `20 providers`. This is hardcoded in the test, even though the failure message mentions `ProviderRegistry.all.count`.
+- It also asserts total == 13 and cited == 5 in code.
+- These phrases are all on one line today: README lines 55, 181, 182 and 183.
+
+## DocumentationAlignmentTests.swift: suite `SupportedToolsListTests` (:372)
+
+The `readme` variable at :375 reads `&lt;root&gt;/README.md`. If the read fails it becomes `""`, so these tests fail rather than error.
+
+**:385 `everyHarnessIsListed`**
+- Every `descriptor.name` from `HarnessCLI.bundledDescriptors()` must appear somewhere in `README.md` as a substring (anywhere in the file).
+- The test also requires at least 20 shipped descriptors.
+
+**:400 `statedCountIsRight`**
+- The first line containing `ships harnesses for` must also contain `&lt;N&gt; tools`, where N is the number of shipped descriptors (currently `Antarium ships harnesses for 28 tools.`).
+- It fails if no line contains `ships harnesses for`.
+
+**:416 `noPhantomTools`**
+- The region starts right after the first occurrence of `## Supported tools` (a plain substring search).
+- It ends at the next `\n## `, or at end of file if there is none. `### ` subheadings do not end it; `## ` does.
+- Every line in the region that starts with `- ` (dash, space, nothing before it) is taken as an entry: the first 2 characters are dropped and surrounding spaces trimmed. Each entry must **exactly equal** a shipped descriptor name.
+- So no bold, links, backticks or trailing descriptions on those bullets. Empty entries are ignored. Other lines, such as prose and headings, are ignored.
+- It fails if `## Supported tools` is missing.
+- Repeating a name is fine (Kimi currently appears in both lists).
+
+## DocumentationAlignmentTests.swift: other suites
+
+**:459 `documentsNameTheGate`** (run once for `README.md` and once for `CONTRIBUTING.md`)
+- Must contain `./verify.sh`.
+- `./verify.sh` must also appear inside a fenced code block. The test splits the text on ` ``` ` and checks the odd-numbered pieces (the parts between fences). Any stray ` ``` ` changes which pieces count as "inside", including in the mermaid block.
+
+**:556 `readmePromisesIt`** (suite `CostIsAnEstimateTests`)
+- Must contain `clearly presented as an estimate`, raw with no collapsing, so the phrase must be on one line. Currently README line 177.
+
+## NoMachineIdentityTests.swift (reads every git-tracked file, README included)
+
+**:84 `hostnameIsAbsent`**
+- No distinctive name for this machine may appear, case-insensitive. The test checks the part before the first dot of `hostName`, `Host.current().localizedName` and `Host.current().name`, and only names of 5 or more characters that aren't generic.
+
+**:118 `homePathIsAbsent`**
+- The absolute home path (e.g. `/Users/&lt;you&gt;`) must not appear.
+
+**:136 `exampleHostsLookLikeExamples`** (all tracked `.md` files)
+- It looks at every line containing `"` and also `remoteTmuxHosts` or `--remote-tmux`.
+- On those lines, the quoted strings are the odd-numbered pieces after splitting on `"`. The keys `remoteTmuxHosts`, `--remote-tmux` and `includeRemoteTmux` are skipped.
+- Any other quoted string containing `.` or `-` must contain `build-box`, `example`, `&lt;`, `HOST` or `host`, or start with `10.0.0.`.
+- **Across all `.md` files, at least one such host must be found.** README line 222 is currently the only line in any tracked `.md` that satisfies this: `  "remoteTmuxHosts": ["build-box", "10.0.0.4", "deploy@build-box"]`. If you remove it, this test fails unless you add a similar line somewhere else.
+
+## Files with no README.md assertion
+- **FixtureVerifierTests.swift:770 `seededReadmeAgrees`** reads `Sources/Antarium/Core/HarnessDescriptor.swift` (the README seeded into the user's folder), not `README.md`.
+- **SeedIdempotenceTests.swift:100** is about a generated `README.txt` in a temporary folder.
+- **QuotaCheckTests, ClaudeBarCoverageTests, GlyphFallbackTests and PrivacyClaimsTests** only mention the README in comments. GlyphFallback reads `.gitignore`, ClaudeBarCoverage reads `docs/ECOSYSTEM.md`, and PrivacyClaims reads `Sources/*.swift`.
+- **TrackedResourceTests.swift:65** reads `Resources/&lt;local&gt;/README.md`, not the root README.
+
+## Outside the test directory
+- `Package.swift:31` lists `"README.md"` in what looks like an exclude list, so the file should keep existing at the root.
+- A comment at `build.sh:78` points to a README section called `"Adding a harness"`. No test checks it.</result>
+<usage><subagent_tokens>52646</subagent_tokens><tool_uses>9</tool_uses><duration_ms>51245</duration_ms></usage>
+</task-notification>

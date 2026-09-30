@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "ce6a71c286d7",
+  "strategy": "manual-commit",
+  "branch": "reliability-audit",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Resources/harness.schema.json",
+    "Sources/Antarium/Core/AgentScan.swift",
+    "Sources/Antarium/Core/AgentStore.swift",
+    "Sources/Antarium/Core/TranscriptStats.swift",
+    "Sources/Antarium/Providers/CodexProvider.swift",
+    "Sources/Antarium/Providers/DescriptorProvider.swift",
+    "Tests/AntariumTests/ClaudeRegistryTests.swift",
+    "Tests/AntariumTests/CodexSnapshotTests.swift",
+    "Tests/AntariumTests/MoneyAndCostTests.swift",
+    "Tests/AntariumTests/ProcessObservationTests.swift",
+    "Tests/AntariumTests/QuotaCheckTests.swift",
+    "docs/TECHNICAL.md",
+    "mutations.txt"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ce/6a71c286d7/0/metadata.json",
+      "transcript": "/ce/6a71c286d7/0/full.jsonl",
+      "compact_transcript": "/ce/6a71c286d7/0/transcript.jsonl",
+      "content_hash": "/ce/6a71c286d7/0/content_hash.txt",
+      "prompt": "/ce/6a71c286d7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 73307,
+    "cache_read_tokens": 10310319,
+    "output_tokens": 31961,
+    "api_call_count": 57
+  }
+}
