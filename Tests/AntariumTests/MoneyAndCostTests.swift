@@ -122,4 +122,38 @@ struct EstimatedCostTests {
         #expect(stats.estimatedCost { _ in rate } == nil,
                 "a transcript with no usage was costed at nothing")
     }
+
+    private func stats(_ lines: [String]) throws -> TranscriptStats {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cost-\(UUID()).jsonl")
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        return try #require(TranscriptStats.of(file))
+    }
+
+    private let priced = #"{"message":{"model":"synthetic-model","usage":"#
+        + #"{"input_tokens":1000,"output_tokens":1000}}}"#
+
+    /// Claude Code writes a `<synthetic>` message after an API error or an
+    /// interruption. It names no real model and carries zero usage, so it
+    /// adds nothing to the bill — and filing it under an unpriceable key
+    /// used to make the whole session's cost unavailable.
+    @Test("A zero-usage record with no model leaves the session's cost intact")
+    func zeroUsageSyntheticRecordIsNotBilled() throws {
+        let synthetic = #"{"message":{"model":"<synthetic>","usage":"#
+            + #"{"input_tokens":0,"output_tokens":0}}}"#
+        let stats = try stats([priced, synthetic])
+        // Priced the way the real table prices: nothing for no model.
+        #expect(stats.estimatedCost { model in model == nil ? nil : self.rate(input: 1) } != nil)
+    }
+
+    /// The other half: usage that cannot be attributed to a model is not
+    /// guessed at, so it still makes the total unavailable.
+    @Test("Real usage with no model still has no cost")
+    func unattributedUsageHasNoCost() throws {
+        let unattributed = #"{"message":{"model":"<synthetic>","usage":"#
+            + #"{"input_tokens":5,"output_tokens":0}}}"#
+        let stats = try stats([priced, unattributed])
+        #expect(stats.estimatedCost { model in model == nil ? nil : self.rate(input: 1) } == nil)
+    }
 }

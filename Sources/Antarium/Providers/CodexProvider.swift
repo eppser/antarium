@@ -106,7 +106,12 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
         return nil
     }
 
-    private let session = UsageHTTP.makeSession(headers: [
+    /// One for the process, not one per instance. `storedAuth` builds a
+    /// provider only to read credentials, and the cloud scanner calls it
+    /// about once a minute: a session per instance was a session, a delegate
+    /// and a `UsageHTTP` reader entry leaked each time, since nothing
+    /// released a provider that was never asked to fetch.
+    private static let session = UsageHTTP.makeSession(headers: [
         "User-Agent": "Antarium/1.0 (macOS menu bar)",
         "Accept": "application/json",
     ])
@@ -133,7 +138,7 @@ final class CodexProvider: UsageProvider, @unchecked Sendable {
 
         let json = try await UsageHTTP.getJSON(
             URL(string: "https://chatgpt.com/backend-api/wham/usage")!,
-            headers: headers, session: session)
+            headers: headers, session: Self.session)
         return try Self.makeSnapshot(json)
     }
 

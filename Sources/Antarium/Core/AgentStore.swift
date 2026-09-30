@@ -89,9 +89,16 @@ final class AgentStore: ObservableObject {
         guard let observation else { return (previous.map(stale), issue) }
         var rows = observation.rows
         var index = Dictionary(rows.enumerated().map { ($0.element.id, $0.offset) },uniquingKeysWith:{first,_ in first})
-        var affected = !observation.unavailableHarnesses.isEmpty || rows.contains { $0.localObservationIssue != nil }
+        var affected = !observation.unavailableHarnesses.isEmpty
+            || !observation.partlyUnavailableHarnesses.isEmpty
+            || rows.contains { $0.localObservationIssue != nil }
         for row in previous {
-            guard observation.unavailableHarnesses.contains(row.agentID)
+            // A partly readable harness vouches for the rows it returned; a
+            // session missing from them may be one of the entries it could
+            // not read, so it is unknown rather than gone.
+            let unreadable = observation.partlyUnavailableHarnesses.contains(row.agentID)
+                && index[row.id] == nil
+            guard unreadable || observation.unavailableHarnesses.contains(row.agentID)
                 || row.pid.map({ observation.unavailablePIDs.contains($0) }) == true else { continue }
             affected = true
             if let position = index[row.id] { rows[position] = stale(row) }

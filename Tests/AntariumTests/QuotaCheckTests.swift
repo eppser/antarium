@@ -136,6 +136,40 @@ struct SharedCredentialTests {
         #expect(p.isConfigured == false)
     }
 
+    /// The guard used to be a substring test over the whole value, so a
+    /// gateway whose URL merely contained `z.ai` passed it — and that
+    /// gateway's token was sent to Z.ai. A domain requirement is matched
+    /// against the host, on label boundaries.
+    @Test("A base URL that only contains the vendor's domain is not the vendor", arguments: [
+        "https://api.xyz.ai/anthropic",
+        "https://z.ai.gateway.example/anthropic",
+        "https://gateway.example/anthropic?upstream=z.ai",
+        "https://gateway.example/z.ai/anthropic",
+    ])
+    func lookalikeHostIsRefused(_ base: String) throws {
+        ConfiguredProbe.invalidate()
+        let settings = #"{"env":{"ANTHROPIC_BASE_URL":""# + base
+            + #"","ANTHROPIC_AUTH_TOKEN":"synthetic-token"}}"#
+        let (p, file) = try provider(settings: settings,
+                                     requires: ["env.ANTHROPIC_BASE_URL": "z.ai"])
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.isConfigured == false, "\(base) was treated as z.ai")
+    }
+
+    @Test("The vendor's host is recognised however it is written", arguments: [
+        "https://api.z.ai/api/anthropic", "https://API.Z.AI/api/anthropic",
+        "https://z.ai", "api.z.ai", "https://api.z.ai:443/x",
+    ])
+    func vendorHostIsAccepted(_ base: String) throws {
+        ConfiguredProbe.invalidate()
+        let settings = #"{"env":{"ANTHROPIC_BASE_URL":""# + base
+            + #"","ANTHROPIC_AUTH_TOKEN":"synthetic-token"}}"#
+        let (p, file) = try provider(settings: settings,
+                                     requires: ["env.ANTHROPIC_BASE_URL": "z.ai"])
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(p.isConfigured == true, "\(base) was not recognised as z.ai")
+    }
+
     @Test("The vendor's own token is still found")
     func ownTokenIsFound() throws {
         ConfiguredProbe.invalidate()

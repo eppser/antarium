@@ -523,8 +523,11 @@ what belongs here rather than how to write it.
 without it, `Authorization: Bearer {token}` is assumed.
 
 A `jsonFile` credential may add `requires`, a map of field path to required
-substring, checked in the same file before the token is used or counted as a
-sign-in. `field`, `accountField` and the keys of `requires` are field paths and
+value, checked in the same file before the token is used or counted as a
+sign-in. A requirement that is a domain is matched against the host the value
+names, on label boundaries — `z.ai` accepts `https://api.z.ai/...` and
+`api.z.ai`, and refuses `https://api.xyz.ai` or a gateway that merely mentions
+`z.ai` in its path or query. Any other requirement is a substring. `field`, `accountField` and the keys of `requires` are field paths and
 may filter, which is what a shared credential file listing one entry per
 provider needs: selecting the right entry is the whole job, and `requires` exists
 because such files are shared. `path` is a filesystem path and `name` an
@@ -537,7 +540,7 @@ driven through Claude Code, so its token is whatever sits in
 `env.ANTHROPIC_AUTH_TOKEN` — a field Kimi, MiniMax, a corporate gateway and a
 plain Anthropic key all write too. Without a second field to check, any of
 those reads as a Z.ai sign-in and is sent to Z.ai's endpoint. Z.ai requires
-`env.ANTHROPIC_BASE_URL` to contain `z.ai`. Matching is case-insensitive, an
+`env.ANTHROPIC_BASE_URL` to name a `z.ai` host. Matching is case-insensitive, an
 absent field fails closed, and the check is refused at decode on any other
 credential kind, where it would silently do nothing.
 

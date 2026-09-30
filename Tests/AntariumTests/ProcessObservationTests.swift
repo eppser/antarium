@@ -62,6 +62,20 @@ struct ProcessObservationTests {
         #expect(applied.rows.first(where:{$0.id == "fresh"})?.state.label == "Working")
         #expect(applied.issue != nil)
     }
+    @Test("A partly readable harness keeps its readable sessions live and its missing ones unknown")
+    @MainActor func partlyReadableHarness() {
+        let vanished = AgentRow(id:"vanished",agentID:"fixture",name:"Synthetic",cwd:"",state:.working,pid:71)
+        let fresh = AgentRow(id:"fresh",agentID:"fixture",name:"Synthetic",cwd:"",state:.working,pid:99)
+        let started = AgentRow(id:"started",agentID:"fixture",name:"Synthetic",cwd:"",state:.working,pid:100)
+        let applied = AgentStore.applyingLocal(.init(rows:[fresh,started],partlyUnavailableHarnesses:["fixture"]),
+                                               previous:[vanished,fresh])
+        #expect(Set(applied.rows.map(\.id)) == ["vanished","fresh","started"])
+        #expect(applied.rows.first(where:{$0.id == "vanished"})?.state.label == "Unknown")
+        #expect(applied.rows.first(where:{$0.id == "fresh"})?.state.label == "Working")
+        #expect(applied.rows.first(where:{$0.id == "started"})?.state.label == "Working")
+        #expect(applied.issue != nil)
+        #expect(AgentStore.stopped(previous:[vanished.id:vanished],current:applied.rows).isEmpty)
+    }
     @Test("Remote and failed observations cannot use a PID to focus an unrelated local process")
     func focusBoundary() {
         var row = AgentRow(id:"fixture",agentID:"fixture",name:"Synthetic",cwd:"",state:.working,pid:71)

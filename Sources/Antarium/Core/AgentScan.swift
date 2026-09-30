@@ -262,6 +262,9 @@ enum AgentScan {
         var rows: [AgentRow]
         var unavailablePIDs: Set<Int32> = []
         var unavailableHarnesses: Set<String> = []
+        /// Read, but with some entries that could not be: the rows returned
+        /// are real, and a session missing from them may simply be unreadable.
+        var partlyUnavailableHarnesses: Set<String> = []
     }
 
     // MARK: - Entry point
@@ -275,8 +278,13 @@ enum AgentScan {
         let processes = snapshot.table
         var rows: [AgentRow] = []
         var unavailableHarnesses = Set<String>()
+        var partlyUnavailableHarnesses = Set<String>()
         if let claude = HarnessDescriptor.all().first(where: { $0.id == "claude-code" }) {
-            do { rows = try claudeRows(claude,processes:processes,unavailablePIDs:snapshot.unavailablePIDs) }
+            do {
+                let read = try claudeRegistry(claude,processes:processes,unavailablePIDs:snapshot.unavailablePIDs)
+                rows = read.rows
+                if read.malformed > 0 { partlyUnavailableHarnesses.insert(claude.id) }
+            }
             catch is CancellationError { throw CancellationError() }
             catch { unavailableHarnesses.insert(claude.id) }
         }
@@ -300,7 +308,8 @@ enum AgentScan {
             rows[i].context = ProjectContext.scan(rows[i].cwd, agentID: rows[i].agentID)
         }
         try Task.checkCancellation()
-        return Observation(rows:sorted(uniqued(rows)),unavailablePIDs:snapshot.unavailablePIDs,unavailableHarnesses:unavailableHarnesses)
+        return Observation(rows:sorted(uniqued(rows)),unavailablePIDs:snapshot.unavailablePIDs,unavailableHarnesses:unavailableHarnesses,
+                           partlyUnavailableHarnesses:partlyUnavailableHarnesses)
     }
 
     /// Attaches every row to one coherent tmux snapshot. The previous scan
@@ -468,15 +477,28 @@ enum AgentScan {
         return Date(timeIntervalSince1970:milliseconds / 1_000)
     }
     static func claudeRows(_ claude:HarnessDescriptor,processes: [Int32: Processes.Info], unavailablePIDs:Set<Int32> = []) throws -> [AgentRow] {
+        try claudeRegistry(claude,processes:processes,unavailablePIDs:unavailablePIDs).rows
+    }
+
+    /// The registry's rows, and how many of its entries could not be read.
+    ///
+    /// The registry as a whole is refused — thrown — when it cannot be
+    /// listed, holds more than it may, or contains something that is not a
+    /// regular file: those say the directory itself is not what it should
+    /// be. A single entry that is malformed, half-written or oversized says
+    /// only that that entry is unreadable, so it is counted and the rest are
+    /// read. Throwing for it turned every healthy Claude row Unknown and hid
+    /// every session started after it.
+    static func claudeRegistry(_ claude:HarnessDescriptor,processes: [Int32: Processes.Info], unavailablePIDs:Set<Int32> = []) throws -> (rows: [AgentRow], malformed: Int) {
         let dir = URL(fileURLWithPath: claude.source.resolvedPath)
         var directoryInfo = stat()
         if lstat(dir.path,&directoryInfo) != 0 {
-            if errno == ENOENT { return [] }
+            if errno == ENOENT { return ([], 0) }
             throw RegistryError.unavailable
         }
         let entries = try BoundedDirectory.entries(dir).filter { $0.url.pathExtension == "json" }
         guard entries.count <= 512 else { throw RegistryError.limit }
-        var rows: [AgentRow] = [], bytes = 0
+        var rows: [AgentRow] = [], bytes = 0, malformed = 0
         for entry in entries {
             try Task.checkCancellation()
             let file = entry.url
@@ -485,16 +507,23 @@ enum AgentScan {
             // the caller does — deliberately kept as the nearer of the two
             // checks, and the reason no mutation of this line can be caught.
             guard entry.isRegular else { throw RegistryError.invalid }
-            let data = try BoundedFile.read(file,maxBytes:65_536)
+            guard let data = try? BoundedFile.read(file,maxBytes:65_536) else { malformed += 1; continue }
             bytes += data.count
             guard bytes <= 8 * 1_024 * 1_024 else { throw RegistryError.limit }
-            guard let d = try JSONSerialization.jsonObject(with:data) as? [String:Any],
+            guard let d = (try? JSONSerialization.jsonObject(with:data)) as? [String:Any],
                   let cwd = d["cwd"] as? String, cwd.utf8.count <= 4_096,
                   !cwd.unicodeScalars.contains(where:{ CharacterSet.controlCharacters.contains($0) }) else {
-                throw RegistryError.invalid
+                malformed += 1; continue
             }
             let pid = d["pid"].flatMap(FieldPath.processID)
-            if let raw = d["pid"], !(raw is NSNull), pid == nil { throw RegistryError.invalid }
+            if let raw = d["pid"], !(raw is NSNull), pid == nil { malformed += 1; continue }
+            // Not `try?`: an absent date is nil, which `try?` would flatten
+            // into the same nil as an unusable one.
+            let startedAt: Date?, updatedAt: Date?
+            do {
+                startedAt = try registryDate(d["startedAt"])
+                updatedAt = try registryDate(d["updatedAt"])
+            } catch { malformed += 1; continue }
             let process = pid.flatMap { processes[$0] }.flatMap { claude.claims($0) ? $0 : nil }
             // File modification predating the process birth cannot establish
             // that this registry entry describes the current PID owner.
@@ -532,8 +561,8 @@ enum AgentScan {
                 name: sessionName,
                 cwd: cwd,
                 state: state,
-                startedAt: try registryDate(d["startedAt"]),
-                lastActivity: try registryDate(d["updatedAt"]),
+                startedAt: startedAt,
+                lastActivity: updatedAt,
                 pid: alive ? pid : nil,
                 rssBytes: process?.rss,
                 tmuxTarget: d["tmux"] as? String,
@@ -578,7 +607,7 @@ enum AgentScan {
             row.sessionID = sessionID
             rows.append(row)
         }
-        return rows
+        return (rows, malformed)
     }
 
     /// Every figure a usage issue invalidates.

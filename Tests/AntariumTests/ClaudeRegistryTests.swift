@@ -132,7 +132,15 @@ struct ClaudeRegistryTests {
 
     // MARK: - Refusals
 
-    @Test("A malformed entry fails the read rather than being skipped", arguments: [
+    /// A malformed entry is never read as a session, and never silently
+    /// dropped either: it is counted, so the scan can say the registry was
+    /// only partly readable.
+    ///
+    /// It used to fail the whole read. That kept a broken entry from passing
+    /// for "no session", but it took every healthy session down with it —
+    /// one half-written file turned every Claude row Unknown and hid any
+    /// session started after it until that file changed.
+    @Test("A malformed entry is counted, and the entries beside it are still read", arguments: [
         ["pid": 1],                                        // no cwd
         ["cwd": 42],                                       // cwd is not text
         ["cwd": "/tmp/p", "pid": "not-a-pid"],             // pid present but unusable
@@ -141,8 +149,22 @@ struct ClaudeRegistryTests {
         ["cwd": String(repeating: "x", count: 5_000)],     // over the path cap
         ["cwd": "/tmp/with\u{0007}control"],               // control characters
     ])
-    func malformedEntriesAreRefused(_ entry: [String: Any]) throws {
-        #expect(throws: (any Swift.Error).self) { try rows(["a": entry]) }
+    func malformedEntriesAreCounted(_ entry: [String: Any]) throws {
+        let root = try registry(["bad": entry, "good": ["cwd": "/tmp/healthy"]])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let read = try AgentScan.claudeRegistry(try descriptor(at: root), processes: [:])
+        #expect(read.malformed == 1)
+        #expect(read.rows.map(\.cwd) == ["/tmp/healthy"])
+    }
+
+    @Test("A half-written entry is counted like any other malformed one")
+    func truncatedEntryIsCounted() throws {
+        let root = try registry(["good": ["cwd": "/tmp/healthy"]])
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data(#"{"cwd": "/tmp/p", "pid""#.utf8).write(to: root.appendingPathComponent("torn.json"))
+        let read = try AgentScan.claudeRegistry(try descriptor(at: root), processes: [:])
+        #expect(read.malformed == 1)
+        #expect(read.rows.count == 1)
     }
 
     /// The refusals above would all pass against a reader that rejected

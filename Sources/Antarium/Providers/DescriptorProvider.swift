@@ -170,10 +170,42 @@ final class DescriptorProvider: UsageProvider, @unchecked Sendable {
                                     _ credential: HarnessDescriptor.Quota.Credential) -> Bool {
         for (path, required) in credential.requires ?? [:] {
             guard let found = FieldPath.first(object, path) as? String,
-                  found.lowercased().contains(required.lowercased())
+                  satisfies(found, required)
             else { return false }
         }
         return true
+    }
+
+    /// Whether a guarded value meets its requirement.
+    ///
+    /// A domain requirement is matched against the host the value names, on
+    /// label boundaries: `api.z.ai` is Z.ai, `api.xyz.ai` is not, and neither
+    /// is a gateway whose path or query happens to mention `z.ai`. A substring
+    /// test over the whole value passed all of those, and the token beside
+    /// them was sent to the wrong company. Anything that is not a domain, or
+    /// a value that names no host, keeps the documented substring match.
+    static func satisfies(_ value: String, _ required: String) -> Bool {
+        let want = required.lowercased()
+        let isDomain = want.contains(".") && !want.contains("/") && !want.contains(":")
+            && !want.contains(where: \.isWhitespace)
+        guard isDomain, let host = host(of: value) else {
+            return value.lowercased().contains(want)
+        }
+        return host == want || host.hasSuffix("." + want)
+    }
+
+    /// The host a value names: from a URL with a scheme, or a bare
+    /// `host[:port][/path]`. Nil for anything else.
+    private static func host(of value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespaces).lowercased()
+        if trimmed.contains("://") {
+            return URLComponents(string: trimmed)?.host.flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let head = trimmed.prefix { $0 != "/" && $0 != ":" && $0 != "?" && $0 != "#" }
+        guard !head.isEmpty, head.contains("."),
+              head.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" })
+        else { return nil }
+        return String(head)
     }
 
     /// The account or organisation the token belongs to, when the service

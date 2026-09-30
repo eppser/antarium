@@ -155,3 +155,15 @@ struct CodexResponseTextTests {
         #expect(found.accountLabel == "pro plan")
     }
 }
+
+/// `CodexProvider.storedAuth()` builds a provider only to read credentials,
+/// once a minute while cloud agents are on. Each instance used to open its
+/// own `URLSession`, which nothing released.
+@Suite("Codex provider lifetime")
+struct CodexProviderLifetimeTests {
+    @Test("Constructing a Codex provider opens no session of its own")
+    func noSessionPerInstance() {
+        let held = Mirror(reflecting: CodexProvider()).children.filter { $0.value is URLSession }
+        #expect(held.isEmpty, "each throwaway provider would leak a session")
+    }
+}

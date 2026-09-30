@@ -177,6 +177,14 @@ struct TranscriptStats: Codable {
         guard usageIssue == nil, !usageByModel.isEmpty else { return nil }
         var total = 0.0
         for (key, usage) in usageByModel {
+            // Nothing used costs nothing at any rate, including an unknown
+            // one. Claude Code's `<synthetic>` messages name no model and
+            // carry zero usage; requiring a price for them made the whole
+            // session's cost unavailable. Unattributed usage that is real
+            // still has no price, because guessing its model would be
+            // inventing one.
+            if usage.input == 0, usage.output == 0, usage.cacheWrite5m == 0,
+               usage.cacheWrite1h == 0, usage.cacheRead == 0 { continue }
             guard let rate = rateFor(key.isEmpty ? nil : key),
                   [rate.input, rate.output, rate.cacheWrite5m, rate.cacheWrite1h, rate.cacheRead]
                     .allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
