@@ -424,11 +424,26 @@ struct SupportedToolsListTests {
         }
         let after = text[start.upperBound...]
         let end = after.range(of: "\n## ")?.lowerBound ?? after.endIndex
-        var phantom: [String] = []
-        for line in after[..<end].split(separator: "\n") where line.hasPrefix("- ") {
-            let entry = String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-            if !entry.isEmpty && !names.contains(entry) { phantom.append(entry) }
+        var phantom: [String] = [], entries = 0
+        for line in after[..<end].split(separator: "\n") {
+            // A bullet, or the first cell of a table row. The list became a
+            // table, and a check that only read bullets would have gone on
+            // passing while reading nothing at all.
+            let entry: String
+            if line.hasPrefix("- ") {
+                entry = String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+            } else if line.hasPrefix("|") {
+                let cells = line.split(separator: "|", omittingEmptySubsequences: false)
+                guard cells.count > 2 else { continue }
+                entry = cells[1].trimmingCharacters(in: .whitespaces)
+                // The header row and its separator are not tools.
+                if entry == "Tool" || entry.allSatisfy({ $0 == "-" || $0 == ":" }) { continue }
+            } else { continue }
+            guard !entry.isEmpty else { continue }
+            entries += 1
+            if !names.contains(entry) { phantom.append(entry) }
         }
+        #expect(entries >= shipped.count, "the section lists fewer entries than ship, so it was not read")
         #expect(phantom.isEmpty,
                 Comment(rawValue: "listed and not shipped: \(phantom.joined(separator: ", "))"))
     }
