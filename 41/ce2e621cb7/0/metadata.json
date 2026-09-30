@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "41ce2e621cb7",
+  "session_id": "e2429d87-e52c-4e73-82e8-0f717c758576",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-30T09:33:54.540642Z",
+  "branch": "readme-demo",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "Tests/AntariumTests/DocumentationAlignmentTests.swift",
+    "mutations.txt"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "4f60cd8bd0c3",
+  "checkpoint_transcript_start": 1211,
+  "transcript_lines_at_start": 1211,
+  "compact_transcript_start": 138,
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 6159,
+    "cache_read_tokens": 2093401,
+    "output_tokens": 4081,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-30T09:33:54.362511Z",
+    "agent_lines": 21,
+    "agent_removed": 6,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 21,
+    "total_lines_changed": 27,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

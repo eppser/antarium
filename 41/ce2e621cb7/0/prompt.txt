@@ -1,0 +1,17 @@
+<task-notification>
+<task-id>by2shomu9</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-se-shared-antarium-Antarium/e2429d87-e52c-4e73-82e8-0f717c758576/tasks/by2shomu9.output</output-file>
+<status>completed</status>
+<summary>Background command "Run mutation check on new/updated rules" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bf7jfiyr4</task-id>
+<tool-use-id>toolu_01SukGYwvSPuP4qHk5CuZmvj</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-se-shared-antarium-Antarium/e2429d87-e52c-4e73-82e8-0f717c758576/tasks/bf7jfiyr4.output</output-file>
+<status>completed</status>
+<summary>Background command "Run the full verify gate" completed (exit code 0)</summary>
+</task-notification>
