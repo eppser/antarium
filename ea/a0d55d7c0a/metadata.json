@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "eaa0d55d7c0a",
+  "strategy": "manual-commit",
+  "branch": "reliability-audit",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "mutations.txt"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/a0d55d7c0a/0/metadata.json",
+      "transcript": "/ea/a0d55d7c0a/0/full.jsonl",
+      "compact_transcript": "/ea/a0d55d7c0a/0/transcript.jsonl",
+      "content_hash": "/ea/a0d55d7c0a/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}
