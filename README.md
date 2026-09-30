@@ -1,18 +1,165 @@
+<div align="center">
+
+<img src="Resources/logo/antarium-mark.png" width="96" alt="Antarium">
+
 # Antarium
+
+**Mission control for your coding agents, in the macOS menu bar.**
+
+See every Claude Code, Codex, Cursor, Copilot and Kimi session at once.<br>
+Know which ones are working, which ones are waiting on you, and how close you are to your limits.
 
 [![CI](https://github.com/eppser/antarium/actions/workflows/ci.yml/badge.svg)](https://github.com/eppser/antarium/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black.svg)](https://github.com/eppser/antarium)
+[![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black.svg?logo=apple)](https://github.com/eppser/antarium)
+[![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138.svg?logo=swift&logoColor=white)](Package.swift)
+[![Harnesses](https://img.shields.io/badge/harnesses-28-orange.svg)](Resources/harnesses)
+[![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen.svg)](SECURITY.md)
 
-**See every coding agent. Know what is working. Stay ahead of your limits.**
+[Quick start](#quick-start) · [What it saves you](#what-it-saves-you) · [Features](#features) · [Supported tools](#supported-tools) · [How it works](#how-antarium-works) · [FAQ](#faq)
 
-Antarium is a lightweight macOS menu-bar app for people who run several coding
-agents at once. It brings active sessions, status, context, cost estimates,
-memory, and account limits into one quiet dashboard.
+<br>
 
-<p align="center">
-  <img src="docs/assets/antarium-demo.gif" width="720" alt="Antarium showing coding-agent status and details from the macOS menu bar">
-</p>
+<img src="docs/assets/antarium-demo.gif" width="820" alt="An agent finishes and a banner says so; clicking the AGENTS menu-bar item opens a dashboard of every session with its status, context, cost and account limits">
+
+<sub>Rendered from an invented roster by <code>tools/make-demo-gif.sh</code> through the app's own views — no real machine, project or account.</sub>
+
+</div>
+
+---
+
+## The problem
+
+You started four agents before lunch. One is in a tmux pane, one in Warp, one
+inside Cursor, one on a build box over SSH. Which finished? Which has been
+sitting on a question for twenty minutes? Which one is about to hit the
+five-hour limit halfway through a refactor?
+
+Finding out means cycling through every window. **Antarium answers from the
+menu bar, and tells you the moment an agent stops.**
+
+## What it saves you
+
+| Without Antarium | With Antarium |
+| --- | --- |
+| Cycling through terminal tabs, tmux panes and app windows to see who is done | A menu-bar count of working · waiting · ended, and a banner the moment an agent finishes |
+| An agent idling on a question you never saw | Waiting sessions are marked orange and counted in the menu bar |
+| Hunting for the window that owns a session | Click the row — Antarium focuses that terminal, tmux pane, Warp tab or app |
+| Running out of quota mid-task | Remaining share and reset countdown for each account, before you start |
+| Guessing how full a context window is | A context bar per session, from the agent's own token counts |
+| Adding up spend by hand | An estimated cost per session and in total, priced from a table you can edit |
+| Wondering which projects have `CLAUDE.md`, memory, skills, MCP or permissions set up | Five capability chips on every row |
+
+It stays out of the way while it does it: a single native Swift app, no
+Electron, no daemon, no account. Its idle cost is part of the release gate —
+`./verify.sh` runs it for a minute and fails the build if it spends more than
+6 s of CPU in the second thirty seconds or holds more than 400 MB.
+
+> **No invented numbers.** Antarium does not claim to make you *N×* faster;
+> nothing here measures your time, and this project does not print figures it
+> cannot back. The same rule governs the app: a value it could not read is
+> shown as missing, never as zero.
+
+## Quick start
+
+Antarium currently builds from source. You need macOS 13 or newer and a Swift
+5.9-compatible Xcode toolchain.
+
+```bash
+git clone https://github.com/eppser/antarium.git
+cd antarium
+./build.sh --install
+```
+
+The script builds, signs, verifies, installs, and launches
+`/Applications/Antarium.app`. Look for the Antarium gauge in your menu bar.
+On first run it switches on the agents it finds installed and signed in, and
+picks up sessions that are already running.
+
+To run the full project checks:
+
+```bash
+./verify.sh
+```
+
+That is the gate the project requires: the suite three times over — as-is,
+on a machine that has never run Antarium, and outside UTC — plus every
+shipped harness checked, the assembled app inspected, and the scan
+benchmark. `./test.sh` runs the suite alone and is the faster loop while
+you work.
+
+Signed and notarized downloadable releases are on the [roadmap](Roadmap.md).
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🟢 Live status for every session
+Working, waiting, looping, in a shell, ended — from process and session
+evidence, not guesses. Several agents in the same folder or app are told
+apart.
+
+</td>
+<td width="50%" valign="top">
+
+### 🔔 Know the moment one finishes
+A banner and an optional sound when an agent stops working. Click it to jump
+straight back to that session.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📊 Limits before they bite
+Quota for 20 providers in the menu bar — seven read natively, thirteen
+described by a harness file you can edit or add to. Balances show as
+balances, not as fake percentages.
+
+</td>
+<td valign="top">
+
+### 🎯 One click back to the work
+Terminal, Warp, tmux and desktop apps are detected. A click focuses the
+window or pane that owns the session.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🧠 Context, tokens and cost
+Context pressure, tokens sent and received, tool calls and an estimated
+cost per session, with totals in the footer.
+
+</td>
+<td valign="top">
+
+### 🛰️ Remote tmux over SSH
+Agents in tmux on another machine appear alongside local ones. One line of
+config per host; your `~/.ssh/config` does the rest.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🧩 Project setup at a glance
+See which projects have instructions (`CLAUDE.md`, `AGENTS.md`), memory,
+skills, MCP and permissions configured for the agent running in them.
+
+</td>
+<td valign="top">
+
+### 🔒 Local-first and private
+No Antarium telemetry, no prompt collection, no account. It reads session
+metadata on your Mac and asks providers only for your own quota.
+
+</td>
+</tr>
+</table>
 
 ## Why Antarium?
 
@@ -27,8 +174,10 @@ answer:
 - How much context, memory, and estimated cost has it used?
 - How close are my Claude, Codex, Cursor, or Copilot limits?
 
-Get notified when an agent finishes. Click a session to return to its terminal,
-tmux pane, or host app.
+It is great for running several Codex or Claude sessions in parallel, keeping
+long-running tmux agents visible while you work elsewhere, comparing activity
+across different agent products, and building support for an internal or
+newly released agent harness.
 
 ## Where Antarium fits
 
@@ -44,20 +193,50 @@ keeps it lightweight and lets you keep the workflow you already use. See the
 [ecosystem comparison](docs/ECOSYSTEM.md) for the exact boundaries and current
 integration status.
 
-## Features
+## Supported tools
 
-- **One menu-bar view** for activity and quota across supported providers.
-- **Working/waiting status** based on process and session evidence.
-- **Multi-session awareness** for agents running in the same folder or app.
-- **Context and usage visibility** without turning missing data into fake zeroes.
-- **Terminal, Warp, tmux, and desktop-app detection.**
-- **Remote tmux agents** over SSH, from machines you already reach with `ssh`.
-- **Quota monitoring** for 20 providers — seven read natively, thirteen described by
-  a harness file you can edit or add to.
-- **Per-agent project setup overview** for supported harnesses, including
-  instructions such as `CLAUDE.md` or `AGENTS.md`, memory, skills, MCP, and permissions.
-- **Local-first and private:** no Antarium telemetry and no prompt collection.
-- **Extensible harnesses:** add or adapt an agent without changing the app.
+Antarium ships harnesses for 28 tools.
+
+| Tool | Sessions in the dashboard | Usage in the menu bar |
+| --- | :---: | :---: |
+| Claude Code | ✓ | ✓ |
+| Codex Desktop | ✓ | |
+| ChatGPT (Codex) | ✓ | |
+| Copilot CLI | ✓ | |
+| GitHub Copilot | | ✓ |
+| Cursor CLI | ✓ | |
+| Cursor | ✓ | |
+| VS Code (Copilot) | ✓ | |
+| Zed | ✓ | |
+| Kimi | ✓ | ✓ |
+| Moonshot (Kimi API) | | ✓ |
+| Gemini CLI | | ✓ |
+| opencode | ✓ | |
+| Mistral Vibe | ✓ | |
+| OpenClaw | ✓ | |
+| Herdr | ✓ | |
+| Hermes | ✓ | |
+| Orca | ✓ | |
+| PI | ✓ | |
+| Command Code | | ✓ |
+| DeepSeek | | ✓ |
+| MiniMax | | ✓ |
+| MiniMax (China) | | ✓ |
+| OpenRouter | | ✓ |
+| Synthetic | | ✓ |
+| Vercel AI Gateway | | ✓ |
+| Z.ai GLM | | ✓ |
+| Zhipu GLM | | ✓ |
+
+A CLI and the account behind it are often separate harnesses, because one reads
+sessions on this Mac and the other asks a service what is left. Kimi is one
+harness that does both. The Moonshot entry is a different product — an API
+balance paid by the token, not a subscription measured in requests.
+
+Install detection covers documented npm, curl/native, Homebrew, direct binary,
+app-bundle, interpreter, and Nix layouts where the upstream tool supports them.
+Missing yours? [Add a harness](#extend-antarium) — usually a JSON file, no
+Swift required.
 
 ## How Antarium works
 
@@ -83,93 +262,6 @@ silently converted into zero or “finished.” The
 [technical reference](docs/TECHNICAL.md#runtime-data-flow) explains the full
 pipeline.
 
-## Supported tools
-
-Antarium ships harnesses for 28 tools.
-
-Agents whose sessions appear in the dashboard:
-
-- Codex Desktop
-- ChatGPT (Codex)
-- Copilot CLI
-- Cursor CLI
-- Cursor
-- Herdr
-- Hermes
-- Kimi
-- Mistral Vibe
-- OpenClaw
-- opencode
-- Orca
-- PI
-- VS Code (Copilot)
-- Zed
-
-Accounts whose usage appears in the menu bar:
-
-- Claude Code
-- Command Code
-- GitHub Copilot
-- DeepSeek
-- Gemini CLI
-- MiniMax
-- MiniMax (China)
-- Kimi
-- Moonshot (Kimi API)
-- OpenRouter
-- Synthetic
-- Vercel AI Gateway
-- Z.ai GLM
-- Zhipu GLM
-
-Some tools appear in both lists under different names — a CLI and the
-account behind it are separate harnesses, because one reads sessions on
-this Mac and the other asks a service what is left. Kimi appears in both
-under the *same* name, which is a third case: one harness reads its
-sessions from this Mac and its plan windows from the service. The
-Moonshot entry beside it is a different product — an API balance paid by
-the token, not a subscription measured in requests.
-
-Install detection covers documented npm, curl/native, Homebrew, direct binary,
-app-bundle, interpreter, and Nix layouts where the upstream tool supports them.
-
-## Quick start
-
-Antarium currently builds from source. You need macOS 13 or newer and a Swift
-5.9-compatible Xcode toolchain.
-
-```bash
-git clone https://github.com/eppser/antarium.git
-cd antarium
-./build.sh --install
-```
-
-The script builds, signs, verifies, installs, and launches
-`/Applications/Antarium.app`. Look for the Antarium gauge in your menu bar.
-
-To run the full project checks:
-
-```bash
-./verify.sh
-```
-
-That is the gate the project requires: the suite three times over — as-is,
-on a machine that has never run Antarium, and outside UTC — plus every
-shipped harness checked, the assembled app inspected, and the scan
-benchmark. `./test.sh` runs the suite alone and is the faster loop while
-you work.
-
-Signed and notarized downloadable releases are on the [roadmap](Roadmap.md).
-
-## Great for
-
-- Running several Codex or Claude sessions in parallel.
-- Keeping long-running tmux agents visible while you work elsewhere.
-- Finding the Warp tab or desktop app that owns a session.
-- Comparing activity across different coding-agent products.
-- Watching context pressure and account limits before they interrupt work.
-- Building support for an internal or newly released agent harness.
-
 ## Trustworthy numbers
 
 Antarium treats “missing,” “zero,” and “failed to read” as different states.
@@ -177,20 +269,24 @@ It does not invent quota, context, token, cost, or session values. Cost is
 clearly presented as an estimate, and configuration changes are covered by
 synthetic fixtures and installation evaluations in CI.
 
+<details>
+<summary><b>How each provider's mapping was checked</b></summary>
+
+<br>
+
 The same rule applies to how a provider's mapping was checked, and the answer
 changed after the mappings were audited. Of the thirteen described by a harness
 file, five were compared field by field against the vendor's own published
 response schema and name the page they were read from. The other eight have no
 published schema at all.
 
-For those six the fixture used to be the whole of the check, and that turned
+For those eight the fixture used to be the whole of the check, and that turned
 out not to be enough — because a fixture is written from the mapping it tests.
 It proves the mapping is applied and cannot notice that the fields mean
 something else. Four of the ten audited at the time were wrong behind a passing
-fixture, and one
-of them, MiniMax, had expectations that were the exact mirror of the truth:
-`current_interval_usage_count` is what remains, not what was spent, so a meter
-read comfortable while the quota emptied.
+fixture, and one of them, MiniMax, had expectations that were the exact mirror
+of the truth: `current_interval_usage_count` is what remains, not what was
+spent, so a meter read comfortable while the quota emptied.
 
 So a mapping may now be corrected against another implementation of the same
 API, where that implementation *states what a field means* rather than merely
@@ -208,6 +304,8 @@ signal to look again.
 
 Every fixture is invented values in the vendor's own shape; no real account
 response is ever committed.
+
+</details>
 
 ## Remote tmux agents
 
@@ -229,6 +327,11 @@ independently: a machine that cannot be reached keeps the agents it last showed
 and says why, while the others carry on updating. A machine that answers with
 *no* agents is believed — that is a fact about that machine, not a failure — so
 finished sessions disappear rather than lingering.
+
+<details>
+<summary><b>Prerequisites, authentication and what a remote row shows</b></summary>
+
+<br>
 
 Nothing else is configured here on purpose. `~/.ssh/config` already holds the
 port, the identity file, the real hostname and any jump host, and restating any
@@ -259,6 +362,8 @@ Antarium --remote-tmux            # every configured host
 Antarium --remote-tmux build-box     # just this one
 ```
 
+</details>
+
 ## Private by design
 
 Antarium runs locally and has no telemetry. It reads configured process and
@@ -268,8 +373,9 @@ supported quota information.
 Remote tmux is the one feature that connects outward to a machine you name, and
 it is off until you turn it on. It sends no data — it runs one read-only
 inspection command, which is a constant in this repository rather than
-anything assembled at runtime, and reads the output. The built-in dashboard can focus sessions, but it
-does not terminate agents, terminal applications, or tmux sessions.
+anything assembled at runtime, and reads the output. The built-in dashboard can
+focus sessions, but it does not terminate agents, terminal applications, or
+tmux sessions.
 
 Custom harnesses are trusted local configuration and should be reviewed before
 installation. See [SECURITY.md](SECURITY.md) for the full trust model.
@@ -284,9 +390,50 @@ Start with the [technical and harness reference](docs/TECHNICAL.md) when you
 want to add an agent, generate a harness with the SDK, inspect diagnostics, or
 understand the architecture.
 
+## FAQ
+
+<details>
+<summary><b>Does Antarium read my prompts or code?</b></summary>
+
+No. It reads session metadata — status, timestamps, token counts, the model
+name — and never collects or transmits prompt content. There is no Antarium
+server to send anything to.
+</details>
+
+<details>
+<summary><b>Why does a row show “—” instead of a number?</b></summary>
+
+Because the figure could not be read, and Antarium will not show a guess as a
+fact. A dash means *unknown*; a zero means *observed to be zero*.
+</details>
+
+<details>
+<summary><b>Why does one agent show a cost and another does not?</b></summary>
+
+Cost is estimated from the agent's own token counts and a bundled price table.
+Where a model has no price in the table, no cost is shown rather than an
+invented one. You can add prices yourself.
+</details>
+
+<details>
+<summary><b>Can it stop or restart my agents?</b></summary>
+
+No. Antarium observes and focuses; it never terminates agents, terminals or
+tmux sessions, and never writes to a remote session.
+</details>
+
+<details>
+<summary><b>How do I regenerate the demo GIF?</b></summary>
+
+`tools/make-demo-gif.sh` (needs `ffmpeg`). It renders an invented roster
+through the app's own views, with display settings pinned in a throwaway
+folder, so your own configuration is neither read nor written.
+</details>
+
 ## Project links
 
 - [Technical and harness reference](docs/TECHNICAL.md)
+- [Ecosystem comparison](docs/ECOSYSTEM.md)
 - [Roadmap](Roadmap.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
@@ -294,3 +441,8 @@ understand the architecture.
 ## License
 
 Antarium is available under the [MIT License](LICENSE).
+
+<div align="center">
+<br>
+<sub>If Antarium saves you a trip through your terminal tabs, a ⭐ helps other people find it.</sub>
+</div>
