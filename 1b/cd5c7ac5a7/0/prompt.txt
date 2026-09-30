@@ -1,0 +1,79 @@
+give me status of antarium and what is on github right now. what is still open
+
+---
+
+claude
+
+---
+
+can you review and push all PRs to github. also update the README file with video - gif showing the use-cases etc. show th eproductivity gains. Make it 1=/10 similar to some other repos fo the days
+
+---
+
+<task-notification>
+<task-id>aae81ea591e9e33ac</task-id>
+<output-file>/private/tmp/claude-501/-Users-se-shared-antarium-Antarium/e2429d87-e52c-4e73-82e8-0f717c758576/tasks/aae81ea591e9e33ac.output</output-file>
+<status>completed</status>
+<summary>Agent "Review PR #6 for correctness" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Verdict: safe to merge.** I found nothing that fabricates a quota, token, cost or session figure, no command injection, and no leaked credentials, usernames or home paths. The HTTP body cap, redirect refusal, SSH host validation, passing the password through `SSHPASS` and stdin, the stale-scan guards and home-path abbreviation in the report all hold up. Fix #1 before merging, and ideally #2 and #3; the rest can follow. I did not run `./test.sh`. Everything below comes from reading the code, and the three regressions against main were each checked in the source.
+
+**Committed data:** the added fixtures, scripts and harness JSON contain no real account data, tokens, hostnames or `/Users/&lt;name&gt;` paths. Paths are `/fixture/home/...`, emails are `example.com` / `example.invalid`, and the probe tool uses a hard-coded invalid token. One nit: a test uses `/synthetic/users/se/project`, and `se` matches your local username. It's harmless, but you may want to rename it.
+
+### Findings, most severe first
+
+1. **One bad file hides every Claude agent (regression, confirmed)** – `Sources/Antarium/Core/AgentScan.swift:487–497, 535–536`, caught at `:281`.
+   - **Defect:** `claudeRows` now throws for the whole registry on any single bad file: over 512 files, a file over 64 KiB, a missing `cwd`, a non-numeric `pid`, or a bad `startedAt`/`updatedAt`. Main skipped the bad file with `continue`.
+   - **Scenario:** one half-written or older-format session file marks the whole claude-code harness unavailable. Every Claude row goes to "Unknown" and new sessions stop appearing until that file changes.
+
+2. **Whole-session cost disappears after a `&lt;synthetic&gt;` record (regression, confirmed code path)** – `Sources/Antarium/Core/TranscriptStats.swift:344, 396`, with `estimatedCost` at `:176–182`.
+   - **Defect:** a `&lt;synthetic&gt;` message's usage is now filed under the `""` model key. `Pricing.rate(nil)` is nil for that key, so `estimatedCost` returns nil for the entire session. Main filed these under the last real model.
+   - **Scenario:** a Claude Code session with an API error or interruption, which injects a zero-usage `&lt;synthetic&gt;` record, loses its cost from the row and from the totals, even though every real turn has a price. No test covers a synthetic record.
+
+3. **URLSession leak about once a minute (regression, confirmed)** – `Sources/Antarium/Providers/CodexProvider.swift:109–116`.
+   - **Defect:** `storedAuth()` builds a throwaway `CodexProvider()`. Its `UsageHTTP.makeSession` adds a delegate to the static `readers` map, and nothing ever calls `release`.
+   - **Scenario:** with cloud agents on, `CloudScan.codexTasks()` runs about every 60s. Each run leaks a session, its delegate and a map entry, roughly 1,400 a day.
+
+4. **Signed-out Amp or Kiro is reported as "output limit exceeded" (confirmed)** – `Sources/Antarium/Providers/AmpProvider.swift:33–38`; `KiroProvider.swift:30` has the same shape.
+   - **Defect:** `completeOutput` already requires `exitCode == 0`, so the `needsAuth` branch after it can never run.
+   - **Scenario:** a signed-out, timed-out or failed-to-launch `amp` reads "Amp's reply exceeded the output limit" and is never offered sign-in.
+
+5. **Kiro reset date can jump a year ahead (confirmed)** – `Sources/Antarium/Providers/KiroProvider.swift:113–120`.
+   - **Defect:** "resets on MM/DD" is read as midnight UTC, and any date not in the future is moved to next year.
+   - **Scenario:** a Pacific user on reset day, after UTC midnight but before local midnight, sees the reset about 365 days away instead of a few hours.
+
+6. **Vendor guard is a substring match (confirmed)** – `Sources/Antarium/Providers/DescriptorProvider.swift:169–177`, used by `Resources/harnesses/zai.json:21–23` (`"env.ANTHROPIC_BASE_URL": "z.ai"`).
+   - **Defect:** the check is `contains("z.ai")` over the whole URL. AGENTS.md warns about exactly this (the `evilx.ai` case).
+   - **Scenario:** Claude settings pointed at another gateway whose URL merely contains `z.ai` (e.g. `api.xyz.ai`) send that gateway's `ANTHROPIC_AUTH_TOKEN` to `api.z.ai`. Comparing the parsed host would fix it.
+
+7. **`--usage` invents a meter for balance gauges (confirmed)** – `Sources/Antarium/Diagnostics.swift:95–100`.
+   - **Defect:** the printout shows percent-left and `used*100` for every gauge. Balance gauges, which are new in this PR, are stored with `used: 0`.
+   - **Scenario:** DeepSeek, Moonshot, Vercel and Amp balance rows print "100% left used 0.0%". The menu and dashboard branch correctly; only this printout doesn't.
+
+8. **`--agents` prints zeros for figures never observed (confirmed)** – `Sources/Antarium/Diagnostics.swift:456–457`.
+   - **Defect:** it prints `tools=0 turns=0 subs=0 cost=$0.00` when a harness records none of these, and ignores `usageIssue`. This PR fixed `ctx` on the same line to print "—" but left these fields.
+   - **Scenario:** this is the report users paste, so it breaks the missing-versus-zero rule there. `HarnessCheck.swift:547–551` does the same in `--check`.
+
+9. **Amp and Kiro misread thousands separators (plausible)** – `Sources/Antarium/Providers/AmpProvider.swift:113–125`; Kiro `:137–141`.
+   - **Defect:** the number scanner stops at a comma.
+   - **Scenario:** "$1,234.56 remaining" shows as $1.00. This only matters if either CLI ever prints grouped figures.
+
+10. **`OPENCLAW_PROFILE` mapped as a directory (plausible)** – `Resources/harnesses/openclaw.json` (`source.relocate`), resolved at `Sources/Antarium/Core/HarnessDescriptor.swift:678–702`.
+    - **Defect:** the variable is a profile name (state lives in `~/.openclaw-&lt;name&gt;`), not a directory.
+    - **Scenario:** with `OPENCLAW_PROFILE=work` set, the source path becomes the relative path `work/agents` and that profile's sessions are never read. It only applies when the app inherits the variable, e.g. launched from a terminal.
+
+11. **Unreadable figures summed as 0 or negative (confirmed, low)** – `Sources/Antarium/Core/HarnessEngine.swift:1075–1080`.
+    - **Defect:** a present but unreadable figure (a string, or a negative number) is added as 0 or as the negative, and `numericIssue` is never set.
+    - **Scenario:** one record with `"input": -500` among normal records gives a silently reduced total instead of "unavailable".
+
+12. **Main-thread stalls (plausible, low)** – `Sources/Antarium/Core/ConfiguredProbe.swift:61–72` and `Sources/Antarium/UI/SettingsView.swift:525`.
+    - **Defect:** one global lock is held while each provider's check runs, and Claude's check can call `/usr/bin/security` for about 10s. Separately, the first time a remote host row is drawn, `/usr/bin/security` runs synchronously on the main thread.
+    - **Scenario:** one slow Keychain prompt stalls the menu bar.
+
+13. **Copilot CLI can go dark for heavy users (plausible)** – the fixed 250 ms SQLite budget in `Sources/Antarium/Core/BoundedSQLite.swift:59–67`, against `copilot-cli.json`'s query.
+    - **Defect:** the query runs five correlated subqueries for each of up to 200 sessions within that budget.
+    - **Scenario:** on a large history with no index on `session_id`, it exceeds the budget every scan and the harness shows no sessions, only a health message.
+
+A few smaller notes weren't worth listing: `CodexGoals` fails entirely beyond 2,000 rows or on an unknown status, and `GeminiProvider` posts an empty `{}` body to an unverified endpoint. `vscode.json` treating Copilot credits as dollars exists on main too and isn't a regression.</result>
+<usage><subagent_tokens>71620</subagent_tokens><tool_uses>20</tool_uses><duration_ms>258382</duration_ms></usage>
+</task-notification>

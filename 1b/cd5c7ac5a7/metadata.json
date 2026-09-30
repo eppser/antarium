@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "1bcd5c7ac5a7",
+  "strategy": "manual-commit",
+  "branch": "readme-demo",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Sources/Antarium/UI/DemoScene.swift",
+    "Tests/AntariumTests/DemoSceneTests.swift",
+    "tools/make-demo-gif.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1b/cd5c7ac5a7/0/metadata.json",
+      "transcript": "/1b/cd5c7ac5a7/0/full.jsonl",
+      "compact_transcript": "/1b/cd5c7ac5a7/0/transcript.jsonl",
+      "content_hash": "/1b/cd5c7ac5a7/0/content_hash.txt",
+      "prompt": "/1b/cd5c7ac5a7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 114,
+    "cache_creation_tokens": 139290,
+    "cache_read_tokens": 5059267,
+    "output_tokens": 37867,
+    "api_call_count": 57
+  }
+}

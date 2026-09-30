@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "1bcd5c7ac5a7",
+  "session_id": "e2429d87-e52c-4e73-82e8-0f717c758576",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-30T09:14:34.069764Z",
+  "branch": "readme-demo",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Tests/AntariumTests/DemoSceneTests.swift",
+    "Sources/Antarium/UI/DemoScene.swift",
+    "tools/make-demo-gif.sh"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "52a6910d78fc",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 114,
+    "cache_creation_tokens": 139290,
+    "cache_read_tokens": 5059267,
+    "output_tokens": 37867,
+    "api_call_count": 57
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-30T09:14:33.935821Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 1,
+    "total_committed": 0,
+    "total_lines_changed": 2,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 487,
+      "user_lines_removed": 1,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "Sources/Antarium/Core/LaunchArguments.swift": 1,
+        "Sources/Antarium/UI/DemoScene.swift": 354,
+        "Sources/Antarium/main.swift": 6,
+        "Tests/AntariumTests/DemoSceneTests.swift": 81,
+        "Tests/AntariumTests/LaunchArgumentsTests.swift": 1,
+        "tools/make-demo-gif.sh": 44
+      },
+      "user_removed_per_file": {
+        "Sources/Antarium/Core/LaunchArguments.swift": 1
+      }
+    }
+  ]
+}
