@@ -130,6 +130,60 @@ struct ClaudeRegistryTests {
         #expect(found.first?.sentTokens == nil, "nothing was read, so nothing is reported")
     }
 
+    // MARK: - Worker pools
+
+    private func pool(_ pids: [Int32], cwd: String, entrypoint: String = "sdk-cli")
+        -> (entries: [String: [String: Any]], processes: [Int32: Processes.Info]) {
+        var entries: [String: [String: Any]] = [:], processes: [Int32: Processes.Info] = [:]
+        for pid in pids {
+            entries["\(pid)"] = ["cwd": cwd, "pid": Int(pid), "sessionId": "s-\(pid)",
+                                 "entrypoint": entrypoint]
+            processes.merge(liveProcess(pid)) { a, _ in a }
+        }
+        return (entries, processes)
+    }
+
+    /// An orchestrator keeps idle SDK workers warm in one folder. Each
+    /// registers as a session and never writes a transcript, so five of them
+    /// were five identical rows saying nothing. They are one row that says
+    /// how many, and what they hold between them.
+    @Test("Idle SDK workers in one folder are one row that counts them")
+    func idleSDKPoolIsOneRow() throws {
+        let (entries, processes) = pool([11, 12, 13, 14, 15], cwd: "/tmp/orchestrator/_default")
+        let found = try rows(entries, processes: processes)
+        #expect(found.count == 1)
+        let row = try #require(found.first)
+        #expect(row.pooled == 5)
+        #expect(row.rssBytes == Int64(5 * 1_024), "the pool's memory is the sum of its workers'")
+        #expect(row.note?.contains("5") == true)
+    }
+
+    @Test("A lone SDK session keeps its own row and explanation")
+    func loneSDKSessionIsUnchanged() throws {
+        let (entries, processes) = pool([21], cwd: "/tmp/one")
+        let found = try rows(entries, processes: processes)
+        #expect(found.count == 1)
+        #expect(found.first?.pooled == nil)
+        #expect(found.first?.note?.contains("sdk-cli") == true)
+    }
+
+    @Test("Workers in different folders are not pooled together")
+    func poolsAreScopedToAFolder() throws {
+        var (entries, processes) = pool([31, 32], cwd: "/tmp/a")
+        let other = pool([33], cwd: "/tmp/b")
+        entries.merge(other.entries) { a, _ in a }
+        processes.merge(other.processes) { a, _ in a }
+        let found = try rows(entries, processes: processes)
+        #expect(found.count == 2)
+        #expect(found.first { $0.cwd == "/tmp/a" }?.pooled == 2)
+    }
+
+    @Test("Interactive sessions are never pooled, even in one folder")
+    func interactiveSessionsStayApart() throws {
+        let (entries, processes) = pool([41, 42], cwd: "/tmp/p", entrypoint: "cli")
+        #expect(try rows(entries, processes: processes).count == 2)
+    }
+
     // MARK: - Refusals
 
     /// A malformed entry is never read as a session, and never silently

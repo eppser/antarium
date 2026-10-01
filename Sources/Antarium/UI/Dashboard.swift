@@ -529,6 +529,16 @@ struct AgentRowView: View {
                         .background(Capsule().fill(Color.primary.opacity(0.06)))
                         .fixedSize()
                 }
+                // One row standing for several idle workers says how many.
+                if let pooled = row.pooled {
+                    Text("×\(pooled)")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4).padding(.vertical, 0.5)
+                        .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        .fixedSize()
+                        .help(row.note ?? "\(pooled) idle workers")
+                }
                 if !reduced {
                     Text(row.displayPath).font(.system(size: 9.5)).foregroundStyle(.quaternary)
                         .lineLimit(1).truncationMode(.head)
