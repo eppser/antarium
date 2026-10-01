@@ -60,10 +60,62 @@ enum Processes {
     static func snapshot(measureIf shouldMeasure: (String) -> Bool = { _ in false }) throws -> [Int32: Info] {
         try capture(measureIf:shouldMeasure).table
     }
-    static func capture(measureIf shouldMeasure: (String) -> Bool = { _ in false }) throws -> Snapshot {
+    /// What `measureIf` said about each process, kept while nothing it was
+    /// asked about has changed.
+    ///
+    /// The scan asks it of every process on the machine — several hundred,
+    /// three strings each, every few seconds — and the answer is a substring
+    /// search over every harness's fragments. It was most of the scan's cost
+    /// while idle, and almost all of it was asking again about processes that
+    /// had not changed since the last pass.
+    ///
+    /// The key is everything the answer is computed from, so a hit is the same
+    /// answer by construction: a reused pid has a new start time, an exec has
+    /// a new path, and an interpreter's script is its argv[0]. `classifier`
+    /// names the harness tables the predicate reads; when they change, every
+    /// answer is forgotten.
+    struct MeasureMemo {
+        struct Key: Hashable {
+            let pid: Int32
+            let start: Int64
+            let path: String
+            let name: String
+            let argv0: String
+        }
+        private var classifier: String?
+        private var answers: [Int32: (key: Key, measured: Bool)] = [:]
+        var count: Int { answers.count }
+
+        mutating func answer(_ key: Key, classifier: String, compute: () -> Bool) -> Bool {
+            if classifier != self.classifier {
+                answers.removeAll(keepingCapacity: true)
+                self.classifier = classifier
+            }
+            if let known = answers[key.pid], known.key == key { return known.measured }
+            let measured = compute()
+            answers[key.pid] = (key, measured)
+            return measured
+        }
+
+        /// Drops processes that have gone, so the memo is bounded by the table.
+        mutating func prune(keeping pids: Set<Int32>) {
+            answers = answers.filter { pids.contains($0.key) }
+        }
+    }
+    nonisolated(unsafe) private static var memo = MeasureMemo()
+    private static let memoLock = NSLock()
+
+    /// `classifier` turns the memo on. Without one every process is asked
+    /// afresh, which is what a caller with an ad-hoc predicate needs.
+    static func capture(measureIf shouldMeasure: (String) -> Bool = { _ in false },
+                        classifier: String? = nil) throws -> Snapshot {
         let pids = try processIDs()
         var unavailable = Set<Int32>()
         var table: [Int32: Info] = [:]
+        // Held for the whole capture: two overlapping scans would otherwise
+        // each prune the other's entries.
+        if classifier != nil { memoLock.lock() }
+        defer { if classifier != nil { memoLock.unlock() } }
         for pid in pids {
             try Task.checkCancellation()
             var bsd = proc_bsdinfo()
@@ -85,7 +137,14 @@ enum Processes {
             let argv0 = Self.interpreters.contains(base) ? (Self.argv0(of: pid) ?? "") : ""
 
             var rss: Int64?
-            if shouldMeasure(path) || shouldMeasure(name) || shouldMeasure(argv0) {
+            func ask() -> Bool { shouldMeasure(path) || shouldMeasure(name) || shouldMeasure(argv0) }
+            let measure: Bool
+            if let classifier {
+                let start = Int64(bsd.pbi_start_tvsec) * 1_000_000 + Int64(bsd.pbi_start_tvusec)
+                measure = memo.answer(.init(pid: pid, start: start, path: path, name: name, argv0: argv0),
+                                      classifier: classifier, compute: ask)
+            } else { measure = ask() }
+            if measure {
                 var task = proc_taskinfo()
                 let taskSize = Int32(MemoryLayout<proc_taskinfo>.size)
                 if proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &task, taskSize) == taskSize {
@@ -96,6 +155,7 @@ enum Processes {
                               name: name, argv0: argv0, rss: rss,
                               startedAt: bsd.pbi_start_tvsec > 0 ? Date(timeIntervalSince1970:Double(bsd.pbi_start_tvsec) + Double(bsd.pbi_start_tvusec)/1_000_000) : nil)
         }
+        if classifier != nil { memo.prune(keeping: Set(table.keys)) }
         return Snapshot(table:table,unavailablePIDs:unavailable)
     }
 

@@ -58,12 +58,23 @@ struct HarnessDescriptor: Codable {
 
     /// True when this descriptor claims a process — by executable path, by
     /// process name, or by argv[0] for anything running under an interpreter.
+    ///
+    /// Reads the declared fields directly rather than through `processRule`,
+    /// which assembles two sorted arrays and a set: this runs for every
+    /// process against every harness on each scan, and building the rule
+    /// each time was most of what it cost. `ClaimsEquivalenceTests` holds it
+    /// to the rule.
     func claims(_ process: Processes.Info) -> Bool {
-        let rule = processRule
-        if (rule.pathContains ?? []).contains(where: { process.path.contains($0) }) { return true }
-        let argv0Base = (process.argv0 as NSString).lastPathComponent
-        if processNames.contains(process.name) || processNames.contains(argv0Base) { return true }
-        return (rule.argv0Contains ?? []).contains { process.argv0.contains($0) }
+        if match.contains(where: { process.path.contains($0) })
+            || (self.process?.pathContains ?? []).contains(where: { process.path.contains($0) }) {
+            return true
+        }
+        func named(_ candidate: String) -> Bool {
+            (matchProcessName ?? []).contains(candidate)
+                || (self.process?.names ?? []).contains(candidate)
+        }
+        if named(process.name) || named((process.argv0 as NSString).lastPathComponent) { return true }
+        return (self.process?.argv0Contains ?? []).contains { process.argv0.contains($0) }
     }
     let source: Source
     /// Optional: a SQLite harness maps its columns instead, and omitting this
@@ -931,6 +942,7 @@ struct HarnessDescriptor: Codable {
     /// process scan asks for them once per process.
     static func matchFragments() -> [String] { catalog.snapshot().matchFragments }
     static func processNamesAll() -> Set<String> { catalog.snapshot().processNames }
+    static func processClassifier() -> String { catalog.snapshot().classifier }
     static func reload() { catalog.invalidate() }
 
     /// Puts the shipped harnesses in your folder, and keeps them current.

@@ -274,7 +274,7 @@ enum AgentScan {
     static func scan() throws -> [AgentRow] { try observe().rows }
 
     static func observe() throws -> Observation {
-        let snapshot = try Processes.capture(measureIf:isAgent)
+        let snapshot = try Processes.capture(measureIf:isAgent,classifier:HarnessDescriptor.processClassifier())
         let processes = snapshot.table
         var rows: [AgentRow] = []
         var unavailableHarnesses = Set<String>()
