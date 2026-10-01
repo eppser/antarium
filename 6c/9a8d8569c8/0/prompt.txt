@@ -1,0 +1,9 @@
+Continue perf work: read A/B results in bmit4puxe output, profile the idle new build to find the real steady CPU cost, optimize, verify, PR, merge.
+
+---
+
+Continue perf work: read A/B results in bmit4puxe output, profile the idle new build to find the real steady CPU cost, optimize, verify, PR, merge.
+
+---
+
+it seem there is a bug. can you please fix this [Image #1]

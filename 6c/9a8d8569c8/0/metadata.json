@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "6c9a8d8569c8",
+  "session_id": "e2429d87-e52c-4e73-82e8-0f717c758576",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-01T18:38:13.528898Z",
+  "branch": "fix-sdk-pool-rows",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "Sources/Antarium/UI/Dashboard.swift"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "6c18d0007d8a",
+  "checkpoint_transcript_start": 1998,
+  "transcript_lines_at_start": 1998,
+  "compact_transcript_start": 230,
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 301671,
+    "cache_read_tokens": 4784092,
+    "output_tokens": 11044,
+    "api_call_count": 16
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-01T18:38:13.304433Z",
+    "agent_lines": 10,
+    "agent_removed": 0,
+    "human_added": 100,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 110,
+    "total_lines_changed": 111,
+    "agent_percentage": 9.00900900900901,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
