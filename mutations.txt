@@ -1293,3 +1293,4 @@ a zero-usage unattributed record voids the cost | Sources/Antarium/Core/Transcri
 a partly readable harness forgets its missing sessions | Sources/Antarium/Core/AgentStore.swift | s/let unreadable = observation.partlyUnavailableHarnesses.contains(row.agentID)/let unreadable = false \&\& observation.partlyUnavailableHarnesses.contains(row.agentID)/
 the process memo trusts a reused pid | Sources/Antarium/Core/Processes.swift | s/if let known = answers\[key.pid\], known.key == key { return known.measured }/if let known = answers[key.pid] { return known.measured }/
 the process memo outlives a harness edit | Sources/Antarium/Core/Processes.swift | s/if classifier != self.classifier {/if false {/
+idle sdk workers are never pooled | Sources/Antarium/Core/AgentScan.swift | s/.filter { $0.value.count > 1 }/.filter { _ in false }/

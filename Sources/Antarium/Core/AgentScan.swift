@@ -151,6 +151,9 @@ struct AgentRow: Identifiable {
     var turns: Int?
     /// Claude's own session name, e.g. "spicy-c1" — kept for the tooltip.
     var sessionName: String = ""
+    /// How many indistinguishable idle workers this one row stands for, when
+    /// it stands for more than one. Nil for an ordinary session.
+    var pooled: Int?
 
     /// A PID binding is a recent observation, not a permanent lease on a
     /// process number. Failed, missing, future or stale observations cannot
@@ -499,6 +502,9 @@ enum AgentScan {
         let entries = try BoundedDirectory.entries(dir).filter { $0.url.pathExtension == "json" }
         guard entries.count <= 512 else { throw RegistryError.limit }
         var rows: [AgentRow] = [], bytes = 0, malformed = 0
+        /// Rows that are idle SDK workers: launched by another tool, never
+        /// sent a turn, publishing nothing. Pooled by folder after the loop.
+        var idleWorkers: [Int] = []
         for entry in entries {
             try Task.checkCancellation()
             let file = entry.url
@@ -605,9 +611,47 @@ enum AgentScan {
                 row.localObservationIssue = "This process could not be inspected. Its current state is unknown."
             }
             row.sessionID = sessionID
+            if entrypoint.hasPrefix("sdk"), transcript == nil, published == nil, alive,
+               row.localObservationIssue == nil {
+                idleWorkers.append(rows.count)
+            }
             rows.append(row)
         }
-        return (rows, malformed)
+        return (pooling(rows, idleWorkers: idleWorkers), malformed)
+    }
+
+    /// One row per folder for idle SDK workers.
+    ///
+    /// An orchestrator keeps a warm pool of Agent SDK workers in a placeholder
+    /// folder. Each registers itself as a session and, until it is handed a
+    /// task, publishes no transcript and no status — so a pool of five was
+    /// five identical rows, each saying it had nothing to say. They are still
+    /// shown, because they are running and holding memory; they are shown
+    /// once, with the count and the memory they hold between them. A worker
+    /// that has written a transcript or a status is a session again, and gets
+    /// its own row.
+    static func pooling(_ rows: [AgentRow], idleWorkers: [Int]) -> [AgentRow] {
+        let groups = Dictionary(grouping: idleWorkers) { rows[$0].cwd }.filter { $0.value.count > 1 }
+        guard !groups.isEmpty else { return rows }
+        let pooled = Set(groups.values.joined())
+        var out = rows.indices.filter { !pooled.contains($0) }.map { rows[$0] }
+        for (cwd, members) in groups.sorted(by: { $0.key < $1.key }) {
+            let workers = members.map { rows[$0] }.sorted { ($0.pid ?? 0) < ($1.pid ?? 0) }
+            var row = workers[0]
+            row.id = AgentIdentity.local(harness: row.agentID, sessionID: "sdk-pool",
+                                         cwd: cwd, pid: nil)
+            row.pooled = workers.count
+            // A sum only when every worker was measured; otherwise the total
+            // would quietly be a partial one.
+            let sizes = workers.compactMap(\.rssBytes)
+            row.rssBytes = sizes.count == workers.count ? sizes.reduce(0, +) : nil
+            row.startedAt = workers.compactMap(\.startedAt).min()
+            row.lastActivity = workers.compactMap(\.lastActivity).max()
+            row.note = "\(workers.count) idle workers started by an Agent SDK host in this folder. "
+                + "None has been given a task yet, so none publishes a transcript or status."
+            out.append(row)
+        }
+        return out
     }
 
     /// Every figure a usage issue invalidates.
