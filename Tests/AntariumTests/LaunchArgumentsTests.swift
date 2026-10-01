@@ -122,6 +122,7 @@ struct InternalModesAreListedTests {
         "--preview": "renders a menu bar item to a file, for working on the drawing",
         "--dashboard": "renders the dashboard to a file, same",
         "--alert": "renders a notification banner to a file, same",
+        "--demo-frames": "draws the README animation from an invented roster, same",
         "--settings": "renders the settings panel to a file, same",
         "--onboarding": "renders the first-run screen to a file, same",
         "--focus": "clicks a row from the terminal and reports what the click did",

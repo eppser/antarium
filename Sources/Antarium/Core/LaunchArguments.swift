@@ -53,7 +53,7 @@ enum LaunchArguments {
         let single:Set<String> = ["--help","-h","--status","--bench","--tmux",
             "--print-remote-discovery-command","--verify-harness-fixtures","--verify-harness-installations","--verify-harness-quota"]
         let file:Set<String> = ["--verify-remote-discovery-reply","--preview",
-            "--dashboard","--alert","--check","--evaluate-harness","--settings","--focus","--onboarding"]
+            "--dashboard","--demo-frames","--alert","--check","--evaluate-harness","--settings","--focus","--onboarding"]
         var modes = Dictionary(uniqueKeysWithValues:single.map { ($0,Mode()) })
         for name in file { modes[name] = Mode(minimum:1,maximum:1) }
         modes["--migrate-harness"] = Mode(minimum:2,maximum:2)

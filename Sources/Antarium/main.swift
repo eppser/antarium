@@ -72,6 +72,12 @@ MainActor.assumeIsolated {
         Diagnostics.renderDashboardAndExit(to: CommandLine.arguments[i + 1])
     }
 
+    // Design harness: draw the README animation from an invented roster.
+    if let i = CommandLine.arguments.firstIndex(of: "--demo-frames"),
+       i + 1 < CommandLine.arguments.count {
+        exit(DemoScene.writeFrames(to: CommandLine.arguments[i + 1]) ? 0 : 1)
+    }
+
     // Design harness: render the stop-working banner and exit.
     if let i = CommandLine.arguments.firstIndex(of: "--alert"),
        i + 1 < CommandLine.arguments.count {
