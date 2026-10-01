@@ -30,7 +30,12 @@ final class HarnessCatalog: @unchecked Sendable {
             self.enabled = live
             self.matchFragments = live.flatMap(\.match)
             self.processNames = Set(live.flatMap(\.processNames))
+            self.classifier = matchFragments.joined(separator: "\u{1}") + "\u{2}"
+                + processNames.sorted().joined(separator: "\u{1}")
         }
+        /// Names the two tables above, so an answer computed from them can
+        /// be remembered until they change.
+        let classifier:String
     }
     let directory:URL
     private let defaults:[URL]

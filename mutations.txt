@@ -316,9 +316,9 @@ an unpriced row ties with a measured zero | Sources/Antarium/Core/AgentScan.swif
 duplicate ids silently override each other | Sources/Antarium/Core/HarnessCatalog.swift | s|if descriptors.count == 1 { resolved.append(descriptors\[0\]) }|if true { resolved.append(descriptors[0]) }|
 a duplicate id is not reported | Sources/Antarium/Core/HarnessCatalog.swift | s|problems.append("Multiple harness files declare the same ID. The last unambiguous configuration is retained when available.")||
 the catalog is returned unsorted | Sources/Antarium/Core/HarnessCatalog.swift | s|resolved.sorted { \$0.id < \$1.id }|resolved|
-a process matches on a path fragment it does not contain | Sources/Antarium/Core/HarnessDescriptor.swift | s|if (rule.pathContains ?? \[\]).contains(where: { process.path.contains(\$0) }) { return true }||
-argv0 matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|return (rule.argv0Contains ?? \[\]).contains { process.argv0.contains(\$0) }|return false|
-process name matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|if processNames.contains(process.name) \|\| processNames.contains(argv0Base) { return true }||
+a process matches on a path fragment it does not contain | Sources/Antarium/Core/HarnessDescriptor.swift | s|if match.contains(where: { process.path.contains(\$0) })|if !match.isEmpty|
+argv0 matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|return (self.process?.argv0Contains ?? \[\]).contains { process.argv0.contains(\$0) }|return false|
+process name matching dropped | Sources/Antarium/Core/HarnessDescriptor.swift | s|if named(process.name) \|\| named((process.argv0 as NSString).lastPathComponent) { return true }||
 a descriptor claims every process | Sources/Antarium/Core/HarnessDescriptor.swift | s|func claims(_ process: Processes.Info) -> Bool {|func claims(_ process: Processes.Info) -> Bool { if true { return true };|
 cache eviction tie broken at random | Sources/Antarium/Core/CodexGoals.swift | s|: a.key < b.key|: Bool.random()|
 cache evicts the newest | Sources/Antarium/Core/CodexGoals.swift | s|a.value.checked < b.value.checked|a.value.checked > b.value.checked|
@@ -1291,3 +1291,5 @@ build.sh stops checksumming the archive | build.sh | s@    shasum -a 256 "\$ARCH
 a lookalike host passes a vendor guard | Sources/Antarium/Providers/DescriptorProvider.swift | s/return host == want || host.hasSuffix("." + want)/return host.contains(want)/
 a zero-usage unattributed record voids the cost | Sources/Antarium/Core/TranscriptStats.swift | s/usage.cacheWrite1h == 0, usage.cacheRead == 0 { continue }/usage.cacheWrite1h == 0, usage.cacheRead == 0, false { continue }/
 a partly readable harness forgets its missing sessions | Sources/Antarium/Core/AgentStore.swift | s/let unreadable = observation.partlyUnavailableHarnesses.contains(row.agentID)/let unreadable = false \&\& observation.partlyUnavailableHarnesses.contains(row.agentID)/
+the process memo trusts a reused pid | Sources/Antarium/Core/Processes.swift | s/if let known = answers\[key.pid\], known.key == key { return known.measured }/if let known = answers[key.pid] { return known.measured }/
+the process memo outlives a harness edit | Sources/Antarium/Core/Processes.swift | s/if classifier != self.classifier {/if false {/
