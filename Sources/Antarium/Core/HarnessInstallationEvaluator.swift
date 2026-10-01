@@ -24,6 +24,11 @@ enum HarnessInstallationEvaluator {
         }
 
         for (index, probe) in probes.enumerated() {
+            // The three provenance checks below are a backstop: a descriptor
+            // carrying a probe without a method, an HTTPS evidence URL and a
+            // yyyy-MM-dd date does not decode, so no mutation of them can be
+            // caught. Kept because this evaluator is the layer that would
+            // still be right if the decoder's rules were relaxed.
             let label = "probe \(index + 1) (\(probe.method))"
             if probe.method.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 failures.append("\(label) has no installation method")

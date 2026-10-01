@@ -1,0 +1,20 @@
+{
+  "setupSQL": "CREATE TABLE sessions (id TEXT PRIMARY KEY, cwd TEXT, repository TEXT, host_type TEXT,\n                       branch TEXT, summary TEXT, created_at TEXT, updated_at TEXT);\nCREATE TABLE turns (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, turn_index INTEGER,\n                    user_message TEXT, assistant_response TEXT, timestamp TEXT);\nCREATE TABLE assistant_usage_events (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT,\n                    turn_index INTEGER, agent_id TEXT, model TEXT NOT NULL,\n                    input_tokens INTEGER, output_tokens INTEGER,\n                    cache_read_tokens INTEGER, cache_write_tokens INTEGER);\nINSERT INTO sessions VALUES\n  ('s-new','/projects/sample','repo','local','main','Newest session','2026-09-19T10:00:00Z','2026-09-20T12:00:00Z'),\n  ('s-old','/projects/other','repo','local','main','Older session','2026-09-18T10:00:00Z','2026-09-19T09:00:00Z');\nINSERT INTO turns (session_id,turn_index) VALUES ('s-new',0),('s-new',1),('s-old',0);\nINSERT INTO assistant_usage_events (session_id,turn_index,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens) VALUES\n  ('s-new',0,'gpt-5-mini',1000,100,500,10),\n  ('s-new',1,'gpt-5',2000,200,700,20),\n  ('s-old',0,'gpt-5-mini',50,5,0,0);",
+  "expected": {
+    "sessions": 2,
+    "sessionID": "s-new",
+    "focusTarget": null,
+    "cwd": "/projects/sample",
+    "title": "Newest session",
+    "model": "gpt-5",
+    "inputTokens": 3000,
+    "outputTokens": 300,
+    "cacheRead": 1200,
+    "cacheWrite": 30,
+    "contextWindow": null,
+    "toolCalls": 0,
+    "turns": 2,
+    "subAgents": 0,
+    "costUSD": 0
+  }
+}

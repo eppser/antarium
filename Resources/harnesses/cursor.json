@@ -2,17 +2,39 @@
   "formatVersion": 1,
   "id": "cursor",
   "name": "Cursor",
-  "presentation": { "mark": "cursor", "fallbackName": "Cursor" },
-  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one.",
+  "presentation": {
+    "mark": "cursor",
+    "fallbackName": "Cursor"
+  },
+  "note": "Cursor keeps the project and session id in directory names rather than transcript fields. pathFields derives both generically. Only the main process is matched; helpers live under Contents/Frameworks. Plan usage is read natively via CursorProvider from GetCurrentPeriodUsage; accounts with no trustworthy limit omit the bar rather than inventing one. Project rules live in .cursor/rules and must carry the .mdc extension; Cursor's own documentation states that a plain .md file there is ignored because it has no frontmatter. The probe counts only .mdc, so a folder of ignored files does not report instructions the agent will never read. Cursor's rules documentation also names AGENTS.md in the project root, so a project with no .cursor/rules folder still reports its instructions.",
   "process": {
-    "pathContains": ["Cursor.app/Contents/MacOS/Cursor"],
+    "pathContains": [
+      "Cursor.app/Contents/MacOS/Cursor"
+    ],
     "installationProbes": [
-      { "method": "desktop-download", "path": "/Applications/Cursor.app/Contents/MacOS/Cursor", "name": "Cursor", "argv0": "Cursor", "expected": true, "evidence": "https://docs.cursor.com/get-started/installation", "verifiedAt": "2026-08-26" },
-      { "method": "desktop-helper", "path": "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper.app/Contents/MacOS/Cursor Helper", "name": "Cursor Helper", "argv0": "Cursor Helper", "expected": false, "evidence": "https://docs.cursor.com/get-started/installation", "verifiedAt": "2026-08-26" }
+      {
+        "method": "desktop-download",
+        "path": "/Applications/Cursor.app/Contents/MacOS/Cursor",
+        "name": "Cursor",
+        "argv0": "Cursor",
+        "expected": true,
+        "evidence": "https://docs.cursor.com/get-started/installation",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "desktop-helper",
+        "path": "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper.app/Contents/MacOS/Cursor Helper",
+        "name": "Cursor Helper",
+        "argv0": "Cursor Helper",
+        "expected": false,
+        "evidence": "https://docs.cursor.com/get-started/installation",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
-    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/cursor.json"
   },
   "source": {
@@ -21,12 +43,30 @@
     "glob": "*/agent-transcripts/*/*.jsonl",
     "limit": 1,
     "pathFields": {
-      "title": { "ancestor": 3, "value": "name" },
-      "sessionID": { "ancestor": 1, "value": "name" }
+      "title": {
+        "ancestor": 3,
+        "value": "name"
+      },
+      "sessionID": {
+        "ancestor": 1,
+        "value": "name"
+      }
     }
   },
   "map": {
     "turnWhere": {}
   },
-  "detached": true
+  "detached": true,
+  "capabilities": {
+    "instruction": {
+      "probe": "content",
+      "project": [
+        ".cursor/rules",
+        "AGENTS.md"
+      ],
+      "fileSuffixes": [
+        ".mdc"
+      ]
+    }
+  }
 }

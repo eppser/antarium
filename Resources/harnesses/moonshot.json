@@ -1,0 +1,43 @@
+{
+  "formatVersion": 1,
+  "id": "moonshot",
+  "name": "Moonshot (Kimi API)",
+  "note": "Quota only, and a balance rather than a meter: the endpoint states what is left and never what a full tank was. This is the API platform, which is a different thing from the Kimi Code CLI the kimi harness reads sessions from \u2014 one is an account, the other is a transcript, and neither counts the other. available_balance is the figure the service itself gates on: it says requests fail once that reaches zero, so it is the number worth watching rather than the cash and voucher halves it is made of. The currency is declared USD on evidence rather than stated by the API, which returns no currency field: this endpoint is api.moonshot.ai, whose own pricing pages are in dollars, and a mainland account lives on a separate platform its keys do not reach. That is weaker evidence than deepseek, which returns its currency and has it read, so the figures are declared unverified. Read against that reference on 2026-09-25 for meaning rather than shape: `available_balance` is the combined figure and the right one to chart, because `cash_balance` can go negative and when it does `available_balance` falls back to the voucher balance rather than following it down. The reference also states that at or below nought the inference API cannot be called, which is now true of every balance here rather than of this descriptor.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live account."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.moonshot.ai/v1/users/me/balance",
+    "credential": {
+      "kind": "env",
+      "name": "MOONSHOT_API_KEY",
+      "path": "~/.antarium/keys/moonshot"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "single": "balance",
+      "balance": "data.available_balance",
+      "currency": "USD",
+      "labels": {
+        "balance": "Moonshot balance"
+      },
+      "badges": {
+        "balance": "BAL"
+      }
+    },
+    "setupHint": "Put your key in ~/.antarium/keys/moonshot",
+    "documentation": "https://platform.kimi.ai/docs/api/balance",
+    "verified": false,
+    "checkedAt": "2026-09-25"
+  }
+}

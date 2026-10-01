@@ -10,12 +10,41 @@ import Foundation
 /// and even that is offered rather than demanded.
 enum Onboarding {
 
+    /// What the app says when it found nothing.
+    ///
+    /// One phrase, in one place, because there were three: the onboarding
+    /// screen said "not installed here", the settings list said "Not found on
+    /// this Mac" and `--detect-agents` said "no trace on this Mac". Only the
+    /// last is true. None of these checks is conclusive — an agent can be
+    /// installed without having been run, several ship as applications rather
+    /// than commands on PATH, and a GUI-launched app searches a shorter PATH
+    /// than a shell does — so the app reports what it saw rather than what it
+    /// concludes.
+    static let absent = "no trace on this Mac"
+
     struct Finding: Identifiable {
         let id: String
         let name: String
         /// Where it was found, or what is missing.
         let detail: String
+        /// Evidence that this agent is in use on this Mac. Named for what it is
+        /// used for, which is what earns a menu bar slot on a first run.
+        ///
+        /// Usually that evidence is a session store. For a harness declaring
+        /// `contributes: presence` — `gemini`, which keeps no session record —
+        /// it is the command being installed instead, and the `detail` beside it
+        /// says so. Reading this field as "has left sessions" is what made
+        /// `--detect-agents` print "sessions here" for exactly that agent.
         let found: Bool
+        /// The agent's command is on this Mac, but it has left no sessions.
+        ///
+        /// Kept apart from `found` on purpose. A first run must not hand a
+        /// bar slot to an agent that has never been used — that item could
+        /// only say "sign in". But the onboarding screen listed everything
+        /// that was not `found` as "not installed here", which is a different
+        /// claim and, for an agent installed this morning and not yet run, a
+        /// false one.
+        var installedUnused: Bool = false
         /// Non-nil when the user could do something about it.
         var hint: String?
     }
@@ -27,21 +56,53 @@ enum Onboarding {
     /// Which agents leave traces on this Mac. Every agent is a descriptor now,
     /// including the two read natively, so this is one list — appending those
     /// two separately listed them twice.
-    static func harnesses() -> [Finding] {
+    /// `descriptors` is a parameter so a test can supply stores it knows are
+    /// there and stores it knows are not. Reading the real catalog cannot
+    /// prove this reads the disk: on a machine where every agent happens to be
+    /// installed, claiming they all are looks identical to checking.
+    static func harnesses(_ descriptors: [HarnessDescriptor] = HarnessDescriptor.all(),
+                          resolve: (String) -> String? = Onboarding.resolveCommand)
+        -> [Finding] {
         var out: [Finding] = []
-        for descriptor in HarnessDescriptor.all() {
+        for descriptor in descriptors {
             // A quota-only agent — Copilot — declares no session store, so
             // there is nothing on disk to look for. It used to fail the
             // existence check and get listed as "not installed here" directly
             // under its own "signed in" row in the quota section.
+            // An agent that keeps no session record has no path to look for,
+            // but it is still installed or not, and a first run that says
+            // nothing about it is wrong in the direction that matters: the
+            // user has it, and Antarium supports it.
+            if descriptor.contributesPresenceOnly {
+                let name = descriptor.processRule.names?.first ?? descriptor.id
+                let binary = resolve(name)
+                out.append(Finding(id: descriptor.id, name: descriptor.name,
+                                   detail: binary.map { shorten($0) + " · no session record" }
+                                       ?? Self.absent,
+                                   found: binary != nil))
+                continue
+            }
             guard !descriptor.source.path.isEmpty else { continue }
-            let path = descriptor.source.path.expandingTilde
+            let path = descriptor.source.resolvedPath
             let found = FileManager.default.fileExists(atPath: path)
+            // Only asked when there are no sessions, and only ever used to
+            // soften the claim. A hit proves the agent is here; a miss proves
+            // nothing, because plenty of these are applications rather than
+            // commands on PATH — VS Code's process is inside a bundle. So the
+            // three states are "used here", "here and unused", and "no trace",
+            // and the last one is not "not installed".
+            let installed = found
+                ? false
+                : resolve(descriptor.processRule.names?.first ?? descriptor.id) != nil
             out.append(Finding(id: descriptor.id, name: descriptor.name,
-                               detail: found ? shorten(path) : "not on this Mac",
-                               found: found))
+                               detail: found ? shorten(path)
+                                   : (installed ? "here, no sessions yet" : Self.absent),
+                               found: found, installedUnused: installed))
         }
-        return out.sorted { ($0.found ? 0 : 1, $0.name) < ($1.found ? 0 : 1, $1.name) }
+        // Used first, then present but unused, then the rest — and by name
+        // inside each group, so two Macs with the same agents agree.
+        func rank(_ f: Finding) -> Int { f.found ? 0 : (f.installedUnused ? 1 : 2) }
+        return out.sorted { (rank($0), $0.name) < (rank($1), $1.name) }
     }
 
     /// Accounts whose quota we can chart. `isConfigured` is documented as cheap
@@ -55,8 +116,52 @@ enum Onboarding {
         }
     }
 
+    /// Workspace managers found on this Mac.
+    ///
+    /// These host other agents rather than being agents, so they are not rows
+    /// and not menu bar items — but Antarium does use them, to send a click to
+    /// the pane a session is actually in. Saying nothing about them meant the
+    /// one visible effect of having them installed had no explanation.
+    ///
+    /// Presence is whether the command they are read through resolves. A bare
+    /// name is looked up the way the app looks it up, because an application
+    /// launched from Finder has a short PATH and "is it on PATH?" has a
+    /// different answer there than in a terminal.
+    static func workspaces(_ descriptors: [HarnessDescriptor] = HarnessDescriptor.all(),
+                           resolve: (String) -> String? = Onboarding.resolveCommand) -> [Finding] {
+        descriptors
+            .filter { $0.contributesFocusOnly }
+            .map { descriptor in
+                let command = descriptor.source.command ?? ""
+                let found = !command.isEmpty && resolve(command) != nil
+                return Finding(id: descriptor.id, name: descriptor.name,
+                               detail: found ? "routes clicks to the right pane"
+                                             : Self.absent,
+                               found: found)
+            }
+            .sorted { ($0.found ? 0 : 1, $0.name) < ($1.found ? 0 : 1, $1.name) }
+    }
+
+    /// Where a bare command name lives, for a GUI app's short PATH.
+    static func resolveCommand(_ command: String) -> String? {
+        return CommandPath.resolve(command)
+    }
+
+    /// Splits accounts into the ones worth a row each and the ones worth a
+    /// single line naming them.
+    ///
+    /// Eighteen providers ship. Giving every unconfigured one a row with its setup
+    /// hint filled the first-run panel with things the user has not got, under
+    /// a heading that says Antarium is ready — and the hints, being long
+    /// enough to be useful, truncated mid-word in the space left for them.
+    static func partition(_ accounts: [Finding])
+        -> (signedIn: [Finding], connectable: [Finding]) {
+        (accounts.filter(\.found), accounts.filter { !$0.found })
+    }
+
+    /// Was a third copy of the same prefix mistake, on the panel that runs
+    /// once and is the first thing anyone sees.
     private static func shorten(_ path: String) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+        path.abbreviatingHome(FileManager.default.homeDirectoryForCurrentUser.path)
     }
 }

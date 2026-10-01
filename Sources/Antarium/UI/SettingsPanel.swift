@@ -113,9 +113,13 @@ final class SettingsPanel: NSObject {
             frame.origin.y += frame.height - size.height
             frame.size = size
             if let screen = panel.screen ?? NSScreen.main {
-                let visible = screen.visibleFrame
-                frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - size.width)
-                frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - size.height)
+                // The same rule the other panels use. Its own clamp inverted
+                // on a screen smaller than the panel: the high bound falls
+                // below the low one there, and clamping to it put the panel
+                // off the left edge rather than leaving it at the margin.
+                frame.origin = PanelPlacement.origin(
+                    saved: frame.origin, userMoved: true, pinned: false, anchor: nil,
+                    visible: screen.visibleFrame, size: size, margin: 0)
             }
             panel.setFrame(frame, display: true)
         } else {

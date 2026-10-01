@@ -18,6 +18,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// NSApplication keeps only a weak reference to its delegate.
 var retainedDelegate: AnyObject?
 
+if let issue = LaunchArguments.validate(Array(CommandLine.arguments.dropFirst())) {
+    FileHandle.standardError.write(Data((issue + "\n").utf8))
+    exit(2)
+}
+if LaunchArguments.requestsHelp(Array(CommandLine.arguments.dropFirst())) {
+    print(LaunchArguments.help); exit(0)
+}
+
+// Before anything reads or writes the settings folder, whichever entry point
+// this is.
+//
+// These two calls used to live in `AppController.start`, so only the menu bar
+// app made the folder private. A fresh folder is created 0700 and so looked
+// right, but one that already existed — made by a version that predates the
+// securing, or by hand — stayed exactly as it was through every command. The
+// setup hints tell people to put keys in `~/.antarium/keys`, and the folder
+// they land in is the one the last thing to touch it left behind.
+Config.secure(Config.directory)
+Config.secure(Config.keysDirectory)
+
 // Top-level code is nonisolated; everything below is main-thread-only AppKit.
 // `antarium run -- claude` runs before any AppKit exists: it is a terminal
 // program, not the menu bar app.
@@ -32,6 +52,14 @@ if let i = CommandLine.arguments.firstIndex(of: "run"), i == 1 {
 }
 
 MainActor.assumeIsolated {
+    if CommandLine.arguments.contains("--print-remote-discovery-command") {
+        print(RemoteTmux.remoteCommand,terminator:"")
+        exit(0)
+    }
+    if let i = CommandLine.arguments.firstIndex(of:"--verify-remote-discovery-reply"), i + 1 < CommandLine.arguments.count {
+        exit(RemoteDiscoveryEvaluation.verify(file:CommandLine.arguments[i + 1]))
+    }
+
     // Design harness: render sample states to a PNG and exit.
     if let i = CommandLine.arguments.firstIndex(of: "--preview"),
        i + 1 < CommandLine.arguments.count {
@@ -71,13 +99,21 @@ MainActor.assumeIsolated {
         exit(HarnessCLI.verifyBundledFixtures())
     }
 
+    if CommandLine.arguments.contains("--detect-agents") {
+        exit(HarnessCLI.detectAgents(apply: CommandLine.arguments.contains("--apply")))
+    }
+
+    if CommandLine.arguments.contains("--verify-harness-quota") {
+        exit(HarnessCLI.verifyBundledQuota())
+    }
+
     if CommandLine.arguments.contains("--verify-harness-installations") {
         exit(HarnessCLI.verifyBundledInstallations())
     }
 
     if let i = CommandLine.arguments.firstIndex(of: "--settings"),
        i + 1 < CommandLine.arguments.count {
-        exit(Diagnostics.writeThemeSheet(SettingsView(model: SettingsModel()),
+        exit(Diagnostics.writeThemeSheet(SettingsView(model: SettingsModel(), unbounded: true),
                                          to: CommandLine.arguments[i + 1]) ? 0 : 1)
     }
 

@@ -3,19 +3,42 @@
   "id": "codex-desktop",
   "name": "Codex Desktop",
   "process": {
-    "pathContains": ["ChatGPT.app/Contents/MacOS/ChatGPT"],
+    "pathContains": [
+      "ChatGPT.app/Contents/MacOS/ChatGPT"
+    ],
     "installationProbes": [
-      { "method": "desktop-download", "path": "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT", "name": "ChatGPT", "argv0": "ChatGPT", "expected": true, "evidence": "https://openai.com/chatgpt/desktop/", "verifiedAt": "2026-08-26" },
-      { "method": "desktop-helper", "path": "/Applications/ChatGPT.app/Contents/Frameworks/ChatGPT Helper.app/Contents/MacOS/ChatGPT Helper", "name": "ChatGPT Helper", "argv0": "ChatGPT Helper", "expected": false, "evidence": "https://openai.com/chatgpt/desktop/", "verifiedAt": "2026-08-26" }
+      {
+        "method": "desktop-download",
+        "path": "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
+        "name": "ChatGPT",
+        "argv0": "ChatGPT",
+        "expected": true,
+        "evidence": "https://openai.com/chatgpt/desktop/",
+        "verifiedAt": "2026-08-26"
+      },
+      {
+        "method": "desktop-helper",
+        "path": "/Applications/ChatGPT.app/Contents/Frameworks/ChatGPT Helper.app/Contents/MacOS/ChatGPT Helper",
+        "name": "ChatGPT Helper",
+        "argv0": "ChatGPT Helper",
+        "expected": false,
+        "evidence": "https://openai.com/chatgpt/desktop/",
+        "verifiedAt": "2026-08-26"
+      }
     ]
   },
   "compatibility": {
-    "level": "fixtureVerified", "verifiedAt": "2026-08-25",
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-08-25",
     "fixture": "harness-fixtures/codex-desktop.json"
   },
   "source": {
     "kind": "jsonl",
     "path": "~/.codex/sessions",
+    "relocate": {
+      "env": "CODEX_HOME",
+      "replaces": "~/.codex"
+    },
     "glob": "*/*/*/*.jsonl",
     "filter": {
       "payload.originator": [
@@ -24,7 +47,8 @@
     },
     "paths": {
       "goals": "~/.codex/goals_1.sqlite"
-    }
+    },
+    "checkedAt": "2026-09-25"
   },
   "map": {
     "cwd": "payload.cwd",
@@ -34,7 +58,9 @@
     "outputTokens": "payload.info.last_token_usage.output_tokens",
     "cacheWrite": "payload.info.last_token_usage.cache_write_input_tokens",
     "cacheRead": "payload.info.last_token_usage.cached_input_tokens",
-    "toolWhere": { "payload.type": "custom_tool_call" },
+    "toolWhere": {
+      "payload.type": "custom_tool_call"
+    },
     "status": {
       "field": "payload.type",
       "working": [
@@ -49,32 +75,61 @@
       "payload.info.last_token_usage.input_tokens"
     ],
     "sessionID": "payload.session_id",
-    "inputIncludesCacheRead": true
+    "inputIncludesCacheRead": true,
+    "skipRepeatedUsage": true
   },
-  "presentation": { "fallbackName": "Codex" },
+  "presentation": {
+    "fallbackName": "Codex"
+  },
   "detached": true,
   "capabilities": {
     "instruction": {
       "probe": "content",
-      "project": ["AGENTS.override.md", "AGENTS.md"],
-      "inherited": ["~/.codex/AGENTS.override.md", "~/.codex/AGENTS.md"]
+      "project": [
+        "AGENTS.override.md",
+        "AGENTS.md"
+      ],
+      "inherited": [
+        "~/.codex/AGENTS.override.md",
+        "~/.codex/AGENTS.md"
+      ]
     },
     "skills": {
       "probe": "directory",
-      "project": [".agents/skills"],
-      "inherited": ["~/.agents/skills"]
+      "project": [
+        ".agents/skills"
+      ],
+      "inherited": [
+        "~/.agents/skills"
+      ]
     },
     "mcp": {
       "probe": "toml",
-      "project": [".codex/config.toml"],
-      "inherited": ["~/.codex/config.toml"],
-      "keys": ["mcp_servers"]
+      "project": [
+        ".codex/config.toml"
+      ],
+      "inherited": [
+        "~/.codex/config.toml"
+      ],
+      "keys": [
+        "mcp_servers"
+      ]
     },
     "permission": {
       "probe": "toml",
-      "project": [".codex/config.toml"],
-      "inherited": ["~/.codex/config.toml"],
-      "keys": ["approval_policy", "sandbox_mode", "default_permissions", "permissions"]
+      "project": [
+        ".codex/config.toml"
+      ],
+      "inherited": [
+        "~/.codex/config.toml"
+      ],
+      "keys": [
+        "approval_policy",
+        "sandbox_mode",
+        "default_permissions",
+        "permissions"
+      ]
     }
-  }
+  },
+  "note": " Codex re-emits a `token_count` event verbatim \u2014 the same `last_token_usage` and the same totals written again \u2014 so `skipRepeatedUsage` is declared and an identical consecutive record is counted once. Measured by a reader with a real rollout file on hand: ninety-four events, twelve of them re-emissions, and summing all of them overcounted by about fifteen per cent. The cost of the rule is that two consecutive turns spending exactly the same tokens are read as one, which is the cheaper of the two errors here and is why it is declared per harness rather than applied to every source. Recorded 2026-09-25. Honours CODEX_HOME as of 2026-09-26, for the same reason the CLI harness does: the desktop app reads the same directory and the native provider already followed the variable."
 }

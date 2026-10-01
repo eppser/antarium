@@ -1,95 +1,101 @@
 import Foundation
-import SQLite3
 
-/// Codex's autonomous loops, read from the database it keeps them in.
-///
-/// A goal is Codex working toward an objective across turns without being
-/// prompted each time — its own word for a loop. The row survives restarts and
-/// says *why* it stopped, which no amount of watching from outside would tell
-/// you: `usage_limited` and `budget_limited` are the two cases you would most
-/// want to know about and the two that look exactly like "idle" from here.
+/// Reads only the goal identity and lifecycle state needed for loop indicators.
+/// Objective text and budget totals are not needed and are not retained here.
 enum CodexGoals {
-
     struct Goal {
         let threadID: String
-        let objective: String
         let status: String
-        let tokensUsed: Int
-        let budget: Int?
-
-        /// Only `active` is a loop still running. The rest have stopped, and
-        /// saying otherwise would be a standing lie about an idle agent.
         var isRunning: Bool { status == "active" }
-
-        /// What the row should say — the reason, when there is one worth
-        /// surfacing, rather than a generic "looping".
         var label: String {
             switch status {
-            case "active":         return "goal running"
-            case "usage_limited":  return "goal paused — usage limit"
+            case "active": return "goal running"
+            case "usage_limited": return "goal paused — usage limit"
             case "budget_limited": return "goal paused — budget spent"
-            default:               return "goal \(status)"
+            default: return "goal stopped or paused"
             }
         }
     }
+    enum ReadError: Error {
+        case source(BoundedSQLite.ReadError), invalidInventory
+        var message:String {
+            switch self {
+            case .source(let error): return "Autonomous goal state is unavailable. " + error.message
+            case .invalidInventory: return "Autonomous goal state is unavailable because its inventory is incomplete or unsupported."
+            }
+        }
+    }
+    struct Cached {
+        let fingerprint:String
+        let checked:TimeInterval
+        let result:Result<[String:Goal],ReadError>
+    }
+    nonisolated(unsafe) private static var cache:[String:Cached] = [:]
 
-    nonisolated(unsafe) private static var cache:
-        [String: (fingerprint: String, goals: [String: Goal])] = [:]
+    /// Which entry to drop when the cache is full.
+    ///
+    /// The least recently checked, not whichever the dictionary happens to
+    /// yield first. An arbitrary victim is not merely non-reproducible — it
+    /// can evict the entry that is about to be read again, and then do it
+    /// once more next time, so a machine with enough state files never keeps
+    /// the ones it uses.
+    static func victim(in cache: [String: Cached], limit: Int) -> String? {
+        guard cache.count >= limit else { return nil }
+        return cache.min { a, b in
+            a.value.checked != b.value.checked ? a.value.checked < b.value.checked
+                                               : a.key < b.key
+        }?.key
+    }
+
     private static let lock = NSLock()
 
-    /// Goals by thread id. Cached on the database's own timestamp: it is
-    /// touched only when a goal changes, which is rare.
-    static func all(at path: String) -> [String: Goal] {
-        let url = URL(fileURLWithPath: path.expandingTilde)
+    static func all(at path:String) throws -> [String:Goal] {
+        let url = URL(fileURLWithPath:path.expandingTilde)
         let fingerprint = ["", "-wal", "-shm"].map {
-            let file = URL(fileURLWithPath: url.path + $0)
-            return "\(file.path)=\(FileStamp.of(file))"
-        }.joined(separator: "\n")
+            FileStamp.of(URL(fileURLWithPath:url.path + $0))
+        }.joined(separator:"|")
         lock.lock()
-        if let cached = cache[url.path], cached.fingerprint == fingerprint {
-            lock.unlock()
-            return cached.goals
+        // Read under the lock, not before it. Outside, a caller that waited
+        // while another thread queried came back with a reading older than
+        // the entry it found and judged a fresh failure stale — retrying a
+        // SQLite open that had just failed, which is the whole of what this
+        // five-second window exists to stop.
+        let now = ProcessInfo.processInfo.systemUptime
+        if let hit = cache[url.path], hit.fingerprint == fingerprint {
+            let reusable:Bool
+            switch hit.result {
+            case .success: reusable = true
+            case .failure: reusable = CacheWindow.isFresh(now: now, stamped: hit.checked, within: 5)
+            }
+            if reusable { lock.unlock(); return try hit.result.get() }
         }
         lock.unlock()
-
-        var found: [String: Goal] = [:]
-        var db: OpaquePointer?
-        defer {
-            lock.lock()
-            cache[url.path] = (fingerprint, found)
-            lock.unlock()
-        }
-        guard FileManager.default.fileExists(atPath: url.path),
-              sqlite3_open_v2("file:\(url.path)?mode=ro", &db,
-                              SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
-              let db else {
-            if db != nil { sqlite3_close(db) }
-            return found
-        }
-        defer { sqlite3_close(db) }
-
-        let query = """
-        SELECT thread_id, objective, status, tokens_used, token_budget FROM thread_goals
-        """
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK,
-              let statement else { return found }
-        defer { sqlite3_finalize(statement) }
-
-        while sqlite3_step(statement) == SQLITE_ROW {
-            func text(_ i: Int32) -> String {
-                sqlite3_column_text(statement, i).map { String(cString: $0) } ?? ""
+        let result:Result<[String:Goal],ReadError>
+        do {
+            let table = try BoundedSQLite.query(path:url.path,
+                sql:"SELECT thread_id, status FROM thread_goals",maxRows:2_000)
+            var goals:[String:Goal] = [:]
+            let statuses:Set<String> = ["active","complete","completed","paused","blocked",
+                "canceled","cancelled","usage_limited","budget_limited"]
+            for row in table.rows {
+                guard row.count == 2, case .text(let id) = row[0], !id.isEmpty, id.utf8.count <= 256,
+                      case .text(let status) = row[1], statuses.contains(status), goals[id] == nil else {
+                    throw ReadError.invalidInventory
+                }
+                goals[id] = Goal(threadID:id,status:status)
             }
-            let id = text(0)
-            guard !id.isEmpty else { continue }
-            found[id] = Goal(
-                threadID: id,
-                objective: text(1),
-                status: text(2),
-                tokensUsed: Int(sqlite3_column_int64(statement, 3)),
-                budget: sqlite3_column_type(statement, 4) == SQLITE_NULL
-                    ? nil : Int(sqlite3_column_int64(statement, 4)))
-        }
-        return found
+            result = .success(goals)
+        } catch let error as BoundedSQLite.ReadError { result = .failure(.source(error)) }
+        catch let error as ReadError { result = .failure(error) }
+        catch { result = .failure(.invalidInventory) }
+        lock.lock()
+        if cache[url.path] == nil, let victim = Self.victim(in:cache,limit:32) { cache.removeValue(forKey:victim) }
+        // Stamped when stored rather than when the read began: the query is
+        // the slow part, and dating the answer before it makes the window
+        // shorter than it says it is.
+        cache[url.path] = Cached(fingerprint:fingerprint,
+                                 checked:ProcessInfo.processInfo.systemUptime,result:result)
+        lock.unlock()
+        return try result.get()
     }
 }

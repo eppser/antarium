@@ -31,11 +31,16 @@ enum AgentStyle {
     /// `"rowColors": ["#RRGGBB", "#RRGGBB"]`.
     static let defaultRowColors = ["#E77DF9", "#389FF9"]
 
-    static func rowColor(_ index: Int) -> NSColor {
-        let hexes = Settings.rowColors
-        let hex = hexes.isEmpty ? defaultRowColors[min(index, 1)]
-                                : hexes[min(index, hexes.count - 1)]
-        let base = color(hex: hex) ?? color(hex: defaultRowColors[min(index, 1)])!
+    static func rowColor(_ index: Int, colors hexes: [String] = Settings.rowColors) -> NSColor {
+        // Clamped at both ends. Only row 0 and row 1 exist today, and a
+        // negative index would have indexed an array backwards — a crash
+        // rather than a wrong colour. The palette is a parameter so the
+        // config file's own values can be tested without this Mac's.
+        let row = max(0, index)
+        let hex = hexes.isEmpty ? defaultRowColors[min(row, defaultRowColors.count - 1)]
+                                : hexes[min(row, hexes.count - 1)]
+        let base = color(hex: hex)
+            ?? color(hex: defaultRowColors[min(row, defaultRowColors.count - 1)])!
         return adaptive(base)
     }
 
@@ -62,10 +67,18 @@ enum AgentStyle {
         return color(hex: Accents.ocean.hex) ?? .systemBlue
     }
 
+    /// `#RRGGBB`, or nothing.
+    ///
+    /// Every digit is checked rather than left to the integer parser, which
+    /// accepts a leading sign: "#+FFFFF" is six characters and parses as
+    /// 0x0FFFFF, so a malformed value in config.json became a colour nobody
+    /// asked for instead of falling back to the default. A value this cannot
+    /// read is not a colour, and the caller already has one for that.
     static func color(hex: String) -> NSColor? {
         var s = hex.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("#") { s.removeFirst() }
-        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        guard s.count == 6, s.allSatisfy(\.isHexDigit),
+              let v = UInt32(s, radix: 16) else { return nil }
         return NSColor(srgbRed: CGFloat((v >> 16) & 0xFF) / 255,
                        green: CGFloat((v >> 8) & 0xFF) / 255,
                        blue: CGFloat(v & 0xFF) / 255, alpha: 1)

@@ -125,30 +125,14 @@ final class DashboardPanel: NSObject {
 
         let screen = anchor?.window?.screen ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let margin: CGFloat = 8
-
-        // Always hangs from the menu bar, never lower.
-        let topY = visible.maxY - size.height
-        var origin: NSPoint
-
-        if userMoved, let saved = Settings.dashboardOrigin {
-            // Once you've placed it yourself, that wins — pinning included.
-            origin = saved
-        } else if Settings.dashboardPinned {
-            origin = NSPoint(x: visible.maxX - size.width - margin, y: topY)
-        } else if let button = anchor, let buttonWindow = button.window {
-            // Right-aligned to the status item, but never further left than the
-            // screen edge would put it — hanging a 580pt panel off a button near
-            // the right of the bar otherwise threw it well to the left.
-            let frame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-            origin = NSPoint(x: max(frame.maxX - size.width, visible.maxX - size.width - margin),
-                             y: topY)
-        } else {
-            origin = NSPoint(x: visible.maxX - size.width - margin, y: topY)
+        // The button's frame in screen coordinates, or nothing to hang from.
+        let anchorFrame: CGRect? = anchor.flatMap { button in
+            button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) }
         }
-        // Never let it run off the screen edges.
-        origin.x = min(max(origin.x, visible.minX + margin), visible.maxX - size.width - margin)
-        origin.y = max(origin.y, visible.minY + margin)
+        let origin = PanelPlacement.origin(
+            saved: Settings.dashboardOrigin, userMoved: userMoved,
+            pinned: Settings.dashboardPinned, anchor: anchorFrame,
+            visible: visible, size: size)
 
         let frame = NSRect(origin: origin, size: size)
         expectedFrame = frame

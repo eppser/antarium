@@ -1,0 +1,91 @@
+import Foundation
+
+/// Memoises "is this agent signed in on this Mac?".
+///
+/// `UsageProvider.isConfigured` is documented as cheap and synchronous, and it
+/// is read from inside SwiftUI bodies — the settings list draws a setup hint
+/// from it for every provider on every update. Two of the native answers are
+/// not cheap. Claude's falls through to running `/usr/bin/security` whenever
+/// the credentials file is absent, and a subprocess inside a view body pumps
+/// the run loop, re-enters the update and takes AttributeGraph down with a
+/// precondition failure — the exact hazard `DescriptorProvider` already
+/// documents and avoids. Cursor's opens and queries an SQLite database, which
+/// is merely wasteful but still I/O per frame.
+///
+/// Both answers change only when the user signs in or out, so a short memo
+/// restores the contract without making the value stale enough to notice.
+/// `invalidate()` exists so an in-app sign-in is reflected at once rather than
+/// up to `ttl` later.
+/// Whether a reading taken at `stamped` is still current for a caller whose
+/// clock says `now`.
+///
+/// Written once because three caches wrote it out and all three wrote it the
+/// same way: fresh when the reading is not older than `window`, and not fresh
+/// when it is stamped *after* the caller's own reading, which on a monotonic
+/// clock can only mean time went backwards.
+///
+/// That second clause is only sound if the clock is read under the same lock
+/// that guards the reading. Read outside it — as a default argument, which is
+/// how all three did it — a caller that waits for the lock while another
+/// thread computes comes back holding an older reading than the entry it
+/// finds, decides a fresh answer is stale, and does the work again. That is
+/// the thundering herd these caches exist to prevent, arriving only under the
+/// contention that nothing exercised.
+enum CacheWindow {
+    static func isFresh(now: TimeInterval, stamped: TimeInterval,
+                        within window: TimeInterval) -> Bool {
+        now >= stamped && now - stamped < window
+    }
+}
+
+enum ConfiguredProbe {
+    /// Long enough that a burst of view updates costs one probe, short enough
+    /// that a sign-in performed in a terminal shows up while the user is still
+    /// looking at the window.
+    static let ttl: TimeInterval = 30
+
+    private struct Entry { let value: Bool; let at: TimeInterval }
+    nonisolated(unsafe) private static var entries: [String: Entry] = [:]
+    private static let lock = NSLock()
+
+    /// `compute` runs at most once per `ttl` per key. It is called with the
+    /// lock held, which serialises concurrent first probes for the same key —
+    /// deliberate, since the alternative is several `security` subprocesses
+    /// racing for the same answer.
+    ///
+    /// The clock is read under the lock, and that is the whole of why this
+    /// signature takes an optional. As a default argument it was read before
+    /// the lock was taken, so a caller that then waited while another thread
+    /// computed came back holding a reading older than the entry it found.
+    /// `now >= entry.at` is false for that caller, so it treated a fresh
+    /// answer as stale and ran the work again — which is exactly the
+    /// thundering herd the memoisation exists to prevent, arriving only under
+    /// the contention nothing used to exercise. Sixty-four concurrent first
+    /// probes ran the work two or three times, about three runs in five.
+    ///
+    /// An injected `now` is used as given. The staleness rule itself is
+    /// unchanged, including its refusal of an entry stamped after the
+    /// caller's own reading: with the clock read under the lock that can only
+    /// mean time went backwards, which is what it always meant to say.
+    static func value(_ key: String,
+                      now injected: TimeInterval? = nil,
+                      _ compute: () -> Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = injected ?? ProcessInfo.processInfo.systemUptime
+        if let entry = entries[key],
+           CacheWindow.isFresh(now: now, stamped: entry.at, within: ttl) {
+            return entry.value
+        }
+        let value = compute()
+        entries[key] = Entry(value: value, at: now)
+        return value
+    }
+
+    /// Forgets one key, or everything. Called after a sign-in.
+    static func invalidate(_ key: String? = nil) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let key { entries.removeValue(forKey: key) } else { entries.removeAll() }
+    }
+}

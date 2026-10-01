@@ -27,21 +27,26 @@ enum SignIn {
         """
     }
 
+    static func prepare(_ command:String,label:String,directory:URL = FileManager.default.temporaryDirectory) throws -> URL {
+        let url = directory.appendingPathComponent("antarium-sign-in-\(UUID()).command")
+        Log.info("signin", "Preparing a private sign-in launcher.")
+        // Bind cleanup to the file we created, never to caller-controlled argv[0].
+        let header = "#!/bin/bash\n"
+        let content = header + "/bin/rm -f -- \(quoted(url.path))\n"
+            + script(command,label:label).dropFirst(header.count)
+        try PrivateFile.write(Data(content.utf8),to:url,maxBytes:65_536,executable:true)
+        return url
+    }
     @discardableResult
     static func launch(_ command: String, label: String) -> Bool {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("antarium-sign-in.command")
-        let script = script(command, label: label)
-        Log.info("signin", "launching \(command) for \(label)")
         do {
-            try script.write(to: url, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755],
-                                                  ofItemAtPath: url.path)
+            let url = try prepare(command,label:label)
             let opened = NSWorkspace.shared.open(url)
-            Log.info("signin", "opened \(url.lastPathComponent): \(opened)")
+            Log.info("signin", "Sign-in launcher opened: \(opened)")
+            if !opened { try? FileManager.default.removeItem(at:url) }
             return opened
         } catch {
-            NSLog("Antarium: couldn't start sign-in — %@", error.localizedDescription)
+            Log.warn("signin", "Could not prepare or open the sign-in launcher.")
             return false
         }
     }

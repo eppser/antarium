@@ -1,11 +1,21 @@
 {
   "files": {
-    "2026/08/25/session.jsonl": "{\"timestamp\":\"2026-08-25T11:00:00Z\",\"payload\":{\"originator\":\"Codex Desktop\",\"session_id\":\"desktop-1\",\"cwd\":\"/fixture/desktop\",\"model\":\"gpt-5\",\"type\":\"task_started\"}}\n{\"timestamp\":\"2026-08-25T11:01:00Z\",\"payload\":{\"originator\":\"Codex Desktop\",\"session_id\":\"desktop-1\",\"type\":\"task_complete\",\"info\":{\"model_context_window\":128000,\"last_token_usage\":{\"input_tokens\":70,\"output_tokens\":9,\"cached_input_tokens\":30,\"cache_write_input_tokens\":2}}}}\n"
+    "2026/08/25/session.jsonl": "{\"timestamp\":\"2026-08-25T11:00:00Z\",\"payload\":{\"originator\":\"Codex Desktop\",\"session_id\":\"desktop-1\",\"cwd\":\"/fixture/desktop\",\"model\":\"gpt-5\",\"type\":\"task_started\"}}\n{\"timestamp\":\"2026-08-25T11:01:00Z\",\"payload\":{\"originator\":\"Codex Desktop\",\"session_id\":\"desktop-1\",\"type\":\"task_complete\",\"info\":{\"model_context_window\":128000,\"last_token_usage\":{\"input_tokens\":70,\"output_tokens\":9,\"cached_input_tokens\":30,\"cache_write_input_tokens\":2}}}}\n{\"timestamp\":\"2026-08-25T11:01:12Z\",\"payload\":{\"originator\":\"Codex Desktop\",\"session_id\":\"desktop-1\",\"type\":\"task_complete\",\"info\":{\"model_context_window\":128000,\"last_token_usage\":{\"input_tokens\":70,\"output_tokens\":9,\"cached_input_tokens\":30,\"cache_write_input_tokens\":2}}}}\n"
   },
   "expected": {
-    "sessions": 1, "sessionID": "desktop-1", "cwd": "/fixture/desktop", "model": "gpt-5",
-    "inputTokens": 70, "outputTokens": 9, "cacheRead": 30, "cacheWrite": 2,
-    "contextTokens": 70, "contextWindow": 128000, "toolCalls": 0, "turns": 0,
-    "subAgents": 0, "costUSD": 0
+    "sessions": 1,
+    "sessionID": "desktop-1",
+    "cwd": "/fixture/desktop",
+    "model": "gpt-5",
+    "inputTokens": 70,
+    "outputTokens": 9,
+    "cacheRead": 30,
+    "cacheWrite": 2,
+    "contextTokens": 70,
+    "contextWindow": 128000,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0
   }
 }

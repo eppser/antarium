@@ -1,0 +1,43 @@
+{
+  "formatVersion": 1,
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "note": "Quota only, and a balance rather than a meter: DeepSeek is pay-per-use and publishes no cap, so there is no percentage to report. One row per currency the account holds \u2014 the currency is read from the response rather than assumed, because Chinese accounts are billed in CNY and labelling that with a dollar sign would misstate the balance by an exchange rate. The key is read from DEEPSEEK_API_KEY when Antarium was started from a shell, and from ~/.antarium/keys/deepseek otherwise \u2014 an app launched from Finder inherits the launchd session environment rather than a shell's, so the file is the route that always works. `is_available` is read as well as the balance. DeepSeek documents it as whether the balance is enough to make API calls, and a balance that cannot be spent is not money in the bank \u2014 the figure is still shown, because hiding it would conflate an unusable balance with no reading at all, but the window is reported spent so it colours as such. Added 2026-09-25; the field was in the cited reference all along and this mapping ignored it, which ClaudeBar's probe surfaced by not ignoring it.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping is fixture-verified against the published response shape; the numbers themselves are unconfirmed against a live account."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.deepseek.com/user/balance",
+    "credential": {
+      "kind": "env",
+      "name": "DEEPSEEK_API_KEY",
+      "path": "~/.antarium/keys/deepseek"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "list": "balance_infos",
+      "key": [
+        "currency"
+      ],
+      "balance": "total_balance",
+      "currency": "currency",
+      "criticalWhen": {
+        "is_available": false
+      }
+    },
+    "setupHint": "Put your key in ~/.antarium/keys/deepseek",
+    "documentation": "https://api-docs.deepseek.com/api/get-user-balance",
+    "verified": false,
+    "checkedAt": "2026-09-25"
+  }
+}

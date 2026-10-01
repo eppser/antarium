@@ -1,0 +1,97 @@
+{
+  "formatVersion": 1,
+  "id": "herdr",
+  "name": "Herdr",
+  "note": "A terminal workspace manager that hosts other agents. Its sessions come from `herdr api snapshot`, the same socket API its own CLI reads, rather than from the session file on disk \u2014 the file is written on change and lags a running pane. Each row is one pane, so two agents in one tab stay two rows. Focus goes through `herdr tab focus`: a tab holds several panes, and raising the terminal application instead would land on whichever tab was last in front. The process rule matches the executable name exactly: a path fragment of /herdr also matches a directory called herdrly, which the negative installation probe caught.",
+  "process": {
+    "names": [
+      "herdr"
+    ],
+    "installationProbes": [
+      {
+        "method": "curl installer to ~/.local/bin",
+        "path": "/opt/example/.local/bin/herdr",
+        "name": "herdr",
+        "argv0": "herdr",
+        "expected": true,
+        "evidence": "https://herdr.dev/",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "homebrew",
+        "path": "/opt/homebrew/bin/herdr",
+        "name": "herdr",
+        "argv0": "herdr",
+        "expected": true,
+        "evidence": "https://herdr.dev/",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: a directory whose name starts with herdr",
+        "path": "/opt/example/src/herdrly/bin/node",
+        "name": "node",
+        "argv0": "node",
+        "expected": false,
+        "evidence": "https://herdr.dev/",
+        "verifiedAt": "2026-09-20"
+      },
+      {
+        "method": "collision: a similarly named binary",
+        "path": "/usr/local/bin/herder",
+        "name": "herder",
+        "argv0": "herder",
+        "expected": false,
+        "evidence": "https://herdr.dev/",
+        "verifiedAt": "2026-09-20"
+      }
+    ]
+  },
+  "compatibility": {
+    "level": "fixtureVerified",
+    "verifiedAt": "2026-09-20",
+    "fixture": "harness-fixtures/herdr.json",
+    "note": "Read through the documented socket API; validate against a running instance with --check."
+  },
+  "source": {
+    "kind": "command",
+    "path": "",
+    "command": "herdr",
+    "args": [
+      "api",
+      "snapshot"
+    ],
+    "root": "result.snapshot.agents",
+    "refreshEvery": 5
+  },
+  "map": {
+    "cwd": "cwd",
+    "title": "terminal_title_stripped",
+    "sessionID": "agent_session.value",
+    "focusTarget": "tab_id",
+    "status": {
+      "field": "agent_status",
+      "working": [
+        "busy",
+        "running",
+        "working"
+      ],
+      "idle": [
+        "idle",
+        "waiting"
+      ]
+    }
+  },
+  "focus": {
+    "command": "herdr",
+    "args": [
+      "tab",
+      "focus",
+      "{focusTarget}"
+    ]
+  },
+  "contributes": "focus",
+  "multiSession": true,
+  "presentation": {
+    "sourceLabel": "Socket API"
+  }
+}

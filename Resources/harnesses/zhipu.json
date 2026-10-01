@@ -1,0 +1,73 @@
+{
+  "formatVersion": 1,
+  "id": "zhipu",
+  "name": "Zhipu GLM",
+  "note": "Quota only, and the same GLM coding plan Z.ai sells internationally — Zhipu is the brand it carries on open.bigmodel.cn. One product, two hosts, and a descriptor states one endpoint, so this is the second descriptor rather than a second endpoint in the first. The two can never both report: each carries a `requires` guard naming its own base, and `env.ANTHROPIC_BASE_URL` in ~/.claude/settings.json holds exactly one of them. Without that exclusivity this would double-count a single plan, which is worse than missing it. The shape is published nowhere; checked 2026-09-27, docs.z.ai documents the plan and not this call, and open.bigmodel.cn publishes no reference for it either. It is mapped from the only primary source there is, ClaudeBar's ZaiUsageProbe, cross-read 2026-09-27: it recognises api.z.ai, open.bigmodel.cn and dev.bigmodel.cn, chooses between them by what that variable contains, and builds the identical /api/monitor/usage/quota/limit path onto each. So the response shape is the one `zai` already maps and this file repeats it field for field rather than paraphrasing it — a second reading of the same reply would be a second chance to get it wrong. The window keys are type and unit together, because two limits differing only by unit collapse into one otherwise and the bar draws a window under another's label. dev.bigmodel.cn is the third base that probe knows and is not declared here: the guard names open.bigmodel.cn exactly, so a development base reads as not signed in rather than being charted against the wrong host. Narrowing it to `bigmodel.cn` would catch both and send a dev account's key to the production host, which is the trade the zai note argues against in the other direction. verified is false: the figures have never been read against a live Zhipu plan, and the fixture is the whole of the check.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping repeats the Z.ai descriptor field for field against the same response shape; neither the numbers nor this host have been confirmed against a live plan."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://open.bigmodel.cn/api/monitor/usage/quota/limit",
+    "credential": {
+      "kind": "jsonFile",
+      "path": "~/.claude/settings.json",
+      "field": "env.ANTHROPIC_AUTH_TOKEN",
+      "requires": {
+        "env.ANTHROPIC_BASE_URL": "open.bigmodel.cn"
+      }
+    },
+    "needsAuthWhen": {
+      "code": "401"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "list": "data.limits",
+      "key": [
+        "type",
+        "unit"
+      ],
+      "keys": [
+        "TOKENS_LIMIT-3",
+        "TOKENS_LIMIT-6",
+        "TOKENS_LIMIT-7",
+        "TIME_LIMIT-5",
+        "CREDIT_LIMIT-3",
+        "CREDIT_LIMIT-6",
+        "CREDIT_LIMIT-7"
+      ],
+      "usedPercent": "percentage",
+      "resetsAt": "nextResetTime",
+      "labels": {
+        "TOKENS_LIMIT-3": "Session (5 hours)",
+        "TOKENS_LIMIT-6": "Weekly",
+        "TOKENS_LIMIT-7": "Monthly",
+        "TIME_LIMIT-5": "Tools",
+        "CREDIT_LIMIT-3": "Session (5 hours)",
+        "CREDIT_LIMIT-6": "Weekly",
+        "CREDIT_LIMIT-7": "Monthly"
+      },
+      "badges": {
+        "TOKENS_LIMIT-3": "5H",
+        "TOKENS_LIMIT-6": "7D",
+        "TOKENS_LIMIT-7": "30D",
+        "TIME_LIMIT-5": "TOOL",
+        "CREDIT_LIMIT-3": "5H",
+        "CREDIT_LIMIT-6": "7D",
+        "CREDIT_LIMIT-7": "30D"
+      }
+    },
+    "setupHint": "Point Claude Code at Zhipu and sign in.",
+    "verified": false,
+    "checkedAt": "2026-09-27"
+  }
+}

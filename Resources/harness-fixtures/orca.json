@@ -1,0 +1,22 @@
+{
+  "files": {
+    "reply.json": "{\"id\": \"fixture\", \"ok\": true, \"result\": {\"terminals\": [{\"handle\": \"term_11111111-1111-1111-1111-111111111111\", \"worktreePath\": \"/projects/sample\", \"branch\": \"refs/heads/main\", \"tabId\": \"tab-1\", \"leafId\": \"leaf-1\", \"title\": \"Sample project\", \"connected\": true, \"writable\": true, \"orphaned\": false, \"lastOutputAt\": 1790000000000, \"executionHostId\": \"local\", \"agentIdentity\": \"codex\"}, {\"handle\": \"term_22222222-2222-2222-2222-222222222222\", \"worktreePath\": \"/projects/other\", \"branch\": \"refs/heads/main\", \"tabId\": \"tab-2\", \"leafId\": \"leaf-2\", \"title\": \"Other project\", \"connected\": true, \"writable\": true, \"orphaned\": false, \"lastOutputAt\": 1790000001000, \"executionHostId\": \"local\", \"agentIdentity\": \"claude\"}]}}"
+  },
+  "expected": {
+    "sessions": 2,
+    "sessionID": "term_22222222-2222-2222-2222-222222222222",
+    "focusTarget": "term_22222222-2222-2222-2222-222222222222",
+    "cwd": "/projects/other",
+    "title": "Other project",
+    "model": null,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "contextWindow": null,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0
+  }
+}

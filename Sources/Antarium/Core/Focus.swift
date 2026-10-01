@@ -21,18 +21,122 @@ import AppKit
 /// for Automation consent the first time; if it is declined we still raise the
 /// app, which is what this used to do for everyone.
 enum Focus {
+    static func canRevealLocally(_ row: AgentRow) -> Bool {
+        !row.isRemote && row.localObservationIssue == nil
+    }
+
+    /// Something a row's menu offers to do.
+    enum Action: String, CaseIterable, Sendable {
+        case attachTmux, goToWindow, openDirectory, openInTerminal, copyPath
+    }
+
+    /// What a row actually permits.
+    ///
+    /// This rule lived here and only here, and the row's own menu never asked.
+    /// `canRevealLocally` keeps a remote row from driving this Mac through
+    /// `reveal`, and three buttons drove it anyway: "Open Directory", "Open in
+    /// Terminal" and "Copy Path" all took `row.cwd` straight to `NSWorkspace`
+    /// and the pasteboard.
+    ///
+    /// A remote row's `cwd` is the *other* machine's. On two Macs with the same
+    /// username and a checkout of the same name the path exists on both, so
+    /// the user was shown this machine's files while believing they were
+    /// looking at the session's — which is worse than an error, because
+    /// nothing looks wrong.
+    ///
+    /// "Go to Window" was offered too, and `reveal` returns `.nothing` for a
+    /// remote row, so the click was silently dead.
+    static func actions(for row: AgentRow) -> Set<Action> {
+        var allowed: Set<Action> = []
+        // A local attach joins a session on *this* machine. A remote row's
+        // session is not here, and a same-named one that is would be the
+        // wrong session.
+        if row.tmuxTarget != nil, !row.isRemote { allowed.insert(.attachTmux) }
+        guard !row.cwd.isEmpty else { return allowed }
+        if canRevealLocally(row) { allowed.insert(.goToWindow) }
+        if !row.isRemote {
+            allowed.insert(.openDirectory)
+            allowed.insert(.openInTerminal)
+        }
+        // Copying is always offered, because a path is useful even when it is
+        // not this machine's — but it has to say whose it is.
+        allowed.insert(.copyPath)
+        return allowed
+    }
+
+    /// Opens the row's directory here, if the row is this machine's.
+    ///
+    /// The permission check lives inside the action rather than beside the
+    /// button, because a button is a thing somebody can add. Three were added
+    /// without it and each drove this Mac from a row describing another one.
+    /// Refusing here means a fourth cannot.
+    ///
+    /// The effect is a parameter so the refusal can be observed without a
+    /// Finder window opening during a test run.
+    @discardableResult
+    static func openDirectory(_ row: AgentRow,
+                              using open: (URL) -> Void = {
+                                  NSWorkspace.shared.activateFileViewerSelecting([$0])
+                              }) -> Bool {
+        guard actions(for: row).contains(.openDirectory) else { return false }
+        open(URL(fileURLWithPath: row.cwd))
+        return true
+    }
+
+    /// Opens a terminal here at the row's directory, on the same terms.
+    @discardableResult
+    static func openInTerminal(_ row: AgentRow,
+                               using open: (URL) -> Void = { url in
+                                   let terminal = URL(fileURLWithPath:
+                                       "/System/Applications/Utilities/Terminal.app")
+                                   NSWorkspace.shared.open(
+                                       [url], withApplicationAt: terminal,
+                                       configuration: NSWorkspace.OpenConfiguration())
+                               }) -> Bool {
+        guard actions(for: row).contains(.openInTerminal) else { return false }
+        open(URL(fileURLWithPath: row.cwd))
+        return true
+    }
+
+    /// Puts the row's path on the pasteboard, naming its machine where that
+    /// is not this one.
+    @discardableResult
+    static func copyPath(_ row: AgentRow,
+                         using write: (String) -> Void = { text in
+                             NSPasteboard.general.clearContents()
+                             NSPasteboard.general.setString(text, forType: .string)
+                         }) -> Bool {
+        guard actions(for: row).contains(.copyPath), let path = pathToCopy(for: row)
+        else { return false }
+        write(path)
+        return true
+    }
+
+    /// The text "Copy Path" should put on the pasteboard.
+    ///
+    /// A remote row's path carries its host, in the form every other tool
+    /// takes: `host:/path`, which pastes into `scp` and reads correctly to a
+    /// person. The bare path was indistinguishable from a local one.
+    static func pathToCopy(for row: AgentRow) -> String? {
+        guard !row.cwd.isEmpty else { return nil }
+        guard row.isRemote, let host = row.remoteHost, !host.isEmpty else { return row.cwd }
+        return "\(host):\(row.cwd)"
+    }
     /// What a click actually did. Worth naming: "raised the app" and "landed on
     /// the agent's own tab" look identical from the outside but are not.
     enum Result: Equatable {
         case tmux(String)
         case tab(String)
         case app(String)
+        /// A harness that owns its own windows raised one of them itself.
+        case harness(String)
         case folder
         case nothing
 
         var succeeded: Bool { self != .nothing }
         var description: String {
             switch self {
+            case .harness(let n): return "asked \(n) to show it"
             case .tmux(let t):  return "tmux pane \(t)"
             case .tab(let t):   return "terminal tab \(t)"
             case .app(let n):   return "raised \(n)"
@@ -42,20 +146,104 @@ enum Focus {
         }
     }
 
+    /// One thing a click could try, in the order it should be tried.
+    ///
+    /// Naming the order makes it a rule with a test instead of the shape of an
+    /// `if` chain inside three calls that need a window server, a tmux server
+    /// and a workspace manager to exercise. Which matters most for the first
+    /// entry: a harness that owns its own windows knows which pane of which
+    /// tab this session is, and raising the application instead lands on
+    /// whatever it had open last — the click appears to work and goes to the
+    /// wrong place.
+    enum Step: Equatable {
+        case harness(id: String, target: String)
+        case tmux(String)
+        case app(pid: Int32)
+        case folder(String)
+    }
+
+    /// What a click would try, in order. Pure: `descriptorHasFocus` answers
+    /// whether that harness declares a focus command, so the plan can be
+    /// checked without a catalog on disk.
+    static func plan(_ row: AgentRow,
+                     descriptorHasFocus: (String) -> Bool) -> [Step] {
+        guard canRevealLocally(row) else { return [] }
+        var steps: [Step] = []
+        if descriptorHasFocus(row.agentID), let target = row.focusTarget, !target.isEmpty {
+            steps.append(.harness(id: row.agentID, target: target))
+        }
+        if let target = row.tmuxTarget, !target.isEmpty { steps.append(.tmux(target)) }
+        if let pid = row.pid { steps.append(.app(pid: pid)) }
+        if !row.cwd.isEmpty { steps.append(.folder(row.cwd)) }
+        return steps
+    }
+
     @discardableResult
     @MainActor
     static func reveal(_ row: AgentRow) -> Result {
-        Log.info("focus", "reveal \(row.name) tmux=\(row.tmuxTarget ?? "—") pid=\(row.pid.map(String.init) ?? "—")")
-        if let target = row.tmuxTarget, focusTmux(target) { return .tmux(target) }
-        if let pid = row.pid {
-            let result = activateOwningApp(of: pid)
-            if result.succeeded { return result }
+        let descriptors = HarnessDescriptor.all()
+        let steps = plan(row) { id in
+            descriptors.first { $0.id == id }?.focus != nil
         }
-        if !row.cwd.isEmpty {
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: row.cwd)])
-            return .folder
+        guard !steps.isEmpty else { return .nothing }
+        Log.info("focus", "reveal local session requested")
+        for step in steps {
+            switch step {
+            case .harness(let id, let target):
+                guard let descriptor = descriptors.first(where: { $0.id == id }),
+                      let focus = descriptor.focus else { continue }
+                if runHarnessFocus(focus, target: target) { return .harness(descriptor.name) }
+            case .tmux(let target):
+                if focusTmux(target) { return .tmux(target) }
+            case .app(let pid):
+                let result = activateOwningApp(of: pid)
+                if result.succeeded { return result }
+            case .folder(let cwd):
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: cwd)])
+                return .folder
+            }
         }
         return .nothing
+    }
+
+    /// Runs a harness's own focus command, with `{focusTarget}` substituted.
+    ///
+    /// Executed directly, never through a shell: the target comes from a file
+    /// the harness wrote, and the descriptor supplying the command is trusted
+    /// local configuration, but neither is a reason to let a value become
+    /// shell syntax. Bounded like every other subprocess, because a workspace
+    /// manager that has wedged must not take the menu bar with it.
+    /// The command line a click would run, or nil when the target is not
+    /// usable. Separated from running it so the substitution can be checked
+    /// without a workspace manager installed — and so a test cannot quietly
+    /// re-implement the rule it is meant to be checking.
+    static func focusArguments(_ focus: HarnessDescriptor.Focus,
+                               target: String) -> [String]? {
+        // An empty target would ask the manager to focus "", which is either a
+        // different pane or an error, and either way not the row that was
+        // clicked.
+        guard !target.isEmpty, !target.contains("\0"), target.utf8.count <= 512 else {
+            return nil
+        }
+        return (focus.args ?? []).map {
+            $0.replacingOccurrences(of: "{focusTarget}", with: target)
+        }
+    }
+
+    @MainActor
+    private static func runHarnessFocus(_ focus: HarnessDescriptor.Focus,
+                                        target: String) -> Bool {
+        guard let arguments = focusArguments(focus, target: target),
+              let path = resolve(focus.command) else { return false }
+        let result = Shell.execute(path, arguments, timeout: 5, outputLimit: 8_192)
+        if result.exitCode != 0 {
+            Log.info("focus", "harness focus command did not succeed")
+        }
+        return result.exitCode == 0
+    }
+
+    private static func resolve(_ command: String) -> String? {
+        CommandPath.resolve(command)
     }
 
     /// `unruly-6:@6.%12` → select that pane, then raise its terminal.
@@ -123,7 +311,7 @@ enum Focus {
     @discardableResult
     @MainActor
     static func attachToPane(_ target: String) -> Bool {
-        Log.info("focus", "attach \(target)")
+        Log.info("focus", "Local tmux attach requested.")
         if let tmux = tmuxPath() {
             let pane = target
             // Split at the last dot: a session name may contain one, and

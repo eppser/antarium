@@ -9,16 +9,18 @@ final class CountItem: NSObject {
     struct Tally: Equatable {
         var working = 0     // busy or in a shell
         var waiting = 0     // finished its turn, wants you
+        var unknown = 0
         var ended = 0       // process gone, session file left behind
 
-        var total: Int { working + waiting + ended }
+        var total: Int { working + waiting + ended + unknown }
 
         init(_ rows: [AgentRow] = []) {
             for row in rows {
                 switch row.state {
                 // Green in the menu bar too: a looping agent is fine, not idle.
                 case .working, .shell, .looping: working += 1
-                case .waiting, .cloud: waiting += 1
+                case .waiting: waiting += 1
+                case .cloud, .unobserved: unknown += 1
                 case .ended: ended += 1
                 }
             }
@@ -105,6 +107,7 @@ final class CountItem: NSObject {
             ? "No agent sessions"
             : "\(tally.working) working · \(tally.waiting) waiting"
                 + (tally.ended > 0 ? " · \(tally.ended) ended" : "")
+                + (tally.unknown > 0 ? " · \(tally.unknown) status unknown" : "")
     }
 }
 
@@ -124,6 +127,7 @@ enum CountRenderer {
         var out: [(NSColor, Int)] = []
         if tally.working > 0 { out.append((.systemGreen, tally.working)) }
         if tally.waiting > 0 { out.append((.systemOrange, tally.waiting)) }
+        if tally.unknown > 0 { out.append((.systemBlue,tally.unknown)) }
         if tally.ended > 0 { out.append((.secondaryLabelColor, tally.ended)) }
         return out.isEmpty ? [(.tertiaryLabelColor, 0)] : out
     }

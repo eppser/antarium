@@ -68,6 +68,13 @@ enum Preview {
             severity: Severity.forRemaining(remaining))
     }
 
+    /// A balance row: the figure where a percentage would go, and `fill` nil
+    /// so no bar is drawn. Severity stays normal — a balance reports no
+    /// headroom, so colouring it would be inventing one.
+    private static func balanceRow(_ text: String, _ reset: String) -> StatusRender.Row {
+        StatusRender.Row(fill: nil, percentText: text, resetText: reset, severity: .normal)
+    }
+
     /// AGENTS count badges: a busy machine and an idle one.
     private static var countSamples: [(String, CountItem.Tally)] {
         var busy = CountItem.Tally(); busy.working = 3; busy.waiting = 2
@@ -75,6 +82,10 @@ enum Preview {
         return [("AGENTS · 3 working, 2 waiting", busy),
                 ("AGENTS · 1 waiting, 2 ended", quiet)]
     }
+
+    /// The sample renders, for the contract test that checks every row shape
+    /// the menu bar can draw actually appears on the sheet.
+    static func samplesForTesting() -> [StatusRender] { makeSamples().map(\.render) }
 
     private static func makeSamples() -> [Sample] {
         let healthy = [row(0.84, "40m"), row(0.73, "6d")]
@@ -99,6 +110,20 @@ enum Preview {
                           render: StatusRender(agentID: "codex", rows: healthy)))
         out.append(Sample(label: "Kimi · single gauge",
                           render: StatusRender(agentID: "kimi", rows: [row(0.62, "")])))
+        // A credit balance has no denominator, so its row draws the figure and
+        // no meter. It is here because it is the one row shape that cannot be
+        // judged from the percentage cases above, and because a balance that
+        // quietly rendered an empty bar would look like a bug rather than a
+        // deliberate absence.
+        out.append(Sample(label: "balance · no meter",
+                          render: StatusRender(agentID: "vercel-gateway",
+                                               rows: [balanceRow("$95.50", "")])))
+        out.append(Sample(label: "balance · nearly empty",
+                          render: StatusRender(agentID: "deepseek",
+                                               rows: [balanceRow("$0.02", "")])))
+        out.append(Sample(label: "balance beside a meter",
+                          render: StatusRender(agentID: "commandcode",
+                                               rows: [row(0.34, "1h"), balanceRow("8.25 CNY", "")])))
         out.append(Sample(label: "needs sign-in",
                           render: StatusRender(agentID: "codex", rows: [],
                                                message: "sign in")))

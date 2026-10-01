@@ -1,0 +1,146 @@
+{
+  "note": "Synthetic. Shape follows the documented opencode.ai zen/go/v1/usage payload. Every value is invented. Three cases added 2026-09-26 for the status rule: a rate-limited window reporting well under its cap, which is the case the figure alone would read as comfortable; a window stating no status at all; and one stating a word this app does not know. Only the exact value marks a window, so an unfamiliar status reads as no statement rather than as trouble.",
+  "verifiedAt": "2026-09-20",
+  "cases": [
+    {
+      "name": "a full report",
+      "response": {
+        "usage": {
+          "rolling": {
+            "status": "ok",
+            "percent": 17,
+            "resetsAt": "2026-09-20T12:00:00.000Z"
+          },
+          "weekly": {
+            "status": "ok",
+            "percent": 63.5,
+            "resetsAt": "2026-09-24T00:00:00.000Z"
+          },
+          "monthly": {
+            "status": "rate-limited",
+            "percent": 100,
+            "resetsAt": "2026-10-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 17,
+            "resetsAt": "2026-09-20T12:00:00Z"
+          },
+          {
+            "id": "weekly",
+            "badge": "7D",
+            "title": "Weekly",
+            "usedPercent": 63.5,
+            "resetsAt": "2026-09-24T00:00:00Z"
+          },
+          {
+            "id": "monthly",
+            "badge": "30D",
+            "title": "Monthly",
+            "usedPercent": 100,
+            "resetsAt": "2026-10-01T00:00:00Z",
+            "severity": "critical"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a reply with no windows in it",
+      "response": {
+        "usage": {}
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply whose windows carry no percentage",
+      "response": {
+        "usage": {
+          "rolling": {
+            "status": "ok"
+          }
+        }
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply missing the envelope entirely",
+      "response": {},
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a rate-limited window under its cap is still marked spent",
+      "response": {
+        "usage": {
+          "rolling": {
+            "status": "rate-limited",
+            "percent": 40,
+            "resetsAt": "2026-09-27T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 40,
+            "resetsAt": "2026-09-27T00:00:00Z",
+            "severity": "critical"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a window stating no status is not marked spent",
+      "response": {
+        "usage": {
+          "rolling": {
+            "percent": 40,
+            "resetsAt": "2026-09-27T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 40,
+            "resetsAt": "2026-09-27T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a status this app does not know is not a rate limit",
+      "response": {
+        "usage": {
+          "rolling": {
+            "status": "degraded",
+            "percent": 40,
+            "resetsAt": "2026-09-27T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "rolling",
+            "badge": "ROLL",
+            "title": "Rolling",
+            "usedPercent": 40,
+            "resetsAt": "2026-09-27T00:00:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}

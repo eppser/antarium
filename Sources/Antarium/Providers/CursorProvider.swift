@@ -3,6 +3,18 @@ import SQLite3
 
 /// Cursor plan usage from the private Connect endpoint the IDE's billing dashboard uses.
 ///
+/// Cross-read 2026-09-27 against that tool's Cursor probe, because `isVerified`
+/// was true here with no date recorded — the standard every descriptor mapping is
+/// held to by `quota.checkedAt`. It reads a different endpoint,
+/// `cursor.com/api/usage-summary`, and the two agree on the figure that matters:
+/// `totalPercentUsed` is consumption of the included allowance in both. Its
+/// envelope differs — `individualUsage.plan` with `used`, `limit` and a
+/// `breakdown`, where this reads `planUsage` — and it converts that percentage
+/// back into a request count, which this does not: a percentage is what Cursor
+/// states and a count derived from it is a figure this app would have invented.
+/// The one thing that came out of the comparison is the ISO form of
+/// `billingCycleEnd`, handled below.
+///
 /// Verified against a live Pro account: `GetCurrentPeriodUsage` reports
 /// `planUsage.totalPercentUsed`, `.autoPercentUsed`, and `.apiPercentUsed`
 /// against the included allowance, plus `billingCycleEnd` in epoch milliseconds.
@@ -22,7 +34,11 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         "Accept": "application/json",
     ])
 
-    var isConfigured: Bool { accessToken() != nil }
+    /// Memoised: answering opens Cursor's SQLite state store, and this is
+    /// read from a SwiftUI body.
+    var isConfigured: Bool {
+        ConfiguredProbe.value(id) { accessToken() != nil }
+    }
 
     func fetch() async throws -> Snapshot {
         guard let token = accessToken() else {
@@ -131,8 +147,7 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         let shown = Set(gauges.map(\.id))
         let extras = candidates.filter { !shown.contains($0.id) }
 
-        Log.info("cursor", "plan=\(planName ?? "—") gauges=\(gauges.map(\.title)) "
-            + "used=\(gauges.map { String(format: "%.1f%%", $0.used * 100) })")
+        Log.info("cursor", "Usage response parsed: \(gauges.count) primary windows, \(extras.count) additional windows.")
 
         return Snapshot(providerID: "cursor", gauges: gauges, extras: extras,
                         accountLabel: planName, fetchedAt: Date())
@@ -156,12 +171,29 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
             throw ProviderError.unsupported("Cursor reported no trustworthy usage window.")
         }
 
-        gauges.sort { $0.used > $1.used }
+        gauges = ordered(gauges)
         let primary = gauges[0]
         let extras = gauges.count > 1 ? Array(gauges.dropFirst()) : []
 
         return Snapshot(providerID: "cursor", gauges: [primary], extras: extras,
                         accountLabel: planName, fetchedAt: Date())
+    }
+
+    /// Fullest first, and ties broken on the bucket's name.
+    ///
+    /// The buckets come out of a dictionary, whose order differs between
+    /// processes, and Swift's sort is not stable — so two buckets at the same
+    /// percentage produced a different primary gauge on different launches,
+    /// for the same account and the same response. Same reasoning as the glob
+    /// search and first-run detection, both of which break their ties on a
+    /// name.
+    ///
+    /// Callable, because the ordering cannot be checked through the dictionary
+    /// that feeds it: within one process that dictionary yields the same order
+    /// every time, so a test driving it agrees with itself whether ties are
+    /// broken or not. An array is an input a test can actually choose.
+    static func ordered(_ gauges: [Gauge]) -> [Gauge] {
+        gauges.sorted { ($0.used, $1.id) > ($1.used, $0.id) }
     }
 
     private static func percentGauge(id: String, badge: String, title: String,
@@ -180,10 +212,28 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         if let value = doubleValue(usage["billingCycleEnd"]) {
             return FieldPath.epoch(value)
         }
+        // And as a date, which the numeric branches cannot read.
+        //
+        // The endpoint above reports milliseconds, verified against a live Pro
+        // account. Cross-read 2026-09-27 against the tool this app is measured
+        // against, which reads a *different* Cursor endpoint —
+        // `cursor.com/api/usage-summary` — where the same field is an ISO string.
+        // Two endpoints, two formats, and no disagreement; but a string that is
+        // not a number reached both branches above and came back with nothing, so
+        // a reply in that shape showed no reset at all. Accepting it costs a
+        // reply in the verified shape nothing, since a numeric string is taken by
+        // the first branch.
+        if let raw = usage["billingCycleEnd"] as? String {
+            return UsageHTTP.parseDate(raw)
+        }
         return nil
     }
 
     private static func doubleValue(_ raw: Any?) -> Double? {
+        // Before the casts: a boolean is an `NSNumber` and `as? Double` takes it,
+        // so `"totalPercentUsed": true` read as one per cent used and
+        // `"billingCycleEnd": true` as a cycle ending a second after 1970.
+        guard !FieldPath.isBoolean(raw) else { return nil }
         switch raw {
         case let v as Double: return v
         case let v as Int: return Double(v)
@@ -192,10 +242,17 @@ final class CursorProvider: UsageProvider, @unchecked Sendable {
         }
     }
 
+    /// A request count from the response.
+    ///
+    /// `Int(someDouble)` traps on anything outside `Int`'s range and on NaN,
+    /// and every number here came off the network. `1e30` in
+    /// `maxRequestUsage` took the whole app down on SIGTRAP rather than
+    /// reporting a bad response. `exactly:` gives nothing instead, and a
+    /// bucket with no readable maximum is already skipped.
     private static func intValue(_ raw: Any?) -> Int? {
         switch raw {
         case let v as Int: return v
-        case let v as Double: return Int(v)
+        case let v as Double: return Int(exactly: v.rounded())
         default: return nil
         }
     }

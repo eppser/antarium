@@ -18,6 +18,10 @@ enum Fmt {
     }
 
     static func duration(_ seconds: TimeInterval) -> String {
+        // The same trap as its siblings in `Format`, which is where the bound
+        // and the reasoning live. These two files hold near-identical
+        // duration logic; sharing the guard is the part that matters.
+        guard Format.canDisplay(seconds) else { return "—" }
         if seconds < 3600 { return "\(max(1, Int(seconds / 60)))m" }
         if seconds < 86_400 { return String(format: "%.1fh", seconds / 3600) }
         return "\(Int(seconds / 86_400))d"

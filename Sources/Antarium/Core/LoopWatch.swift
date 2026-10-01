@@ -49,7 +49,12 @@ enum LoopWatch {
         guard isLooping(wakeAt: wakeAt, stopped: stopped, now: now), let wakeAt else { return nil }
         let seconds = wakeAt.timeIntervalSince(now)
         guard seconds > 30 else { return "looping" }
-        if seconds < 3600 { return "loops in \(Int((seconds / 60).rounded()))m" }
+        // The unit is chosen after rounding, not before. Choosing it first
+        // and rounding second says "loops in 60m" for anything from 59½
+        // minutes up — a whole half-minute band where the row reads as a
+        // number no clock shows.
+        let minutes = Int((seconds / 60).rounded())
+        if seconds < 3600, minutes < 60 { return "loops in \(minutes)m" }
         return "loops in \(Int((seconds / 3600).rounded()))h"
     }
 }

@@ -13,8 +13,37 @@ enum HarnessCompatibility {
     }
 
     struct Snapshot: Codable, Equatable {
+        /// Every field that differs, named, so an author is told what to fix
+        /// rather than handed two structures to compare by eye.
+        ///
+        /// Driven from the encoded form rather than a written-out list of
+        /// properties: a field added to this struct and forgotten here would
+        /// be a difference that reports itself as no difference at all.
+        static func differences(expected: Snapshot, actual: Snapshot) -> [String] {
+            func fields(_ value: Snapshot) -> [String: Any] {
+                (try? JSONEncoder().encode(value))
+                    .flatMap { try? JSONSerialization.jsonObject(with: $0) }
+                    as? [String: Any] ?? [:]
+            }
+            let left = fields(expected), right = fields(actual)
+            return Set(left.keys).union(right.keys).sorted().compactMap { key in
+                let want = left[key], got = right[key]
+                func text(_ value: Any?) -> String {
+                    guard let value, !(value is NSNull) else { return "absent" }
+                    return String(describing: value)
+                }
+                return text(want) == text(got) ? nil : "\(key) \(text(got)) ≠ \(text(want))"
+            }
+        }
+
         var sessions: Int
         var sessionID: String?
+        /// What a click would use to raise this session. Absent for a harness
+        /// that does not own its windows; verified for the ones that do,
+        /// because a focus mapping that resolves to nothing fails silently —
+        /// the row simply falls back to raising the application, and looks
+        /// like it worked.
+        var focusTarget: String?
         var cwd: String?
         var title: String?
         var model: String?
@@ -22,7 +51,17 @@ enum HarnessCompatibility {
         var outputTokens: Int
         var cacheRead: Int
         var cacheWrite: Int
-        var contextTokens: Int
+        var contextTokens: Int?
+        /// A harness that reports one running count rather than a breakdown.
+        ///
+        /// `map.totalTokens` has been a descriptor key since the day a
+        /// harness needed it, and until Mistral no shipped descriptor used
+        /// one — so nothing ever put a figure in this field, and the fixture
+        /// snapshot never grew a place to check it. A mutation that pointed
+        /// the key at a field the payload does not have survived, because
+        /// there was nothing in the expectation to disagree with. Optional so
+        /// every existing fixture still decodes with it absent.
+        var totalTokens: Int?
         var contextWindow: Int?
         var toolCalls: Int
         var turns: Int
@@ -33,6 +72,7 @@ enum HarnessCompatibility {
             let first = sessions.first
             return Snapshot(sessions: sessions.count,
                             sessionID: first?.sessionID,
+                            focusTarget: first?.focusTarget,
                             cwd: first?.cwd,
                             title: first?.title,
                             model: first?.model,
@@ -40,7 +80,8 @@ enum HarnessCompatibility {
                             outputTokens: first?.outputTokens ?? 0,
                             cacheRead: first?.cacheRead ?? 0,
                             cacheWrite: first?.cacheWrite ?? 0,
-                            contextTokens: first?.contextTokens ?? 0,
+                            contextTokens: first?.contextTokens ?? nil,
+                            totalTokens: first?.totalTokens,
                             contextWindow: first?.contextWindow,
                             toolCalls: first?.toolCalls ?? 0,
                             turns: first?.turns ?? 0,
@@ -63,20 +104,29 @@ enum HarnessCompatibility {
         let expected: Snapshot
     }
 
-    static func verifyFixture(_ descriptor: HarnessDescriptor, in bundle: Bundle) -> Report {
+    /// `beside` is the folder the descriptor itself was read from, for a
+    /// harness that is not in the app. A fixture declared by somebody's own
+    /// descriptor lives next to it; looking only in the bundle meant the
+    /// declaration could not be honoured or questioned, so a file claiming
+    /// `fixtureVerified` with its fixture sitting right there was checked
+    /// against nothing.
+    static func verifyFixture(_ descriptor: HarnessDescriptor, in bundle: Bundle,
+                              beside: URL? = nil) -> Report {
         let fixtureStamp = descriptor.compatibility?.fixture
-            .flatMap { resource($0, in: bundle) }
+            .flatMap { resource($0, in: bundle, beside: beside) }
             .map(FileStamp.of) ?? ""
         let encoded = (try? JSONEncoder().encode(descriptor)).map { Data($0).base64EncodedString() }
             ?? descriptor.id
-        let key = "\(encoded)|\(fixtureStamp)"
+        // The folder is part of the key: the same descriptor read from two
+        // places can resolve to two different fixtures.
+        let key = "\(encoded)|\(fixtureStamp)|\(beside?.path ?? "")"
         cacheLock.lock()
         if let report = cachedReports[key] {
             cacheLock.unlock()
             return report
         }
         cacheLock.unlock()
-        let report = verifyFixtureUncached(descriptor, in: bundle)
+        let report = verifyFixtureUncached(descriptor, in: bundle, beside: beside)
         cacheLock.lock()
         cachedReports[key] = report
         cacheLock.unlock()
@@ -84,7 +134,8 @@ enum HarnessCompatibility {
     }
 
     private static func verifyFixtureUncached(_ descriptor: HarnessDescriptor,
-                                              in bundle: Bundle) -> Report {
+                                              in bundle: Bundle,
+                                              beside: URL? = nil) -> Report {
         guard let declaration = descriptor.compatibility else {
             return Report(status: .experimental, detail: "no compatibility evidence declared",
                           verifiedAt: nil, expected: nil, actual: nil)
@@ -94,7 +145,7 @@ enum HarnessCompatibility {
                           detail: "no executable fixture declared",
                           verifiedAt: declaration.verifiedAt, expected: nil, actual: nil)
         }
-        guard let fixtureURL = resource(fixturePath, in: bundle),
+        guard let fixtureURL = resource(fixturePath, in: bundle, beside: beside),
               let data = try? Data(contentsOf: fixtureURL),
               let fixture = try? JSONDecoder().decode(Fixture.self, from: data) else {
             return Report(status: .incompatible, detail: "fixture missing or unreadable: \(fixturePath)",
@@ -105,7 +156,14 @@ enum HarnessCompatibility {
             .appendingPathComponent("antarium-fixture-\(descriptor.id)-\(UUID().uuidString)")
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: root) }
+            defer {
+                try? FileManager.default.removeItem(at: root)
+                // The tree is gone; what was read from it must go too. The
+                // parsed-file cache is keyed partly by path and never evicts,
+                // so leaving these behind would hold a session per fixture
+                // file for the life of the process.
+                HarnessEngine.forget(under: root, id: descriptor.id)
+            }
             for (relative, contents) in fixture.files ?? [:] {
                 let file = root.appendingPathComponent(relative)
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(),
@@ -116,7 +174,19 @@ enum HarnessCompatibility {
             var object = try JSONSerialization.jsonObject(
                 with: JSONEncoder().encode(descriptor)) as? [String: Any] ?? [:]
             var source = object["source"] as? [String: Any] ?? [:]
-            if descriptor.source.kind == .sqlite {
+            if descriptor.source.kind == .command {
+                // A command harness reads a tool's live output. Replaying it
+                // means running that tool, which needs it installed — and the
+                // whole point of a fixture is that nothing has to be. The
+                // command is replaced with one that prints the recorded reply,
+                // so the mapping, the records path and the field paths are all
+                // exercised exactly as they would be against the real thing.
+                guard let name = (fixture.files ?? [:]).keys.sorted().first else {
+                    throw FixtureError.sqlite("a command fixture needs a recorded reply in `files`")
+                }
+                source["command"] = "/bin/cat"
+                source["args"] = [root.appendingPathComponent(name).path]
+            } else if descriptor.source.kind == .sqlite {
                 let databaseURL = root.appendingPathComponent("fixture.sqlite")
                 var database: OpaquePointer?
                 guard sqlite3_open(databaseURL.path, &database) == SQLITE_OK,
@@ -135,15 +205,44 @@ enum HarnessCompatibility {
             } else {
                 source["path"] = root.path
             }
+            // A rewritten path has no relocation to honour. `source.relocate`
+            // names the prefix an agent's own variable replaces on a real
+            // machine; this path is a temporary tree that deliberately is not
+            // that prefix, so the declaration could only either do nothing or —
+            // as the validator rightly said when it was left in — refuse the
+            // document for naming a prefix the path does not have.
+            source["relocate"] = nil
             object["source"] = source
             object["id"] = "\(descriptor.id)-fixture-\(UUID().uuidString)"
             let configured = try HarnessDocument.decode(
                 JSONSerialization.data(withJSONObject: object)).descriptor
-            HarnessEngine.resetCaches(includingParsedFiles: true)
+            // No cache reset here. It cleared every harness's sessions and
+            // every parsed file, and the settings panel verifies one fixture
+            // per harness row — so opening Settings emptied the scan cache
+            // once per row and made the next scan cold, on a machine with
+            // twenty-five of them.
+            //
+            // It was standing in for a collision that cannot happen. The
+            // engine keys its cache by descriptor id, and the fixture run
+            // uses the id of the harness it is checking, which looks like
+            // exactly that collision — but the entry is guarded by a
+            // fingerprint that includes the descriptor, and the fixture run
+            // rewrites `source.path` to a temporary tree of its own. The
+            // fingerprints differ, so the real entry is never returned here
+            // and nothing written here is ever returned to a real scan. A
+            // test holds that directly now.
             let actual = Snapshot.capture(HarnessEngine.sessions(configured))
             let passed = actual == fixture.expected
+            // Which fields differ, not merely that some do. "fixture values
+            // differ" sends an author to compare two structures by eye; the
+            // quota verifier beside this one has always named them, and the
+            // information was already here in `expected` and `actual`.
+            let detail = passed ? "fixture passed"
+                : "fixture values differ: "
+                    + Snapshot.differences(expected: fixture.expected, actual: actual)
+                        .joined(separator: "; ")
             return Report(status: passed ? .fixtureVerified : .incompatible,
-                          detail: passed ? "fixture passed" : "fixture values differ",
+                          detail: detail,
                           verifiedAt: declaration.verifiedAt,
                           expected: fixture.expected, actual: actual)
         } catch {
@@ -162,25 +261,48 @@ enum HarnessCompatibility {
         case .none: return false
         case .command:
             guard let command = descriptor.source.command else { return false }
+            // A bare name is taken on trust here: this asks whether the source
+            // *can* be inspected, and `--check` is what confirms it.
             return command.contains("/")
-                ? FileManager.default.isExecutableFile(atPath: command.expandingTilde)
+                ? CommandPath.resolve(command) != nil
                 : true
         case .sqlite:
-            return FileManager.default.fileExists(atPath: descriptor.source.path.expandingTilde)
+            return FileManager.default.fileExists(atPath: descriptor.source.resolvedPath)
         case .json, .jsonl:
             var directory: ObjCBool = false
-            return FileManager.default.fileExists(atPath: descriptor.source.path.expandingTilde,
+            return FileManager.default.fileExists(atPath: descriptor.source.resolvedPath,
                                                   isDirectory: &directory) && directory.boolValue
         }
     }
 
-    private static func resource(_ path: String, in bundle: Bundle) -> URL? {
+    /// The bundle first, then the folder the descriptor came from.
+    ///
+    /// The bundle first so a shipped descriptor cannot be made to read a
+    /// fixture from somewhere else by putting a file beside it, and the
+    /// folder second so a harness that is not in the app can declare one at
+    /// all. The name is taken as a name: a path that climbs out of that
+    /// folder is not resolved, because a fixture is a file the author put
+    /// next to their descriptor and nothing else.
+    private static func resource(_ path: String, in bundle: Bundle,
+                                 beside: URL? = nil) -> URL? {
         let value = path as NSString
         let directory = value.deletingLastPathComponent
         let name = value.lastPathComponent as NSString
-        return bundle.url(forResource: name.deletingPathExtension,
-                          withExtension: name.pathExtension,
-                          subdirectory: directory.isEmpty ? nil : directory)
+        if let found = bundle.url(forResource: name.deletingPathExtension,
+                                  withExtension: name.pathExtension,
+                                  subdirectory: directory.isEmpty ? nil : directory) {
+            return found
+        }
+        // Neither of these can change an answer, and both are written out
+        // anyway. The name above is already only the last component, so a
+        // declared path cannot climb out of the folder however it is spelled
+        // — and a candidate that does not exist fails to read a line later
+        // and is reported as missing either way. They state the rule where
+        // somebody changing `name` would have to read it, and have no
+        // catalogue entries, because a mutation of either survives.
+        guard let beside, !path.contains(".."), !path.hasPrefix("/") else { return nil }
+        let candidate = beside.appendingPathComponent(name as String)
+        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
     }
 
     private enum FixtureError: Swift.Error, LocalizedError {

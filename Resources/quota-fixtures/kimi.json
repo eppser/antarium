@@ -1,0 +1,536 @@
+{
+  "note": "Synthetic. Shape follows the Connect-RPC billing reply the kimi.com code console calls: usages[] keyed by scope, detail carrying limit/used/remaining as strings beside an ISO resetTime, and limits[] carrying rate windows identified by window.duration and window.timeUnit. The vendor publishes no schema for it; the shape is read from the implementation of the tool this app is measured against, and the note on the harness says so and when. Every figure here is invented, and the plan sizes are not evidence of any real tier.",
+  "verifiedAt": "2026-09-26",
+  "cases": [
+    {
+      "name": "both windows, counts stated as strings",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CHAT",
+            "detail": {
+              "limit": "100",
+              "used": "99",
+              "remaining": "1",
+              "resetTime": "2026-10-03T00:00:00Z"
+            }
+          },
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "512",
+              "remaining": "1536",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "100",
+                  "remaining": "300",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              },
+              {
+                "window": {
+                  "duration": 7,
+                  "timeUnit": "TIME_UNIT_DAY"
+                },
+                "detail": {
+                  "limit": "2048",
+                  "used": "512",
+                  "remaining": "1536",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the other scope's allowance is not added to this one",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CHAT",
+            "detail": {
+              "limit": "100000",
+              "used": "100000",
+              "remaining": "0",
+              "resetTime": "2026-10-03T00:00:00Z"
+            }
+          },
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "512",
+              "remaining": "1536",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "100",
+                  "remaining": "300",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a used count absent is derived from what remains",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "remaining": "1536",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "remaining": "300",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a remaining count absent leaves the used one to speak",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "512",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "100",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the five-hour window is found by its length, not its position",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "0",
+              "remaining": "2048",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 7,
+                  "timeUnit": "TIME_UNIT_DAY"
+                },
+                "detail": {
+                  "limit": "2048",
+                  "used": "0",
+                  "remaining": "2048",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              },
+              {
+                "window": {
+                  "duration": 1,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "60",
+                  "used": "60",
+                  "remaining": "0",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              },
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "200",
+                  "remaining": "200",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 0.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 50.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a spent plan is full, not empty",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "2048",
+              "remaining": "0",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "400",
+                  "remaining": "0",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 100.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 100.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a fresh plan is nought used, not absent",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "0",
+              "remaining": "2048",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "0",
+                  "remaining": "400",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 0.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 0.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "no five-hour window reported leaves the weekly one alone",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "512",
+              "remaining": "1536",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 7,
+                  "timeUnit": "TIME_UNIT_DAY"
+                },
+                "detail": {
+                  "limit": "2048",
+                  "used": "512",
+                  "remaining": "1536",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a reply with no coding scope reports nothing",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CHAT",
+            "detail": {
+              "limit": "100",
+              "used": "10",
+              "remaining": "90",
+              "resetTime": "2026-10-03T00:00:00Z"
+            }
+          }
+        ]
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply with no usages at all reports nothing",
+      "response": {
+        "usages": []
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a window stating no limit is absent, not divided by nought",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "0",
+              "used": "0",
+              "remaining": "0",
+              "resetTime": "2026-10-03T00:00:00Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "0",
+                  "used": "0",
+                  "remaining": "0",
+                  "resetTime": "2026-09-26T18:00:00Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reset stated with fractional seconds is read to the same instant",
+      "response": {
+        "usages": [
+          {
+            "scope": "FEATURE_CODING",
+            "detail": {
+              "limit": "2048",
+              "used": "512",
+              "remaining": "1536",
+              "resetTime": "2026-10-03T00:00:00.123Z"
+            },
+            "limits": [
+              {
+                "window": {
+                  "duration": 300,
+                  "timeUnit": "TIME_UNIT_MINUTE"
+                },
+                "detail": {
+                  "limit": "400",
+                  "used": "100",
+                  "remaining": "300",
+                  "resetTime": "2026-09-26T18:00:00.456Z"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "detail",
+            "badge": "WK",
+            "title": "Weekly",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "limits[window.duration=300,window.timeUnit=TIME_UNIT_MINUTE].detail",
+            "badge": "5H",
+            "title": "5-hour",
+            "usedPercent": 25.0,
+            "resetsAt": "2026-09-26T18:00:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}

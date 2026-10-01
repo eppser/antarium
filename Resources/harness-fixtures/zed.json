@@ -1,8 +1,16 @@
 {
   "setupSQL": "CREATE TABLE sidebar_threads (folder_paths TEXT, title_override TEXT, title TEXT, created_at INTEGER, updated_at INTEGER, interacted_at INTEGER, agent_id TEXT, archived INTEGER); INSERT INTO sidebar_threads VALUES ('/fixture/zed','Zed task','',1787652000,1787652060,1787652050,'',0);",
   "expected": {
-    "sessions": 1, "cwd": "/fixture/zed", "title": "Zed task",
-    "inputTokens": 0, "outputTokens": 0, "cacheRead": 0, "cacheWrite": 0,
-    "contextTokens": 0, "toolCalls": 0, "turns": 0, "subAgents": 0, "costUSD": 0
+    "sessions": 1,
+    "cwd": "/fixture/zed",
+    "title": "Zed task",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0
   }
 }

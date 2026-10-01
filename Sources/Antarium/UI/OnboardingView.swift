@@ -9,7 +9,12 @@ struct OnboardingView: View {
     var onDone: () -> Void
 
     private var detected: [Onboarding.Finding] { harnesses.filter(\.found) }
-    private var missing: [Onboarding.Finding] { harnesses.filter { !$0.found } }
+    private var here: [Onboarding.Finding] { harnesses.filter { !$0.found && $0.installedUnused } }
+    private var missing: [Onboarding.Finding] {
+        harnesses.filter { !$0.found && !$0.installedUnused }
+    }
+    private var signedIn: [Onboarding.Finding] { Onboarding.partition(accounts).signedIn }
+    private var connectable: [Onboarding.Finding] { Onboarding.partition(accounts).connectable }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -30,11 +35,38 @@ struct OnboardingView: View {
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }
-                if !accounts.isEmpty {
-                    group("Quota") { ForEach(accounts) { row($0) } }
+                if !signedIn.isEmpty {
+                    group("Quota") { ForEach(signedIn) { row($0) } }
+                }
+                // Eighteen providers ship, and on most Macs a few are signed in.
+                // Listing the rest as unchecked rows with a setup hint each
+                // filled the panel with things the user has not got, under a
+                // heading that says Antarium is ready. They are named, once,
+                // and Settings is where they get switched on.
+                if !connectable.isEmpty {
+                    Text((signedIn.isEmpty ? "Quota available for: " : "Also connectable: ")
+                         + connectable.map(\.name).joined(separator: ", "))
+                        .font(.system(size: 10)).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                let workspaces = Onboarding.workspaces().filter(\.found)
+                if !workspaces.isEmpty {
+                    Text("Workspace: " + workspaces.map(\.name).joined(separator: ", ")
+                         + " — clicking a session opens its pane there")
+                        .font(.system(size: 10)).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !here.isEmpty {
+                    Text("Installed, nothing run yet: "
+                         + here.map(\.name).joined(separator: ", "))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 if !missing.isEmpty {
-                    Text("Also supported, not installed here: "
+                    // "No trace" rather than "not installed": a miss on both
+                    // the session store and the command proves neither, since
+                    // several of these ship as applications rather than
+                    // commands on PATH.
+                    Text("Also supported, \(Onboarding.absent): "
                          + missing.map(\.name).joined(separator: ", "))
                         .font(.system(size: 10)).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -60,13 +92,22 @@ struct OnboardingView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var summary: String {
-        let n = detected.count
-        guard let sessions else {
-            return "Found \(n) agent\(n == 1 ? "" : "s") on this Mac. Counting sessions…"
-        }
-        if sessions == 0 { return "Found \(n) agent\(n == 1 ? "" : "s"). Nothing running right now." }
-        return "Found \(n) agent\(n == 1 ? "" : "s") and \(sessions) running "
+    private var summary: String { Self.summary(agents: detected.count, sessions: sessions) }
+
+    /// The first sentence this app ever shows, and three different statements
+    /// rather than one with a number in it.
+    ///
+    /// A count still being gathered, a count that came back nought, and a count
+    /// that came back are three facts, and saying "0 running sessions" for the
+    /// first would claim a measurement that has not happened. Callable because
+    /// it was a private computed property, which meant nothing could reach any
+    /// of the three — including the plural agreement, on the one screen where a
+    /// user reads every word.
+    static func summary(agents: Int, sessions: Int?) -> String {
+        let found = "Found \(agents) agent\(agents == 1 ? "" : "s")"
+        guard let sessions else { return "\(found) on this Mac. Counting sessions…" }
+        if sessions == 0 { return "\(found). Nothing running right now." }
+        return "\(found) and \(sessions) running "
             + "session\(sessions == 1 ? "" : "s"), including any launched through ACP."
     }
 

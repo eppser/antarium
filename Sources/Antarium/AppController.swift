@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// Coordinates one `AgentItem` per enabled agent.
 ///
@@ -15,9 +16,27 @@ final class AppController: NSObject {
 
     func start() {
         Config.migrateFromUserDefaults()
+        // Before anything is seeded into it: the settings directory holds
+        // credentials now, and every local account on a Mac is in `staff`.
+        // The settings panel shows this too. Logged as well because a
+        // launch is when it starts mattering, and a log is what somebody
+        // reads afterwards to work out why nothing was being saved.
+        if let issue = Config.issue { Log.warn("config", issue) }
+        // Secured in main.swift now, before any entry point reads the
+        // folder — the app was the only one doing it, and a folder that
+        // already existed stayed open through every command.
         // Ship the harnesses into the folder people actually edit, and keep
         // untouched ones current. Runs before anything reads them.
         HarnessDescriptor.seed()
+        // Nothing is shown by default any more: the first launch that finds no
+        // recorded choice picks the agents this Mac actually has. Must follow
+        // the seed, or descriptor-contributed providers would not exist yet.
+        let providers = ProviderRegistry.all
+        if AgentAutoEnable.applyIfNeeded(providers: providers) == nil {
+            // A choice exists, so it stands — except for agents that did not
+            // exist when it was made, which the user has never been asked about.
+            AgentAutoEnable.adoptNewProviders(providers: providers)
+        }
         rebuildItems()
         // Warm the agent picture in the background so the dashboard opens full.
         AgentStore.shared.onRowsChanged = { [weak self] rows in
@@ -48,22 +67,51 @@ final class AppController: NSObject {
 
     /// First launch only: show what was detected, ask nothing.
     private var onboardingPanel: NSPanel?
+    private var onboardingHosting: NSHostingView<OnboardingView>?
 
     func showOnboardingIfNeeded() {
         guard !Onboarding.hasRun else { return }
         let panel = PanelChrome.makePanel()
         onboardingPanel = panel
         let providers = items.map(\.provider)
-        let view = OnboardingView(
-            harnesses: Onboarding.harnesses(),
-            accounts: Onboarding.accounts(providers),
-            sessions: AgentStore.shared.rows.isEmpty ? nil : AgentStore.shared.rows.count,
-            onDone: { [weak self] in
-                Onboarding.complete()
-                self?.onboardingPanel?.orderOut(nil)
-                self?.onboardingPanel = nil
-            })
+        let harnesses = Onboarding.harnesses()
+        let accounts = Onboarding.accounts(providers)
+        func screen(sessions: Int?) -> OnboardingView {
+            OnboardingView(
+                harnesses: harnesses, accounts: accounts, sessions: sessions,
+                onDone: { [weak self] in
+                    Onboarding.complete()
+                    self?.onboardingPanel?.orderOut(nil)
+                    self?.onboardingPanel = nil
+                    self?.onboardingHosting = nil
+                })
+        }
+        // The first scan is dispatched, not awaited, so at this moment there
+        // are no rows and the screen says "Counting sessions…". It said that
+        // for as long as the panel was open: an ellipsis is a promise, and
+        // nothing was keeping it. The count arrives a few hundred
+        // milliseconds later and the screen is redrawn with it.
+        let view = screen(sessions: AgentStore.shared.rows.isEmpty
+                              ? nil : AgentStore.shared.rows.count)
+        let previousRowsChanged = AgentStore.shared.onRowsChanged
+        AgentStore.shared.onRowsChanged = { [weak self] rows in
+            previousRowsChanged?(rows)
+            guard let self, self.onboardingPanel != nil else {
+                // The panel is gone; hand the callback back to whoever had it.
+                AgentStore.shared.onRowsChanged = previousRowsChanged
+                return
+            }
+            guard let hosting = self.onboardingHosting else { return }
+            hosting.rootView = screen(sessions: rows.count)
+            // Resized with it. The line that arrives is longer than the one
+            // it replaces — "Counting sessions…" becomes a sentence with a
+            // number and a clause in it — and a panel sized for the shorter
+            // text clips the taller one.
+            hosting.layoutSubtreeIfNeeded()
+            self.onboardingPanel?.setContentSize(hosting.fittingSize)
+        }
         let hosting = PanelChrome.host(view, in: panel)
+        onboardingHosting = hosting
         hosting.layoutSubtreeIfNeeded()
         panel.setContentSize(hosting.fittingSize)
         panel.center()
@@ -100,21 +148,64 @@ final class AppController: NSObject {
 
     /// Adds and removes items to match the enabled set, leaving untouched
     /// agents alone so their readings and menu bar positions survive.
+    /// What has to change for the items to match the enabled set.
+    ///
+    /// Pure, because disposing an item is not what stops it working: the
+    /// coordinator ticks everything in `items` once a minute, so an item
+    /// disposed and left in the list goes on fetching — contacting the
+    /// service and sending its credential — with no menu bar item to show
+    /// for it. Removing it from the list is the part that matters and the
+    /// part that had no test.
+    static func membership(current: [String], wanted: [String])
+        -> (remove: [String], add: [String]) {
+        let wantedSet = Set(wanted), currentSet = Set(current)
+        return (current.filter { !wantedSet.contains($0) },
+                wanted.filter { !currentSet.contains($0) })
+    }
+
+    /// Menu bar order follows the registry, so items keep the same
+    /// left-to-right positions between launches rather than the order the
+    /// user happened to switch them on in.
+    ///
+    /// An id the registry does not know used to fall back to index 0, which
+    /// put it at the *front* — ahead of every agent the registry does know.
+    /// It also tied there with the first provider and with every other
+    /// unknown id, and Swift's sort is not stable, so a tie is an order that
+    /// changes between launches with nothing about the machine having
+    /// changed. That is the one thing this function exists to prevent.
+    ///
+    /// Reachable because `ProviderRegistry.all` is computed and re-reads the
+    /// descriptor folder, and `rebuildItems` reads it twice — once for the
+    /// items it wants, once for this order. A harness file edited between the
+    /// two leaves an item the second read no longer knows.
+    ///
+    /// Unknown goes last, and the id breaks the remaining ties so the order
+    /// is total. Same shape as the dashboard's sorts, which fell through to
+    /// status and recency for exactly this reason.
+    static func ordered(_ ids: [String], by registry: [String]) -> [String] {
+        ids.sorted {
+            let a = registry.firstIndex(of: $0) ?? registry.count
+            let b = registry.firstIndex(of: $1) ?? registry.count
+            return a == b ? $0 < $1 : a < b
+        }
+    }
+
     private func rebuildItems() {
         let wanted = ProviderRegistry.enabled
-        let wantedIDs = Set(wanted.map(\.id))
+        let change = Self.membership(current: items.map(\.provider.id),
+                                     wanted: wanted.map(\.id))
+        let removing = Set(change.remove)
 
-        for item in items where !wantedIDs.contains(item.provider.id) { item.dispose() }
-        items.removeAll { !wantedIDs.contains($0.provider.id) }
+        for item in items where removing.contains(item.provider.id) { item.dispose() }
+        items.removeAll { removing.contains($0.provider.id) }
 
-        for provider in wanted where !items.contains(where: { $0.provider.id == provider.id }) {
+        let adding = Set(change.add)
+        for provider in wanted where adding.contains(provider.id) {
             items.append(AgentItem(provider: provider, coordinator: self))
         }
-        // Keep registry order so the row reads consistently.
-        items.sort { a, b in
-            let order = ProviderRegistry.all.map(\.id)
-            return (order.firstIndex(of: a.provider.id) ?? 0) < (order.firstIndex(of: b.provider.id) ?? 0)
-        }
+        let order = Self.ordered(items.map(\.provider.id), by: ProviderRegistry.all.map(\.id))
+        items.sort { (order.firstIndex(of: $0.provider.id) ?? order.count)
+                   < (order.firstIndex(of: $1.provider.id) ?? order.count) }
     }
 
 
@@ -132,7 +223,13 @@ final class AppController: NSObject {
 
     func intervalChanged() { items.forEach { $0.intervalChanged() } }
 
-    @objc private func didWake() { items.forEach { $0.refresh(reason: .wake) } }
+    /// Both readings, not one. The gauges refreshed on wake from the first
+    /// version of this; the rows did not, and stale rows beside current
+    /// gauges is a worse answer than both arriving a moment late.
+    @objc private func didWake() {
+        items.forEach { $0.refresh(reason: .wake) }
+        AgentStore.shared.wake()
+    }
 
     /// Dynamic colours are baked in at draw time, so a theme or display change
     /// needs an explicit redraw.

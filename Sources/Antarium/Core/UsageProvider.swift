@@ -22,10 +22,22 @@ protocol UsageProvider: AnyObject, Sendable {
     /// the credential is the thing that failed. Nil where re-authenticating is
     /// not a command the user can run.
     var signInCommand: String? { get }
+    /// The environment variable this agent uses to move its own data
+    /// directory, where it has one.
+    ///
+    /// Declared so the two halves of an agent can be held against each other.
+    /// `CodexProvider` honoured `CODEX_HOME` and the codex harness read
+    /// `~/.codex/sessions` regardless, so a relocated home showed the account's
+    /// quota and none of its sessions — each half correct on its own terms, and
+    /// nothing anywhere comparing them. `NativeRelocationTests` compares them
+    /// now, so the next one is caught when it is written rather than by somebody
+    /// moving a directory.
+    var relocationVariable: String? { get }
 }
 
 extension UsageProvider {
     var signInCommand: String? { nil }
+    var relocationVariable: String? { nil }
 }
 
 enum ProviderRegistry {
@@ -39,6 +51,16 @@ enum ProviderRegistry {
         ClaudeCodeProvider(),
         CodexProvider(),
         CursorProvider(),
+        // Gemini's access token lasts about an hour and refreshing it means
+        // writing the result back, which is control flow rather than a field
+        // path. See GeminiProvider.
+        GeminiProvider(),
+        // Amp reports in text rather than JSON, which a descriptor cannot map.
+        AmpProvider(),
+        KiroProvider(),
+        // Grok's credential file is keyed by issuer and client, and its token
+        // expires with no CLI that reissues it. See GrokProvider.
+        GrokProvider(),
     ]
 
     /// Providers contributed as config. Built once and kept, so a provider's
@@ -61,6 +83,12 @@ enum ProviderRegistry {
         let taken = Set(native.map(\.id))
         var added: [UsageProvider] = []
         var live = Set<String>()
+        // Each provider owns a URLSession, and a session holds its delegate
+        // until it is invalidated — so one that is replaced or dropped has to
+        // be told, or editing a harness file grows the app a session at a
+        // time. Collected here and released after the lock, because releasing
+        // takes another one.
+        var doomed: [DescriptorProvider] = []
         for descriptor in descriptors
         where descriptor.quota != nil && !taken.contains(descriptor.id) {
             live.insert(descriptor.id)
@@ -71,17 +99,26 @@ enum ProviderRegistry {
                cached.signature == signature {
                 provider = cached.provider
             } else {
+                if let replaced = fromDescriptors[descriptor.id]?.provider {
+                    doomed.append(replaced)
+                }
                 provider = DescriptorProvider(descriptor)
                 if let provider {
                     fromDescriptors[descriptor.id] = (signature, provider)
+                } else {
+                    fromDescriptors.removeValue(forKey: descriptor.id)
                 }
             }
             lock.unlock()
             if let provider { added.append(provider) }
         }
         lock.lock()
+        for (id, cached) in fromDescriptors where !live.contains(id) {
+            doomed.append(cached.provider)
+        }
         fromDescriptors = fromDescriptors.filter { live.contains($0.key) }
         lock.unlock()
+        for provider in doomed { provider.releaseSession() }
         return added.sorted { $0.id < $1.id }
     }
 
@@ -99,11 +136,34 @@ enum ProviderRegistry {
 
     static func provider(id: String) -> UsageProvider? { all.first { $0.id == id } }
 
+    /// The providers written in Swift, by id.
+    ///
+    /// `all` is these plus whatever the descriptor folder currently holds,
+    /// which makes it a fact about the machine it is read on rather than
+    /// about what ships. A test asking "does this app read a usage API for
+    /// X" has to ask of the bundle, or it answers about the tester's own
+    /// seeded folder — and passes there while failing on a fresh Mac.
+    static var nativeIDs: [String] { native.map(\.id) }
+
+    /// The native providers, for tests that must ask them something other than
+    /// their id. Not used by the app, which goes through `all`.
+    static var nativeProviders: [UsageProvider] { native }
+
     /// Agents shown in the menu bar, in registry order so the items keep a
     /// stable left-to-right ordering between launches.
-    static var enabled: [UsageProvider] {
-        let on = Settings.enabledAgents
-        let result = all.filter { on.contains($0.id) }
-        return result.isEmpty ? [all[0]] : result
+    static var enabled: [UsageProvider] { shown(from: all, enabled: Settings.enabledAgents) }
+
+    /// The choice applied to a registry, with the empty case handled.
+    ///
+    /// A recorded choice can name only agents that no longer exist — an id
+    /// renamed, a descriptor deleted — and filtering on it would then leave no
+    /// menu bar items at all, which is the only way back into the app. The
+    /// first provider stands in. Separated from `enabled` so that rule is
+    /// testable without writing anybody's settings, and so the `all[0]` that
+    /// used to be written inline cannot trap on an empty registry.
+    static func shown(from providers: [UsageProvider], enabled: Set<String>) -> [UsageProvider] {
+        let result = providers.filter { enabled.contains($0.id) }
+        if !result.isEmpty { return result }
+        return providers.first.map { [$0] } ?? []
     }
 }

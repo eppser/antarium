@@ -1,0 +1,80 @@
+{
+  "note": "Synthetic. Shape follows OpenRouter's documented credits payload \u2014 data.total_credits and data.total_usage. Every value is invented.",
+  "verifiedAt": "2026-09-21",
+  "cases": [
+    {
+      "name": "a quarter spent",
+      "response": {
+        "data": {
+          "total_credits": 100.0,
+          "total_usage": 25.0
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "credits",
+            "badge": "CR",
+            "title": "Credits",
+            "usedPercent": 25
+          }
+        ]
+      }
+    },
+    {
+      "name": "a fresh top-up spends nothing",
+      "response": {
+        "data": {
+          "total_credits": 50.0,
+          "total_usage": 0.0
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "credits",
+            "badge": "CR",
+            "title": "Credits",
+            "usedPercent": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "credits exhausted",
+      "response": {
+        "data": {
+          "total_credits": 40.0,
+          "total_usage": 40.0
+        }
+      },
+      "expected": {
+        "gauges": [
+          {
+            "id": "credits",
+            "badge": "CR",
+            "title": "Credits",
+            "usedPercent": 100
+          }
+        ]
+      }
+    },
+    {
+      "name": "an account that has never added credits is not zero per cent",
+      "response": {
+        "data": {
+          "total_credits": 0.0,
+          "total_usage": 0.0
+        }
+      },
+      "expectError": "unsupported"
+    },
+    {
+      "name": "a reply missing the figures reports nothing",
+      "response": {
+        "data": {}
+      },
+      "expectError": "unsupported"
+    }
+  ]
+}

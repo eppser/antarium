@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "id": "minimax-cn",
+  "name": "MiniMax (China)",
+  "note": "Quota only, and the same coding plan `minimax` reads on MiniMax's other region. Cross-read 2026-09-27 against ClaudeBar's MiniMaxRegion.swift: it offers international and China as a picker — api.minimax.io against api.minimaxi.com, platform.minimax.io against platform.minimaxi.com — and builds the identical /v1/api/openplatform/coding_plan/remains path onto each, so the response shape is the one that descriptor already maps and this file repeats it field for field. The endpoint is published nowhere; checked 2026-09-27, platform.minimaxi.com publishes no reference for this call any more than platform.minimax.io does, which is what the minimax note records for the other region. The meter reads the same way and the same inversion applies: current_interval_usage_count is what *remains*, not what was spent. What separates the two descriptors is which key file exists. MINIMAX_API_KEY is the variable MiniMax documents and belongs to the international descriptor alone; this one reads only ~/.antarium/keys/minimax-cn, so a user with that variable set does not get a second China gauge reporting against a region their key is not for. A user with accounts in both regions puts a key in each file and gets a gauge for each, which is two accounts rather than one counted twice; the same key in both files would chart one account twice, and that is visible on the row rather than silent. This replaces an instruction to edit `quota.endpoint` by hand: a second key file is a thing a user can do without opening JSON, and the note that told them to is the kind of promise nothing could keep for them. verified is false: no figure here has been read against a live plan in either region.",
+  "process": {},
+  "compatibility": {
+    "level": "declared",
+    "note": "Mapping repeats the MiniMax descriptor field for field against the same response shape; neither the numbers nor this region have been confirmed against a live plan."
+  },
+  "source": {
+    "kind": "none",
+    "path": ""
+  },
+  "quota": {
+    "endpoint": "https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains",
+    "credential": {
+      "kind": "textFile",
+      "path": "~/.antarium/keys/minimax-cn"
+    },
+    "needsAuthWhen": {
+      "base_resp.status_code": "1004"
+    },
+    "headers": {
+      "Authorization": "Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "Antarium"
+    },
+    "windows": {
+      "list": "model_remains",
+      "key": [
+        "model_name"
+      ],
+      "limit": "current_interval_total_count",
+      "resetsAt": "end_time",
+      "badges": {
+        "minimax-m2": "M2",
+        "minimax-m1": "M1",
+        "MiniMax-M2": "M2",
+        "MiniMax-M1": "M1"
+      },
+      "labels": {
+        "minimax-m2": "M2",
+        "minimax-m1": "M1",
+        "MiniMax-M2": "M2",
+        "MiniMax-M1": "M1"
+      },
+      "remaining": "current_interval_usage_count"
+    },
+    "setupHint": "Put your China-region key in ~/.antarium/keys/minimax-cn",
+    "verified": false,
+    "checkedAt": "2026-09-27"
+  }
+}

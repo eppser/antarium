@@ -1,0 +1,22 @@
+{
+  "files": {
+    "reply.json": "{\"id\": \"fixture\", \"result\": {\"type\": \"snapshot\", \"snapshot\": {\"protocol\": 1, \"version\": \"fixture\", \"focused_pane_id\": \"w1:p1\", \"focused_tab_id\": \"w1:t1\", \"focused_workspace_id\": \"w1\", \"agents\": [{\"agent\": \"claude\", \"agent_session\": {\"source\": \"herdr:claude\", \"agent\": \"claude\", \"kind\": \"id\", \"value\": \"11111111-2222-3333-4444-555555555555\"}, \"agent_status\": \"busy\", \"cwd\": \"/projects/sample\", \"focused\": true, \"foreground_cwd\": \"/projects/sample\", \"pane_id\": \"w1:p1\", \"tab_id\": \"w1:t1\", \"terminal_title\": \"* Sample project\", \"terminal_title_stripped\": \"Sample project\", \"workspace_id\": \"w1\"}, {\"agent\": \"codex\", \"agent_session\": {\"source\": \"herdr:codex\", \"agent\": \"codex\", \"kind\": \"id\", \"value\": \"66666666-7777-8888-9999-000000000000\"}, \"agent_status\": \"idle\", \"cwd\": \"/projects/other\", \"focused\": false, \"foreground_cwd\": \"/projects/other\", \"pane_id\": \"w1:p2\", \"tab_id\": \"w1:t2\", \"terminal_title\": \"Other project\", \"terminal_title_stripped\": \"Other project\", \"workspace_id\": \"w1\"}], \"panes\": [], \"tabs\": [], \"workspaces\": [], \"layouts\": []}}}"
+  },
+  "expected": {
+    "sessions": 2,
+    "sessionID": "11111111-2222-3333-4444-555555555555",
+    "focusTarget": "w1:t1",
+    "cwd": "/projects/sample",
+    "title": "Sample project",
+    "model": null,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "contextWindow": null,
+    "toolCalls": 0,
+    "turns": 0,
+    "subAgents": 0,
+    "costUSD": 0
+  }
+}
