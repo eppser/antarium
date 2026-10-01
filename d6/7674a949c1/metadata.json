@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.8.0",
+  "checkpoint_id": "d67674a949c1",
+  "strategy": "manual-commit",
+  "branch": "perf-process-cache",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "Sources/Antarium/Core/AgentScan.swift",
+    "Sources/Antarium/Core/HarnessCatalog.swift",
+    "Sources/Antarium/Core/HarnessDescriptor.swift",
+    "Sources/Antarium/Core/Processes.swift",
+    "Tests/AntariumTests/ProcessMemoTests.swift",
+    "mutations.txt"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d6/7674a949c1/0/metadata.json",
+      "transcript": "/d6/7674a949c1/0/full.jsonl",
+      "compact_transcript": "/d6/7674a949c1/0/transcript.jsonl",
+      "content_hash": "/d6/7674a949c1/0/content_hash.txt",
+      "prompt": "/d6/7674a949c1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 136,
+    "cache_creation_tokens": 281658,
+    "cache_read_tokens": 17636093,
+    "output_tokens": 40544,
+    "api_call_count": 66
+  }
+}

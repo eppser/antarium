@@ -1,0 +1,27 @@
+Continue: finish PR #6 review fixes (mutation run results), then rewrite README on readme-demo branch honoring test constraints, run ./test.sh, strict-concurrency build, ./build.sh, push and open PR.
+
+---
+
+Continue: finish PR #6 review fixes (mutation run results), then rewrite README on readme-demo branch honoring test constraints, run ./test.sh, strict-concurrency build, ./build.sh, push and open PR.
+
+---
+
+merge all and push to github
+
+---
+
+can you run a performance testt o assess how muzch CPU and memory its using
+
+---
+
+can you apply the second performance check and merge, push to github once done. before that give me 10 variations for one liner how to advertize the project on x for this to go viral
+
+---
+
+<task-notification>
+<task-id>bmit4puxe</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-se-shared-antarium-Antarium/e2429d87-e52c-4e73-82e8-0f717c758576/tasks/bmit4puxe.output</output-file>
+<status>completed</status>
+<summary>Background command "Interleaved A/B idle CPU measurement" completed (exit code 0)</summary>
+</task-notification>
